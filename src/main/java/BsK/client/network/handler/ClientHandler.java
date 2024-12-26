@@ -1,5 +1,6 @@
 package BsK.client.network.handler;
 
+import BsK.client.ui.handler.UIHandler;
 import BsK.common.packet.Packet;
 import BsK.common.packet.PacketSerializer;
 import BsK.common.packet.req.LoginRequest;
@@ -18,6 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class ClientHandler extends SimpleChannelInboundHandler<TextWebSocketFrame> {
+  public static final ClientHandler INSTANCE = new ClientHandler();
 
   @Override
   protected void channelRead0(ChannelHandlerContext ctx, TextWebSocketFrame frame) {
@@ -26,6 +28,7 @@ public class ClientHandler extends SimpleChannelInboundHandler<TextWebSocketFram
     switch (packet) {
       case HandshakeCompleteResponse handshakeCompleteResponse -> {
         log.info("Handshake complete");
+        UIHandler.INSTANCE.onPacket(packet);
         break;
       }
       case ErrorResponse response -> {
@@ -36,8 +39,9 @@ public class ClientHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         }
       }
       case LoginSuccessResponse loginSuccessResponse -> {
-        int id = loginSuccessResponse.getId();
-        log.info("Received login success response", id);
+        UIHandler.INSTANCE.onPacket(packet);
+        // int id = loginSuccessResponse.getId();
+        // log.info("Received login success response", id);
       }
       case null, default -> log.warn("Unknown message: {}", frame.text());
     }
