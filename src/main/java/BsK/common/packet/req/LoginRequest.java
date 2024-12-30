@@ -8,6 +8,7 @@ import java.time.LocalDateTime;
 
 @AllArgsConstructor
 @Data
+
 public class LoginRequest implements Packet {
   String username;
   String password;

@@ -10,7 +10,11 @@ public class ErrorResponse implements Packet {
 
   Error error;
 
-  public enum Error {
+    public String getError() {
+        return error.toString();
+    }
+
+    public enum Error {
     SUCCESS,
     UNKNOWN,
     USERNAME_NOT_FOUND,

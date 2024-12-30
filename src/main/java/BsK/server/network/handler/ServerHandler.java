@@ -13,7 +13,7 @@ import BsK.common.packet.res.LoginSuccessResponse;
 import BsK.common.util.network.NetworkUtil;
 import BsK.server.database.entity.Patient;
 import BsK.server.database.entity.Patient.Sex;
-import BsK.server.network.manager.UserManager;
+import BsK.server.network.manager.SessionManager;
 import BsK.server.network.util.UserUtil;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
@@ -32,17 +32,19 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
   protected void channelRead0(ChannelHandlerContext ctx, TextWebSocketFrame frame) {
     log.debug("Received message: {}", frame.text());
     Packet packet = PacketSerializer.GSON.fromJson(frame.text(), Packet.class);
+
+
     if (packet instanceof LoginRequest loginRequest) {
       log.debug(
           "Received login request: {}, {}", loginRequest.getUsername(), loginRequest.getPassword());
-      var user = UserManager.getUserByChannel(ctx.channel());
+      var user = SessionManager.getUserByChannel(ctx.channel().id().asLongText());
       user.authenticate(loginRequest.getUsername(), loginRequest.getPassword());
 
       if (user.isAuthenticated()) {
-        log.info("User {} authenticated, role {}", user.getId(), user.getRole());
-        UserUtil.sendPacket(user.getId(), new LoginSuccessResponse(user.getId(), user.getRole()));
+        UserUtil.sendPacket(user.getSessionId(), new LoginSuccessResponse(user.getUserId(), user.getRole()));
+        log.info("Send response to client User {} authenticated, role {}", user.getUserId(), user.getRole());
       } else {
-        log.info("User {} failed to authenticate", user.getId());
+        log.info("User {} failed to authenticate", user.getUserId());
       }
     } else if (packet instanceof RegisterRequest registerRequest) {
       log.debug(
@@ -57,11 +59,12 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
       }
     } else {
       // Gia su packet nay can verify la user da login
-      var user = UserManager.getUserByChannel(ctx.channel());
+      var user = SessionManager.getUserByChannel(ctx.channel().id().asLongText());
       if (!user.isAuthenticated()) {
         log.warn("Received packet from unauthenticated user: {}", packet);
         return;
       }
+
 
       switch (packet) {
         case GetPatientInfoReq getPatientInfoReq -> {
@@ -69,7 +72,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
               new Patient(getPatientInfoReq.getPatientId(), new Date(1999, 01, 01), "test",
                   Sex.MALE);
           var response = new GetPatientInfoRes(patientInfo);
-          UserUtil.sendPacket(user.getId(), response);
+          UserUtil.sendPacket(user.getUserId(), response);
         }
         case null, default -> log.warn("Received unknown packet: {}", packet);
       }
@@ -79,7 +82,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
   @Override
   public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
     if (cause instanceof IOException) {
-      UserManager.onUserDisconnect(ctx.channel());
+      SessionManager.onUserDisconnect(ctx.channel());
     } else {
       log.error("ERROR: ", cause);
     }
@@ -90,16 +93,16 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
     if (evt instanceof IdleStateEvent event) {
       if (event.state() == IdleState.READER_IDLE) {
         try {
-          UserManager.onUserDisconnect(ctx.channel());
+          SessionManager.onUserDisconnect(ctx.channel());
           ctx.channel().close();
         } catch (Exception e) {
         }
       }
     } else if (evt instanceof HandshakeComplete) {
-      int userId = UserManager.onUserLogin(ctx.channel());
-      log.info("User {} logged in", userId);
+      int SessionId = SessionManager.onUserLogin(ctx.channel());
+      log.info("Session {} logged in", SessionId);
 
-      UserUtil.sendPacket(userId, new HandshakeCompleteResponse());
+      UserUtil.sendPacket(SessionId, new HandshakeCompleteResponse());
     } else {
       super.userEventTriggered(ctx, evt);
     }

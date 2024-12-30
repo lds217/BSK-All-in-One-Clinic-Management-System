@@ -1,5 +1,6 @@
 package BsK.client.network.handler;
 
+
 import BsK.client.ui.handler.UIHandler;
 import BsK.common.packet.Packet;
 import BsK.common.packet.PacketSerializer;
@@ -14,34 +15,83 @@ import io.netty.handler.codec.http.websocketx.*;
 import io.netty.handler.timeout.IdleState;
 import io.netty.handler.timeout.IdleStateEvent;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import lombok.extern.slf4j.Slf4j;
+import org.w3c.dom.Text;
 
 @Slf4j
 public class ClientHandler extends SimpleChannelInboundHandler<TextWebSocketFrame> {
   public static ChannelHandlerContext ctx;
+  public static TextWebSocketFrame frame;
   public static final ClientHandler INSTANCE = new ClientHandler();
+
+  private static final Map<Class<?>, List<ResponseListener<?>>> listeners = new HashMap<>();
+
+  public static <T> void addResponseListener(Class<T> responseType, ResponseListener<T> listener) {
+    listeners.computeIfAbsent(responseType, k -> new ArrayList<>()).add(listener);
+  }
+
+  public static <T> void removeResponseListener(Class<T> responseType, ResponseListener<T> listener) {
+    var listenerList = listeners.get(responseType);
+    if (listenerList != null) {
+      listenerList.remove(listener);
+    }
+  }
+
+//  @Override
+//  protected void channelRead0(ChannelHandlerContext ctx, TextWebSocketFrame frame) {
+//    log.debug("Received message: {}", frame.text());
+//    var packet = PacketSerializer.GSON.fromJson(frame.text(), Packet.class);
+//    switch (packet) {
+//      case HandshakeCompleteResponse handshakeCompleteResponse -> {
+//        log.info("Handshake complete");
+//        this.ctx = ctx;
+//        this.frame = frame;
+//      }
+//      case ErrorResponse response -> {
+//        log.error("Received error response: {}", response.getError());
+//        switch (response.getError()) {
+//          case USER_ALREADY_EXISTS -> log.error("User already exists");
+//          default -> log.error("Received error response: {}", response.getError());
+//        }
+//      }
+//      case null, default -> log.warn("Unknown message: {}", frame.text());
+//    }
+//  }
+
   @Override
   protected void channelRead0(ChannelHandlerContext ctx, TextWebSocketFrame frame) {
     log.debug("Received message: {}", frame.text());
     var packet = PacketSerializer.GSON.fromJson(frame.text(), Packet.class);
-    switch (packet) {
-      case HandshakeCompleteResponse handshakeCompleteResponse -> {
+
+    if (packet != null) {
+      // Handle HandshakeCompleteResponse to initialize ctx and frame
+      if (packet instanceof HandshakeCompleteResponse handshakeResponse) {
         log.info("Handshake complete");
-        this.ctx = ctx;
-//        var login = new LoginRequest("user", "user");
-//        NetworkUtil.sendPacket(ctx.channel(), login);
+        ClientHandler.ctx = ctx;
+        ClientHandler.frame = frame;
+        return; // No further processing needed for handshake response
       }
-      case ErrorResponse response -> {
-        log.error("Received error response: {}", response.getError());
-        switch (response.getError()) {
-          case USER_ALREADY_EXISTS -> log.error("User already exists");
-          default -> log.error("Received error response: {}", response.getError());
+
+
+      // Process other packets
+      List<ResponseListener<?>> responseListeners = listeners.get(packet.getClass());
+      if (responseListeners != null) {
+        for (ResponseListener<?> listener : responseListeners) {
+          notifyListener(listener, packet);
         }
+      } else {
+        log.warn("No listeners registered for response type: {}", packet.getClass().getName());
       }
-      case LoginSuccessResponse loginSuccessResponse -> log.info("Received login success response");
-      case null, default -> log.warn("Unknown message: {}", frame.text());
+    } else {
+      log.warn("Unknown or null packet received: {}", frame.text());
     }
   }
+
 
   @Override
   public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
@@ -60,4 +110,14 @@ public class ClientHandler extends SimpleChannelInboundHandler<TextWebSocketFram
       System.exit(0);
     }
   }
+
+  @SuppressWarnings("unchecked")
+  private <T> void notifyListener(ResponseListener<?> listener, T response) {
+    try {
+      ((ResponseListener<T>) listener).onResponse(response);
+    } catch (ClassCastException e) {
+      log.error("Listener type mismatch for response: {}", response.getClass(), e);
+    }
+  }
+
 }
