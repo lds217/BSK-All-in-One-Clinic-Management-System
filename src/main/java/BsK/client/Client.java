@@ -62,7 +62,9 @@ public class Client {
                 log.info("Connecting to {}:{}", serverAddress, port);
                 Channel channel = bootstrap.connect(serverAddress, port).sync().channel();
                 channel.closeFuture().sync();
-            } catch (InterruptedException e) {
+
+            } catch (Exception e) {
+
                 throw new RuntimeException(e);
             } finally {
                 try {
@@ -74,6 +76,6 @@ public class Client {
         });
         thread.start();
 
-        UIHandler.INSTANCE.showUI();
+
     }
 }

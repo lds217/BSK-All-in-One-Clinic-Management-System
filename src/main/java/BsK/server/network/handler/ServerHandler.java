@@ -42,9 +42,10 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
 
       if (user.isAuthenticated()) {
         UserUtil.sendPacket(user.getSessionId(), new LoginSuccessResponse(user.getUserId(), user.getRole()));
-        log.info("Send response to client User {} authenticated, role {}", user.getUserId(), user.getRole());
+        log.info("Send response to client User {} authenticated, role {}, session {}", user.getUserId(), user.getRole(), user.getSessionId());
       } else {
         log.info("User {} failed to authenticate", user.getUserId());
+        UserUtil.sendPacket(user.getSessionId(), new ErrorResponse(Error.INVALID_CREDENTIALS));
       }
     } else if (packet instanceof RegisterRequest registerRequest) {
       log.debug(

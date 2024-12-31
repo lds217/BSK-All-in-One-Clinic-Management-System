@@ -1,5 +1,6 @@
 package BsK.client.ui.component.CheckUpPage;
 
+import BsK.client.LocalStorage;
 import BsK.client.ui.component.MainFrame;
 import BsK.client.ui.component.common.RoundedButtonUI;
 import BsK.client.ui.component.common.RoundedPanel;
@@ -96,7 +97,7 @@ public class CheckUpPage extends JPanel {
         title.setFont(new Font("Arial", Font.BOLD, 18));
         topbar.add(title, BorderLayout.WEST);
 
-        JLabel userInfo = new JLabel("User Name (Admin)");
+        JLabel userInfo = new JLabel("Welcome, " + LocalStorage.username);
         userInfo.setHorizontalAlignment(SwingConstants.RIGHT);
         topbar.add(userInfo, BorderLayout.EAST);
 

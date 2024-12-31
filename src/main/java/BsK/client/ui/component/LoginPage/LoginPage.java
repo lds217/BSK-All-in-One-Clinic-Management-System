@@ -1,5 +1,6 @@
 package BsK.client.ui.component.LoginPage;
 
+import BsK.client.LocalStorage;
 import BsK.client.network.handler.ClientHandler;
 import BsK.client.ui.component.MainFrame;
 import BsK.common.packet.Packet;
@@ -80,7 +81,8 @@ public class LoginPage extends JPanel {
         // Register listeners for login-related responses
         ClientHandler.addResponseListener(LoginSuccessResponse.class, response -> {
             log.info("Login successful, UserId: {}, Role: {}", response.getUserId(), response.getRole());
-            SwingUtilities.invokeLater(() -> mainFrame.showPage("DashboardPage"));
+            LocalStorage.username = loginField.getText();
+            mainFrame.showPage("DashboardPage");
         });
 
         ClientHandler.addResponseListener(ErrorResponse.class, response -> {

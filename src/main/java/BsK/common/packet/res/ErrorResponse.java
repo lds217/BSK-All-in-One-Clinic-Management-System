@@ -19,6 +19,6 @@ public class ErrorResponse implements Packet {
     UNKNOWN,
     USERNAME_NOT_FOUND,
     PASSWORD_INCORRECT,
-    USER_ALREADY_EXISTS,
+    USER_ALREADY_EXISTS,INVALID_CREDENTIALS,
   }
 }

@@ -16,14 +16,13 @@ public class User {
 
   int userId;
   Channel channel;
-  Role role;
-
-    int sessionId;
+  Role role = Role.GUEST;
+  int sessionId;
 
   public User(Channel channel, int sessionId) {
     this.channel = channel;
     this.sessionId = sessionId;
-    Role role = Role.GUEST;
+
   }
 
   public void authenticate(String username, String password) {

@@ -24,17 +24,30 @@ public class MainFrame extends JFrame {
 
         // Add pages to the main panel
         mainPanel.add(new LandingPage(this), "LandingPage");
-        mainPanel.add(new LoginPage(this), "LoginPage");
-        mainPanel.add(new RegisterPage(this), "RegisterPage");
-        mainPanel.add(new DashboardPage(this), "DashboardPage");
-        mainPanel.add(new CheckUpPage(this), "CheckUpPage");
 
         add(mainPanel);
     }
 
+//    public void showPage(String pageName) {
+//        cardLayout.show(mainPanel, pageName);
+//    }
+
     public void showPage(String pageName) {
-        cardLayout.show(mainPanel, pageName);
+        try {
+            // Construct the fully qualified class name
+            String className = "BsK.client.ui.component." + pageName + "." + pageName;
+            Class<?> pageClass = Class.forName(className);
+            JPanel newPage = (JPanel) pageClass.getConstructor(MainFrame.class).newInstance(this);
+
+            mainPanel.add(newPage, pageName);
+            mainPanel.remove(0);
+            cardLayout.show(mainPanel, pageName);
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw new IllegalArgumentException("Unable to load page: " + pageName, e);
+        }
     }
+
 
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {

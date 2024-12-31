@@ -42,27 +42,6 @@ public class ClientHandler extends SimpleChannelInboundHandler<TextWebSocketFram
     }
   }
 
-//  @Override
-//  protected void channelRead0(ChannelHandlerContext ctx, TextWebSocketFrame frame) {
-//    log.debug("Received message: {}", frame.text());
-//    var packet = PacketSerializer.GSON.fromJson(frame.text(), Packet.class);
-//    switch (packet) {
-//      case HandshakeCompleteResponse handshakeCompleteResponse -> {
-//        log.info("Handshake complete");
-//        this.ctx = ctx;
-//        this.frame = frame;
-//      }
-//      case ErrorResponse response -> {
-//        log.error("Received error response: {}", response.getError());
-//        switch (response.getError()) {
-//          case USER_ALREADY_EXISTS -> log.error("User already exists");
-//          default -> log.error("Received error response: {}", response.getError());
-//        }
-//      }
-//      case null, default -> log.warn("Unknown message: {}", frame.text());
-//    }
-//  }
-
   @Override
   protected void channelRead0(ChannelHandlerContext ctx, TextWebSocketFrame frame) {
     log.debug("Received message: {}", frame.text());
@@ -74,6 +53,16 @@ public class ClientHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         log.info("Handshake complete");
         ClientHandler.ctx = ctx;
         ClientHandler.frame = frame;
+
+        var Thread = new Thread(() -> {
+          try {
+            UIHandler.INSTANCE.showUI();
+          } catch (Exception e) {
+            throw new RuntimeException(e);
+          }
+        });
+        Thread.start();
+        // When the handshake is complete, the UI is shown
         return; // No further processing needed for handshake response
       }
 
