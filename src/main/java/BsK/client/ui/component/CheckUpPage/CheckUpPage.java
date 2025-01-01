@@ -1,17 +1,49 @@
 package BsK.client.ui.component.CheckUpPage;
 
 import BsK.client.LocalStorage;
+import BsK.client.network.handler.ClientHandler;
 import BsK.client.ui.component.MainFrame;
-import BsK.client.ui.component.common.RoundedButtonUI;
 import BsK.client.ui.component.common.RoundedPanel;
+import BsK.common.packet.req.GetCheckUpQueueRequest;
+import BsK.common.packet.res.ErrorResponse;
+import BsK.common.packet.res.GetCheckUpQueueResponse;
+import BsK.common.packet.res.LoginSuccessResponse;
+import BsK.common.util.network.NetworkUtil;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.swing.*;
 import java.awt.*;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import javax.swing.table.DefaultTableModel;
 
+import static BsK.client.network.handler.ClientHandler.frame;
+
+@Slf4j
 public class CheckUpPage extends JPanel {
-    private boolean debugMode = false; // Enable debug mode
+
+    // update checkup queue
+    private String[][] queue;
+
+    public void updateQueue() {
+
+        ClientHandler.addResponseListener(GetCheckUpQueueResponse.class, response -> {
+            log.info("Received update queue: {}", frame.text());
+        });
+
+        ClientHandler.addResponseListener(ErrorResponse.class, response -> {
+            log.error("Error response: {}", response.getError());
+        });
+
+        NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetCheckUpQueueRequest());
+
+
+    }
 
     public CheckUpPage(MainFrame mainFrame) {
+
+        updateQueue();
+
         setLayout(new BorderLayout());
 
         // Sidebar panel
@@ -27,10 +59,6 @@ public class CheckUpPage extends JPanel {
                 GradientPaint gp = new GradientPaint(0, 0, color1, 0, height, color2);
                 g2d.setPaint(gp);
                 g2d.fillRect(0, 0, width, height);
-
-                if (debugMode) {
-                    drawBoundingBox(g2d, this);
-                }
             }
         };
         sidebar.setBackground(new Color(63, 81, 181));
@@ -80,15 +108,7 @@ public class CheckUpPage extends JPanel {
         sidebarScrollPane.setOpaque(false);
 
         // Topbar panel
-        JPanel topbar = new JPanel() {
-            @Override
-            protected void paintComponent(Graphics g) {
-                super.paintComponent(g);
-                if (debugMode) {
-                    drawBoundingBox((Graphics2D) g, this);
-                }
-            }
-        };
+        JPanel topbar = new JPanel();
         topbar.setLayout(new BorderLayout());
         topbar.setBackground(Color.WHITE);
         topbar.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
@@ -101,39 +121,11 @@ public class CheckUpPage extends JPanel {
         userInfo.setHorizontalAlignment(SwingConstants.RIGHT);
         topbar.add(userInfo, BorderLayout.EAST);
 
-        // Main content panel
-        JPanel mainContent = new JPanel() {
-            @Override
-            protected void paintComponent(Graphics g) {
-                super.paintComponent(g);
-                if (debugMode) {
-                    drawBoundingBox((Graphics2D) g, this);
-                }
-            }
-        };
-        mainContent.setLayout(new BorderLayout());
-        mainContent.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
 
         // Data table inside a RoundedPanel
-        RoundedPanel dataTable1 = new RoundedPanel(20, Color.WHITE, false) {
-            @Override
-            protected void paintComponent(Graphics g) {
-                super.paintComponent(g);
-                if (debugMode) {
-                    drawBoundingBox((Graphics2D) g, this);
-                }
-            }
-        };
+        RoundedPanel leftPanel = new RoundedPanel(20, Color.WHITE, false);
 
-        RoundedPanel dataTable2 = new RoundedPanel(20, Color.WHITE, false) {
-            @Override
-            protected void paintComponent(Graphics g) {
-                super.paintComponent(g);
-                if (debugMode) {
-                    drawBoundingBox((Graphics2D) g, this);
-                }
-            }
-        };
+        RoundedPanel rightPanel = new RoundedPanel(20, Color.WHITE, false);
 
         JLabel titleText1 = new JLabel();
         titleText1.setText("Check Up Queue 1");
@@ -142,78 +134,200 @@ public class CheckUpPage extends JPanel {
         titleText1.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10)); // Padding
 
         JLabel titleText2 = new JLabel();
-        titleText2.setText("Check Up Queue 2");
+        titleText2.setText("Patient Info");
         titleText2.setFont(new Font("Arial", Font.BOLD, 16));
         titleText2.setBackground(Color.WHITE);
         titleText2.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10)); // Padding
 
-        dataTable1.setLayout(new BorderLayout());
-        dataTable1.add(titleText1, BorderLayout.NORTH);
-        dataTable1.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 10)); // Adjust padding for better appearance
+        leftPanel.setLayout(new BorderLayout());
+        leftPanel.add(titleText1, BorderLayout.NORTH);
+        leftPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 10)); // Adjust padding for better appearance
 
-        dataTable2.setLayout(new BorderLayout());
-        dataTable2.add(titleText2, BorderLayout.NORTH);
-        dataTable2.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 10)); // Adjust padding for better appearance
+        rightPanel.setLayout(new BorderLayout());
+        rightPanel.add(titleText2, BorderLayout.NORTH);
+        rightPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 10));
 
-        String[] columns = {"Name", "Gender", "Course"};
+        String[] columns = {"Name", "Gender", "Age"};
         String[][] data = {
-                {"John", "Male", "Java"},
-                {"Dara", "Male", "C++"},
-                {"Bora", "Male", "C#"},
+                {"John", "Male", "20"},
+                {"Dara", "Male", "20"},
+                {"Bora", "Male", "21"},
         };
-        JTable table1 = new JTable(data, columns);
-        JScrollPane tableScroll1 = new JScrollPane(table1);
-        tableScroll1.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10)); // Inner padding
-        dataTable1.add(tableScroll1, BorderLayout.CENTER);
 
-        JTable table2 = new JTable(data, columns);
-        JScrollPane tableScroll2 = new JScrollPane(table2);
-        tableScroll2.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10)); // Inner padding
-        dataTable2.add(tableScroll2, BorderLayout.CENTER);
-
-        UIManager.getDefaults().put("SplitPane.border", BorderFactory.createEmptyBorder()); // Remove border
-        JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, dataTable1, dataTable2);
-        splitPane.setResizeWeight(0.5); // Split
-
-        // Add the split pane to the main content
-        mainContent.add(splitPane, BorderLayout.CENTER);
-        // Notice board
-        JPanel noticeBoard = new RoundedPanel(20, Color.WHITE, false) {
+        DefaultTableModel model = new DefaultTableModel(data, columns) {
             @Override
-            protected void paintComponent(Graphics g) {
-                super.paintComponent(g);
-                if (debugMode) {
-                    drawBoundingBox((Graphics2D) g, this);
-                }
+            public boolean isCellEditable(int row, int column) {
+                return false; // All cells are non-editable
             }
         };
-        noticeBoard.setLayout(new BorderLayout());
-        noticeBoard.setBorder(BorderFactory.createTitledBorder("Notice Board"));
-        noticeBoard.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        JTable table1 = new JTable(model);
 
-        JTextArea noticeText = new JTextArea("04/10/2021\nHidemode Now\n\n03/10/2021\nFurther Reading\n");
-        noticeText.setEditable(false);
-        noticeBoard.add(new JScrollPane(noticeText), BorderLayout.CENTER);
+        // Set preferred size for the table
+        table1.setPreferredScrollableViewportSize(new Dimension(400, 200));
 
-        //mainContent.add(noticeBoard, BorderLayout.EAST);
+        // Customize the font for the table header and cells
+        table1.getTableHeader().setFont(new Font("Arial", Font.BOLD, 14));
+        table1.setFont(new Font("Arial", Font.PLAIN, 12));
+        table1.setRowHeight(25);
 
-        // Adding panels to the frame
+        JScrollPane tableScroll1 = new JScrollPane(table1);
+        tableScroll1.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10)); // Inner padding
+        leftPanel.add(tableScroll1, BorderLayout.CENTER);
+
+        RoundedPanel inputPanel = new RoundedPanel(20, Color.WHITE, false);
+        inputPanel.setLayout(new GridBagLayout());
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(5, 5, 5, 5); // Add some padding between components
+
+        // Username label and text field
+        gbc.gridx = 0;
+        gbc.gridy = 0;
+        gbc.anchor = GridBagConstraints.WEST;
+        inputPanel.add(new JLabel("Username:"), gbc);
+
+        gbc.gridx = 1;
+        JTextField usernameField = new JTextField(10);
+        inputPanel.add(usernameField, gbc);
+
+        // Sex label and option field
+        gbc.gridx = 0;
+        gbc.gridy = 1;
+        inputPanel.add(new JLabel("Sex:"), gbc);
+
+        gbc.gridx = 1;
+        String[] sexOptions = {"Male", "Female"};
+        JComboBox<String> sexComboBox = new JComboBox<>(sexOptions);
+        inputPanel.add(sexComboBox, gbc);
+
+        // Age label and number field
+        gbc.gridx = 0;
+        gbc.gridy = 2;
+        inputPanel.add(new JLabel("Age:"), gbc);
+
+        gbc.gridx = 1;
+        JSpinner ageSpinner = new JSpinner(new SpinnerNumberModel(0, 0, 120, 1));
+        inputPanel.add(ageSpinner, gbc);
+
+
+        table1.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                int selectedRow = table1.getSelectedRow();
+                if (selectedRow != -1) {
+                    // Get the data from the selected row
+                    String name = (String) table1.getValueAt(selectedRow, 0);
+                    String gender = (String) table1.getValueAt(selectedRow, 1);
+                    String age = (String) table1.getValueAt(selectedRow, 2);
+
+                    // Transfer the data to the inputPanel fields
+                    usernameField.setText(name);
+                    sexComboBox.setSelectedItem(gender);
+                    ageSpinner.setValue(Integer.parseInt(age));
+                }
+            }
+        });
+
+        JPanel iconPanel = new JPanel();
+        iconPanel.setLayout(new GridLayout(1, 5));
+        iconPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10)); // Padding
+        iconPanel.setBackground(Color.WHITE);
+        String[] iconName = {"add", "edit", "save", "delete"};
+        for (String name : iconName) {
+            ImageIcon originalIcon = new ImageIcon("src/main/resources/icon/" + name + ".png");
+            Image scaledImage = originalIcon.getImage().getScaledInstance(32, 32, Image.SCALE_SMOOTH); // Resize to 32x32
+            ImageIcon scaledIcon = new ImageIcon(scaledImage);
+            JLabel iconLabel = new JLabel(scaledIcon);
+            iconLabel.setHorizontalAlignment(SwingConstants.CENTER);
+            iconLabel.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            iconLabel.addMouseListener(new MouseAdapter() {
+                @Override
+                public void mouseClicked(MouseEvent e) {
+                    switch (name) {
+                        case "add":
+                            // Add action
+                            JOptionPane.showMessageDialog(null, "Add action triggered");
+                            break;
+                        case "edit":
+                            // Edit action
+                            JOptionPane.showMessageDialog(null, "Edit action triggered");
+                            break;
+                        case "save": {
+                            //Warning message
+                            int option = JOptionPane.showOptionDialog(null, "Do you want to save changes?",
+                                    "Save Changes", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE,
+                                    null, null, null);
+                            if (option == JOptionPane.NO_OPTION) {
+                                return;
+                            }
+                            int selectedRow = table1.getSelectedRow();
+
+                            if (selectedRow != -1) {
+                                // Get the data from the input fields
+                                String name = usernameField.getText();
+                                String gender = (String) sexComboBox.getSelectedItem();
+                                int age = (Integer) ageSpinner.getValue();
+
+                                // Update the data in the selected row
+                                table1.setValueAt(name, selectedRow, 0);
+                                table1.setValueAt(gender, selectedRow, 1);
+                                table1.setValueAt(String.valueOf(age), selectedRow, 2);
+                            } else
+                                JOptionPane.showMessageDialog(null, "Please select a row to save changes");
+                            break;
+                        }
+                        case "delete":
+                            // Delete action
+                            JOptionPane.showMessageDialog(null, "Delete action triggered");
+                            break;
+                        default:
+                            throw new IllegalStateException("Unexpected value: " + name);
+                    }
+                }
+
+                @Override
+                public void mouseEntered(MouseEvent e) {
+                    iconLabel.setBorder(BorderFactory.createLineBorder(Color.BLUE, 2));
+                }
+
+                @Override
+                public void mouseExited(MouseEvent e) {
+                    iconLabel.setBorder(null);
+                }
+            });
+            iconPanel.add(iconLabel);
+        }
+
+        rightPanel.add(inputPanel, BorderLayout.CENTER);
+        rightPanel.add(iconPanel, BorderLayout.SOUTH);
+
+        UIManager.getDefaults().put("SplitPane.border", BorderFactory.createEmptyBorder()); // Remove border
+        JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, leftPanel, rightPanel);
+        splitPane.setResizeWeight(0.5); // Split
+        splitPane.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10)); // Remove border
+
+
         add(sidebarScrollPane, BorderLayout.WEST);
         add(topbar, BorderLayout.NORTH);
-        add(mainContent, BorderLayout.CENTER);
+        add(splitPane , BorderLayout.CENTER);
     }
 
-    private void drawBoundingBox(Graphics2D g2d, JComponent component) {
-        g2d.setColor(Color.RED);
-        g2d.setStroke(new BasicStroke(2));
-        g2d.drawRect(0, 0, component.getWidth() - 1, component.getHeight() - 1);
-    }
 
-    public static void main(String[] args) {
-//        JFrame frame = new JFrame("Dashboard");
-//        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-//        frame.setSize(800, 600);
-//        frame.add(new CheckUpPage();
-//        frame.setVisible(true);
-    }
+
+//    @Override
+//    public void removeNotify() {
+//        super.removeNotify();
+//        // Remove listeners to avoid memory leaks
+//        ClientHandler.removeResponseListener(GetCheckUpQueueResponse.class, this::handleGetCheckUpQueueResponse);
+//        ClientHandler.removeResponseListener(ErrorResponse.class, this::handleErrorResponse);
+//    }
+//
+//    private void handleGetCheckUpQueueResponse(GetCheckUpQueueResponse response) {
+//        log.debug("Received checkup queue: {}", frame.text());
+//    }
+//
+//    private void handleErrorResponse(ErrorResponse response) {
+//        log.error("Error response: {}", response.getError());
+//    }
+
+
 }

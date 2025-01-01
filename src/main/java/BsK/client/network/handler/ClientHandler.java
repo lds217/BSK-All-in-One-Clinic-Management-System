@@ -54,14 +54,8 @@ public class ClientHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         ClientHandler.ctx = ctx;
         ClientHandler.frame = frame;
 
-        var Thread = new Thread(() -> {
-          try {
-            UIHandler.INSTANCE.showUI();
-          } catch (Exception e) {
-            throw new RuntimeException(e);
-          }
-        });
-        Thread.start();
+        
+        UIHandler.INSTANCE.showUI();
         // When the handshake is complete, the UI is shown
         return; // No further processing needed for handshake response
       }

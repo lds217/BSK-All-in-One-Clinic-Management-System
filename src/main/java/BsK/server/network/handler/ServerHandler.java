@@ -2,17 +2,12 @@ package BsK.server.network.handler;
 
 import BsK.common.packet.Packet;
 import BsK.common.packet.PacketSerializer;
-import BsK.common.packet.req.GetPatientInfoReq;
+import BsK.common.packet.req.GetCheckUpQueueRequest;
 import BsK.common.packet.req.LoginRequest;
 import BsK.common.packet.req.RegisterRequest;
-import BsK.common.packet.res.ErrorResponse;
+import BsK.common.packet.res.*;
 import BsK.common.packet.res.ErrorResponse.Error;
-import BsK.common.packet.res.GetPatientInfoRes;
-import BsK.common.packet.res.HandshakeCompleteResponse;
-import BsK.common.packet.res.LoginSuccessResponse;
 import BsK.common.util.network.NetworkUtil;
-import BsK.server.database.entity.Patient;
-import BsK.server.database.entity.Patient.Sex;
 import BsK.server.network.manager.SessionManager;
 import BsK.server.network.util.UserUtil;
 import io.netty.channel.ChannelHandlerContext;
@@ -22,8 +17,13 @@ import io.netty.handler.codec.http.websocketx.WebSocketServerProtocolHandler.Han
 import io.netty.handler.timeout.IdleState;
 import io.netty.handler.timeout.IdleStateEvent;
 import java.io.IOException;
-import java.util.Date;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.ArrayList;
+
 import lombok.extern.slf4j.Slf4j;
+
+import static BsK.server.Server.statement;
 
 @Slf4j
 public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFrame> {
@@ -54,28 +54,64 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
           registerRequest.getPassword());
       // Tạo user trong database hoặc check exist
       boolean isUserExist = false;
-      if (isUserExist) {
-        var errorResponse = new ErrorResponse(Error.USER_ALREADY_EXISTS);
-        NetworkUtil.sendPacket(ctx.channel(), errorResponse);
-      }
     } else {
-      // Gia su packet nay can verify la user da login
+      // Check if user is authenticated
       var user = SessionManager.getUserByChannel(ctx.channel().id().asLongText());
       if (!user.isAuthenticated()) {
         log.warn("Received packet from unauthenticated user: {}", packet);
         return;
       }
 
+      if (packet instanceof GetCheckUpQueueRequest) {
+        log.debug("Received GetCheckUpQueueRequest");
+        try {
+          ResultSet rs = statement.executeQuery(
+                  "select a.checkup_date, c.customer_last_name, c.customer_first_name, " +
+                          "d.doctor_first_name, d.doctor_last_name, a.symptoms, a.diagnosis, a.notes, a.status " +
+                          "from checkup as a " +
+                          "join customer as c on a.customer_id = c.customer_id " +
+                          "join Doctor D on a.doctor_id = D.doctor_id " +
+                          "where a.status = 'PROCESSING' " +
+                          "order by checkup_id"
+          );
 
-      switch (packet) {
-        case GetPatientInfoReq getPatientInfoReq -> {
-          var patientInfo =
-              new Patient(getPatientInfoReq.getPatientId(), new Date(1999, 01, 01), "test",
-                  Sex.MALE);
-          var response = new GetPatientInfoRes(patientInfo);
-          UserUtil.sendPacket(user.getUserId(), response);
+          if (!rs.isBeforeFirst()) {
+            System.out.println("No data found in the checkup table.");
+          } else {
+            ArrayList<String> resultList = new ArrayList<>();
+            while (rs.next()) {
+              String checkupDate = rs.getString("checkup_date");
+              String customerLastName = rs.getString("customer_last_name");
+              String customerFirstName = rs.getString("customer_first_name");
+              String doctorFirstName = rs.getString("doctor_first_name");
+              String doctorLastName = rs.getString("doctor_last_name");
+              String symptoms = rs.getString("symptoms");
+              String diagnosis = rs.getString("diagnosis");
+              String notes = rs.getString("notes");
+              String status = rs.getString("status");
+
+
+              String result = String.join(", ",
+                      checkupDate, customerLastName, customerFirstName,
+                      doctorFirstName, doctorLastName, symptoms,
+                      diagnosis, notes, status
+              );
+
+              resultList.add(result);
+            }
+
+            String[] resultString = resultList.toArray(new String[0]);
+            String[][] resultArray = new String[resultString.length][];
+            for (int i = 0; i < resultString.length; i++) {
+              resultArray[i] = resultString[i].split(", ");
+            }
+
+            UserUtil.sendPacket(user.getSessionId(), new GetCheckUpQueueResponse(resultArray));
+
+          }
+        } catch (SQLException e) {
+          throw new RuntimeException(e);
         }
-        case null, default -> log.warn("Received unknown packet: {}", packet);
       }
     }
   }

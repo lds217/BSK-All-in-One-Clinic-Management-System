@@ -78,7 +78,7 @@ public class LoginPage extends JPanel {
             NetworkUtil.sendPacket(ClientHandler.ctx.channel(), loginRequest);
         });
 
-        // Register listeners for login-related responses
+
         ClientHandler.addResponseListener(LoginSuccessResponse.class, response -> {
             log.info("Login successful, UserId: {}, Role: {}", response.getUserId(), response.getRole());
             LocalStorage.username = loginField.getText();

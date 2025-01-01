@@ -33,7 +33,7 @@ public class User {
           } else {
               while(rs.next())
               {
-                  log.info(rs.getString("name") + " logged in");
+                  log.info(rs.getString("user_name") + " logged in");
                   role = Role.valueOf(rs.getString("role_name"));
                   userId = rs.getInt("user_id");
               }
