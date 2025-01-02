@@ -129,12 +129,8 @@ public class CheckUpPage extends JPanel {
         leftPanel.add(titleText1, BorderLayout.NORTH);
         leftPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 10)); // Adjust padding for better appearance
 
-        rightPanel.setLayout(new GridBagLayout());
-        GridBagConstraints gbcRightPanel = new GridBagConstraints();
-        gbcRightPanel.insets = new Insets(5, 5, 5, 5);
-        gbcRightPanel.gridx = 0;
-        gbcRightPanel.gridy = 0;
-        rightPanel.add(titleText2, gbcRightPanel);
+        rightPanel.setLayout(new BorderLayout());
+        rightPanel.add(titleText2, BorderLayout.NORTH);
         rightPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 10));
 
         String[] columns = {"Ngày Tháng", "Họ", "Tên", "Tên BS", "Họ BS", "Triệu chứng", "Chẩn đoán", "Ghi chú", "Trạng thái"};
@@ -172,7 +168,7 @@ public class CheckUpPage extends JPanel {
         inputPanel.add(new JLabel("Ngày tháng:"), gbc);
 
         gbc.gridx = 1;
-        JTextField usernameField = new JTextField(10);
+        JTextField usernameField = new JTextField(20);
         inputPanel.add(usernameField, gbc);
 
         // Sex label and option field
@@ -181,7 +177,7 @@ public class CheckUpPage extends JPanel {
         inputPanel.add(new JLabel("Họ"), gbc);
 
         gbc.gridx = 1;
-        JTextField customerLastNameField = new JTextField(10);
+        JTextField customerLastNameField = new JTextField(20);
         inputPanel.add(customerLastNameField, gbc);
 
         gbc.gridx = 0;
@@ -189,7 +185,7 @@ public class CheckUpPage extends JPanel {
         inputPanel.add(new JLabel("Tên"), gbc);
 
         gbc.gridx = 1;
-        JTextField customerFirstNameField = new JTextField(10);
+        JTextField customerFirstNameField = new JTextField(20);
         inputPanel.add(customerFirstNameField, gbc);
 
         gbc.gridx = 0;
@@ -197,7 +193,7 @@ public class CheckUpPage extends JPanel {
         inputPanel.add(new JLabel("Tên BS"), gbc);
 
         gbc.gridx = 1;
-        JTextField doctorFirstNameField = new JTextField(10);
+        JTextField doctorFirstNameField = new JTextField(20);
         inputPanel.add(doctorFirstNameField, gbc);
 
         gbc.gridx = 0;
@@ -205,7 +201,7 @@ public class CheckUpPage extends JPanel {
         inputPanel.add(new JLabel("Họ BS"), gbc);
 
         gbc.gridx = 1;
-        JTextField doctorLastNameField = new JTextField(10);
+        JTextField doctorLastNameField = new JTextField(20);
         inputPanel.add(doctorLastNameField, gbc);
 
         gbc.gridx = 0;
@@ -213,7 +209,7 @@ public class CheckUpPage extends JPanel {
         inputPanel.add(new JLabel("Triệu chứng"), gbc);
 
         gbc.gridx = 1;
-        JTextField symptomsField = new JTextField(10);
+        JTextField symptomsField = new JTextField(20);
         inputPanel.add(symptomsField, gbc);
 
         gbc.gridx = 0;
@@ -221,7 +217,7 @@ public class CheckUpPage extends JPanel {
         inputPanel.add(new JLabel("Chẩn đoán"), gbc);
 
         gbc.gridx = 1;
-        JTextField diagnosisField = new JTextField(10);
+        JTextField diagnosisField = new JTextField(20);
         inputPanel.add(diagnosisField, gbc);
 
         gbc.gridx = 0;
@@ -229,7 +225,7 @@ public class CheckUpPage extends JPanel {
         inputPanel.add(new JLabel("Ghi chú"), gbc);
 
         gbc.gridx = 1;
-        JTextField notesField = new JTextField(10);
+        JTextField notesField = new JTextField(20);
         inputPanel.add(notesField, gbc);
 
         gbc.gridx = 0;
@@ -237,10 +233,9 @@ public class CheckUpPage extends JPanel {
         inputPanel.add(new JLabel("Trạng thái"), gbc);
 
         gbc.gridx = 1;
-        JTextField statusField = new JTextField(10);
-        inputPanel.add(statusField, gbc);
-
-        gbc.fill = GridBagConstraints.HORIZONTAL;
+        String[] statusOptions = {"PROCESSING", "NOT", "DONE"};
+        JComboBox<String> statusComboBox = new JComboBox<>(statusOptions);
+        inputPanel.add(statusComboBox, gbc);
 
 
         table1.addMouseListener(new MouseAdapter() {
@@ -266,8 +261,7 @@ public class CheckUpPage extends JPanel {
                     symptomsField.setText(symptoms);
                     diagnosisField.setText(diagnosis);
                     notesField.setText(notes);
-                    statusField.setText(status);
-
+                    statusComboBox.setSelectedItem(status);
                 }
             }
         });
@@ -328,10 +322,8 @@ public class CheckUpPage extends JPanel {
             iconPanel.add(iconLabel);
         }
 
-        gbcRightPanel.gridy++;
-        rightPanel.add(inputPanel, gbcRightPanel);
-        gbcRightPanel.gridy++;
-        rightPanel.add(iconPanel, gbcRightPanel);
+        rightPanel.add(inputPanel, BorderLayout.CENTER);
+        rightPanel.add(iconPanel, BorderLayout.SOUTH);
 
         UIManager.getDefaults().put("SplitPane.border", BorderFactory.createEmptyBorder()); // Remove border
         JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, leftPanel, rightPanel);

@@ -20,6 +20,7 @@ import java.io.IOException;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 
@@ -86,7 +87,8 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
               long checkupDateLong = Long.parseLong(checkupDate);
               Timestamp timestamp = new Timestamp(checkupDateLong);
               Date date = new Date(timestamp.getTime());
-              checkupDate = date.toString();
+              SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy");
+              checkupDate = sdf.format(date);
               String customerLastName = rs.getString("customer_last_name");
               String customerFirstName = rs.getString("customer_first_name");
               String doctorFirstName = rs.getString("doctor_first_name");
