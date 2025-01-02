@@ -24,7 +24,7 @@ public class MainFrame extends JFrame {
 
         // Add pages to the main panel
         mainPanel.add(new LandingPage(this), "LandingPage");
-        // mainPanel.add(new CheckUpPage(this), "CheckUpPage");
+//        mainPanel.add(new CheckUpPage(this), "CheckUpPage");
 
         add(mainPanel);
     }

@@ -7,44 +7,33 @@ import BsK.client.ui.component.common.RoundedPanel;
 import BsK.common.packet.req.GetCheckUpQueueRequest;
 import BsK.common.packet.res.ErrorResponse;
 import BsK.common.packet.res.GetCheckUpQueueResponse;
-import BsK.common.packet.res.LoginSuccessResponse;
 import BsK.common.util.network.NetworkUtil;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.swing.*;
+import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
-import javax.swing.table.DefaultTableModel;
-
-import static BsK.client.network.handler.ClientHandler.frame;
 
 @Slf4j
 public class CheckUpPage extends JPanel {
 
-    // update checkup queue
     private String[][] queue;
+    private DefaultTableModel model;
+    private JTable table1;
 
     public void updateQueue() {
-
-        ClientHandler.addResponseListener(GetCheckUpQueueResponse.class, response -> {
-            log.info("Received update queue: {}", frame.text());
-        });
-
-        ClientHandler.addResponseListener(ErrorResponse.class, response -> {
-            log.error("Error response: {}", response.getError());
-        });
+        ClientHandler.addResponseListener(GetCheckUpQueueResponse.class, this::handleGetCheckUpQueueResponse);
+        ClientHandler.addResponseListener(ErrorResponse.class, this::handleErrorResponse);
 
         NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetCheckUpQueueRequest());
-
-
     }
 
     public CheckUpPage(MainFrame mainFrame) {
+        setLayout(new BorderLayout());
 
         updateQueue();
-
-        setLayout(new BorderLayout());
 
         // Sidebar panel
         JPanel sidebar = new JPanel() {
@@ -65,9 +54,9 @@ public class CheckUpPage extends JPanel {
         sidebar.setLayout(new GridLayout(15, 1));
         sidebar.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
 
-        String[] sidebarItems = {"Thống kê","Thăm khám", "Dữ liệu bệnh nhân", "Kho", "Người dùng", "Thông tin"};
-        String[] destination = {"DashboardPage","CheckUpPage", "PatientDataPage", "InventoryPage", "UserPage", "InfoPage"};
-        for(int i = 0; i < sidebarItems.length; i++) {
+        String[] sidebarItems = {"Thống kê", "Thăm khám", "Dữ liệu bệnh nhân", "Kho", "Người dùng", "Thông tin"};
+        String[] destination = {"DashboardPage", "CheckUpPage", "PatientDataPage", "InventoryPage", "UserPage", "InfoPage"};
+        for (int i = 0; i < sidebarItems.length; i++) {
             String item = sidebarItems[i];
             String dest = destination[i];
             JLabel label = new JLabel(item);
@@ -82,7 +71,6 @@ public class CheckUpPage extends JPanel {
                 public void mouseClicked(java.awt.event.MouseEvent e) {
                     // Handle the click event
                     mainFrame.showPage(dest);
-                    //  JOptionPane.showMessageDialog(null, item + " clicked!");
                 }
 
                 @Override
@@ -121,10 +109,8 @@ public class CheckUpPage extends JPanel {
         userInfo.setHorizontalAlignment(SwingConstants.RIGHT);
         topbar.add(userInfo, BorderLayout.EAST);
 
-
         // Data table inside a RoundedPanel
         RoundedPanel leftPanel = new RoundedPanel(20, Color.WHITE, false);
-
         RoundedPanel rightPanel = new RoundedPanel(20, Color.WHITE, false);
 
         JLabel titleText1 = new JLabel();
@@ -143,24 +129,24 @@ public class CheckUpPage extends JPanel {
         leftPanel.add(titleText1, BorderLayout.NORTH);
         leftPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 10)); // Adjust padding for better appearance
 
-        rightPanel.setLayout(new BorderLayout());
-        rightPanel.add(titleText2, BorderLayout.NORTH);
+        rightPanel.setLayout(new GridBagLayout());
+        GridBagConstraints gbcRightPanel = new GridBagConstraints();
+        gbcRightPanel.insets = new Insets(5, 5, 5, 5);
+        gbcRightPanel.gridx = 0;
+        gbcRightPanel.gridy = 0;
+        rightPanel.add(titleText2, gbcRightPanel);
         rightPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 10));
 
-        String[] columns = {"Name", "Gender", "Age"};
-        String[][] data = {
-                {"John", "Male", "20"},
-                {"Dara", "Male", "20"},
-                {"Bora", "Male", "21"},
-        };
+        String[] columns = {"Ngày Tháng", "Họ", "Tên", "Tên BS", "Họ BS", "Triệu chứng", "Chẩn đoán", "Ghi chú", "Trạng thái"};
+        this.queue = new String[][]{}; // Initialize with empty data
 
-        DefaultTableModel model = new DefaultTableModel(data, columns) {
+        model = new DefaultTableModel(this.queue, columns) {
             @Override
             public boolean isCellEditable(int row, int column) {
                 return false; // All cells are non-editable
             }
         };
-        JTable table1 = new JTable(model);
+        table1 = new JTable(model);
 
         // Set preferred size for the table
         table1.setPreferredScrollableViewportSize(new Dimension(400, 200));
@@ -173,7 +159,7 @@ public class CheckUpPage extends JPanel {
         JScrollPane tableScroll1 = new JScrollPane(table1);
         tableScroll1.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10)); // Inner padding
         leftPanel.add(tableScroll1, BorderLayout.CENTER);
-
+        // "Ngày Tháng", "Họ", "Tên", "Ten BS", "Họ BS", "Triệu chứng", "Chẩn đoán", "Ghi chú", "Trạng thái"
         RoundedPanel inputPanel = new RoundedPanel(20, Color.WHITE, false);
         inputPanel.setLayout(new GridBagLayout());
         GridBagConstraints gbc = new GridBagConstraints();
@@ -183,7 +169,7 @@ public class CheckUpPage extends JPanel {
         gbc.gridx = 0;
         gbc.gridy = 0;
         gbc.anchor = GridBagConstraints.WEST;
-        inputPanel.add(new JLabel("Username:"), gbc);
+        inputPanel.add(new JLabel("Ngày tháng:"), gbc);
 
         gbc.gridx = 1;
         JTextField usernameField = new JTextField(10);
@@ -191,22 +177,70 @@ public class CheckUpPage extends JPanel {
 
         // Sex label and option field
         gbc.gridx = 0;
-        gbc.gridy = 1;
-        inputPanel.add(new JLabel("Sex:"), gbc);
+        gbc.gridy++;
+        inputPanel.add(new JLabel("Họ"), gbc);
 
         gbc.gridx = 1;
-        String[] sexOptions = {"Male", "Female"};
-        JComboBox<String> sexComboBox = new JComboBox<>(sexOptions);
-        inputPanel.add(sexComboBox, gbc);
+        JTextField customerLastNameField = new JTextField(10);
+        inputPanel.add(customerLastNameField, gbc);
 
-        // Age label and number field
         gbc.gridx = 0;
-        gbc.gridy = 2;
-        inputPanel.add(new JLabel("Age:"), gbc);
+        gbc.gridy++;
+        inputPanel.add(new JLabel("Tên"), gbc);
 
         gbc.gridx = 1;
-        JSpinner ageSpinner = new JSpinner(new SpinnerNumberModel(0, 0, 120, 1));
-        inputPanel.add(ageSpinner, gbc);
+        JTextField customerFirstNameField = new JTextField(10);
+        inputPanel.add(customerFirstNameField, gbc);
+
+        gbc.gridx = 0;
+        gbc.gridy++;
+        inputPanel.add(new JLabel("Tên BS"), gbc);
+
+        gbc.gridx = 1;
+        JTextField doctorFirstNameField = new JTextField(10);
+        inputPanel.add(doctorFirstNameField, gbc);
+
+        gbc.gridx = 0;
+        gbc.gridy++;
+        inputPanel.add(new JLabel("Họ BS"), gbc);
+
+        gbc.gridx = 1;
+        JTextField doctorLastNameField = new JTextField(10);
+        inputPanel.add(doctorLastNameField, gbc);
+
+        gbc.gridx = 0;
+        gbc.gridy++;
+        inputPanel.add(new JLabel("Triệu chứng"), gbc);
+
+        gbc.gridx = 1;
+        JTextField symptomsField = new JTextField(10);
+        inputPanel.add(symptomsField, gbc);
+
+        gbc.gridx = 0;
+        gbc.gridy++;
+        inputPanel.add(new JLabel("Chẩn đoán"), gbc);
+
+        gbc.gridx = 1;
+        JTextField diagnosisField = new JTextField(10);
+        inputPanel.add(diagnosisField, gbc);
+
+        gbc.gridx = 0;
+        gbc.gridy++;
+        inputPanel.add(new JLabel("Ghi chú"), gbc);
+
+        gbc.gridx = 1;
+        JTextField notesField = new JTextField(10);
+        inputPanel.add(notesField, gbc);
+
+        gbc.gridx = 0;
+        gbc.gridy++;
+        inputPanel.add(new JLabel("Trạng thái"), gbc);
+
+        gbc.gridx = 1;
+        JTextField statusField = new JTextField(10);
+        inputPanel.add(statusField, gbc);
+
+        gbc.fill = GridBagConstraints.HORIZONTAL;
 
 
         table1.addMouseListener(new MouseAdapter() {
@@ -214,15 +248,26 @@ public class CheckUpPage extends JPanel {
             public void mouseClicked(MouseEvent e) {
                 int selectedRow = table1.getSelectedRow();
                 if (selectedRow != -1) {
-                    // Get the data from the selected row
-                    String name = (String) table1.getValueAt(selectedRow, 0);
-                    String gender = (String) table1.getValueAt(selectedRow, 1);
-                    String age = (String) table1.getValueAt(selectedRow, 2);
+                    String date = (String) table1.getValueAt(selectedRow, 0);
+                    String customerLastName = (String) table1.getValueAt(selectedRow, 1);
+                    String customerFirstName = (String) table1.getValueAt(selectedRow, 2);
+                    String doctorFirstName = (String) table1.getValueAt(selectedRow, 3);
+                    String doctorLastName = (String) table1.getValueAt(selectedRow, 4);
+                    String symptoms = (String) table1.getValueAt(selectedRow, 5);
+                    String diagnosis = (String) table1.getValueAt(selectedRow, 6);
+                    String notes = (String) table1.getValueAt(selectedRow, 7);
+                    String status = (String) table1.getValueAt(selectedRow, 8);
 
-                    // Transfer the data to the inputPanel fields
-                    usernameField.setText(name);
-                    sexComboBox.setSelectedItem(gender);
-                    ageSpinner.setValue(Integer.parseInt(age));
+                    usernameField.setText(date);
+                    customerLastNameField.setText(customerLastName);
+                    customerFirstNameField.setText(customerFirstName);
+                    doctorFirstNameField.setText(doctorFirstName);
+                    doctorLastNameField.setText(doctorLastName);
+                    symptomsField.setText(symptoms);
+                    diagnosisField.setText(diagnosis);
+                    notesField.setText(notes);
+                    statusField.setText(status);
+
                 }
             }
         });
@@ -259,20 +304,6 @@ public class CheckUpPage extends JPanel {
                             if (option == JOptionPane.NO_OPTION) {
                                 return;
                             }
-                            int selectedRow = table1.getSelectedRow();
-
-                            if (selectedRow != -1) {
-                                // Get the data from the input fields
-                                String name = usernameField.getText();
-                                String gender = (String) sexComboBox.getSelectedItem();
-                                int age = (Integer) ageSpinner.getValue();
-
-                                // Update the data in the selected row
-                                table1.setValueAt(name, selectedRow, 0);
-                                table1.setValueAt(gender, selectedRow, 1);
-                                table1.setValueAt(String.valueOf(age), selectedRow, 2);
-                            } else
-                                JOptionPane.showMessageDialog(null, "Please select a row to save changes");
                             break;
                         }
                         case "delete":
@@ -297,37 +328,38 @@ public class CheckUpPage extends JPanel {
             iconPanel.add(iconLabel);
         }
 
-        rightPanel.add(inputPanel, BorderLayout.CENTER);
-        rightPanel.add(iconPanel, BorderLayout.SOUTH);
+        gbcRightPanel.gridy++;
+        rightPanel.add(inputPanel, gbcRightPanel);
+        gbcRightPanel.gridy++;
+        rightPanel.add(iconPanel, gbcRightPanel);
 
         UIManager.getDefaults().put("SplitPane.border", BorderFactory.createEmptyBorder()); // Remove border
         JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, leftPanel, rightPanel);
-        splitPane.setResizeWeight(0.5); // Split
+        splitPane.setResizeWeight(0.8); // Split
         splitPane.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10)); // Remove border
-
 
         add(sidebarScrollPane, BorderLayout.WEST);
         add(topbar, BorderLayout.NORTH);
-        add(splitPane , BorderLayout.CENTER);
+        add(splitPane, BorderLayout.CENTER);
+
+
     }
 
+    @Override
+    public void removeNotify() {
+        super.removeNotify();
+        // Remove listeners to avoid memory leaks
+        ClientHandler.removeResponseListener(GetCheckUpQueueResponse.class, this::handleGetCheckUpQueueResponse);
+        ClientHandler.removeResponseListener(ErrorResponse.class, this::handleErrorResponse);
+    }
 
+    private void handleGetCheckUpQueueResponse(GetCheckUpQueueResponse response) {
+        log.info("Received checkup queue");
+        this.queue = response.getQueue();
+        model.setDataVector(this.queue, new String[]{"Ngày Tháng", "Họ", "Tên", "Ten BS", "Họ BS", "Triệu chứng", "Chẩn đoán", "Ghi chú", "Trạng thái"});
+    }
 
-//    @Override
-//    public void removeNotify() {
-//        super.removeNotify();
-//        // Remove listeners to avoid memory leaks
-//        ClientHandler.removeResponseListener(GetCheckUpQueueResponse.class, this::handleGetCheckUpQueueResponse);
-//        ClientHandler.removeResponseListener(ErrorResponse.class, this::handleErrorResponse);
-//    }
-//
-//    private void handleGetCheckUpQueueResponse(GetCheckUpQueueResponse response) {
-//        log.debug("Received checkup queue: {}", frame.text());
-//    }
-//
-//    private void handleErrorResponse(ErrorResponse response) {
-//        log.error("Error response: {}", response.getError());
-//    }
-
-
+    private void handleErrorResponse(ErrorResponse response) {
+        log.error("Error response: {}", response.getError());
+    }
 }

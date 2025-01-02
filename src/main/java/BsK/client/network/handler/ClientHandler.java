@@ -53,14 +53,11 @@ public class ClientHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         log.info("Handshake complete");
         ClientHandler.ctx = ctx;
         ClientHandler.frame = frame;
-
-        
         UIHandler.INSTANCE.showUI();
         // When the handshake is complete, the UI is shown
         return; // No further processing needed for handshake response
       }
-
-
+      log.info("Size of listeners: {}", listeners.size());
       // Process other packets
       List<ResponseListener<?>> responseListeners = listeners.get(packet.getClass());
       if (responseListeners != null) {

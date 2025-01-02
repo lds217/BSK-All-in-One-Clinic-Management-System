@@ -19,7 +19,9 @@ import io.netty.handler.timeout.IdleStateEvent;
 import java.io.IOException;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.util.ArrayList;
+import java.util.Date;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -72,7 +74,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                           "join customer as c on a.customer_id = c.customer_id " +
                           "join Doctor D on a.doctor_id = D.doctor_id " +
                           "where a.status = 'PROCESSING' " +
-                          "order by checkup_id"
+                          "order by a.checkup_date"
           );
 
           if (!rs.isBeforeFirst()) {
@@ -81,6 +83,10 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
             ArrayList<String> resultList = new ArrayList<>();
             while (rs.next()) {
               String checkupDate = rs.getString("checkup_date");
+              long checkupDateLong = Long.parseLong(checkupDate);
+              Timestamp timestamp = new Timestamp(checkupDateLong);
+              Date date = new Date(timestamp.getTime());
+              checkupDate = date.toString();
               String customerLastName = rs.getString("customer_last_name");
               String customerFirstName = rs.getString("customer_first_name");
               String doctorFirstName = rs.getString("doctor_first_name");
@@ -91,7 +97,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
               String status = rs.getString("status");
 
 
-              String result = String.join(", ",
+              String result = String.join("|",
                       checkupDate, customerLastName, customerFirstName,
                       doctorFirstName, doctorLastName, symptoms,
                       diagnosis, notes, status
@@ -103,7 +109,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
             String[] resultString = resultList.toArray(new String[0]);
             String[][] resultArray = new String[resultString.length][];
             for (int i = 0; i < resultString.length; i++) {
-              resultArray[i] = resultString[i].split(", ");
+              resultArray[i] = resultString[i].split("\\|");
             }
 
             UserUtil.sendPacket(user.getSessionId(), new GetCheckUpQueueResponse(resultArray));
