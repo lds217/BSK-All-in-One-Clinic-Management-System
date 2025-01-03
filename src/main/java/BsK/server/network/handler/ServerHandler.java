@@ -3,6 +3,7 @@ package BsK.server.network.handler;
 import BsK.common.packet.Packet;
 import BsK.common.packet.PacketSerializer;
 import BsK.common.packet.req.GetCheckUpQueueRequest;
+import BsK.common.packet.req.GetDoctorGeneralInfo;
 import BsK.common.packet.req.LoginRequest;
 import BsK.common.packet.req.RegisterRequest;
 import BsK.common.packet.res.*;
@@ -69,13 +70,12 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         log.debug("Received GetCheckUpQueueRequest");
         try {
           ResultSet rs = statement.executeQuery(
-                  "select a.checkup_date, c.customer_last_name, c.customer_first_name, " +
+                  "select a.checkup_id, a.checkup_date, c.customer_last_name, c.customer_first_name, " +
                           "d.doctor_first_name, d.doctor_last_name, a.symptoms, a.diagnosis, a.notes, a.status " +
                           "from checkup as a " +
                           "join customer as c on a.customer_id = c.customer_id " +
                           "join Doctor D on a.doctor_id = D.doctor_id " +
-                          "where a.status = 'PROCESSING' " +
-                          "order by a.checkup_date"
+                          "where a.status = 'PROCESSING'"
           );
 
           if (!rs.isBeforeFirst()) {
@@ -83,6 +83,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
           } else {
             ArrayList<String> resultList = new ArrayList<>();
             while (rs.next()) {
+              String checkupId = rs.getString("checkup_id");
               String checkupDate = rs.getString("checkup_date");
               long checkupDateLong = Long.parseLong(checkupDate);
               Timestamp timestamp = new Timestamp(checkupDateLong);
@@ -99,9 +100,9 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
               String status = rs.getString("status");
 
 
-              String result = String.join("|",
+              String result = String.join("|", checkupId,
                       checkupDate, customerLastName, customerFirstName,
-                      doctorFirstName, doctorLastName, symptoms,
+                      doctorLastName + " " + doctorFirstName, symptoms,
                       diagnosis, notes, status
               );
 
@@ -118,6 +119,32 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
 
           }
         } catch (SQLException e) {
+          throw new RuntimeException(e);
+        }
+      }
+
+
+      // Get general doctor info
+      if (packet instanceof GetDoctorGeneralInfo) {
+        log.debug("Received GetDoctorGeneralInfo");
+        try {
+          ResultSet rs = statement.executeQuery(
+                  "select concat(doctor_last_name, ' ', doctor_first_name) from Doctor"
+          );
+
+            if (!rs.isBeforeFirst()) {
+                System.out.println("No data found in the doctor table.");
+            } else {
+              ArrayList<String> resultList = new ArrayList<>();
+              while (rs.next()) {
+                String doctorName = rs.getString(1);
+                resultList.add(doctorName);
+              }
+              String[] resultString = resultList.toArray(new String[0]);
+              UserUtil.sendPacket(user.getSessionId(), new GetDoctorGeneralInfoResponse(resultString));
+          }
+        }
+        catch (SQLException e) {
           throw new RuntimeException(e);
         }
       }
