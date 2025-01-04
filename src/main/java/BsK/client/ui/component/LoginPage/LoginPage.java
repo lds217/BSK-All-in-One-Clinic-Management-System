@@ -105,20 +105,4 @@ public class LoginPage extends JPanel {
         });
         add(backButton, BorderLayout.SOUTH);
     }
-
-    @Override
-    public void removeNotify() {
-        super.removeNotify();
-        // Remove listeners to avoid memory leaks
-        ClientHandler.removeResponseListener(LoginSuccessResponse.class, this::handleLoginSuccess);
-        ClientHandler.removeResponseListener(ErrorResponse.class, this::handleErrorResponse);
-    }
-
-    private void handleLoginSuccess(LoginSuccessResponse response) {
-        log.info("Login successful, UserId: {}, Role: {}", response.getUserId(), response.getRole());
-    }
-
-    private void handleErrorResponse(ErrorResponse response) {
-        log.error("Error response: {}", response.getError());
-    }
 }

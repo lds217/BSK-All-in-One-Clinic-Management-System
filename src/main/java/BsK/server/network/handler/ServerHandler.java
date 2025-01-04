@@ -2,13 +2,9 @@ package BsK.server.network.handler;
 
 import BsK.common.packet.Packet;
 import BsK.common.packet.PacketSerializer;
-import BsK.common.packet.req.GetCheckUpQueueRequest;
-import BsK.common.packet.req.GetDoctorGeneralInfo;
-import BsK.common.packet.req.LoginRequest;
-import BsK.common.packet.req.RegisterRequest;
+import BsK.common.packet.req.*;
 import BsK.common.packet.res.*;
 import BsK.common.packet.res.ErrorResponse.Error;
-import BsK.common.util.network.NetworkUtil;
 import BsK.server.network.manager.SessionManager;
 import BsK.server.network.util.UserUtil;
 import io.netty.channel.ChannelHandlerContext;
@@ -71,7 +67,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         try {
           ResultSet rs = statement.executeQuery(
                   "select a.checkup_id, a.checkup_date, c.customer_last_name, c.customer_first_name, " +
-                          "d.doctor_first_name, d.doctor_last_name, a.symptoms, a.diagnosis, a.notes, a.status " +
+                          "d.doctor_first_name, d.doctor_last_name, a.symptoms, a.diagnosis, a.notes, a.status, a.customer_id " +
                           "from checkup as a " +
                           "join customer as c on a.customer_id = c.customer_id " +
                           "join Doctor D on a.doctor_id = D.doctor_id " +
@@ -87,7 +83,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
               String checkupDate = rs.getString("checkup_date");
               long checkupDateLong = Long.parseLong(checkupDate);
               Timestamp timestamp = new Timestamp(checkupDateLong);
-              Date date = new Date(timestamp.getTime());
+              Date date = new Date(timestamp.getTime()); // Needed to recode
               SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy");
               checkupDate = sdf.format(date);
               String customerLastName = rs.getString("customer_last_name");
@@ -98,15 +94,18 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
               String diagnosis = rs.getString("diagnosis");
               String notes = rs.getString("notes");
               String status = rs.getString("status");
+              String customerId = rs.getString("customer_id");
 
 
               String result = String.join("|", checkupId,
                       checkupDate, customerLastName, customerFirstName,
                       doctorLastName + " " + doctorFirstName, symptoms,
-                      diagnosis, notes, status
+                      diagnosis, notes, status, customerId
               );
 
               resultList.add(result);
+
+              log.info(result);
             }
 
             String[] resultString = resultList.toArray(new String[0]);
@@ -142,9 +141,61 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
               }
               String[] resultString = resultList.toArray(new String[0]);
               UserUtil.sendPacket(user.getSessionId(), new GetDoctorGeneralInfoResponse(resultString));
+              log.info("Send response to client GetDoctorGeneralInfo");
           }
         }
         catch (SQLException e) {
+          throw new RuntimeException(e);
+        }
+      }
+
+      if (packet instanceof GetCustomerHistoryRequest getCustomerHistoryRequest) {
+        log.debug("Received GetCustomerHistoryRequest");
+        try {
+            ResultSet rs = statement.executeQuery("select Checkup.checkup_date, Checkup.checkup_id, " +
+                    "Checkup.symptoms, Checkup.diagnosis, Checkup.prescription_id, Checkup.checkup_service_id, " +
+                    "Checkup.notes " +
+                    "from Customer " +
+                    "join Checkup on Customer.customer_id = Checkup.customer_id " +
+                    "where Checkup.status = \"DONE\" and Customer.customer_id = " +
+                    getCustomerHistoryRequest.getCustomerId() +
+                    " order by checkup_date"
+            );
+
+            if (!rs.isBeforeFirst()) {
+                System.out.println("No data found in the checkup table.");
+                UserUtil.sendPacket(user.getSessionId(), new GetCustomerHistoryResponse(new String[0][7]));
+            } else {
+                ArrayList<String> resultList = new ArrayList<>();
+                while (rs.next()) {
+                    String checkupDate = rs.getString("checkup_date");
+                    long checkupDateLong = Long.parseLong(checkupDate);
+                    Timestamp timestamp = new Timestamp(checkupDateLong);
+                    Date date = new Date(timestamp.getTime()); // Needed to recode
+                    SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy");
+                    checkupDate = sdf.format(date);
+                    String checkupId = rs.getString("checkup_id");
+                    String symptoms = rs.getString("symptoms");
+                    String diagnosis = rs.getString("diagnosis");
+                    String prescriptionId = rs.getString("prescription_id");
+                    String checkupServiceId = rs.getString("checkup_service_id");
+                    String notes = rs.getString("notes");
+
+                    String result = String.join("|", checkupDate, checkupId, symptoms, diagnosis, prescriptionId, checkupServiceId, notes);
+                    resultList.add(result);
+                    log.info(result);
+                }
+
+                String[] resultString = resultList.toArray(new String[0]);
+                String[][] resultArray = new String[resultString.length][];
+                for (int i = 0; i < resultString.length; i++) {
+                    resultArray[i] = resultString[i].split("\\|");
+                }
+
+                UserUtil.sendPacket(user.getSessionId(), new GetCustomerHistoryResponse(resultArray));
+            }
+
+        } catch (SQLException e) {
           throw new RuntimeException(e);
         }
       }

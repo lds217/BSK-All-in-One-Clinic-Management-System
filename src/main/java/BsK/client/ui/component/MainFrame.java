@@ -5,6 +5,7 @@ import BsK.client.ui.component.DashboardPage.DashboardPage;
 import BsK.client.ui.component.LandingPage.LandingPage;
 import BsK.client.ui.component.LoginPage.LoginPage;
 import BsK.client.ui.component.RegisterPage.RegisterPage;
+import BsK.client.network.handler.ClientHandler;
 
 import javax.swing.*;
 import java.awt.*;
@@ -35,10 +36,14 @@ public class MainFrame extends JFrame {
 
     public void showPage(String pageName) {
         try {
+            //  clear all listeners on current page
+            ClientHandler.clearListeners();
+
             // Construct the fully qualified class name
             String className = "BsK.client.ui.component." + pageName + "." + pageName;
             Class<?> pageClass = Class.forName(className);
             JPanel newPage = (JPanel) pageClass.getConstructor(MainFrame.class).newInstance(this);
+            // clear all listeners on new page
 
             mainPanel.add(newPage, pageName);
             mainPanel.remove(0);

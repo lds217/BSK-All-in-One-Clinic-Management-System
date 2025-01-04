@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import lombok.extern.slf4j.Slf4j;
 import org.w3c.dom.Text;
@@ -29,18 +30,23 @@ public class ClientHandler extends SimpleChannelInboundHandler<TextWebSocketFram
   public static TextWebSocketFrame frame;
   public static final ClientHandler INSTANCE = new ClientHandler();
 
-  private static final Map<Class<?>, List<ResponseListener<?>>> listeners = new HashMap<>();
+  private static final Map<Class<?>, ResponseListener<?>> listeners = new ConcurrentHashMap<>();
 
   public static <T> void addResponseListener(Class<T> responseType, ResponseListener<T> listener) {
-    listeners.computeIfAbsent(responseType, k -> new ArrayList<>()).add(listener);
+    listeners.computeIfAbsent(responseType, k -> listener);
   }
 
-  public static <T> void removeResponseListener(Class<T> responseType, ResponseListener<T> listener) {
-    var listenerList = listeners.get(responseType);
-    if (listenerList != null) {
-      listenerList.remove(listener);
-    }
+  public static void clearListeners() {
+    listeners.clear();
   }
+
+//  public static <T> void removeResponseListener(Class<T> responseType, ResponseListener<T> listener) {
+//    var listenerList = listeners.get(responseType);
+//    if (listenerList != null) {
+//      log.info("Removing listener for response type: {}", responseType.getName());
+//      listenerList.remove(listener);
+//    }
+//  }
 
   @Override
   protected void channelRead0(ChannelHandlerContext ctx, TextWebSocketFrame frame) {
@@ -57,13 +63,15 @@ public class ClientHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         // When the handshake is complete, the UI is shown
         return; // No further processing needed for handshake response
       }
-      log.info("Size of listeners: {}", listeners.size());
+      listeners.forEach((key, value) -> {
+        log.debug("Key: {}", key.getName());
+
+      });
+
       // Process other packets
-      List<ResponseListener<?>> responseListeners = listeners.get(packet.getClass());
+      var responseListeners = listeners.get(packet.getClass());
       if (responseListeners != null) {
-        for (ResponseListener<?> listener : responseListeners) {
-          notifyListener(listener, packet);
-        }
+        notifyListener(responseListeners, packet);
       } else {
         log.warn("No listeners registered for response type: {}", packet.getClass().getName());
       }
@@ -95,6 +103,7 @@ public class ClientHandler extends SimpleChannelInboundHandler<TextWebSocketFram
   private <T> void notifyListener(ResponseListener<?> listener, T response) {
     try {
       ((ResponseListener<T>) listener).onResponse(response);
+
     } catch (ClassCastException e) {
       log.error("Listener type mismatch for response: {}", response.getClass(), e);
     }
