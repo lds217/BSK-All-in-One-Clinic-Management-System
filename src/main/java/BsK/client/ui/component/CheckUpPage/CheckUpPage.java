@@ -3,6 +3,7 @@ package BsK.client.ui.component.CheckUpPage;
 import BsK.client.LocalStorage;
 import BsK.client.network.handler.ClientHandler;
 import BsK.client.network.handler.ResponseListener;
+import BsK.client.ui.component.CheckUpPage.MedicineWindow.MedicineDialog;
 import BsK.client.ui.component.MainFrame;
 import BsK.client.ui.component.common.DateLabelFormatter;
 import BsK.client.ui.component.common.RoundedPanel;
@@ -35,6 +36,7 @@ public class CheckUpPage extends JPanel {
 
     private String[][] queue;
     private String[][] history;
+    private String[][] medicine;
     private DefaultTableModel model, historyModel;
     private JTable table1, historyTable;
     private final ResponseListener<GetDoctorGeneralInfoResponse> doctorGeneralInfoListener = this::handleGetDoctorGeneralInfoResponse;
@@ -45,6 +47,8 @@ public class CheckUpPage extends JPanel {
     private JTextArea symptomsField, diagnosisField, notesField;
     private JComboBox<String> doctorComboBox, statusComboBox;
     private JDatePickerImpl datePicker;
+    private String[] doctorOptions;
+
 
     public void updateQueue() {
 
@@ -52,11 +56,10 @@ public class CheckUpPage extends JPanel {
         NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetCheckUpQueueRequest());
     }
 
-    private String[] doctorOptions;
+
 
     public void getDoctors() {
         // listener
-
         ClientHandler.addResponseListener(GetDoctorGeneralInfoResponse.class, doctorGeneralInfoListener);
         NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetDoctorGeneralInfo());
     }
@@ -151,7 +154,6 @@ public class CheckUpPage extends JPanel {
         RoundedPanel rightBottomPanel = new RoundedPanel(20, Color.WHITE, false);
 
 
-
         JLabel titleText1 = new JLabel();
         titleText1.setText("Check Up Queue 1");
         titleText1.setFont(new Font("Arial", Font.BOLD, 16));
@@ -194,7 +196,7 @@ public class CheckUpPage extends JPanel {
         JScrollPane tableScroll1 = new JScrollPane(table1);
         tableScroll1.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10)); // Inner padding
         leftPanel.add(tableScroll1, BorderLayout.CENTER);
-        // "Ngày Tháng", "Họ", "Tên", "Ten BS", "Họ BS", "Triệu chứng", "Chẩn đoán", "Ghi chú", "Trạng thái"
+
         JPanel inputPanel = new JPanel();
         inputPanel.setLayout(new GridBagLayout());
         GridBagConstraints gbc = new GridBagConstraints();
@@ -303,9 +305,9 @@ public class CheckUpPage extends JPanel {
         iconPanel.setLayout(new GridLayout(1, 5));
         iconPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10)); // Padding
         iconPanel.setBackground(Color.WHITE);
-        String[] iconName = {"add", "edit", "save", "delete"};
+        String[] iconName = {"add", "edit", "save", "medicine"};
         for (String name : iconName) {
-            ImageIcon originalIcon = new ImageIcon("src/main/resources/icon/" + name + ".png");
+            ImageIcon originalIcon = new ImageIcon("src/main/java/BsK/client/ui/assets/icon/" + name + ".png");
             Image scaledImage = originalIcon.getImage().getScaledInstance(32, 32, Image.SCALE_SMOOTH); // Resize to 32x32
             ImageIcon scaledIcon = new ImageIcon(scaledImage);
             JLabel iconLabel = new JLabel(scaledIcon);
@@ -333,9 +335,10 @@ public class CheckUpPage extends JPanel {
                             }
                             break;
                         }
-                        case "delete":
-                            // Delete action
-                            JOptionPane.showMessageDialog(null, "Delete action triggered");
+                        case "medicine":
+                            // Open medicine dialog
+                            MedicineDialog dialog = new MedicineDialog(mainFrame);
+                            dialog.setVisible(true);
                             break;
                         default:
                             throw new IllegalStateException("Unexpected value: " + name);
@@ -367,7 +370,7 @@ public class CheckUpPage extends JPanel {
         rightTopPanel.add(titleText3, BorderLayout.NORTH);
         rightTopPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 10));
 
-        String historyColumns[] = {"Mã khám bệnh", "Ngày Tháng", "Bác Sĩ", "Triệu chứng", "Chẩn đoán", "Ghi chú", "Trạng thái"};
+        String historyColumns[] = {"Ngày Tháng","Mã khám bệnh", "Triệu chứng", "Chẩn đoán", "Ghi chú"};
 
         historyModel = new DefaultTableModel(this.history, historyColumns) {
             @Override
@@ -437,7 +440,7 @@ public class CheckUpPage extends JPanel {
     private void handleGetCustomerHistoryResponse(GetCustomerHistoryResponse response) {
         log.info("Received customer history");
         this.history = response.getHistory();
-        historyModel.setDataVector(this.history, new String[]{"Mã khám bệnh", "Ngày Tháng", "Bác Sĩ", "Triệu chứng", "Chẩn đoán", "Ghi chú", "Trạng thái"});
+        historyModel.setDataVector(this.history, new String[]{"Ngày Tháng","Mã khám bệnh", "Triệu chứng", "Chẩn đoán", "Ghi chú"});
     }
 
     private  void handleGetDoctorGeneralInfoResponse(GetDoctorGeneralInfoResponse response) {

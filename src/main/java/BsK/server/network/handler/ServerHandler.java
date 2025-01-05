@@ -152,14 +152,13 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
       if (packet instanceof GetCustomerHistoryRequest getCustomerHistoryRequest) {
         log.debug("Received GetCustomerHistoryRequest");
         try {
-            ResultSet rs = statement.executeQuery("select Checkup.checkup_date, Checkup.checkup_id, " +
-                    "Checkup.symptoms, Checkup.diagnosis, Checkup.prescription_id, Checkup.checkup_service_id, " +
-                    "Checkup.notes " +
-                    "from Customer " +
-                    "join Checkup on Customer.customer_id = Checkup.customer_id " +
-                    "where Checkup.status = \"DONE\" and Customer.customer_id = " +
-                    getCustomerHistoryRequest.getCustomerId() +
-                    " order by checkup_date"
+            ResultSet rs = statement.executeQuery(
+                    "select Checkup.checkup_date, Checkup.checkup_id, Checkup.symptoms, Checkup.diagnosis, Checkup.prescription_id, Checkup.notes\n" +
+                            "from Customer\n" +
+                            "join Checkup on Customer.customer_id = Checkup.customer_id\n" +
+                            "where Checkup.status = \"DONE\" and Customer.customer_id = " +
+                            getCustomerHistoryRequest.getCustomerId() +
+                            " order by checkup_date"
             );
 
             if (!rs.isBeforeFirst()) {
@@ -178,10 +177,8 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                     String symptoms = rs.getString("symptoms");
                     String diagnosis = rs.getString("diagnosis");
                     String prescriptionId = rs.getString("prescription_id");
-                    String checkupServiceId = rs.getString("checkup_service_id");
                     String notes = rs.getString("notes");
-
-                    String result = String.join("|", checkupDate, checkupId, symptoms, diagnosis, prescriptionId, checkupServiceId, notes);
+                    String result = String.join("|", checkupDate, checkupId, symptoms, diagnosis, prescriptionId, notes);
                     resultList.add(result);
                     log.info(result);
                 }
