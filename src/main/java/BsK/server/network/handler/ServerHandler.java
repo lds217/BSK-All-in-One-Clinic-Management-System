@@ -105,7 +105,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
 
               resultList.add(result);
 
-              log.info(result);
+              // log.info(result);
             }
 
             String[] resultString = resultList.toArray(new String[0]);
@@ -180,7 +180,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                     String notes = rs.getString("notes");
                     String result = String.join("|", checkupDate, checkupId, symptoms, diagnosis, prescriptionId, notes);
                     resultList.add(result);
-                    log.info(result);
+                    // log.info(result);
                 }
 
                 String[] resultString = resultList.toArray(new String[0]);
@@ -192,6 +192,42 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                 UserUtil.sendPacket(user.getSessionId(), new GetCustomerHistoryResponse(resultArray));
             }
 
+        } catch (SQLException e) {
+          throw new RuntimeException(e);
+        }
+      }
+
+      if (packet instanceof GetMedInfoRequest getMedInfoRequest) {
+        log.debug("Received GetMedInfoRequest");
+        try {
+          ResultSet rs = statement.executeQuery(
+                  "SELECT med_name, med_company, med_description\n" +
+                          "FROM Medicine\n" +
+                          "GROUP BY med_name, med_company, med_description"
+          );
+
+          if (!rs.isBeforeFirst()) {
+            System.out.println("No data found in the medicine table.");
+          } else {
+            ArrayList<String> resultList = new ArrayList<>();
+            while (rs.next()) {
+                String medName = rs.getString("med_name");
+                String medCompany = rs.getString("med_company");
+                String medDescription = rs.getString("med_description");
+
+                String result = String.join("|", medName, medCompany, medDescription);
+                resultList.add(result);
+                // log.info(result);
+            }
+
+            String[] resultString = resultList.toArray(new String[0]);
+            String[][] resultArray = new String[resultString.length][];
+            for (int i = 0; i < resultString.length; i++) {
+              resultArray[i] = resultString[i].split("\\|");
+            }
+
+            UserUtil.sendPacket(user.getSessionId(), new GetMedInfoResponse(resultArray));
+          }
         } catch (SQLException e) {
           throw new RuntimeException(e);
         }

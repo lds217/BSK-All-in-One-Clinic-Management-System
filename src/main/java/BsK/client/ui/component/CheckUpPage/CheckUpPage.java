@@ -36,7 +36,6 @@ public class CheckUpPage extends JPanel {
 
     private String[][] queue;
     private String[][] history;
-    private String[][] medicine;
     private DefaultTableModel model, historyModel;
     private JTable table1, historyTable;
     private final ResponseListener<GetDoctorGeneralInfoResponse> doctorGeneralInfoListener = this::handleGetDoctorGeneralInfoResponse;
@@ -336,6 +335,11 @@ public class CheckUpPage extends JPanel {
                             break;
                         }
                         case "medicine":
+                            // If there is no user selected, show a warning message
+                            if (checkupIdField.getText().isEmpty()) {
+                                JOptionPane.showMessageDialog(null, "Please select a patient from the queue");
+                                return;
+                            }
                             // Open medicine dialog
                             MedicineDialog dialog = new MedicineDialog(mainFrame);
                             dialog.setVisible(true);
