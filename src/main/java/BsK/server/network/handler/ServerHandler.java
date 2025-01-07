@@ -201,9 +201,8 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         log.debug("Received GetMedInfoRequest");
         try {
           ResultSet rs = statement.executeQuery(
-                  "SELECT med_name, med_company, med_description\n" +
-                          "FROM Medicine\n" +
-                          "GROUP BY med_name, med_company, med_description"
+                  "select med_id, med_name, med_company, med_description, quantity, med_unit, med_selling_price\n" +
+                          "    from Medicine"
           );
 
           if (!rs.isBeforeFirst()) {
@@ -211,13 +210,18 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
           } else {
             ArrayList<String> resultList = new ArrayList<>();
             while (rs.next()) {
+                String medId = rs.getString("med_id");
                 String medName = rs.getString("med_name");
                 String medCompany = rs.getString("med_company");
                 String medDescription = rs.getString("med_description");
+                String quantity = rs.getString("quantity");
+                String medUnit = rs.getString("med_unit");
+                String medSellingPrice = rs.getString("med_selling_price");
 
-                String result = String.join("|", medName, medCompany, medDescription);
+
+                String result = String.join("|",medId, medName, medCompany, medDescription, quantity, medUnit,
+                        medSellingPrice);
                 resultList.add(result);
-                // log.info(result);
             }
 
             String[] resultString = resultList.toArray(new String[0]);

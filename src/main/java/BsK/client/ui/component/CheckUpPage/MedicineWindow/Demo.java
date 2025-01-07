@@ -7,18 +7,24 @@ public class Demo {
 
     JFrame frame = new JFrame("");
     AutoCompleteDecorator decorator;
-    JComboBox combobox;
+
 
     public Demo() {
-        combobox = new JComboBox(new Object[]{"","Ester", "Jordi",
-                "Jordina", "Jorge", "Sergi"});
-        AutoCompleteDecorator.decorate(combobox);
-        frame.setSize(400,400);
-        frame.setLocationRelativeTo(null);
+       //JTable demo
+        JFrame frame = new JFrame();
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        frame.setLayout(new FlowLayout());
+        frame.setSize(300, 200);
+        JTable table = new JTable(new String[][] {
+            { "1", "2", "3" },
+            { "4", "5", "6" },
+            { "7", "8", "9" },
+            { "10", "11", "12" }
+        }, new String[] { "A", "B", "C" });
+        //set size of custom colum
+        table.getColumnModel().getColumn(0).setPreferredWidth(200);
+        JScrollPane scrollPane = new JScrollPane(table);
+        frame.add(scrollPane, BorderLayout.NORTH);
 
-        frame.add(combobox);
         frame.setVisible(true);
     }
 

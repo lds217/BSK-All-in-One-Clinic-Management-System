@@ -46,8 +46,11 @@ public class CheckUpPage extends JPanel {
     private JTextArea symptomsField, diagnosisField, notesField;
     private JComboBox<String> doctorComboBox, statusComboBox;
     private JDatePickerImpl datePicker;
+    private String[][] medicinePrescription;
     private String[] doctorOptions;
-
+    private MedicineDialog dialog = null;
+    private int previousSelectedRow = -1;
+    private boolean saved = false;
 
     public void updateQueue() {
 
@@ -55,15 +58,11 @@ public class CheckUpPage extends JPanel {
         NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetCheckUpQueueRequest());
     }
 
-
-
     public void getDoctors() {
         // listener
         ClientHandler.addResponseListener(GetDoctorGeneralInfoResponse.class, doctorGeneralInfoListener);
         NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetDoctorGeneralInfo());
     }
-
-
 
     public CheckUpPage(MainFrame mainFrame) {
         setLayout(new BorderLayout());
@@ -286,25 +285,35 @@ public class CheckUpPage extends JPanel {
         String[] statusOptions = {"PROCESSING", "NOT", "DONE"};
         statusComboBox = new JComboBox<>(statusOptions);
         inputPanel.add(statusComboBox, gbc);
-
-        table1.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                SwingUtilities.invokeLater(() -> {
-                    int selectedRow = table1.getSelectedRow();
-                    if (selectedRow != -1) {
-                        handleRowSelection(selectedRow);
+        table1.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        table1.getSelectionModel().addListSelectionListener(e -> {
+            if (!e.getValueIsAdjusting()) { // Ensure final selection event
+                int selectedRow = table1.getSelectedRow();
+                if (selectedRow != -1) {
+                    if (previousSelectedRow != -1) {
+                        if(previousSelectedRow != selectedRow) {
+                            if(!saved) {
+                                JOptionPane.showMessageDialog(null, "Please save changes before selecting another patient");
+                                table1.setRowSelectionInterval(previousSelectedRow, previousSelectedRow);
+                                return;
+                            }
+                        }
                     }
-                });
+                    // reset information
+
+                    medicinePrescription = new String[][]{};
+
+                    handleRowSelection(selectedRow);
+
+                }
             }
         });
-
 
         JPanel iconPanel = new JPanel();
         iconPanel.setLayout(new GridLayout(1, 5));
         iconPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10)); // Padding
         iconPanel.setBackground(Color.WHITE);
-        String[] iconName = {"add", "edit", "save", "medicine"};
+        String[] iconName = {"add", "save", "service", "medicine", "printer"};
         for (String name : iconName) {
             ImageIcon originalIcon = new ImageIcon("src/main/java/BsK/client/ui/assets/icon/" + name + ".png");
             Image scaledImage = originalIcon.getImage().getScaledInstance(32, 32, Image.SCALE_SMOOTH); // Resize to 32x32
@@ -320,9 +329,9 @@ public class CheckUpPage extends JPanel {
                             // Add action
                             JOptionPane.showMessageDialog(null, "Add action triggered");
                             break;
-                        case "edit":
+                        case "service":
                             // Edit action
-                            JOptionPane.showMessageDialog(null, "Edit action triggered");
+                            JOptionPane.showMessageDialog(null, "stethoscope action triggered");
                             break;
                         case "save": {
                             //Warning message
@@ -332,6 +341,8 @@ public class CheckUpPage extends JPanel {
                             if (option == JOptionPane.NO_OPTION) {
                                 return;
                             }
+                            // Save action
+                            saved = true;
                             break;
                         }
                         case "medicine":
@@ -341,8 +352,15 @@ public class CheckUpPage extends JPanel {
                                 return;
                             }
                             // Open medicine dialog
-                            MedicineDialog dialog = new MedicineDialog(mainFrame);
+                            if(previousSelectedRow != table1.getSelectedRow()) {
+                                dialog = new MedicineDialog(mainFrame);
+                                previousSelectedRow = table1.getSelectedRow();
+                            }
                             dialog.setVisible(true);
+                            saved = false;
+                            medicinePrescription = dialog.getMedicinePrescription();
+
+                            log.info("Medicine prescription: {}", medicinePrescription);
                             break;
                         default:
                             throw new IllegalStateException("Unexpected value: " + name);
