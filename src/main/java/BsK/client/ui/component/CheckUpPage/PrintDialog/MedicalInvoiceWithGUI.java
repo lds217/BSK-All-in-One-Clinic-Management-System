@@ -2,9 +2,12 @@ package BsK.client.ui.component.CheckUpPage.PrintDialog;
 
 import com.itextpdf.io.image.ImageData;
 import com.itextpdf.io.image.ImageDataFactory;
+import com.itextpdf.kernel.font.PdfFont;
+import com.itextpdf.kernel.font.PdfFontFactory;
 import com.itextpdf.kernel.pdf.PdfDocument;
 import com.itextpdf.kernel.pdf.PdfWriter;
 import com.itextpdf.layout.Document;
+import com.itextpdf.layout.borders.Border;
 import com.itextpdf.layout.element.*;
 import com.itextpdf.layout.element.Image;
 import com.itextpdf.layout.property.UnitValue;
@@ -108,22 +111,64 @@ public class MedicalInvoiceWithGUI {
         PdfDocument pdfDoc = new PdfDocument(writer);
         Document document = new Document(pdfDoc);
 
+
+        String boldFontPath = "src/main/java/BsK/client/ui/assets/font/SVN-Arial Bold.ttf"; // Update with your font path
+        PdfFont boldFont = PdfFontFactory.createFont(boldFontPath, "Identity-H", true);
+
+        String fontPath = "src/main/java/BsK/client/ui/assets/font/SVN-Arial Regular.ttf"; // Update with your font path
+        PdfFont font = PdfFontFactory.createFont(fontPath, "Identity-H", true);
+
         // Add logo
         String logoPath = "/Users/lethanhdat/Documents/GitHub/ldS_BsK/src/main/java/BsK/client/ui/assets/icon/add.png"; // Path to your logo
         ImageData imageData = ImageDataFactory.create(logoPath);
-        Image logo = new Image(imageData).scaleToFit(100, 100);
+        Image logo = new Image(imageData).scaleToFit(75, 75);
         logo.setFixedPosition(50, 750);
         document.add(logo);
 
         // Add clinic information
-        String clinicInfo = "Your Clinic Name\n123 Clinic Street\nCity, State, ZIP\nPhone: (123) 456-7890\nEmail: clinic@example.com";
-        Paragraph clinicInfoParagraph = new Paragraph(clinicInfo).setTextAlignment(com.itextpdf.layout.property.TextAlignment.RIGHT);
+        String clinicInfo = "Phòng khám BSK\nĐức Hòa Long An\nPhone: (123) 456-7890\nNgày khám: 30 tháng 2 năm 2025\n\n";
+        Paragraph clinicInfoParagraph = new Paragraph(clinicInfo)
+                .setTextAlignment(com.itextpdf.layout.property.TextAlignment.RIGHT)
+                .setFont(font);
         document.add(clinicInfoParagraph);
 
-        // Add patient and doctor names
-        String patientDoctorInfo = "Patient: John Doe\nDoctor: Dr. Jane Smith";
-        Paragraph patientDoctorParagraph = new Paragraph(patientDoctorInfo);
-        document.add(patientDoctorParagraph);
+        // Add title
+        String title = "Toa thuốc\n\n";
+        Paragraph titleParagraph = new Paragraph(title)
+                .setFontSize(24).setFont(boldFont)
+                .setTextAlignment(com.itextpdf.layout.property.TextAlignment.CENTER);
+        document.add(titleParagraph);
+
+        // Create a table with 2 columns, each taking 50% of the width
+        Table patientDoctorTable = new Table(UnitValue.createPercentArray(new float[]{50, 50}))
+                .setWidth(UnitValue.createPercentValue(100));
+
+// Add patient and doctor information in the first column (left-aligned)
+        Cell patientDoctorCell = new Cell()
+                .add(new Paragraph("Họ tên bệnh nhân: Lê Nguyễn A\nSố điện thoại: 0123456789\n" +
+                        "Địa chỉ: 123 Patient Street"))
+                .setTextAlignment(com.itextpdf.layout.property.TextAlignment.LEFT)
+                .setBorder(Border.NO_BORDER)
+                .setFont(font);
+        patientDoctorTable.addCell(patientDoctorCell);
+
+// Add date and invoice information in the second column (right-aligned)
+        Cell moreInfoCell = new Cell()
+                .add(new Paragraph("Phái: Nam\nTuổi: 25\nNgày sinh: 01/01/2000\n" +
+                        "Bác sĩ: Nguyễn Văn B"))
+                .setTextAlignment(com.itextpdf.layout.property.TextAlignment.LEFT)
+                .setBorder(Border.NO_BORDER)
+                .setFont(font);
+        patientDoctorTable.addCell(moreInfoCell);
+
+// Add the table to the document
+        document.add(patientDoctorTable);
+
+        // Diagnosis and notes
+        String diagnosisNotes = "Chẩn đoán: Cảm cúm\nGhi chú: Nghỉ ngơi và uống nhiều nước";
+        Paragraph diagnosisNotesParagraph = new Paragraph(diagnosisNotes).setFont(font);
+        document.add(diagnosisNotesParagraph);
+
 
         // Add services and medicine table
         Table table = new Table(UnitValue.createPercentArray(new float[]{4, 2, 2}))
@@ -139,13 +184,11 @@ public class MedicalInvoiceWithGUI {
         table.addCell("$10");
         document.add(table);
 
-        // Add diagnosis and notes
-        String diagnosisNotes = "Diagnosis: Flu\nNotes: Rest and hydration recommended";
-        Paragraph diagnosisNotesParagraph = new Paragraph(diagnosisNotes);
-        document.add(diagnosisNotesParagraph);
 
         // Add signature area
-        Paragraph signatureArea = new Paragraph("\n\n\nSignature: ________________________");
+        Paragraph signatureArea = new Paragraph("\n\n\nChữ Ký: ________________________")
+                .setFont(font)
+                .setTextAlignment(com.itextpdf.layout.property.TextAlignment.RIGHT);
         document.add(signatureArea);
 
         document.close();

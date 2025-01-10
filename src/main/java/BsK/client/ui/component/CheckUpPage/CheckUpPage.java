@@ -130,6 +130,8 @@ public class CheckUpPage extends JPanel {
             sidebar.add(label);
         }
 
+
+
         // Make the sidebar scrollable
         JScrollPane sidebarScrollPane = new JScrollPane(sidebar);
         sidebarScrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
