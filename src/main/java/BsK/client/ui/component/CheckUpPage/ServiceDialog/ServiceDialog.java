@@ -1,21 +1,17 @@
-package BsK.client.ui.component.CheckUpPage.MedicineWindow;
+package BsK.client.ui.component.CheckUpPage.ServiceDialog;
 
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableColumnModel;
-import javax.swing.table.TableRowSorter;
 
 import BsK.client.network.handler.ClientHandler;
 import BsK.client.network.handler.ResponseListener;
-import BsK.common.packet.req.GetDoctorGeneralInfo;
-import BsK.common.packet.req.GetMedInfoRequest;
-import BsK.common.packet.res.GetMedInfoResponse;
+import BsK.common.packet.req.GetSerInfoRequest;
+import BsK.common.packet.res.GetSerInfoResponse;
 import BsK.common.util.network.NetworkUtil;
-import BsK.server.network.util.UserUtil;
 import lombok.extern.slf4j.Slf4j;
-import org.jdesktop.swingx.autocomplete.AutoCompleteDecorator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -25,65 +21,55 @@ import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.HashMap;
-import java.util.List;
 
 @Slf4j
-public class MedicineDialog extends JDialog {
-    private static final Logger log = LoggerFactory.getLogger(MedicineDialog.class);
-    private JTextField medicineNameField;
-    private JTextField medicineCompanyField;
-    private JTextArea medicineDescriptionField;
+public class ServiceDialog extends JDialog {
+    private JTextField serviceNameField;
     private JSpinner quantitySpinner;
-    private JTextField quantityLeftField;
-    private JComboBox<String> UnitComboBox;
     private JTextField priceField;
     private JTextField totalField;
     private JTextArea noteField;
     private DefaultTableModel tableModel, selectedTableModel;
-    private String[] medcineColumns = {"ID", "Medicine Name", "Medicine Company", "Description", "Stock", "Unit", "Price"};
-    private String[][] medicineData;
-    private final ResponseListener<GetMedInfoResponse> getMedInfoResponseListener = this::getMedInfoHandler;
+    private String[] serviceColumns = {"ID", "Service Name", "Price"};
+    private String[][] serviceData;
+    private final ResponseListener<GetSerInfoResponse> getSerInfoResponseListener = this::getSerInfoHandler;
     private TableColumnModel columnModel;
-    private HashMap<String, Boolean> selectedMedicine = new HashMap<>();
-    private JTable medicineTable;
+    private HashMap<String, Boolean> selectedService = new HashMap<>();
+    private JTable serviceTable;
     private JTable selectedTable;
 
-    private String[][] medicinePrescription;
+    private String[][] servicePrescription;
 
-    public String[][] getMedicinePrescription() {
-        return medicinePrescription;
+    public String[][] getServicePrescription() {
+        return servicePrescription;
     }
 
-    void getMedInfoHandler(GetMedInfoResponse response) {
-        log.info("Received medicine data");
-        medicineData = response.getMedInfo();
-        tableModel.setDataVector(medicineData, medcineColumns);
+    void getSerInfoHandler(GetSerInfoResponse response) {
+        log.info("Received service data");
+        serviceData = response.getSerInfo();
+        tableModel.setDataVector(serviceData, serviceColumns);
 
         // resize column width
-        columnModel = medicineTable.getColumnModel();
+        columnModel = serviceTable.getColumnModel();
         columnModel.getColumn(0).setPreferredWidth(10);
-        columnModel.getColumn(1).setPreferredWidth(100);
+        columnModel.getColumn(1).setPreferredWidth(200);
         columnModel.getColumn(2).setPreferredWidth(50);
-        columnModel.getColumn(3).setPreferredWidth(200);
-        columnModel.getColumn(4).setPreferredWidth(20);
-        columnModel.getColumn(5).setPreferredWidth(20);
-        columnModel.getColumn(6).setPreferredWidth(20);
     }
 
-    void sendGetMedInfoRequest() {
-        log.info("Sending GetMedInfoRequest");
-        NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetMedInfoRequest());
+    void sendGetSerInfoRequest() {
+        log.info("Sending GetSerInfoRequest");
+        NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetSerInfoRequest());
     }
 
-    public MedicineDialog(Frame parent) {
-        super(parent, "Enter Medicine Details", true);
+    public ServiceDialog(Frame parent) {
+        super(parent, "Enter Service Details", true);
 
         // Set the size of the dialog
         setSize(1100, 500);
         setResizable(true);
 
-        ClientHandler.addResponseListener(GetMedInfoResponse.class, getMedInfoResponseListener);
-        sendGetMedInfoRequest();
+        ClientHandler.addResponseListener(GetSerInfoResponse.class, getSerInfoResponseListener);
+        sendGetSerInfoRequest();
 
         setLayout(new BorderLayout());
 
@@ -92,7 +78,7 @@ public class MedicineDialog extends JDialog {
         inputPanel.setLayout(new GridBagLayout());
         GridBagConstraints gbc = new GridBagConstraints();
 
-        gbc.gridwidth = 1;
+
         gbc.insets = new Insets(5, 5, 5, 5); // Padding between components
         gbc.weightx = 1.0; // Components stretch horizontally
         gbc.weighty = 0.0; // Allow minor vertical flexibility
@@ -102,37 +88,36 @@ public class MedicineDialog extends JDialog {
         gbc.gridx = 0;
         gbc.gridy = 0;
 
-        inputPanel.add(new JLabel("Medicine Name:"), gbc);
-        gbc.gridwidth = 3;
+        inputPanel.add(new JLabel("Service Name:"), gbc);
         gbc.gridx = 1;
-        medicineNameField = new JTextField(15);
-        inputPanel.add(medicineNameField, gbc);
+        serviceNameField = new JTextField(15);
+        inputPanel.add(serviceNameField, gbc);
 
         // Listen for changes in the text event
-        tableModel = new DefaultTableModel(medicineData, medcineColumns) {
+        tableModel = new DefaultTableModel(serviceData, serviceColumns) {
             @Override
             public boolean isCellEditable(int row, int column) {
                 return false;
             }
         };
-        medicineTable = new JTable(tableModel);
-        medicineTable.setFont(new Font("Serif", Font.BOLD, 20));
-        medicineTable.setRowHeight(30);
-        medicineTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        JScrollPane scrollPane = new JScrollPane(medicineTable);
+        serviceTable = new JTable(tableModel);
+        serviceTable.setFont(new Font("Serif", Font.BOLD, 20));
+        serviceTable.setRowHeight(30);
+        serviceTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        JScrollPane scrollPane = new JScrollPane(serviceTable);
 
 
-        medicineTable.setPreferredScrollableViewportSize(new Dimension(625, 200));
+        serviceTable.setPreferredScrollableViewportSize(new Dimension(625, 200));
 
 
         scrollPane.setPreferredSize(new Dimension(625, 200));
 
 
-        medicineTable.addMouseListener(new MouseAdapter() {
+        serviceTable.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
                 SwingUtilities.invokeLater(() -> {
-                    int selectedRow = medicineTable.getSelectedRow();
+                    int selectedRow = serviceTable.getSelectedRow();
                     if (selectedRow != -1) {
                         handleRowSelection(selectedRow);
                     }
@@ -140,17 +125,17 @@ public class MedicineDialog extends JDialog {
             }
         });
 
-        medicineNameField.addKeyListener(new KeyAdapter() {
+        serviceNameField.addKeyListener(new KeyAdapter() {
             @Override
             public void keyPressed(KeyEvent e) {
                 if (e.getKeyCode() == KeyEvent.VK_ENTER) {
-                    handleRowSelection(medicineTable.getSelectedRow());
+                    handleRowSelection(serviceTable.getSelectedRow());
                 }
             }
         });
 
 
-        medicineNameField.getDocument().addDocumentListener(new DocumentListener() {
+        serviceNameField.getDocument().addDocumentListener(new DocumentListener() {
             @Override
             public void insertUpdate(DocumentEvent e) {
                 findAndSelectRow();
@@ -167,54 +152,32 @@ public class MedicineDialog extends JDialog {
             }
 
             private void findAndSelectRow() {
-                String searchText = medicineNameField.getText().trim();
+                String searchText = serviceNameField.getText().trim();
                 if (searchText.isEmpty()) {
                     // Clear selection if search text is empty
-                    medicineTable.clearSelection();
+                    serviceTable.clearSelection();
                     return;
                 }
 
                 boolean found = false;
-                for (int row = 0; row < medicineTable.getRowCount(); row++) {
+                for (int row = 0; row < serviceTable.getRowCount(); row++) {
                     // Assuming the search is targeting the name column (column index 1)
-                    String cellValue = medicineTable.getValueAt(row, 1).toString();
+                    String cellValue = serviceTable.getValueAt(row, 1).toString();
                     if (cellValue.toLowerCase().contains(searchText.toLowerCase())) {
-                        medicineTable.setRowSelectionInterval(row, row);
-                        medicineTable.scrollRectToVisible(medicineTable.getCellRect(row, 1, true));
+                        serviceTable.setRowSelectionInterval(row, row);
+                        serviceTable.scrollRectToVisible(serviceTable.getCellRect(row, 1, true));
                         found = true;
                         break; // Stop after selecting the first match
                     }
                 }
 
                 if (!found) {
-                    medicineTable.clearSelection(); // No matches found
+                    serviceTable.clearSelection(); // No matches found
                 }
             }
         });
 
 
-        gbc.gridwidth = 1;
-        gbc.gridx = 0;
-        gbc.gridy++;
-        inputPanel.add(new JLabel("Company:"), gbc);
-        gbc.gridwidth = 3;
-        gbc.gridx = 1;
-        medicineCompanyField = new JTextField(15);
-        inputPanel.add(medicineCompanyField, gbc);
-
-        gbc.anchor = GridBagConstraints.NORTHWEST;
-        gbc.gridwidth = 1;
-        gbc.gridx = 0;
-        gbc.gridy++;
-        inputPanel.add(new JLabel("Description:"), gbc);
-        gbc.gridwidth = 3;
-        gbc.gridx = 1;
-        medicineDescriptionField = new JTextArea(2, 15);
-        inputPanel.add(medicineDescriptionField, gbc);
-        gbc.anchor = GridBagConstraints.WEST;
-
-
-        gbc.gridwidth = 1;
         gbc.gridx = 0;
         gbc.gridy++;
         inputPanel.add(new JLabel("Quantity:"), gbc);
@@ -226,49 +189,24 @@ public class MedicineDialog extends JDialog {
         inputPanel.add(quantitySpinner, gbc);
 
 
-        gbc.gridx = 2;
-        inputPanel.add(new JLabel("Left"), gbc);
-
-        gbc.gridx = 3;
-        quantityLeftField = new JTextField(5);
-        quantityLeftField.setEditable(false);
-        inputPanel.add(quantityLeftField, gbc);
-
-
-        gbc.gridwidth = 1;
-        gbc.gridx = 0;
-        gbc.gridy++;
-        inputPanel.add(new JLabel("Unit:"), gbc);
-        gbc.gridwidth = 3;
-        gbc.gridx = 1;
-        String[] units = {"Viên", "Vỉ", "Hộp", "Ống"};
-        UnitComboBox = new JComboBox<>(units);
-        inputPanel.add(UnitComboBox, gbc);
-
-        gbc.gridwidth = 1;
         gbc.gridx = 0;
         gbc.gridy++;
         inputPanel.add(new JLabel("Price:"), gbc);
-        gbc.gridwidth = 3;
         gbc.gridx = 1;
         priceField = new JTextField(15);
         inputPanel.add(priceField, gbc);
 
-        gbc.gridwidth = 1;
         gbc.gridx = 0;
         gbc.gridy++;
         inputPanel.add(new JLabel("Total:"), gbc);
-        gbc.gridwidth = 3;
         gbc.gridx = 1;
         totalField = new JTextField(15);
         inputPanel.add(totalField, gbc);
 
         gbc.anchor = GridBagConstraints.NORTHWEST;
-        gbc.gridwidth = 1;
         gbc.gridx = 0;
         gbc.gridy++;
         inputPanel.add(new JLabel("Note:"), gbc);
-        gbc.gridwidth = 3;
         gbc.gridx = 1;
         noteField = new JTextArea(2, 15);
         inputPanel.add(noteField, gbc);
@@ -280,11 +218,7 @@ public class MedicineDialog extends JDialog {
                 quantity = 0;
                 quantitySpinner.setValue(quantity);
             }
-            else if (quantity > Integer.parseInt(quantityLeftField.getText())) {
-                JOptionPane.showMessageDialog(this, "Quantity exceeds stock", "Error", JOptionPane.ERROR_MESSAGE);
-                quantity = Integer.parseInt(quantityLeftField.getText());
-                quantitySpinner.setValue(quantity);
-            }
+
             double price = Double.parseDouble(priceField.getText());
             totalField.setText(String.valueOf(quantity * price));
         });
@@ -299,8 +233,8 @@ public class MedicineDialog extends JDialog {
         topPanel.add(splitPane, BorderLayout.CENTER);
 
 
-        // Create a table to display selected medicines
-        String[] columnNames = {"ID", "Medicine Name", "Company", "Description", "Quantity", "Unit", "Single Price", "Total Price", "Note"};
+        // Create a table to display selected services
+        String[] columnNames = {"ID", "Service Name", "Quantity", "Single Price", "Total Price", "Note"};
         selectedTableModel = new DefaultTableModel(new String[][]{}, columnNames) {
             @Override
             public boolean isCellEditable(int row, int column) {
@@ -321,24 +255,24 @@ public class MedicineDialog extends JDialog {
         buttonPanel.add(submitButton);
 
         addButton.addActionListener(e -> {
-            int selectedRow = medicineTable.getSelectedRow();
+            int selectedRow = serviceTable.getSelectedRow();
             if (selectedRow != -1) {
-                int modelRow = medicineTable.convertRowIndexToModel(selectedRow);
-                if(selectedMedicine.containsKey(tableModel.getValueAt(modelRow, 0).toString())) {
-                    JOptionPane.showMessageDialog(this, "Medicine already added", "Error", JOptionPane.ERROR_MESSAGE);
+                int modelRow = serviceTable.convertRowIndexToModel(selectedRow);
+                if(selectedService.containsKey(tableModel.getValueAt(modelRow, 0).toString())) {
+                    JOptionPane.showMessageDialog(this, "Service already added", "Error", JOptionPane.ERROR_MESSAGE);
                     return;
                 }
-                selectedMedicine.put((String) tableModel.getValueAt(modelRow, 0), true);
-                Object[] rowData = new Object[9];
-                int columns = tableModel.getColumnCount();
-                for (int i = 0; i < columns ; i++) {
-                    rowData[i] = tableModel.getValueAt(modelRow, i);
-                }
+                selectedService.put((String) tableModel.getValueAt(modelRow, 0), true);
+                Object[] rowData = new Object[6];
 
-                rowData[7] = totalField.getText();
-                rowData[8] = noteField.getText();
+                rowData[0] = tableModel.getValueAt(modelRow, 0);
+                rowData[1] = tableModel.getValueAt(modelRow, 1);
+                rowData[2] = quantitySpinner.getValue();
+                rowData[3] = priceField.getText();
+                rowData[4] = totalField.getText();
+                rowData[5] = noteField.getText();
                 selectedTableModel.addRow(rowData);
-                log.info("Added medicine with id: {}", tableModel.getValueAt(modelRow, 0));
+                log.info("Added service with id: {}", tableModel.getValueAt(modelRow, 0));
             }
         });
 
@@ -346,18 +280,18 @@ public class MedicineDialog extends JDialog {
             int selectedRow = selectedTable.getSelectedRow();
             if (selectedRow != -1) {
                 String id = selectedTableModel.getValueAt(selectedRow, 0).toString();
-                selectedMedicine.remove(id);
-                log.info("Removed medicine with id: {}", id);
+                selectedService.remove(id);
+                log.info("Removed service with id: {}", id);
                 selectedTableModel.removeRow(selectedRow);
             }
         });
 
         submitButton.addActionListener(e -> {
             int rows = selectedTableModel.getRowCount();
-            medicinePrescription = new String[rows][9];
+            servicePrescription = new String[rows][6];
             for (int i = 0; i < rows; i++) {
-                for (int j = 0; j < 9; j++) {
-                    medicinePrescription[i][j] = selectedTableModel.getValueAt(i, j).toString();
+                for (int j = 0; j < 6; j++) {
+                    servicePrescription[i][j] = selectedTableModel.getValueAt(i, j).toString();
                 }
             }
             dispose();
@@ -374,19 +308,13 @@ public class MedicineDialog extends JDialog {
     private void handleRowSelection(int selectedRow) {
         String id = (String) tableModel.getValueAt(selectedRow, 0);
         String name = (String) tableModel.getValueAt(selectedRow, 1);
-        String company = (String) tableModel.getValueAt(selectedRow, 2);
-        String description = (String) tableModel.getValueAt(selectedRow, 3);
-        String stock = (String) tableModel.getValueAt(selectedRow, 4);
-        String unit = (String) tableModel.getValueAt(selectedRow, 5);
-        String price = (String) tableModel.getValueAt(selectedRow, 6);
+        String price = (String) tableModel.getValueAt(selectedRow, 2);
 
-        medicineNameField.setText(name);
-        medicineCompanyField.setText(company);
-        medicineDescriptionField.setText(description);
+        serviceNameField.setText(name);
         quantitySpinner.setValue(0);
-        quantityLeftField.setText(stock);
-        UnitComboBox.setSelectedItem(unit);
         priceField.setText(price);
+        totalField.setText("0");
+        noteField.setText("");
     }
 
     public static void main(String[] args) {
@@ -395,9 +323,9 @@ public class MedicineDialog extends JDialog {
         frame.setSize(400, 300);
         frame.setVisible(true);
 
-        JButton openDialogButton = new JButton("Open Medicine Dialog");
+        JButton openDialogButton = new JButton("Open Service Dialog");
         openDialogButton.addActionListener(e -> {
-            MedicineDialog dialog = new MedicineDialog(frame);
+            ServiceDialog dialog = new ServiceDialog(frame);
             dialog.setVisible(true);
         });
 

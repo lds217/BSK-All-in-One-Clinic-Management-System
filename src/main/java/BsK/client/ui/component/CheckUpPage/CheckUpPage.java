@@ -3,7 +3,8 @@ package BsK.client.ui.component.CheckUpPage;
 import BsK.client.LocalStorage;
 import BsK.client.network.handler.ClientHandler;
 import BsK.client.network.handler.ResponseListener;
-import BsK.client.ui.component.CheckUpPage.MedicineWindow.MedicineDialog;
+import BsK.client.ui.component.CheckUpPage.MedicineDialog.MedicineDialog;
+import BsK.client.ui.component.CheckUpPage.ServiceDialog.ServiceDialog;
 import BsK.client.ui.component.MainFrame;
 import BsK.client.ui.component.common.DateLabelFormatter;
 import BsK.client.ui.component.common.RoundedPanel;
@@ -19,6 +20,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.jdatepicker.impl.JDatePanelImpl;
 import org.jdatepicker.impl.JDatePickerImpl;
 import org.jdatepicker.impl.UtilDateModel;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
@@ -34,6 +37,7 @@ import java.util.Properties;
 @Slf4j
 public class CheckUpPage extends JPanel {
 
+    private static final Logger log = LoggerFactory.getLogger(CheckUpPage.class);
     private String[][] queue;
     private String[][] history;
     private DefaultTableModel model, historyModel;
@@ -47,11 +51,13 @@ public class CheckUpPage extends JPanel {
     private JComboBox<String> doctorComboBox, statusComboBox;
     private JDatePickerImpl datePicker;
     private String[][] medicinePrescription;
+    private String[][] servicePrescription;
     private String[] doctorOptions;
-    private MedicineDialog dialog = null;
+    private MedicineDialog medDialog = null;
+    private ServiceDialog serDialog = null;
     private int previousSelectedRow = -1;
     private boolean saved = false;
-
+    boolean returnCell = false;
     public void updateQueue() {
 
         ClientHandler.addResponseListener(GetCheckUpQueueResponse.class, checkUpQueueListener);
@@ -286,6 +292,7 @@ public class CheckUpPage extends JPanel {
         statusComboBox = new JComboBox<>(statusOptions);
         inputPanel.add(statusComboBox, gbc);
         table1.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+
         table1.getSelectionModel().addListSelectionListener(e -> {
             if (!e.getValueIsAdjusting()) { // Ensure final selection event
                 int selectedRow = table1.getSelectedRow();
@@ -294,6 +301,7 @@ public class CheckUpPage extends JPanel {
                         if(previousSelectedRow != selectedRow) {
                             if(!saved) {
                                 JOptionPane.showMessageDialog(null, "Please save changes before selecting another patient");
+                                returnCell = true;
                                 table1.setRowSelectionInterval(previousSelectedRow, previousSelectedRow);
                                 return;
                             }
@@ -301,8 +309,12 @@ public class CheckUpPage extends JPanel {
                     }
                     // reset information
 
+                    if (returnCell) {
+                        returnCell = false;
+                        return;
+                    }
                     medicinePrescription = new String[][]{};
-
+                    servicePrescription = new String[][]{};
                     handleRowSelection(selectedRow);
 
                 }
@@ -330,8 +342,21 @@ public class CheckUpPage extends JPanel {
                             JOptionPane.showMessageDialog(null, "Add action triggered");
                             break;
                         case "service":
-                            // Edit action
-                            JOptionPane.showMessageDialog(null, "stethoscope action triggered");
+                            // If there is no user selected, show a warning message
+                            if (checkupIdField.getText().isEmpty()) {
+                                JOptionPane.showMessageDialog(null, "Please select a patient from the queue");
+                                return;
+                            }
+                            // Open service dialog
+                            if(serDialog == null) {
+                                serDialog = new ServiceDialog(mainFrame);
+                                previousSelectedRow = table1.getSelectedRow();
+                            }
+                            serDialog.setVisible(true);
+                            saved = false;
+                            servicePrescription = serDialog.getServicePrescription();
+
+                            log.info("Service prescription: {}", servicePrescription);
                             break;
                         case "save": {
                             //Warning message
@@ -352,15 +377,22 @@ public class CheckUpPage extends JPanel {
                                 return;
                             }
                             // Open medicine dialog
-                            if(previousSelectedRow != table1.getSelectedRow()) {
-                                dialog = new MedicineDialog(mainFrame);
+                            if(medDialog == null) {
+                                medDialog = new MedicineDialog(mainFrame);
                                 previousSelectedRow = table1.getSelectedRow();
                             }
-                            dialog.setVisible(true);
+                            medDialog.setVisible(true);
                             saved = false;
-                            medicinePrescription = dialog.getMedicinePrescription();
+                            medicinePrescription = medDialog.getMedicinePrescription();
 
                             log.info("Medicine prescription: {}", medicinePrescription);
+
+                            break;
+                        case "printer":
+                            // Print action
+                            JOptionPane.showMessageDialog(null, "Print action triggered");
+                            log.info("Medicine prescription: {}", (Object) medicinePrescription);
+                            log.info("Service prescription: {}", (Object) servicePrescription);
                             break;
                         default:
                             throw new IllegalStateException("Unexpected value: " + name);

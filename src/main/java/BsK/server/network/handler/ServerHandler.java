@@ -236,6 +236,40 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
           throw new RuntimeException(e);
         }
       }
+
+      if (packet instanceof GetSerInfoRequest getSerInfoRequest) {
+        log.debug("Received GetSerInfoRequest");
+        try {
+          ResultSet rs = statement.executeQuery(
+                  "select service_id, service_name, service_cost\n" +
+                          "    from Service"
+          );
+
+          if (!rs.isBeforeFirst()) {
+            System.out.println("No data found in the service table.");
+          } else {
+            ArrayList<String> resultList = new ArrayList<>();
+            while (rs.next()) {
+              String serId = rs.getString("service_id");
+              String serName = rs.getString("service_name");
+              String serPrice = rs.getString("service_cost");
+
+              String result = String.join("|", serId, serName, serPrice);
+              resultList.add(result);
+            }
+
+            String[] resultString = resultList.toArray(new String[0]);
+            String[][] resultArray = new String[resultString.length][];
+            for (int i = 0; i < resultString.length; i++) {
+              resultArray[i] = resultString[i].split("\\|");
+            }
+
+            UserUtil.sendPacket(user.getSessionId(), new GetSerInfoResponse(resultArray));
+          }
+        } catch (SQLException e) {
+          throw new RuntimeException(e);
+        }
+      }
     }
   }
 

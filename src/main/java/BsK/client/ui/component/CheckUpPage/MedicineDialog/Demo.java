@@ -1,4 +1,4 @@
-package BsK.client.ui.component.CheckUpPage.MedicineWindow;
+package BsK.client.ui.component.CheckUpPage.MedicineDialog;
 
 import javax.swing.*;
 import org.jdesktop.swingx.autocomplete.AutoCompleteDecorator;
