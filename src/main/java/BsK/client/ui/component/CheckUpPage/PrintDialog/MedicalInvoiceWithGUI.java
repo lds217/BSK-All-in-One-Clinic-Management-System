@@ -35,12 +35,10 @@ public class MedicalInvoiceWithGUI {
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setLayout(new BorderLayout());
 
-        JPanel buttonPanel = new JPanel(new GridLayout(1, 3));
-        JButton previewButton = new JButton("Preview PDF");
+        JPanel buttonPanel = new JPanel(new GridLayout(1, 2));
         JButton saveButton = new JButton("Save PDF");
         JButton printButton = new JButton("Print PDF");
 
-        buttonPanel.add(previewButton);
         buttonPanel.add(saveButton);
         buttonPanel.add(printButton);
 
@@ -50,22 +48,17 @@ public class MedicalInvoiceWithGUI {
         frame.add(buttonPanel, BorderLayout.SOUTH);
 
         String pdfPath = "medical_invoice.pdf";
-
-        // Preview PDF Action
-        previewButton.addActionListener(e -> {
-            try {
-                generatePdf(pdfPath);
-                displayPdfInLabel(pdfPath, pdfViewer);
-            } catch (Exception ex) {
-                ex.printStackTrace();
-                JOptionPane.showMessageDialog(frame, "Error displaying PDF: " + ex.getMessage());
-            }
-        });
+        try {
+            generatePdf(pdfPath);
+            displayPdfInLabel(pdfPath, pdfViewer);
+        } catch (Exception e) {
+            e.printStackTrace();
+            JOptionPane.showMessageDialog(frame, "Error generating PDF: " + e.getMessage());
+        }
 
         // Save PDF Action
         saveButton.addActionListener(e -> {
             try {
-                generatePdf(pdfPath);
                 JFileChooser fileChooser = new JFileChooser();
                 fileChooser.setDialogTitle("Save PDF As");
                 fileChooser.setSelectedFile(new File("medical_invoice.pdf"));
@@ -93,7 +86,6 @@ public class MedicalInvoiceWithGUI {
         // Print PDF Action
         printButton.addActionListener(e -> {
             try {
-                generatePdf(pdfPath);
                 File pdfFile = new File(pdfPath);
                 printPdf(pdfFile);
                 JOptionPane.showMessageDialog(frame, "Printing triggered.");
@@ -126,14 +118,14 @@ public class MedicalInvoiceWithGUI {
         document.add(logo);
 
         // Add clinic information
-        String clinicInfo = "Phòng khám BSK\nĐức Hòa Long An\nPhone: (123) 456-7890\nNgày khám: 30 tháng 2 năm 2025\n\n";
+        String clinicInfo = "Phòng khám BSK\nĐức Hòa Long An\nPhone: (123) 456-7890\nNgày khám: 30 tháng 2 năm 2025\n";
         Paragraph clinicInfoParagraph = new Paragraph(clinicInfo)
                 .setTextAlignment(com.itextpdf.layout.property.TextAlignment.RIGHT)
                 .setFont(font);
         document.add(clinicInfoParagraph);
 
         // Add title
-        String title = "Toa thuốc\n\n";
+        String title = "Toa thuốc\n";
         Paragraph titleParagraph = new Paragraph(title)
                 .setFontSize(24).setFont(boldFont)
                 .setTextAlignment(com.itextpdf.layout.property.TextAlignment.CENTER);
@@ -143,7 +135,7 @@ public class MedicalInvoiceWithGUI {
         Table patientDoctorTable = new Table(UnitValue.createPercentArray(new float[]{50, 50}))
                 .setWidth(UnitValue.createPercentValue(100));
 
-// Add patient and doctor information in the first column (left-aligned)
+        // Add patient and doctor information in the first column (left-aligned)
         Cell patientDoctorCell = new Cell()
                 .add(new Paragraph("Họ tên bệnh nhân: Lê Nguyễn A\nSố điện thoại: 0123456789\n" +
                         "Địa chỉ: 123 Patient Street"))
@@ -152,36 +144,56 @@ public class MedicalInvoiceWithGUI {
                 .setFont(font);
         patientDoctorTable.addCell(patientDoctorCell);
 
-// Add date and invoice information in the second column (right-aligned)
+        // Add date and invoice information in the second column (right-aligned)
         Cell moreInfoCell = new Cell()
-                .add(new Paragraph("Phái: Nam\nTuổi: 25\nNgày sinh: 01/01/2000\n" +
+                .add(new Paragraph("Phái: Nam\nNăm sinh: 2500\n" +
                         "Bác sĩ: Nguyễn Văn B"))
                 .setTextAlignment(com.itextpdf.layout.property.TextAlignment.LEFT)
                 .setBorder(Border.NO_BORDER)
                 .setFont(font);
         patientDoctorTable.addCell(moreInfoCell);
 
-// Add the table to the document
+        // Add the table to the document
         document.add(patientDoctorTable);
 
         // Diagnosis and notes
-        String diagnosisNotes = "Chẩn đoán: Cảm cúm\nGhi chú: Nghỉ ngơi và uống nhiều nước";
+        String diagnosisNotes = "Chẩn đoán: Cảm cúmm m mm m m m  mm mm mm m mm m " +
+                "m m m mm m m m m m m mm mm m mm m mm mm mm nm nm nm nmn m nm nm" +
+                " mmn mm nm nm nmn mn mn mn mn mn mn mn mn mn mnm nm nm nmn mn mn \nGhi chú: " +
+                "Nghỉ ngơi và uống nhiều nước\n\n\n\n\n\n\n\n\n\n";
         Paragraph diagnosisNotesParagraph = new Paragraph(diagnosisNotes).setFont(font);
         document.add(diagnosisNotesParagraph);
 
 
         // Add services and medicine table
         Table table = new Table(UnitValue.createPercentArray(new float[]{4, 2, 2}))
+                .setFont(font)
                 .setWidth(UnitValue.createPercentValue(100));
         table.addHeaderCell("Service/Medicine");
         table.addHeaderCell("Quantity");
         table.addHeaderCell("Price");
-        table.addCell("Consultation");
+        table.addCell("Consultation\n Ngày uống 100 viên, sáng trưa chiều");
         table.addCell("1");
         table.addCell("$50");
-        table.addCell("Aspirin");
+        table.addCell("Aspirin\n Ngày uống 100 viên, sáng trưa chiều");
         table.addCell("2");
         table.addCell("$10");
+        table.addCell("Paracetamol") ;
+        table.addCell("1");
+        table.addCell("$5");
+        table.addCell("Vitamin C");
+        table.addCell("1");
+        table.addCell("$7");
+        table.addCell("Antibiotics");
+        table.addCell("1");
+        table.addCell("$20");
+        table.addCell("Echinacea");
+        table.addCell("1");
+        table.addCell("$15");
+        table.addCell("Total");
+        table.addCell("");
+        table.addCell("$107");
+
         document.add(table);
 
 
