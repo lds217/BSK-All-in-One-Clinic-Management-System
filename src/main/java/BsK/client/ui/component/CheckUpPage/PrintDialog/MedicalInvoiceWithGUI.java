@@ -15,25 +15,40 @@ import com.itextpdf.layout.property.UnitValue;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.rendering.PDFRenderer;
 
-import javax.print.*;
-import javax.print.attribute.HashPrintRequestAttributeSet;
-import javax.print.attribute.PrintRequestAttributeSet;
 import javax.swing.*;
 import java.awt.*;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
 import java.awt.image.BufferedImage;
+import java.awt.print.PageFormat;
+import java.awt.print.Printable;
+import java.awt.print.PrinterException;
+import java.awt.print.PrinterJob;
 import java.io.*;
+import java.util.ArrayList;
 
 public class MedicalInvoiceWithGUI {
 
+    private JDialog dialog;
     public static void main(String[] args) {
-        SwingUtilities.invokeLater(() -> new MedicalInvoiceWithGUI().createGUI());
+        SwingUtilities.invokeLater(() -> {
+            JButton openDialogButton = new JButton("Open Medical Invoice");
+            openDialogButton.addActionListener(e -> new MedicalInvoiceWithGUI().createDialog(null));
+            JFrame frame = new JFrame("Main Application");
+            frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+            frame.setSize(400, 300);
+            frame.setLayout(new FlowLayout());
+            frame.add(openDialogButton);
+            frame.setVisible(true);
+        });
     }
 
-    private void createGUI() {
-        JFrame frame = new JFrame("Medical Invoice");
-        frame.setSize(600, 600);
-        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        frame.setLayout(new BorderLayout());
+    private void createDialog(JFrame parent) {
+        dialog = new JDialog(parent, "Medical Invoice", true);
+        dialog.setSize(600, 600);
+        dialog.setResizable(false);
+        dialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
+        dialog.setLayout(new BorderLayout());
 
         JPanel buttonPanel = new JPanel(new GridLayout(1, 2));
         JButton saveButton = new JButton("Save PDF");
@@ -42,10 +57,10 @@ public class MedicalInvoiceWithGUI {
         buttonPanel.add(saveButton);
         buttonPanel.add(printButton);
 
-        JLabel pdfViewer = new JLabel();
+        JPanel pdfViewer = new JPanel();
         JScrollPane scrollPane = new JScrollPane(pdfViewer);
-        frame.add(scrollPane, BorderLayout.CENTER);
-        frame.add(buttonPanel, BorderLayout.SOUTH);
+        dialog.add(scrollPane, BorderLayout.CENTER);
+        dialog.add(buttonPanel, BorderLayout.SOUTH);
 
         String pdfPath = "medical_invoice.pdf";
         try {
@@ -53,7 +68,7 @@ public class MedicalInvoiceWithGUI {
             displayPdfInLabel(pdfPath, pdfViewer);
         } catch (Exception e) {
             e.printStackTrace();
-            JOptionPane.showMessageDialog(frame, "Error generating PDF: " + e.getMessage());
+            JOptionPane.showMessageDialog(dialog, "Error generating PDF: " + e.getMessage());
         }
 
         // Save PDF Action
@@ -62,7 +77,7 @@ public class MedicalInvoiceWithGUI {
                 JFileChooser fileChooser = new JFileChooser();
                 fileChooser.setDialogTitle("Save PDF As");
                 fileChooser.setSelectedFile(new File("medical_invoice.pdf"));
-                int userSelection = fileChooser.showSaveDialog(frame);
+                int userSelection = fileChooser.showSaveDialog(dialog);
 
                 if (userSelection == JFileChooser.APPROVE_OPTION) {
                     File fileToSave = fileChooser.getSelectedFile();
@@ -74,12 +89,12 @@ public class MedicalInvoiceWithGUI {
                         while ((bytesRead = in.read(buffer)) != -1) {
                             out.write(buffer, 0, bytesRead);
                         }
-                        JOptionPane.showMessageDialog(frame, "PDF saved: " + fileToSave.getAbsolutePath());
+                        JOptionPane.showMessageDialog(dialog, "PDF saved: " + fileToSave.getAbsolutePath());
                     }
                 }
             } catch (Exception ex) {
                 ex.printStackTrace();
-                JOptionPane.showMessageDialog(frame, "Error saving PDF: " + ex.getMessage());
+                JOptionPane.showMessageDialog(dialog, "Error saving PDF: " + ex.getMessage());
             }
         });
 
@@ -88,14 +103,14 @@ public class MedicalInvoiceWithGUI {
             try {
                 File pdfFile = new File(pdfPath);
                 printPdf(pdfFile);
-                JOptionPane.showMessageDialog(frame, "Printing triggered.");
             } catch (Exception ex) {
                 ex.printStackTrace();
-                JOptionPane.showMessageDialog(frame, "Error printing PDF: " + ex.getMessage());
+                JOptionPane.showMessageDialog(dialog, "Error printing PDF: " + ex.getMessage());
             }
         });
 
-        frame.setVisible(true);
+        dialog.setLocationRelativeTo(parent);
+        dialog.setVisible(true);
     }
 
     private void generatePdf(String pdfPath) throws Exception {
@@ -118,7 +133,9 @@ public class MedicalInvoiceWithGUI {
         document.add(logo);
 
         // Add clinic information
-        String clinicInfo = "Phòng khám BSK\nĐức Hòa Long An\nPhone: (123) 456-7890\nNgày khám: 30 tháng 2 năm 2025\n";
+        String clinicInfo = String.format("%s\n%s\nSố điện thoại: %s\nEmail: %s",
+                "Clinic Name", "123 Clinic Street",
+                "0123456789", "test@#mail.com");
         Paragraph clinicInfoParagraph = new Paragraph(clinicInfo)
                 .setTextAlignment(com.itextpdf.layout.property.TextAlignment.RIGHT)
                 .setFont(font);
@@ -206,33 +223,92 @@ public class MedicalInvoiceWithGUI {
         document.close();
     }
 
-    private void displayPdfInLabel(String pdfPath, JLabel label) throws IOException {
+    private void displayPdfInLabel(String pdfPath, JPanel pdfPanel) throws Exception {
         PDDocument document = PDDocument.load(new File(pdfPath));
-        PDFRenderer renderer = new PDFRenderer(document);
+        PDFRenderer pdfRenderer = new PDFRenderer(document);
 
-        // Render the first page
-        BufferedImage pageImage = renderer.renderImageWithDPI(0, 100); // 100 DPI for reasonable quality
-        ImageIcon icon = new ImageIcon(pageImage);
-        label.setIcon(icon);
+        // Create a panel to hold all pages
+        pdfPanel.setLayout(new BoxLayout(pdfPanel, BoxLayout.Y_AXIS)); // Stack pages vertically
 
+        // Render each page and add it to the pdfPanel
+        for (int i = 0; i < document.getNumberOfPages(); i++) {
+            BufferedImage image = pdfRenderer.renderImageWithDPI(i, 150); // Adjust DPI as needed
+
+            // Scale the image to a smaller size (e.g., 50% of the original size)
+            int scaledWidth = image.getWidth() / 2;  // Make it half of the original width
+            int scaledHeight = image.getHeight() / 2; // Make it half of the original height
+
+            // Scale the image using getScaledInstance
+            java.awt.Image scaledImage = image.getScaledInstance(scaledWidth, scaledHeight, java.awt.Image.SCALE_SMOOTH);
+
+            // Create an ImageIcon from the scaled image
+            ImageIcon icon = new ImageIcon(scaledImage);
+
+            // Create a label for the image and add it to the panel
+            JLabel pageLabel = new JLabel(icon);
+            pdfPanel.add(pageLabel);
+        }
         document.close();
+        // Put the panel inside a JScrollPane to make it scrollable
+        JScrollPane scrollPane = new JScrollPane(pdfPanel);
+        scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_ALWAYS);
+
+        // Assuming `dialog` is the parent component
+        dialog.add(scrollPane, BorderLayout.CENTER);
+        dialog.validate();
+        dialog.repaint();
     }
 
+
     public static void printPdf(File pdfFile) {
-        try {
-            PrintService printService = PrintServiceLookup.lookupDefaultPrintService();
-            if (printService != null) {
-                DocPrintJob printJob = printService.createPrintJob();
-                Doc pdfDoc = new SimpleDoc(pdfFile.toURI().toURL().openStream(),
-                        javax.print.DocFlavor.INPUT_STREAM.PDF, null);
-                PrintRequestAttributeSet attributes = new HashPrintRequestAttributeSet();
-                printJob.print(pdfDoc, attributes);
-                System.out.println("PDF sent to the printer.");
+        try (PDDocument document = PDDocument.load(pdfFile)) {
+            PrinterJob printerJob = PrinterJob.getPrinterJob();
+            printerJob.setJobName("Print Medical Invoice");
+
+            if (printerJob.printDialog()) {
+                printerJob.setPrintable(new Printable() {
+                    @Override
+                    public int print(Graphics graphics, PageFormat pageFormat, int pageIndex) throws PrinterException {
+                        if (pageIndex >= document.getNumberOfPages()) {
+                            return NO_SUCH_PAGE;
+                        }
+
+                        Graphics2D g2 = (Graphics2D) graphics;
+                        g2.translate(pageFormat.getImageableX(), pageFormat.getImageableY());
+
+                        try {
+                            PDFRenderer pdfRenderer = new PDFRenderer(document);
+                            BufferedImage pageImage = pdfRenderer.renderImageWithDPI(pageIndex, 300); // Render at 300 DPI
+
+                            double pageWidth = pageImage.getWidth();
+                            double pageHeight = pageImage.getHeight();
+
+                            double scaleX = pageFormat.getImageableWidth() / pageWidth;
+                            double scaleY = pageFormat.getImageableHeight() / pageHeight;
+                            double scale = Math.min(scaleX, scaleY);
+
+                            g2.scale(scale, scale);
+                            g2.drawImage(pageImage, 0, 0, null);
+
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                            return NO_SUCH_PAGE;
+                        }
+
+                        return PAGE_EXISTS;
+                    }
+                });
+
+
+                printerJob.print();
+                System.out.println("Printing completed.");
             } else {
-                System.out.println("No default print service found.");
+                System.out.println("Print job canceled.");
             }
         } catch (Exception e) {
             e.printStackTrace();
+            JOptionPane.showMessageDialog(null, "Error printing PDF: " + e.getMessage());
         }
     }
+
 }
