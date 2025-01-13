@@ -66,16 +66,18 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         log.debug("Received GetCheckUpQueueRequest");
         try {
           ResultSet rs = statement.executeQuery(
-                  "select a.checkup_id, a.checkup_date, c.customer_last_name, c.customer_first_name, " +
-                          "d.doctor_first_name, d.doctor_last_name, a.symptoms, a.diagnosis, a.notes, a.status, a.customer_id " +
-                          "from checkup as a " +
-                          "join customer as c on a.customer_id = c.customer_id " +
-                          "join Doctor D on a.doctor_id = D.doctor_id " +
+                  "select a.checkup_id, a.checkup_date, c.customer_last_name, c.customer_first_name,\n" +
+                          "d.doctor_first_name, d.doctor_last_name, a.symptoms, a.diagnosis, a.notes, a.status, a.customer_id, \n" +
+                          "c.customer_number, c.customer_address, c.customer_weight, c.customer_height, c.customer_gender, c.customer_dob\n" +
+                          "from checkup as a\n" +
+                          "join customer as c on a.customer_id = c.customer_id\n" +
+                          "join Doctor D on a.doctor_id = D.doctor_id\n" +
                           "where a.status = 'PROCESSING'"
           );
 
           if (!rs.isBeforeFirst()) {
             System.out.println("No data found in the checkup table.");
+
           } else {
             ArrayList<String> resultList = new ArrayList<>();
             while (rs.next()) {
@@ -95,12 +97,19 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
               String notes = rs.getString("notes");
               String status = rs.getString("status");
               String customerId = rs.getString("customer_id");
+              String customerNumber = rs.getString("customer_number");
+              String customerAddress = rs.getString("customer_address");
+              String customerWeight = rs.getString("customer_weight");
+              String customerHeight = rs.getString("customer_height");
+              String customerGender = rs.getString("customer_gender");
+              String customerDob = rs.getString("customer_dob");
 
 
               String result = String.join("|", checkupId,
                       checkupDate, customerLastName, customerFirstName,
                       doctorLastName + " " + doctorFirstName, symptoms,
-                      diagnosis, notes, status, customerId
+                      diagnosis, notes, status, customerId, customerNumber, customerAddress, customerWeight, customerHeight,
+                      customerGender, customerDob
               );
 
               resultList.add(result);
@@ -267,6 +276,29 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
             UserUtil.sendPacket(user.getSessionId(), new GetSerInfoResponse(resultArray));
           }
         } catch (SQLException e) {
+          throw new RuntimeException(e);
+        }
+      }
+
+      if (packet instanceof ClinicInfoRequest clinicInfoRequest) {
+        log.debug("Received ClinicInfoRequest");
+        try {
+          ResultSet rs = statement.executeQuery(
+                  "select name, address, phone\n" +
+                          "    from Clinic"
+          );
+
+            if (!rs.isBeforeFirst()) {
+                System.out.println("No data found in the clinic table.");
+            } else {
+                String clinicName = rs.getString("name");
+                String clinicAddress = rs.getString("address");
+                String clinicPhone = rs.getString("phone");
+
+                UserUtil.sendPacket(user.getSessionId(), new ClinicInfoResponse(clinicName, clinicAddress, clinicPhone));
+            }
+        }
+        catch (SQLException e) {
           throw new RuntimeException(e);
         }
       }

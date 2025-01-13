@@ -1,5 +1,6 @@
 package BsK.client.ui.component.CheckUpPage.PrintDialog;
 
+import BsK.client.LocalStorage;
 import com.itextpdf.io.image.ImageData;
 import com.itextpdf.io.image.ImageDataFactory;
 import com.itextpdf.kernel.font.PdfFont;
@@ -26,14 +27,36 @@ import java.awt.print.PrinterException;
 import java.awt.print.PrinterJob;
 import java.io.*;
 import java.util.ArrayList;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 
-public class MedicalInvoiceWithGUI {
+public class MedicineInvoice{
 
     private JDialog dialog;
+    private String patientName;
+    private String patientDOB;
+    private String patientPhone;
+    private String patientGender;
+    private String patientAddress;
+    private String doctorName;
+    private String diagnosis;
+    private String notes;
+    private String date;
+    private String id;
+    private String[][] med; // Name, Quantity, Price
+
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
-            JButton openDialogButton = new JButton("Open Medical Invoice");
-            openDialogButton.addActionListener(e -> new MedicalInvoiceWithGUI().createDialog(null));
+            JButton openDialogButton = new JButton("Open Medicine Invoice");
+
+            openDialogButton.addActionListener(e -> new MedicineInvoice("1212", "Nguyễn Văn A", "01/01/1990", "0123456789",
+                    "Nam", "123 Đường ABC, Quận XYZ, TP HCM", "Bác sĩ XYZ", "Sốt cao",
+                    "Nghỉ ngơi nhiều, uống nhiều nước", new String[][]{
+                            {"Paracetamol", "2", "5000"},
+                            {"Vitamin C", "1", "10000"},
+                            {"Amoxicillin", "1", "20000"}
+                    }
+            ).createDialog(null));
             JFrame frame = new JFrame("Main Application");
             frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
             frame.setSize(400, 300);
@@ -43,8 +66,32 @@ public class MedicalInvoiceWithGUI {
         });
     }
 
-    private void createDialog(JFrame parent) {
-        dialog = new JDialog(parent, "Medical Invoice", true);
+    public MedicineInvoice(String id, String patientName, String patientDOB, String patientPhone,
+                               String patientGender, String patientAddress, String doctorName, String diagnosis,
+                               String notes, String[][] med) {
+        this.id = id;
+        this.patientName = patientName;
+        this.patientDOB = patientDOB;
+        this.patientPhone = patientPhone;
+        this.patientGender = patientGender;
+        this.patientAddress = patientAddress;
+        this.doctorName = doctorName;
+        this.diagnosis = diagnosis;
+        this.notes = notes;
+        // Get today's date
+        LocalDate today = LocalDate.now();
+
+        // Format the date
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+        String formattedDate = today.format(formatter);
+
+        this.date = formattedDate;
+        this.med = med;
+    }
+
+
+    public void createDialog(JFrame parent) {
+        dialog = new JDialog(parent, "Medicine Invoice", true);
         dialog.setSize(600, 600);
         dialog.setResizable(false);
         dialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
@@ -126,23 +173,22 @@ public class MedicalInvoiceWithGUI {
         PdfFont font = PdfFontFactory.createFont(fontPath, "Identity-H", true);
 
         // Add logo
-        String logoPath = "/Users/lethanhdat/Documents/GitHub/ldS_BsK/src/main/java/BsK/client/ui/assets/icon/add.png"; // Path to your logo
+        String logoPath = "src/main/java/BsK/client/ui/assets/icon/add.png"; // Path to your logo
         ImageData imageData = ImageDataFactory.create(logoPath);
         Image logo = new Image(imageData).scaleToFit(75, 75);
         logo.setFixedPosition(50, 750);
         document.add(logo);
 
         // Add clinic information
-        String clinicInfo = String.format("%s\n%s\nSố điện thoại: %s\nEmail: %s",
-                "Clinic Name", "123 Clinic Street",
-                "0123456789", "test@#mail.com");
+        String clinicInfo = String.format("%s\n%s\nSố điện thoại: %s\nNgày: %s", LocalStorage.ClinicName,
+                LocalStorage.ClinicAddress, LocalStorage.ClinicPhone, date);
         Paragraph clinicInfoParagraph = new Paragraph(clinicInfo)
                 .setTextAlignment(com.itextpdf.layout.property.TextAlignment.RIGHT)
                 .setFont(font);
         document.add(clinicInfoParagraph);
 
         // Add title
-        String title = "Toa thuốc\n";
+        String title = "TOA THUỐC\n";
         Paragraph titleParagraph = new Paragraph(title)
                 .setFontSize(24).setFont(boldFont)
                 .setTextAlignment(com.itextpdf.layout.property.TextAlignment.CENTER);
@@ -154,8 +200,8 @@ public class MedicalInvoiceWithGUI {
 
         // Add patient and doctor information in the first column (left-aligned)
         Cell patientDoctorCell = new Cell()
-                .add(new Paragraph("Họ tên bệnh nhân: Lê Nguyễn A\nSố điện thoại: 0123456789\n" +
-                        "Địa chỉ: 123 Patient Street"))
+                .add(new Paragraph(String.format("Họ và tên: %s\nNgày sinh: %s\nSố điện thoại: %s\nĐịa chỉ: %s",
+                        patientName, patientDOB, patientPhone, patientAddress)))
                 .setTextAlignment(com.itextpdf.layout.property.TextAlignment.LEFT)
                 .setBorder(Border.NO_BORDER)
                 .setFont(font);
@@ -163,8 +209,8 @@ public class MedicalInvoiceWithGUI {
 
         // Add date and invoice information in the second column (right-aligned)
         Cell moreInfoCell = new Cell()
-                .add(new Paragraph("Phái: Nam\nNăm sinh: 2500\n" +
-                        "Bác sĩ: Nguyễn Văn B"))
+                .add(new Paragraph(String.format("Phái: %s\nBác sĩ: %s\nĐơn thuốc số: %s",
+                        patientGender, doctorName, id)))
                 .setTextAlignment(com.itextpdf.layout.property.TextAlignment.LEFT)
                 .setBorder(Border.NO_BORDER)
                 .setFont(font);
@@ -174,10 +220,7 @@ public class MedicalInvoiceWithGUI {
         document.add(patientDoctorTable);
 
         // Diagnosis and notes
-        String diagnosisNotes = "Chẩn đoán: Cảm cúmm m mm m m m  mm mm mm m mm m " +
-                "m m m mm m m m m m m mm mm m mm m mm mm mm nm nm nm nmn m nm nm" +
-                " mmn mm nm nm nmn mn mn mn mn mn mn mn mn mn mnm nm nm nmn mn mn \nGhi chú: " +
-                "Nghỉ ngơi và uống nhiều nước\n\n\n\n\n\n\n\n\n\n";
+        String diagnosisNotes = String.format("Chẩn đoán: %s\nGhi chú: %s\n", diagnosis, notes);
         Paragraph diagnosisNotesParagraph = new Paragraph(diagnosisNotes).setFont(font);
         document.add(diagnosisNotesParagraph);
 
@@ -185,34 +228,27 @@ public class MedicalInvoiceWithGUI {
         // Add services and medicine table
         Table table = new Table(UnitValue.createPercentArray(new float[]{4, 2, 2}))
                 .setFont(font)
-                .setWidth(UnitValue.createPercentValue(100));
+                .setWidth(UnitValue.createPercentValue(100))
+                .setBorder(Border.NO_BORDER);
         table.addHeaderCell("Service/Medicine");
         table.addHeaderCell("Quantity");
         table.addHeaderCell("Price");
-        table.addCell("Consultation\n Ngày uống 100 viên, sáng trưa chiều");
-        table.addCell("1");
-        table.addCell("$50");
-        table.addCell("Aspirin\n Ngày uống 100 viên, sáng trưa chiều");
-        table.addCell("2");
-        table.addCell("$10");
-        table.addCell("Paracetamol") ;
-        table.addCell("1");
-        table.addCell("$5");
-        table.addCell("Vitamin C");
-        table.addCell("1");
-        table.addCell("$7");
-        table.addCell("Antibiotics");
-        table.addCell("1");
-        table.addCell("$20");
-        table.addCell("Echinacea");
-        table.addCell("1");
-        table.addCell("$15");
-        table.addCell("Total");
-        table.addCell("");
-        table.addCell("$107");
+        long total = 0;
+        for(int i = 0; i < med.length; i++) {
+            table.addCell(med[i][1]);
+            table.addCell(med[i][4]);
+            table.addCell(med[i][6]);
+            total += Long.parseLong(med[i][4]) * Long.parseLong(med[i][6]);
+        }
+        // Merge the last row for total
+        Cell totalCell = new Cell(1, 2)
+                .add(new Paragraph("Tổng cộng"))
+                .setTextAlignment(com.itextpdf.layout.property.TextAlignment.RIGHT);
+        table.addCell(totalCell);
+        table.addCell(new Cell().add(new Paragraph(String.valueOf(total)))
+                .setTextAlignment(com.itextpdf.layout.property.TextAlignment.LEFT));
 
         document.add(table);
-
 
         // Add signature area
         Paragraph signatureArea = new Paragraph("\n\n\nChữ Ký: ________________________")
@@ -263,7 +299,7 @@ public class MedicalInvoiceWithGUI {
     public static void printPdf(File pdfFile) {
         try (PDDocument document = PDDocument.load(pdfFile)) {
             PrinterJob printerJob = PrinterJob.getPrinterJob();
-            printerJob.setJobName("Print Medical Invoice");
+            printerJob.setJobName("Print Medicine Invoice");
 
             if (printerJob.printDialog()) {
                 printerJob.setPrintable(new Printable() {

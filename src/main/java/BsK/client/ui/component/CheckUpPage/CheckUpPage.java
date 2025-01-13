@@ -4,6 +4,7 @@ import BsK.client.LocalStorage;
 import BsK.client.network.handler.ClientHandler;
 import BsK.client.network.handler.ResponseListener;
 import BsK.client.ui.component.CheckUpPage.MedicineDialog.MedicineDialog;
+import BsK.client.ui.component.CheckUpPage.PrintDialog.MedicineInvoice;
 import BsK.client.ui.component.CheckUpPage.ServiceDialog.ServiceDialog;
 import BsK.client.ui.component.MainFrame;
 import BsK.client.ui.component.common.DateLabelFormatter;
@@ -36,20 +37,18 @@ import java.util.Properties;
 
 @Slf4j
 public class CheckUpPage extends JPanel {
-
-    private static final Logger log = LoggerFactory.getLogger(CheckUpPage.class);
     private String[][] queue;
     private String[][] history;
     private DefaultTableModel model, historyModel;
     private JTable table1, historyTable;
     private final ResponseListener<GetDoctorGeneralInfoResponse> doctorGeneralInfoListener = this::handleGetDoctorGeneralInfoResponse;
     private final ResponseListener<GetCheckUpQueueResponse> checkUpQueueListener = this::handleGetCheckUpQueueResponse;
-    private final ResponseListener<ErrorResponse> errorListener = this::handleErrorResponse;
     private final ResponseListener<GetCustomerHistoryResponse> customerHistoryListener = this::handleGetCustomerHistoryResponse;
-    private JTextField checkupIdField, customerLastNameField, customerFirstNameField;
+    private JTextField checkupIdField, customerLastNameField, customerFirstNameField,customerAddressField, customerPhoneField, customerIdField;
     private JTextArea symptomsField, diagnosisField, notesField;
-    private JComboBox<String> doctorComboBox, statusComboBox;
-    private JDatePickerImpl datePicker;
+    private JComboBox<String> doctorComboBox, statusComboBox, genderComboBox;
+    private JSpinner customerWeightSpinner, customerHeightSpinner;
+    private JDatePickerImpl datePicker, dobPicker;
     private String[][] medicinePrescription;
     private String[][] servicePrescription;
     private String[] doctorOptions;
@@ -59,13 +58,11 @@ public class CheckUpPage extends JPanel {
     private boolean saved = false;
     boolean returnCell = false;
     public void updateQueue() {
-
         ClientHandler.addResponseListener(GetCheckUpQueueResponse.class, checkUpQueueListener);
         NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetCheckUpQueueRequest());
     }
 
     public void getDoctors() {
-        // listener
         ClientHandler.addResponseListener(GetDoctorGeneralInfoResponse.class, doctorGeneralInfoListener);
         NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetDoctorGeneralInfo());
     }
@@ -166,18 +163,12 @@ public class CheckUpPage extends JPanel {
         titleText1.setBackground(Color.WHITE);
         titleText1.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10)); // Padding
 
-        JLabel titleText2 = new JLabel();
-        titleText2.setText("Patient Info");
-        titleText2.setFont(new Font("Arial", Font.BOLD, 16));
-        titleText2.setBackground(Color.WHITE);
-        titleText2.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
         leftPanel.setLayout(new BorderLayout());
         leftPanel.add(titleText1, BorderLayout.NORTH);
         leftPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 10));
 
         rightBottomPanel.setLayout(new BorderLayout());
-        rightBottomPanel.add(titleText2, BorderLayout.NORTH);
         rightBottomPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 10));
 
         String[] columns = {"Mã khám bệnh", "Ngày Tháng", "Họ", "Tên", "Bác Sĩ", "Triệu chứng", "Chẩn đoán", "Ghi chú", "Trạng thái"};
@@ -209,14 +200,112 @@ public class CheckUpPage extends JPanel {
         gbc.insets = new Insets(5, 5, 5, 5); // Add some padding between components
         gbc.fill = GridBagConstraints.HORIZONTAL;
 
+
+        JLabel patientInfoLabel = new JLabel("Thông tin bệnh nhân");
+        patientInfoLabel.setFont(patientInfoLabel.getFont().deriveFont(Font.BOLD, 16)); // Bold, size 16
+        patientInfoLabel.setHorizontalAlignment(SwingConstants.CENTER);
+
+        gbc.gridwidth = 4;
+        gbc.gridx = 0;
         gbc.gridy = 0;
+        gbc.anchor = GridBagConstraints.CENTER;
+        inputPanel.add(patientInfoLabel, gbc);
+
+        gbc.gridwidth = 1;
+        gbc.gridx = 0;
+        gbc.gridy++;
+        inputPanel.add(new JLabel("Họ"), gbc);
+        gbc.gridx = 1;
+        customerLastNameField = new JTextField(5);
+        inputPanel.add(customerLastNameField, gbc);
+        gbc.gridx = 2;
+        inputPanel.add(new JLabel("Tên"), gbc);
+        gbc.gridx = 3;
+        customerFirstNameField = new JTextField(5);
+        inputPanel.add(customerFirstNameField, gbc);
+
+        gbc.gridx = 0;
+        gbc.gridy++;
+        gbc.gridwidth = 1;
+        inputPanel.add(new JLabel("Giới tính"), gbc);
+        gbc.gridx = 1;
+        String[] genderOptions = {"Nam", "Nữ"};
+        genderComboBox = new JComboBox<>(genderOptions);
+        inputPanel.add(genderComboBox, gbc);
+        gbc.gridx = 2;
+        inputPanel.add(new JLabel("Ngày sinh"), gbc);
+        gbc.gridx = 3;
+        UtilDateModel dobModel = new UtilDateModel();
+        Properties dobProperties = new Properties();
+        dobProperties.put("text.today", "Today");
+        dobProperties.put("text.month", "Month");
+        dobProperties.put("text.year", "Year");
+        JDatePanelImpl dobPanel = new JDatePanelImpl(dobModel, dobProperties);
+        dobPicker = new JDatePickerImpl(dobPanel, new DateLabelFormatter());
+        dobPicker.setPreferredSize(new Dimension(100, 30));
+        inputPanel.add(dobPicker, gbc);
+
+        gbc.gridx = 0;
+        gbc.gridy++;
+        gbc.gridwidth = 1;
+        inputPanel.add(new JLabel("Địa chỉ"), gbc);
+        gbc.gridwidth = 3;
+        gbc.gridx = 1;
+        customerAddressField = new JTextField();
+        inputPanel.add(customerAddressField, gbc);
+
+        gbc.gridx = 0;
+        gbc.gridy++;
+        gbc.gridwidth = 1;
+        inputPanel.add(new JLabel("Mã số bệnh nhân"), gbc);
+        customerIdField = new JTextField();
+
+        gbc.gridx = 1;
+        inputPanel.add(customerIdField, gbc);
+
+        gbc.gridx = 2;
+        inputPanel.add(new JLabel("Số điện thoại"), gbc);
+
+        gbc.gridx = 3;
+        customerPhoneField = new JTextField();
+        inputPanel.add(customerPhoneField, gbc);
+
+        gbc.gridx = 0;
+        gbc.gridy++;
+        gbc.gridwidth = 1;
+        inputPanel.add(new JLabel("Cân nặng"), gbc);
+        gbc.gridx = 1;
+        SpinnerModel weightModel = new SpinnerNumberModel(60, 0, 300, 0.5);
+        customerWeightSpinner = new JSpinner(weightModel);
+        inputPanel.add(customerWeightSpinner, gbc);
+        gbc.gridx = 2;
+        inputPanel.add(new JLabel("Chiều cao"), gbc);
+        gbc.gridx = 3;
+        SpinnerModel heightModel = new SpinnerNumberModel(170, 0, 230, 0.5);
+        customerHeightSpinner = new JSpinner(heightModel);
+        inputPanel.add(customerHeightSpinner, gbc);
+
+
+
+        JLabel checkupInfoLabel = new JLabel("Thông tin khám bệnh");
+        checkupInfoLabel.setFont(checkupInfoLabel.getFont().deriveFont(Font.BOLD, 16)); // Bold, size 16
+        checkupInfoLabel.setHorizontalAlignment(SwingConstants.CENTER);
+
+        gbc.gridwidth = 4;
+        gbc.gridy++;
+        gbc.gridx = 0;
+        gbc.anchor = GridBagConstraints.CENTER;
+        inputPanel.add(checkupInfoLabel, gbc);
+
+        gbc.gridx = 0;
+        gbc.gridy++;
         gbc.gridwidth = 1;
         gbc.anchor = GridBagConstraints.NORTHWEST;
 
         inputPanel.add(new JLabel("Mã khám bệnh:"), gbc);
 
         gbc.gridx = 1;
-        checkupIdField = new JTextField();
+        checkupIdField = new JTextField(5);
         checkupIdField.setEditable(false);
         inputPanel.add(checkupIdField, gbc);
 
@@ -230,65 +319,57 @@ public class CheckUpPage extends JPanel {
         datePicker.setPreferredSize(new Dimension(150, 30));
 
         gbc.gridx = 2;
-        inputPanel.add(new JLabel("Ngày tháng:"), gbc);
-
+        inputPanel.add(new JLabel("Đơn Ngày:"), gbc);
+        gbc.gridwidth = 0;
         gbc.gridx = 3;
         inputPanel.add(datePicker, gbc);
 
-
-        gbc.gridx = 0;
-        gbc.gridy++;
-        inputPanel.add(new JLabel("Họ"), gbc);
-
-
-        gbc.gridx = 1;
-        customerLastNameField = new JTextField(5);
-        inputPanel.add(customerLastNameField, gbc);
-
-        gbc.gridx = 2;
-        inputPanel.add(new JLabel("Tên"), gbc);
-
-        gbc.gridx = 3;
-        customerFirstNameField = new JTextField(5);
-        inputPanel.add(customerFirstNameField, gbc);
-
-        gbc.gridwidth = 4;
+        gbc.gridwidth = 1;
         gbc.gridx = 0;
         gbc.gridy++;
         inputPanel.add(new JLabel("Bác Sĩ"), gbc);
 
+        gbc.gridwidth = 3;
         gbc.gridx = 1;
         doctorComboBox = new JComboBox<>(doctorOptions);
         inputPanel.add(doctorComboBox, gbc);
 
+        gbc.gridwidth = 1;
         gbc.gridx = 0;
         gbc.gridy++;
         inputPanel.add(new JLabel("Triệu chứng"), gbc);
 
+        gbc.gridwidth = 3;
         gbc.gridx = 1;
         symptomsField = new JTextArea(3, 20);
         inputPanel.add(symptomsField, gbc);
 
+        gbc.gridwidth = 1;
         gbc.gridx = 0;
         gbc.gridy++;
         inputPanel.add(new JLabel("Chẩn đoán"), gbc);
 
+        gbc.gridwidth = 3;
         gbc.gridx = 1;
         diagnosisField = new JTextArea(3, 20);
         inputPanel.add(diagnosisField, gbc);
 
+        gbc.gridwidth = 1;
         gbc.gridx = 0;
         gbc.gridy++;
         inputPanel.add(new JLabel("Ghi chú"), gbc);
 
+        gbc.gridwidth = 3;
         gbc.gridx = 1;
         notesField = new JTextArea(3, 20);
         inputPanel.add(notesField, gbc);
 
+        gbc.gridwidth = 1;
         gbc.gridx = 0;
         gbc.gridy++;
         inputPanel.add(new JLabel("Trạng thái"), gbc);
 
+        gbc.gridwidth = 3;
         gbc.gridx = 1;
         String[] statusOptions = {"PROCESSING", "NOT", "DONE"};
         statusComboBox = new JComboBox<>(statusOptions);
@@ -392,9 +473,17 @@ public class CheckUpPage extends JPanel {
                             break;
                         case "printer":
                             // Print action
-                            JOptionPane.showMessageDialog(null, "Print action triggered");
-                            log.info("Medicine prescription: {}", (Object) medicinePrescription);
-                            log.info("Service prescription: {}", (Object) servicePrescription);
+
+
+                            MedicineInvoice medicineInvoice = new MedicineInvoice(checkupIdField.getText(),
+                                    customerLastNameField.getText() + customerFirstNameField.getText(),
+                                    dobPicker.getJFormattedTextField().getText(), customerPhoneField.getText(),
+                                    genderComboBox.getSelectedItem().toString(), customerAddressField.getText(),
+                                    doctorComboBox.getSelectedItem().toString(), diagnosisField.getText(),
+                                    notesField.getText(), medicinePrescription);
+
+                            medicineInvoice.createDialog(mainFrame);
+
                             break;
                         default:
                             throw new IllegalStateException("Unexpected value: " + name);
@@ -414,7 +503,9 @@ public class CheckUpPage extends JPanel {
             iconPanel.add(iconLabel);
         }
 
-        rightBottomPanel.add(inputPanel, BorderLayout.CENTER);
+        JScrollPane inputScroll = new JScrollPane(inputPanel);
+
+        rightBottomPanel.add(inputScroll, BorderLayout.CENTER);
         rightBottomPanel.add(iconPanel, BorderLayout.SOUTH);
 
 
@@ -467,19 +558,62 @@ public class CheckUpPage extends JPanel {
         String notes = (String) table1.getValueAt(selectedRow, 7);
         String status = (String) table1.getValueAt(selectedRow, 8);
         String customerId = queue[selectedRow][9];
+        String cutomerPhone = queue[selectedRow][10];
+        String customerAddress = queue[selectedRow][11];
+        String customerWeight = queue[selectedRow][12];
+        String customerHeight = queue[selectedRow][13];
+        String customerGender = queue[selectedRow][14];
+        String customerDob = queue[selectedRow][15];
+
+
         log.info("Selected customer: {}", customerId);
         checkupIdField.setText(checkupId);
 
         SimpleDateFormat dateFormat = new SimpleDateFormat("dd/MM/yyyy");
         try {
-            Date parsedDate = dateFormat.parse(date);
+            Date parsedDate;
+
+            // Check if the input is a Unix timestamp
+            if (date.matches("\\d+")) { // Matches numeric strings (Unix timestamps)
+                long timestamp = Long.parseLong(date); // Parse the timestamp
+                parsedDate = new Date(timestamp); // Convert the timestamp to a Date
+            } else {
+                parsedDate = dateFormat.parse(date); // Parse formatted date strings
+            }
+
             Calendar calendar = Calendar.getInstance();
             calendar.setTime(parsedDate);
+
             datePicker.getModel().setDate(calendar.get(Calendar.YEAR), calendar.get(Calendar.MONTH), calendar.get(Calendar.DAY_OF_MONTH));
             datePicker.getModel().setSelected(true);
-        } catch (ParseException exception) {
+
+        } catch (ParseException | NumberFormatException exception) {
             exception.printStackTrace();
+            JOptionPane.showMessageDialog(null, "Invalid date format or timestamp: " + date);
         }
+
+
+        SimpleDateFormat dobFormat;
+        try {
+            Date parsedDate;
+            if (customerDob.matches("\\d+")) {  // Check if the string is a timestamp
+                long timestamp = Long.parseLong(customerDob); // Convert the string to a long
+                parsedDate = new Date(timestamp); // Convert the timestamp to a Date
+            } else {
+                dobFormat = new SimpleDateFormat("dd/MM/yyyy");
+                parsedDate = dobFormat.parse(customerDob); // Parse formatted date string
+            }
+
+            Calendar calendar = Calendar.getInstance();
+            calendar.setTime(parsedDate);
+
+            dobPicker.getModel().setDate(calendar.get(Calendar.YEAR), calendar.get(Calendar.MONTH), calendar.get(Calendar.DAY_OF_MONTH));
+            dobPicker.getModel().setSelected(true);
+        } catch (ParseException | NumberFormatException exception) {
+            exception.printStackTrace();
+            JOptionPane.showMessageDialog(null, "Invalid date format: " + customerDob);
+        }
+
 
         customerLastNameField.setText(customerLastName);
         customerFirstNameField.setText(customerFirstName);
@@ -488,6 +622,13 @@ public class CheckUpPage extends JPanel {
         diagnosisField.setText(diagnosis);
         notesField.setText(notes);
         statusComboBox.setSelectedItem(status);
+        customerIdField.setText(customerId);
+        customerPhoneField.setText(cutomerPhone);
+        customerAddressField.setText(customerAddress);
+        customerWeightSpinner.setValue(Double.parseDouble(customerWeight));
+        customerHeightSpinner.setValue(Double.parseDouble(customerHeight));
+
+
 
         NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetCustomerHistoryRequest(Integer.parseInt(queue[selectedRow][9])));
     }

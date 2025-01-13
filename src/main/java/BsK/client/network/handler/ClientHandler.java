@@ -1,10 +1,12 @@
 package BsK.client.network.handler;
 
 
+import BsK.client.LocalStorage;
 import BsK.client.ui.handler.UIHandler;
 import BsK.common.packet.Packet;
 import BsK.common.packet.PacketSerializer;
 import BsK.common.packet.req.LoginRequest;
+import BsK.common.packet.res.ClinicInfoResponse;
 import BsK.common.packet.res.ErrorResponse;
 import BsK.common.packet.res.HandshakeCompleteResponse;
 import BsK.common.packet.res.LoginSuccessResponse;
@@ -63,6 +65,15 @@ public class ClientHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         // When the handshake is complete, the UI is shown
         return; // No further processing needed for handshake response
       }
+
+      if (packet instanceof ClinicInfoResponse clinicInfoResponse) {
+        log.info("Clinic info received: {}", clinicInfoResponse);
+        LocalStorage.ClinicName = clinicInfoResponse.getClinicName();
+        LocalStorage.ClinicAddress = clinicInfoResponse.getClinicAddress();
+        LocalStorage.ClinicPhone = clinicInfoResponse.getClinicPhone();
+        return;
+      }
+
       listeners.forEach((key, value) -> {
         log.debug("Key: {}", key.getName());
 

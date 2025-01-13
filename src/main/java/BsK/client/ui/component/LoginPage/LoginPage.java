@@ -5,6 +5,7 @@ import BsK.client.network.handler.ClientHandler;
 import BsK.client.ui.component.MainFrame;
 import BsK.common.packet.Packet;
 import BsK.common.packet.PacketSerializer;
+import BsK.common.packet.req.ClinicInfoRequest;
 import BsK.common.packet.req.LoginRequest;
 import BsK.common.packet.res.ErrorResponse;
 import BsK.common.packet.res.LoginSuccessResponse;
@@ -82,6 +83,7 @@ public class LoginPage extends JPanel {
         ClientHandler.addResponseListener(LoginSuccessResponse.class, response -> {
             log.info("Login successful, UserId: {}, Role: {}", response.getUserId(), response.getRole());
             LocalStorage.username = loginField.getText();
+            NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new ClinicInfoRequest()); // Request clinic info
             mainFrame.showPage("DashboardPage");
         });
 

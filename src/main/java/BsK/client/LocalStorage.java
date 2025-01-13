@@ -9,4 +9,7 @@ import lombok.Data;
 public class LocalStorage {
     public static String username;
     public static Role role;
+    public static String ClinicName = "Phòng khám BSK";
+    public static String ClinicAddress = "Số ABC, Đường XYZ, Quận 1, TP.HCM";
+    public static String ClinicPhone = "0123456789";
 }
