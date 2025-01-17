@@ -75,29 +75,20 @@ public class CheckUpPage extends JPanel {
 
         updateQueue();
         getDoctors();
-        // Sidebar panel
-        JPanel sidebar = new JPanel() {
-            @Override
-            protected void paintComponent(Graphics g) {
-                super.paintComponent(g);
-                Graphics2D g2d = (Graphics2D) g;
-                int width = getWidth();
-                int height = getHeight();
-                Color color1 = new Color(63, 81, 181);
-                Color color2 = new Color(33, 150, 243);
-                GradientPaint gp = new GradientPaint(0, 0, color1, 0, height, color2);
-                g2d.setPaint(gp);
-                g2d.fillRect(0, 0, width, height);
-            }
-        };
-        sidebar.setBackground(new Color(63, 81, 181));
-        sidebar.setLayout(new GridLayout(15, 1));
-        sidebar.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        // navBar panel
+        JPanel navBar = new JPanel();
+        navBar.setBackground(new Color(63, 81, 181));
+        navBar.setLayout(new BorderLayout()); // Use BorderLayout for better control
 
-        String[] sidebarItems = {"Thống kê", "Thăm khám", "Dữ liệu bệnh nhân", "Kho", "Người dùng", "Thông tin"};
+        // Left-aligned navigation items
+        JPanel navItemsPanel = new JPanel();
+        navItemsPanel.setBackground(new Color(63, 81, 181));
+        navItemsPanel.setLayout(new FlowLayout(FlowLayout.LEFT, 20, 10)); // Items on the left
+
+        String[] navBarItems = {"Thống kê", "Thăm khám", "Dữ liệu", "Kho", "Người dùng", "Thông tin"};
         String[] destination = {"DashboardPage", "CheckUpPage", "PatientDataPage", "InventoryPage", "UserPage", "InfoPage"};
-        for (int i = 0; i < sidebarItems.length; i++) {
-            String item = sidebarItems[i];
+        for (int i = 0; i < navBarItems.length; i++) {
+            String item = navBarItems[i];
             String dest = destination[i];
             JLabel label = new JLabel(item);
             label.setForeground(Color.WHITE);
@@ -124,32 +115,73 @@ public class CheckUpPage extends JPanel {
                 }
             });
 
-            sidebar.add(label);
+            navItemsPanel.add(label);
         }
 
+        // Add the left-aligned navigation items to the navBar
+        navBar.add(navItemsPanel, BorderLayout.WEST);
 
+        // Add a space between the navigation items and the user label
+        JPanel spacerPanel = new JPanel();
+        spacerPanel.setBackground(new Color(63, 81, 181)); // Same background as navBar
+        navBar.add(spacerPanel, BorderLayout.CENTER); // Takes up all remaining space
 
-        // Make the sidebar scrollable
-        JScrollPane sidebarScrollPane = new JScrollPane(sidebar);
-        sidebarScrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
-        sidebarScrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
-        sidebarScrollPane.setComponentOrientation(ComponentOrientation.RIGHT_TO_LEFT);
-        sidebarScrollPane.getViewport().setOpaque(false);
-        sidebarScrollPane.setOpaque(false);
+        // Right-aligned user label
+        JLabel userLabel = new JLabel("Welcome, " + LocalStorage.username);
+        userLabel.setForeground(Color.WHITE);
+        userLabel.setHorizontalAlignment(SwingConstants.RIGHT);
+        userLabel.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)); // Make clickable
+        userLabel.setFont(new Font("Arial", Font.BOLD, 14));
 
-        // Topbar panel
-        JPanel topbar = new JPanel();
-        topbar.setLayout(new BorderLayout());
-        topbar.setBackground(Color.WHITE);
-        topbar.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        // Add mouse interactions for the userLabel
+        userLabel.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                if (SwingUtilities.isLeftMouseButton(e)) { // Check if it's a left-click
+                    JPopupMenu popupMenu = new JPopupMenu();
+                    JMenuItem item1 = new JMenuItem("Option 1");
+                    JMenuItem item2 = new JMenuItem("Option 2");
+                    JMenuItem item3 = new JMenuItem("Option 3");
 
-        JLabel title = new JLabel("Check Up");
-        title.setFont(new Font("Arial", Font.BOLD, 18));
-        topbar.add(title, BorderLayout.WEST);
+                    // Add action listeners to the menu items
+                    item1.addActionListener(event -> System.out.println("Option 1 selected"));
+                    item2.addActionListener(event -> System.out.println("Option 2 selected"));
+                    item3.addActionListener(event -> System.out.println("Option 3 selected"));
 
-        JLabel userInfo = new JLabel("Welcome, " + LocalStorage.username);
-        userInfo.setHorizontalAlignment(SwingConstants.RIGHT);
-        topbar.add(userInfo, BorderLayout.EAST);
+                    // Add items to the popup menu
+                    popupMenu.add(item1);
+                    popupMenu.add(item2);
+                    popupMenu.add(item3);
+
+                    // Get the location of the userLabel
+                    Point location = userLabel.getLocation(); // Relative to the parent
+                    SwingUtilities.convertPointToScreen(location, userLabel.getParent()); // Convert to screen coordinates
+
+                    // Show the popup
+                    popupMenu.show(userLabel, e.getX(), e.getY());
+                }
+            }
+
+            @Override
+            public void mouseEntered(MouseEvent e) {
+                userLabel.setForeground(new Color(200, 230, 255)); // Highlight on hover
+            }
+
+            @Override
+            public void mouseExited(MouseEvent e) {
+                userLabel.setForeground(Color.WHITE); // Restore original color
+            }
+        });
+
+    // Add the right-aligned user label to the navBar
+        JPanel userPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 20, 10));
+        userPanel.setBackground(new Color(63, 81, 181));
+        userPanel.add(userLabel);
+        navBar.add(userPanel, BorderLayout.EAST);
+
+    // Set preferred size for the navBar
+        navBar.setPreferredSize(new Dimension(1200, 75));
+
 
         // Data table inside a RoundedPanel
         RoundedPanel leftPanel = new RoundedPanel(20, Color.WHITE, false);
@@ -542,8 +574,8 @@ public class CheckUpPage extends JPanel {
 
         splitPane.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10)); // Remove border
 
-        add(sidebarScrollPane, BorderLayout.WEST);
-        add(topbar, BorderLayout.NORTH);
+        add(navBar, BorderLayout.NORTH);
+//        add(topbar, BorderLayout.NORTH);
         add(splitPane, BorderLayout.CENTER);
     }
 

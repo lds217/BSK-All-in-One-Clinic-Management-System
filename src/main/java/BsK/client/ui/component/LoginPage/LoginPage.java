@@ -71,6 +71,11 @@ public class LoginPage extends JPanel {
         gbc.gridy++;
         JButton loginButton = new JButton("Login");
 
+        // listener for Password Field to press Enter
+        passwordField.addActionListener(e -> {
+            loginButton.doClick();
+        });
+
         loginButton.addActionListener(e -> {
             char[] passwordChars = passwordField.getPassword();
             String password = new String(passwordChars);
