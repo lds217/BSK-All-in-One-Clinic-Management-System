@@ -72,19 +72,22 @@ public class CheckUpPage extends JPanel {
 
         // add history listener
         ClientHandler.addResponseListener(GetCustomerHistoryResponse.class, customerHistoryListener);
-
         updateQueue();
         getDoctors();
+
+        // Navigation bar
         // navBar panel
         JPanel navBar = new JPanel();
         navBar.setBackground(new Color(63, 81, 181));
-        navBar.setLayout(new BorderLayout()); // Use BorderLayout for better control
+        navBar.setLayout(new BoxLayout(navBar, BoxLayout.X_AXIS)); // Use BoxLayout for horizontal layout
 
-        // Left-aligned navigation items
+        // Left-aligned navigation items (centered vertically)
         JPanel navItemsPanel = new JPanel();
         navItemsPanel.setBackground(new Color(63, 81, 181));
         navItemsPanel.setLayout(new FlowLayout(FlowLayout.LEFT, 20, 10)); // Items on the left
+        navItemsPanel.setAlignmentY(Component.CENTER_ALIGNMENT); // Vertically center the panel in navBar
 
+        // Add navigation items
         String[] navBarItems = {"Thống kê", "Thăm khám", "Dữ liệu", "Kho", "Người dùng", "Thông tin"};
         String[] destination = {"DashboardPage", "CheckUpPage", "PatientDataPage", "InventoryPage", "UserPage", "InfoPage"};
         for (int i = 0; i < navBarItems.length; i++) {
@@ -96,45 +99,65 @@ public class CheckUpPage extends JPanel {
             label.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)); // Change cursor to hand
             label.setFont(new Font("Arial", Font.BOLD, 14));
 
+            // Add padding for visibility
+            label.setBorder(BorderFactory.createEmptyBorder(7, 15, 10, 15));
+
+            // Highlight the selected label
+            if (item.equals("Thăm khám")) {
+                label.setBorder(BorderFactory.createMatteBorder(0, 0, 5, 0, new Color(33, 150, 243))); // Add bottom border
+            }
+
             // Add a mouse listener to handle click events
             label.addMouseListener(new java.awt.event.MouseAdapter() {
                 @Override
                 public void mouseClicked(java.awt.event.MouseEvent e) {
                     // Handle the click event
                     mainFrame.showPage(dest);
+                    // Reset background color for all labels
+                    for (Component comp : navItemsPanel.getComponents()) {
+                        JLabel lbl = (JLabel) comp;
+                        lbl.setBackground(null); // Reset background
+                        lbl.setOpaque(false); // Remove background color
+                    }
+                    // Set background for the clicked label
+                    label.setBackground(new Color(33, 150, 243)); // Highlight clicked label
+                    label.setOpaque(true);
+                    label.setForeground(Color.WHITE); // Change text color to white
                 }
 
                 @Override
                 public void mouseEntered(java.awt.event.MouseEvent e) {
                     label.setForeground(new Color(200, 230, 255)); // Highlight on hover
+                    label.setBackground(new Color(33, 150, 243)); // Highlight the button on hover
+                    label.setOpaque(true); // Make the background visible on hover
                 }
 
                 @Override
                 public void mouseExited(java.awt.event.MouseEvent e) {
-                    label.setForeground(Color.WHITE); // Restore original color
+                    if (label.getBackground() != new Color(33, 150, 243)) { // Only reset if it's not selected
+                        label.setForeground(Color.WHITE); // Restore original color
+                        label.setBackground(null); // Remove background color
+                        label.setOpaque(false); // Make the background invisible
+                    }
                 }
             });
 
             navItemsPanel.add(label);
         }
 
-        // Add the left-aligned navigation items to the navBar
-        navBar.add(navItemsPanel, BorderLayout.WEST);
+        // Add a space between the navigation items and the "Welcome" label (this will push the welcome label to the far right)
+        navBar.add(navItemsPanel);
+        navBar.add(Box.createHorizontalGlue()); // This will push the welcome label to the right
 
-        // Add a space between the navigation items and the user label
-        JPanel spacerPanel = new JPanel();
-        spacerPanel.setBackground(new Color(63, 81, 181)); // Same background as navBar
-        navBar.add(spacerPanel, BorderLayout.CENTER); // Takes up all remaining space
+        // Right-aligned "Welcome" label
+        JLabel welcomeLabel = new JLabel("Welcome, " + LocalStorage.username + "            ");
+        welcomeLabel.setForeground(Color.WHITE);
+        welcomeLabel.setHorizontalAlignment(SwingConstants.CENTER);
+        welcomeLabel.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)); // Make clickable
+        welcomeLabel.setFont(new Font("Arial", Font.BOLD, 14));
 
-        // Right-aligned user label
-        JLabel userLabel = new JLabel("Welcome, " + LocalStorage.username);
-        userLabel.setForeground(Color.WHITE);
-        userLabel.setHorizontalAlignment(SwingConstants.RIGHT);
-        userLabel.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)); // Make clickable
-        userLabel.setFont(new Font("Arial", Font.BOLD, 14));
-
-        // Add mouse interactions for the userLabel
-        userLabel.addMouseListener(new MouseAdapter() {
+        // Add mouse interactions for the welcomeLabel
+        welcomeLabel.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
                 if (SwingUtilities.isLeftMouseButton(e)) { // Check if it's a left-click
@@ -153,34 +176,30 @@ public class CheckUpPage extends JPanel {
                     popupMenu.add(item2);
                     popupMenu.add(item3);
 
-                    // Get the location of the userLabel
-                    Point location = userLabel.getLocation(); // Relative to the parent
-                    SwingUtilities.convertPointToScreen(location, userLabel.getParent()); // Convert to screen coordinates
-
                     // Show the popup
-                    popupMenu.show(userLabel, e.getX(), e.getY());
+                    popupMenu.show(welcomeLabel, e.getX(), e.getY());
                 }
             }
 
             @Override
             public void mouseEntered(MouseEvent e) {
-                userLabel.setForeground(new Color(200, 230, 255)); // Highlight on hover
+                welcomeLabel.setForeground(new Color(200, 230, 255)); // Highlight on hover
             }
 
             @Override
             public void mouseExited(MouseEvent e) {
-                userLabel.setForeground(Color.WHITE); // Restore original color
+                welcomeLabel.setForeground(Color.WHITE); // Restore original color
             }
         });
 
-    // Add the right-aligned user label to the navBar
-        JPanel userPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 20, 10));
-        userPanel.setBackground(new Color(63, 81, 181));
-        userPanel.add(userLabel);
-        navBar.add(userPanel, BorderLayout.EAST);
+        // Add the welcome label to the navBar (it will be on the far right due to the horizontal glue)
+        navBar.add(welcomeLabel, BorderLayout.EAST);
 
-    // Set preferred size for the navBar
-        navBar.setPreferredSize(new Dimension(1200, 75));
+        // Set preferred size for the navBar
+        navBar.setPreferredSize(new Dimension(1200, 50));
+
+        // Now the "Welcome" label is aligned to the right with space between the nav items
+
 
 
         // Data table inside a RoundedPanel
@@ -575,7 +594,7 @@ public class CheckUpPage extends JPanel {
         splitPane.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10)); // Remove border
 
         add(navBar, BorderLayout.NORTH);
-//        add(topbar, BorderLayout.NORTH);
+        //add(topbar, BorderLayout.NORTH);
         add(splitPane, BorderLayout.CENTER);
     }
 
