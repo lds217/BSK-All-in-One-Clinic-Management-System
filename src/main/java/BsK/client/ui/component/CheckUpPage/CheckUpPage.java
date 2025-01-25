@@ -337,7 +337,6 @@ public class CheckUpPage extends JPanel {
         inputPanel.add(customerHeightSpinner, gbc);
 
 
-
         JLabel checkupInfoLabel = new JLabel("Thông tin khám bệnh");
         checkupInfoLabel.setFont(checkupInfoLabel.getFont().deriveFont(Font.BOLD, 16)); // Bold, size 16
         checkupInfoLabel.setHorizontalAlignment(SwingConstants.CENTER);
@@ -449,6 +448,8 @@ public class CheckUpPage extends JPanel {
                     }
                     medicinePrescription = new String[][]{};
                     servicePrescription = new String[][]{};
+                    medDialog = null;
+                    serDialog = null;
                     handleRowSelection(selectedRow);
 
                 }

@@ -302,6 +302,46 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
           throw new RuntimeException(e);
         }
       }
+
+      if (packet instanceof GetRecentPatientRequest getRecentPatientRequest) {
+        log.debug("Received GetRecentPatientRequest");
+        try {
+          ResultSet rs = statement.executeQuery(
+                  "SELECT customer_id, customer_last_name, customer_first_name, customer_dob, customer_number, " +
+                          "customer_address, customer_address, customer_gender\n" +
+                          "FROM Customer\n" +
+                          "ORDER BY customer_id DESC\n" +
+                          "LIMIT 20;");
+          if (!rs.isBeforeFirst()) {
+            System.out.println("No data found in the customer table.");
+          } else {
+            ArrayList<String> resultList = new ArrayList<>();
+            while (rs.next()) {
+              String customerId = rs.getString("customer_id");
+              String customerLastName = rs.getString("customer_last_name");
+              String customerFirstName = rs.getString("customer_first_name");
+              String customerDob = rs.getString("customer_dob");
+              String customerNumber = rs.getString("customer_number");
+              String customerAddress = rs.getString("customer_address");
+              String customerGender = rs.getString("customer_gender");
+
+              String result = String.join("|", customerId, customerLastName + customerFirstName,
+                      customerDob, customerNumber, customerAddress, customerGender);
+              resultList.add(result);
+            }
+
+            String[] resultString = resultList.toArray(new String[0]);
+            String[][] resultArray = new String[resultString.length][];
+            for (int i = 0; i < resultString.length; i++) {
+              resultArray[i] = resultString[i].split("\\|");
+            }
+
+            UserUtil.sendPacket(user.getSessionId(), new GetRecentPatientResponse(resultArray));
+          }
+        } catch (SQLException e) {
+          throw new RuntimeException(e);
+        }
+      }
     }
   }
 

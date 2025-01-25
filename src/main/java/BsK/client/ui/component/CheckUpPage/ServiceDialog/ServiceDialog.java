@@ -11,6 +11,7 @@ import BsK.client.network.handler.ResponseListener;
 import BsK.common.packet.req.GetSerInfoRequest;
 import BsK.common.packet.res.GetSerInfoResponse;
 import BsK.common.util.network.NetworkUtil;
+import BsK.common.util.text.TextUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -163,7 +164,8 @@ public class ServiceDialog extends JDialog {
                 for (int row = 0; row < serviceTable.getRowCount(); row++) {
                     // Assuming the search is targeting the name column (column index 1)
                     String cellValue = serviceTable.getValueAt(row, 1).toString();
-                    if (cellValue.toLowerCase().contains(searchText.toLowerCase())) {
+                    if (TextUtils.removeAccents(cellValue.toLowerCase()).contains(TextUtils.removeAccents(searchText
+                            .toLowerCase()))) {
                         serviceTable.setRowSelectionInterval(row, row);
                         serviceTable.scrollRectToVisible(serviceTable.getCellRect(row, 1, true));
                         found = true;
@@ -176,7 +178,6 @@ public class ServiceDialog extends JDialog {
                 }
             }
         });
-
 
         gbc.gridx = 0;
         gbc.gridy++;

@@ -11,6 +11,7 @@ import BsK.client.network.handler.ResponseListener;
 import BsK.common.packet.req.GetMedInfoRequest;
 import BsK.common.packet.res.GetMedInfoResponse;
 import BsK.common.util.network.NetworkUtil;
+import BsK.common.util.text.TextUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -64,7 +65,7 @@ public class MedicineDialog extends JDialog {
         columnModel.getColumn(6).setPreferredWidth(20);
     }
 
-    void sendGetMedInfoRequest() {
+    private void sendGetMedInfoRequest() {
         log.info("Sending GetMedInfoRequest");
         NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetMedInfoRequest());
     }
@@ -172,7 +173,8 @@ public class MedicineDialog extends JDialog {
                 for (int row = 0; row < medicineTable.getRowCount(); row++) {
                     // Assuming the search is targeting the name column (column index 1)
                     String cellValue = medicineTable.getValueAt(row, 1).toString();
-                    if (cellValue.toLowerCase().contains(searchText.toLowerCase())) {
+                    if (TextUtils.removeAccents(cellValue.toLowerCase()).contains(TextUtils.removeAccents(searchText.
+                            toLowerCase()))) {
                         medicineTable.setRowSelectionInterval(row, row);
                         medicineTable.scrollRectToVisible(medicineTable.getCellRect(row, 1, true));
                         found = true;
