@@ -3,6 +3,7 @@ package BsK.client.ui.component.CheckUpPage;
 import BsK.client.LocalStorage;
 import BsK.client.network.handler.ClientHandler;
 import BsK.client.network.handler.ResponseListener;
+import BsK.client.ui.component.CheckUpPage.AddDialog.AddDialog;
 import BsK.client.ui.component.CheckUpPage.MedicineDialog.MedicineDialog;
 import BsK.client.ui.component.CheckUpPage.PrintDialog.MedicineInvoice;
 import BsK.client.ui.component.CheckUpPage.ServiceDialog.ServiceDialog;
@@ -54,8 +55,11 @@ public class CheckUpPage extends JPanel {
     private String[] doctorOptions;
     private MedicineDialog medDialog = null;
     private ServiceDialog serDialog = null;
+    private AddDialog addDialog = null;
     private int previousSelectedRow = -1;
     private boolean saved = false;
+
+
     boolean returnCell = false;
     public void updateQueue() {
         ClientHandler.addResponseListener(GetCheckUpQueueResponse.class, checkUpQueueListener);
@@ -207,6 +211,7 @@ public class CheckUpPage extends JPanel {
         RoundedPanel rightTopPanel = new RoundedPanel(20, Color.WHITE, false);
         RoundedPanel rightBottomPanel = new RoundedPanel(20, Color.WHITE, false);
 
+        JPanel topPanel = new JPanel(new BorderLayout());
 
         JLabel titleText1 = new JLabel();
         titleText1.setText("Check Up Queue 1");
@@ -215,9 +220,27 @@ public class CheckUpPage extends JPanel {
         titleText1.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10)); // Padding
 
 
+        JButton rightButton = new JButton("  ADD  ");
+        rightButton.setBackground(new Color(63, 81, 181));
+        rightButton.setForeground(Color.WHITE);
+        rightButton.setFocusPainted(false);
+        rightButton.setBorder(BorderFactory.createEmptyBorder(10, 20, 10, 20)); // Padding
+        rightButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+
+        rightButton.addActionListener(e -> {
+            if(addDialog == null) {
+                addDialog = new AddDialog(mainFrame);
+            }
+            addDialog.setVisible(true);
+        });
+
+        topPanel.add(titleText1, BorderLayout.WEST);
+        topPanel.add(rightButton, BorderLayout.EAST);
+
         leftPanel.setLayout(new BorderLayout());
-        leftPanel.add(titleText1, BorderLayout.NORTH);
+        leftPanel.add(topPanel, BorderLayout.NORTH);
         leftPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 10));
+
 
         rightBottomPanel.setLayout(new BorderLayout());
         rightBottomPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 10));
@@ -460,7 +483,7 @@ public class CheckUpPage extends JPanel {
         iconPanel.setLayout(new GridLayout(1, 5));
         iconPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10)); // Padding
         iconPanel.setBackground(Color.WHITE);
-        String[] iconName = {"add", "save", "service", "medicine", "printer"};
+        String[] iconName = {"save", "service", "medicine", "printer"};
         for (String name : iconName) {
             ImageIcon originalIcon = new ImageIcon("src/main/java/BsK/client/ui/assets/icon/" + name + ".png");
             Image scaledImage = originalIcon.getImage().getScaledInstance(32, 32, Image.SCALE_SMOOTH); // Resize to 32x32
@@ -472,10 +495,6 @@ public class CheckUpPage extends JPanel {
                 @Override
                 public void mouseClicked(MouseEvent e) {
                     switch (name) {
-                        case "add":
-                            // Add action
-                            JOptionPane.showMessageDialog(null, "Add action triggered");
-                            break;
                         case "service":
                             // If there is no user selected, show a warning message
                             if (checkupIdField.getText().isEmpty()) {
@@ -679,8 +698,6 @@ public class CheckUpPage extends JPanel {
         customerAddressField.setText(customerAddress);
         customerWeightSpinner.setValue(Double.parseDouble(customerWeight));
         customerHeightSpinner.setValue(Double.parseDouble(customerHeight));
-
-
 
         NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetCustomerHistoryRequest(Integer.parseInt(queue[selectedRow][9])));
     }

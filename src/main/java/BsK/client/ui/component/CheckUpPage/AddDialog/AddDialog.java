@@ -42,6 +42,7 @@ public class AddDialog extends JDialog {
     void getRecentPatientHandler(GetRecentPatientResponse response) {
         log.info("Received GetRecentPatientResponse");
         patientData = response.getPatientData();
+
         patientTableModel.setDataVector(patientData, patientColumns);
     }
 
@@ -49,7 +50,7 @@ public class AddDialog extends JDialog {
         super(parent, "Add Patient", true);
 
         // Set size of the dialog
-        setSize(1000, 600);
+        setSize(1000, 400);
         setResizable(true);
 
         // Send request to get the latest 20 patients in the database

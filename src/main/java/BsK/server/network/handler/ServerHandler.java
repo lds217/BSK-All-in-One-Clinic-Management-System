@@ -5,6 +5,7 @@ import BsK.common.packet.PacketSerializer;
 import BsK.common.packet.req.*;
 import BsK.common.packet.res.*;
 import BsK.common.packet.res.ErrorResponse.Error;
+import BsK.common.util.date.DateUtils;
 import BsK.server.network.manager.SessionManager;
 import BsK.server.network.util.UserUtil;
 import io.netty.channel.ChannelHandlerContext;
@@ -321,12 +322,13 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
               String customerLastName = rs.getString("customer_last_name");
               String customerFirstName = rs.getString("customer_first_name");
               String customerDob = rs.getString("customer_dob");
+              String year = Integer.toString(DateUtils.extractYearFromTimestamp(customerDob));
               String customerNumber = rs.getString("customer_number");
               String customerAddress = rs.getString("customer_address");
               String customerGender = rs.getString("customer_gender");
 
-              String result = String.join("|", customerId, customerLastName + customerFirstName,
-                      customerDob, customerNumber, customerAddress, customerGender);
+              String result = String.join("|", customerId, customerLastName + " " + customerFirstName,
+                      year, customerNumber, customerAddress, customerGender);
               resultList.add(result);
             }
 
