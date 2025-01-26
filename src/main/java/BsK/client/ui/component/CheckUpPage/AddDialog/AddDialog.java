@@ -1,8 +1,11 @@
 package BsK.client.ui.component.CheckUpPage.AddDialog;
 
+import BsK.client.LocalStorage;
 import BsK.client.network.handler.ClientHandler;
 import BsK.client.network.handler.ResponseListener;
+import BsK.common.packet.req.GetDoctorGeneralInfo;
 import BsK.common.packet.req.GetRecentPatientRequest;
+import BsK.common.packet.res.GetDoctorGeneralInfoResponse;
 import BsK.common.packet.res.GetMedInfoResponse;
 import BsK.common.packet.res.GetRecentPatientResponse;
 import BsK.common.util.network.NetworkUtil;
@@ -16,6 +19,8 @@ import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 
 
 @Slf4j
@@ -30,8 +35,9 @@ public class AddDialog extends JDialog {
     private DefaultTableModel patientTableModel;
     private JTable patientTable;
     private String[] patientColumns = {"Patient ID", "Patient Name", "Patient Year", "Patient Phone" ,"Patient Address"};
-    private String[][] patientData; // {"P001", "Lê Thành Đạt", "1985", "1234567890", "123 Main St, Springfield"
+    private String[][] patientData;
     private final ResponseListener<GetRecentPatientResponse> getRecentPatientResponseListener = this::getRecentPatientHandler;
+    private JComboBox doctorComboBox;
 
     private void sendGetRecentPatientRequest() {
         log.info("Sending GetRecentPatientRequest");
@@ -39,22 +45,27 @@ public class AddDialog extends JDialog {
         NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetRecentPatientRequest());
     }
 
-    void getRecentPatientHandler(GetRecentPatientResponse response) {
+    private void getRecentPatientHandler(GetRecentPatientResponse response) {
         log.info("Received GetRecentPatientResponse");
         patientData = response.getPatientData();
 
         patientTableModel.setDataVector(patientData, patientColumns);
     }
 
+
     public AddDialog(Frame parent) {
         super(parent, "Add Patient", true);
 
         // Set size of the dialog
         setSize(1000, 400);
+        // Put in the middle
+        setLocationRelativeTo(null);
         setResizable(true);
 
         // Send request to get the latest 20 patients in the database
         sendGetRecentPatientRequest();
+
+
         // Add patent table on the right side
         // Add a scroll pane to the table
         patientTableModel = new DefaultTableModel(patientData, patientColumns) {
@@ -69,6 +80,18 @@ public class AddDialog extends JDialog {
         patientTable.setRowHeight(30);
         patientTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         JScrollPane scrollPane = new JScrollPane(patientTable);
+
+        patientTable.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                SwingUtilities.invokeLater(() -> {
+                    int selectedRow = patientTable.getSelectedRow();
+                    if (selectedRow != -1) {
+                        handleRowSelection(selectedRow);
+                    }
+                });
+            }
+        });
 
         // Set layout of the dialog
         // left side is the text fields, right side is the patient list
@@ -152,6 +175,16 @@ public class AddDialog extends JDialog {
 
         gbc.gridx = 0;
         gbc.gridy++;
+        inputPanel.add(new JLabel("Doctor:"), gbc);
+
+        gbc.gridwidth = 3;
+        gbc.gridx = 1;
+
+        doctorComboBox = new JComboBox<>(LocalStorage.doctorsName);
+        inputPanel.add(doctorComboBox, gbc);
+
+        gbc.gridx = 0;
+        gbc.gridy++;
         gbc.gridwidth = 1;
         inputPanel.add(new JLabel("Patient year:"), gbc);
 
@@ -163,7 +196,7 @@ public class AddDialog extends JDialog {
         inputPanel.add(new JLabel("Patient gender:"), gbc);
 
         gbc.gridx = 3;
-        patientGenderField = new JComboBox(new String[]{"Nam", "Nữ"});
+        patientGenderField = new JComboBox<>(new String[]{"Nam", "Nữ"});
         inputPanel.add(patientGenderField, gbc);
 
         gbc.gridx = 0;
@@ -237,11 +270,12 @@ public class AddDialog extends JDialog {
         String patientYear = patientTable.getValueAt(selectedRow, 2).toString();
         String patientPhone = patientTable.getValueAt(selectedRow, 3).toString();
         String patientAddress = patientTable.getValueAt(selectedRow, 4).toString();
-
+        String patientGender = patientData[selectedRow][5];
         patientIdField.setText(patientId);
         patientNameField.setText(patientName);
         patientYearField.setText(patientYear);
         patientPhoneField.setText(patientPhone);
+        patientGenderField.setSelectedItem(patientGender);
 
         // Extract province, district, village from the address
         String[] addressParts = patientAddress.split(", ");

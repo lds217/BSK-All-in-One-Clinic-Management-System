@@ -10,9 +10,7 @@ import BsK.client.ui.component.CheckUpPage.ServiceDialog.ServiceDialog;
 import BsK.client.ui.component.MainFrame;
 import BsK.client.ui.component.common.DateLabelFormatter;
 import BsK.client.ui.component.common.RoundedPanel;
-import BsK.common.packet.req.GetCheckUpQueueRequest;
-import BsK.common.packet.req.GetCustomerHistoryRequest;
-import BsK.common.packet.req.GetDoctorGeneralInfo;
+import BsK.common.packet.req.*;
 import BsK.common.packet.res.ErrorResponse;
 import BsK.common.packet.res.GetCheckUpQueueResponse;
 import BsK.common.packet.res.GetCustomerHistoryResponse;
@@ -28,6 +26,8 @@ import org.slf4j.LoggerFactory;
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.text.ParseException;
@@ -42,12 +42,12 @@ public class CheckUpPage extends JPanel {
     private String[][] history;
     private DefaultTableModel model, historyModel;
     private JTable table1, historyTable;
-    private final ResponseListener<GetDoctorGeneralInfoResponse> doctorGeneralInfoListener = this::handleGetDoctorGeneralInfoResponse;
     private final ResponseListener<GetCheckUpQueueResponse> checkUpQueueListener = this::handleGetCheckUpQueueResponse;
     private final ResponseListener<GetCustomerHistoryResponse> customerHistoryListener = this::handleGetCustomerHistoryResponse;
+
     private JTextField checkupIdField, customerLastNameField, customerFirstNameField,customerAddressField, customerPhoneField, customerIdField;
     private JTextArea symptomsField, diagnosisField, notesField;
-    private JComboBox<String> doctorComboBox, statusComboBox, genderComboBox;
+    private JComboBox<String> doctorComboBox, statusComboBox, genderComboBox, provinceComboBox, districtComboBox, wardComboBox;
     private JSpinner customerWeightSpinner, customerHeightSpinner;
     private JDatePickerImpl datePicker, dobPicker;
     private String[][] medicinePrescription;
@@ -66,10 +66,6 @@ public class CheckUpPage extends JPanel {
         NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetCheckUpQueueRequest());
     }
 
-    public void getDoctors() {
-        ClientHandler.addResponseListener(GetDoctorGeneralInfoResponse.class, doctorGeneralInfoListener);
-        NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetDoctorGeneralInfo());
-    }
 
     public CheckUpPage(MainFrame mainFrame) {
         setLayout(new BorderLayout());
@@ -77,7 +73,6 @@ public class CheckUpPage extends JPanel {
         // add history listener
         ClientHandler.addResponseListener(GetCustomerHistoryResponse.class, customerHistoryListener);
         updateQueue();
-        getDoctors();
 
         // Navigation bar
         // navBar panel
@@ -328,6 +323,92 @@ public class CheckUpPage extends JPanel {
         customerAddressField = new JTextField();
         inputPanel.add(customerAddressField, gbc);
 
+        gbc.gridy++;
+        gbc.gridx = 1;
+        gbc.gridwidth = 1;
+        provinceComboBox = new JComboBox<>(LocalStorage.provinces);
+        inputPanel.add(provinceComboBox, gbc);
+
+
+        gbc.gridx = 2;
+        districtComboBox = new JComboBox<>(new String[]{"Huyện 1", "Huyện 2", "Huyện 3"});
+        inputPanel.add(districtComboBox, gbc);
+        // set not editable
+        districtComboBox.setEnabled(false);
+
+
+        gbc.gridx = 3;
+        wardComboBox = new JComboBox<>(new String[]{"Phường 1", "Phường 2", "Phường 3"});
+        inputPanel.add(wardComboBox, gbc);
+        // set not editable
+        wardComboBox.setEnabled(false);
+
+        // Province ComboBox Listener
+        provinceComboBox.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                int selectedIndex = provinceComboBox.getSelectedIndex();
+                DefaultComboBoxModel<String> districtModel = new DefaultComboBoxModel<>(new String[]{"Quận/Huyện"});
+                districtComboBox.setModel(districtModel); // Set district combo box model
+                if (selectedIndex != 0) { // If the selected index is not 0 (which corresponds to "Tỉnh/Thành phố")
+                    NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetDistrictRequest(LocalStorage.provinceToId
+                            .get(provinceComboBox.getSelectedItem().toString())));
+                    while (LocalStorage.districts == null || districtComboBox.getItemCount() <= 1) {
+                        try {
+                            Thread.sleep(100); // Wait for the district data to be fetched
+                            if(LocalStorage.districts != null) {
+                                districtModel = new DefaultComboBoxModel<>(LocalStorage.districts);
+                                districtComboBox.setModel(districtModel);
+                            }
+                        } catch (InterruptedException interruptedException) {
+                            interruptedException.printStackTrace();
+                        }
+                    }
+                     // Set district combo box model
+                    districtComboBox.setEnabled(true); // Enable district combo box
+                    wardComboBox.setSelectedItem("Xã/Phường"); // Set ward combo box to default value
+                    wardComboBox.setEnabled(false);
+                } else {
+                    districtComboBox.setEnabled(false); // Disable district combo box if "Tỉnh/Thành phố" is selected
+                    wardComboBox.setEnabled(false); // Disable ward combo box as well
+                }
+            }
+        });
+
+
+        // District ComboBox Listener
+        districtComboBox.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                int selectedIndex = districtComboBox.getSelectedIndex();
+                DefaultComboBoxModel<String> wardModel = new DefaultComboBoxModel<>(new String[]{"Xã/Phường"});
+                wardComboBox.setModel(wardModel); // Set district combo box model
+                if (selectedIndex != 0) { // If the selected index is not 0 (which corresponds to "Quận/Huyện")
+                    NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetWardRequest(LocalStorage.districtToId
+                            .get(districtComboBox.getSelectedItem().toString())));
+                    log.info("Sending GetWardRequest with district ID: {}", LocalStorage.districtToId
+                            .get(districtComboBox.getSelectedItem().toString()));
+                    while (LocalStorage.wards == null || wardComboBox.getItemCount() <= 1) {
+                        try {
+                            Thread.sleep(100); // Wait for the district data to be fetched
+                            if(LocalStorage.wards != null) {
+                                wardModel = new DefaultComboBoxModel<>(LocalStorage.wards);
+                                wardComboBox.setModel(wardModel);
+                            }
+                        } catch (InterruptedException interruptedException) {
+                            interruptedException.printStackTrace();
+                        }
+                    }
+                    wardComboBox.setSelectedItem("Xã/Phường"); // Set ward combo box to default value
+                    wardComboBox.setEnabled(true); // Enable ward combo box
+                } else {
+                    districtComboBox.setEnabled(false); // Disable district combo box if "Tỉnh/Thành phố" is selected
+                    wardComboBox.setEnabled(false); // Disable ward combo box as well
+                }
+            }
+        });
+
+
         gbc.gridx = 0;
         gbc.gridy++;
         gbc.gridwidth = 1;
@@ -358,7 +439,6 @@ public class CheckUpPage extends JPanel {
         SpinnerModel heightModel = new SpinnerNumberModel(170, 0, 230, 0.5);
         customerHeightSpinner = new JSpinner(heightModel);
         inputPanel.add(customerHeightSpinner, gbc);
-
 
         JLabel checkupInfoLabel = new JLabel("Thông tin khám bệnh");
         checkupInfoLabel.setFont(checkupInfoLabel.getFont().deriveFont(Font.BOLD, 16)); // Bold, size 16
@@ -404,7 +484,7 @@ public class CheckUpPage extends JPanel {
 
         gbc.gridwidth = 3;
         gbc.gridx = 1;
-        doctorComboBox = new JComboBox<>(doctorOptions);
+        doctorComboBox = new JComboBox<>(LocalStorage.doctorsName);
         inputPanel.add(doctorComboBox, gbc);
 
         gbc.gridwidth = 1;
@@ -712,6 +792,7 @@ public class CheckUpPage extends JPanel {
     private  void handleGetDoctorGeneralInfoResponse(GetDoctorGeneralInfoResponse response) {
         log.info("Received doctor general info");
         this.doctorOptions = response.getDoctorsName();
+        LocalStorage.doctorsName = response.getDoctorsName();
     }
 
     private void handleGetCheckUpQueueResponse(GetCheckUpQueueResponse response) {

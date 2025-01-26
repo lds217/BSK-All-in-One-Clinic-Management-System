@@ -27,7 +27,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class Server {
   private static final int PORT = 1999;
-  static Connection connection;
+  public static Connection connection;
 
     static {
         try {

@@ -20,5 +20,6 @@ public class ErrorResponse implements Packet {
     USERNAME_NOT_FOUND,
     PASSWORD_INCORRECT,
     USER_ALREADY_EXISTS,INVALID_CREDENTIALS,
+      SQL_EXCEPTION,
   }
 }

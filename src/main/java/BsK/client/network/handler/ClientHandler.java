@@ -5,11 +5,11 @@ import BsK.client.LocalStorage;
 import BsK.client.ui.handler.UIHandler;
 import BsK.common.packet.Packet;
 import BsK.common.packet.PacketSerializer;
+import BsK.common.packet.req.GetDoctorGeneralInfo;
+import BsK.common.packet.req.GetMedInfoRequest;
+import BsK.common.packet.req.GetProvinceRequest;
 import BsK.common.packet.req.LoginRequest;
-import BsK.common.packet.res.ClinicInfoResponse;
-import BsK.common.packet.res.ErrorResponse;
-import BsK.common.packet.res.HandshakeCompleteResponse;
-import BsK.common.packet.res.LoginSuccessResponse;
+import BsK.common.packet.res.*;
 import BsK.common.util.network.NetworkUtil;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
@@ -61,6 +61,9 @@ public class ClientHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         log.info("Handshake complete");
         ClientHandler.ctx = ctx;
         ClientHandler.frame = frame;
+
+        // If
+
         UIHandler.INSTANCE.showUI();
         // When the handshake is complete, the UI is shown
         return; // No further processing needed for handshake response
@@ -72,6 +75,33 @@ public class ClientHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         LocalStorage.ClinicAddress = clinicInfoResponse.getClinicAddress();
         LocalStorage.ClinicPhone = clinicInfoResponse.getClinicPhone();
         return;
+      }
+
+      if (packet instanceof GetDoctorGeneralInfoResponse doctorGeneralInfoResponse) {
+        log.info("Doctor general info received: {}", doctorGeneralInfoResponse);
+        LocalStorage.doctorsName = doctorGeneralInfoResponse.getDoctorsName();
+        return;
+      }
+
+      if (packet instanceof GetProvinceResponse provinceResponse) {
+        log.info("Province info received: {}", provinceResponse);
+        LocalStorage.provinces = provinceResponse.getProvinces();
+        LocalStorage.provinceToId = provinceResponse.getProvinceToId();
+        return;
+      }
+
+      if (packet instanceof GetDistrictResponse districtResponse) {
+          log.info("District info received: {}", districtResponse);
+          LocalStorage.districts = districtResponse.getDistricts();
+          LocalStorage.districtToId = districtResponse.getDistrictToId();
+          log.info("District to id: {}", LocalStorage.districtToId);
+          return;
+      }
+
+      if (packet instanceof GetWardResponse wardResponse) {
+          log.info("Ward info received: {}", wardResponse);
+          LocalStorage.wards = wardResponse.getWards();
+          return;
       }
 
       listeners.forEach((key, value) -> {

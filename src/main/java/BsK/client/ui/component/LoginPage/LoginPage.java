@@ -6,6 +6,8 @@ import BsK.client.ui.component.MainFrame;
 import BsK.common.packet.Packet;
 import BsK.common.packet.PacketSerializer;
 import BsK.common.packet.req.ClinicInfoRequest;
+import BsK.common.packet.req.GetDoctorGeneralInfo;
+import BsK.common.packet.req.GetProvinceRequest;
 import BsK.common.packet.req.LoginRequest;
 import BsK.common.packet.res.ErrorResponse;
 import BsK.common.packet.res.LoginSuccessResponse;
@@ -89,6 +91,8 @@ public class LoginPage extends JPanel {
             log.info("Login successful, UserId: {}, Role: {}", response.getUserId(), response.getRole());
             LocalStorage.username = loginField.getText();
             NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new ClinicInfoRequest()); // Request clinic info
+            NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetDoctorGeneralInfo()); // Request doctor info
+            NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetProvinceRequest()); // Request province info
             mainFrame.showPage("DashboardPage");
         });
 

@@ -6,6 +6,7 @@ import BsK.common.packet.req.*;
 import BsK.common.packet.res.*;
 import BsK.common.packet.res.ErrorResponse.Error;
 import BsK.common.util.date.DateUtils;
+import BsK.server.Server;
 import BsK.server.network.manager.SessionManager;
 import BsK.server.network.util.UserUtil;
 import io.netty.channel.ChannelHandlerContext;
@@ -15,16 +16,20 @@ import io.netty.handler.codec.http.websocketx.WebSocketServerProtocolHandler.Han
 import io.netty.handler.timeout.IdleState;
 import io.netty.handler.timeout.IdleStateEvent;
 import java.io.IOException;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashMap;
 
 import lombok.extern.slf4j.Slf4j;
 
+
 import static BsK.server.Server.statement;
+
 
 @Slf4j
 public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFrame> {
@@ -341,6 +346,110 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
             UserUtil.sendPacket(user.getSessionId(), new GetRecentPatientResponse(resultArray));
           }
         } catch (SQLException e) {
+          throw new RuntimeException(e);
+        }
+      }
+
+      if (packet instanceof GetProvinceRequest getProvinceRequest) {
+        log.debug("Received GetProvinceRequest");
+        try {
+          ResultSet rs = statement.executeQuery(
+                  "select provinces.code, provinces.name\n" +
+                          "from provinces" +
+                          " order by provinces.name"
+          );
+
+          if (!rs.isBeforeFirst()) {
+            System.out.println("No data found in the province table.");
+          } else {
+            ArrayList<String> resultList = new ArrayList<>();
+            HashMap<String, String> provinceIdMap = new HashMap<>();
+            resultList.add("Tỉnh/Thành phố");
+            while (rs.next()) {
+              String provinceId = rs.getString("code");
+              String provinceName = rs.getString("name");
+              provinceIdMap.put(provinceName, provinceId);
+              resultList.add(provinceName);
+            }
+
+            String[] resultString = resultList.toArray(new String[0]);
+            UserUtil.sendPacket(user.getSessionId(), new GetProvinceResponse(resultString, provinceIdMap));
+          }
+        } catch (SQLException e) {
+          throw new RuntimeException(e);
+        }
+      }
+
+      if (packet instanceof GetDistrictRequest getDistrictRequest) {
+        log.debug("Received GetDistrictRequest");
+        try{
+
+          PreparedStatement preparedStatement = Server.connection.prepareStatement(
+                  "SELECT districts.code, districts.name " +
+                          "                          FROM districts " +
+                          "                          WHERE province_code = ? " +
+                          "                          ORDER BY districts.name"
+          );
+          preparedStatement.setString(1, getDistrictRequest.getProvinceId());
+
+          ResultSet rs = preparedStatement.executeQuery();
+
+
+          if (!rs.isBeforeFirst()) {
+                System.out.println("No data found in the district table.");
+            } else {
+                ArrayList<String> resultList = new ArrayList<>();
+                HashMap<String, String> districtIdMap = new HashMap<>();
+                resultList.add("Quận/Huyện");
+                while (rs.next()) {
+                String districtId = rs.getString("code");
+                String districtName = rs.getString("name");
+                districtIdMap.put(districtName, districtId);
+                resultList.add(districtName);
+                }
+
+                String[] resultString = resultList.toArray(new String[0]);
+
+                UserUtil.sendPacket(user.getSessionId(), new GetDistrictResponse(resultString, districtIdMap));
+            }
+            } catch (SQLException e) {
+          throw new RuntimeException(e);
+        }
+      }
+
+      if (packet instanceof GetWardRequest getWardRequest) {
+        log.debug("Received GetWardRequest");
+
+        try{
+          PreparedStatement preparedStatement = Server.connection.prepareStatement(
+                  "SELECT wards.code, wards.name \n" +
+                          "                          FROM wards\n" +
+                          "                          WHERE district_code = ? " +
+                          "                          ORDER BY wards.name"
+          );
+          preparedStatement.setString(1, getWardRequest.getDistrictId());
+
+          ResultSet rs = preparedStatement.executeQuery();
+
+
+          if (!rs.isBeforeFirst()) {
+            System.out.println("No data found in the district table.");
+          } else {
+            ArrayList<String> resultList = new ArrayList<>();
+            HashMap<String, String> districtIdMap = new HashMap<>();
+            resultList.add("Xã/Phường");
+            while (rs.next()) {
+              String districtId = rs.getString("code");
+              String districtName = rs.getString("name");
+              districtIdMap.put(districtName, districtId);
+              resultList.add(districtName);
+            }
+
+            String[] resultString = resultList.toArray(new String[0]);
+            UserUtil.sendPacket(user.getSessionId(), new GetWardResponse(resultString));
+          }
+        } catch (SQLException e) {
+          UserUtil.sendPacket(user.getSessionId(), new ErrorResponse(Error.SQL_EXCEPTION));
           throw new RuntimeException(e);
         }
       }
