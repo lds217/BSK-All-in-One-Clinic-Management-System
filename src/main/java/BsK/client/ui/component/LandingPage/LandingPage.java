@@ -17,7 +17,7 @@ public class LandingPage extends JPanel {
             protected void paintComponent(Graphics g) {
                 super.paintComponent(g);
                 Graphics2D g2d = (Graphics2D) g;
-                ImageIcon icon = new ImageIcon("/Users/lethanhdat/Documents/GitHub/ldS_BsK/src/main/java/BsK/client/ui/image/landingpagebg.jpeg");
+                ImageIcon icon = new ImageIcon("src/main/java/BsK/client/ui/image/landingpagebg.jpeg");
                 Image image = icon.getImage();
                 g2d.drawImage(image, 0, 0, getWidth(), getHeight(), this);
                 Color tint = new Color(0, 0, 0, 100); // Black tint with transparency

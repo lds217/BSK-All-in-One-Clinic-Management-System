@@ -3,8 +3,10 @@ package BsK.client.ui.component.CheckUpPage.AddDialog;
 import BsK.client.LocalStorage;
 import BsK.client.network.handler.ClientHandler;
 import BsK.client.network.handler.ResponseListener;
+import BsK.common.packet.req.GetDistrictRequest;
 import BsK.common.packet.req.GetDoctorGeneralInfo;
 import BsK.common.packet.req.GetRecentPatientRequest;
+import BsK.common.packet.req.GetWardRequest;
 import BsK.common.packet.res.GetDoctorGeneralInfoResponse;
 import BsK.common.packet.res.GetMedInfoResponse;
 import BsK.common.packet.res.GetRecentPatientResponse;
@@ -17,10 +19,7 @@ import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
-import java.awt.event.KeyAdapter;
-import java.awt.event.KeyEvent;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
+import java.awt.event.*;
 
 
 @Slf4j
@@ -30,8 +29,8 @@ public class AddDialog extends JDialog {
     private JTextField patientIdField;
     private JTextField patientPhoneField;
     private JComboBox patientGenderField;
-    private JComboBox villageComboBox, districtComboBox, provinceComboBox;
-    private String[] villagesOptions, districtOptions, provinceOptions;
+    private JComboBox wardComboBox, districtComboBox, provinceComboBox;
+    private JTextField customerAddressField;
     private DefaultTableModel patientTableModel;
     private JTable patientTable;
     private String[] patientColumns = {"Patient ID", "Patient Name", "Patient Year", "Patient Phone" ,"Patient Address"};
@@ -52,6 +51,32 @@ public class AddDialog extends JDialog {
         patientTableModel.setDataVector(patientData, patientColumns);
     }
 
+    private int findProvinceIndex(String province) {
+        for (int i = 0; i < LocalStorage.provinces.length; i++) {
+            if (TextUtils.removeAccents(LocalStorage.provinces[i]).equals(TextUtils.removeAccents(province))) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private int findDistrictIndex(String district) {
+        for (int i = 0; i < LocalStorage.districts.length; i++) {
+            if (TextUtils.removeAccents(LocalStorage.districts[i]).equals(TextUtils.removeAccents(district))) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private int findWardIndex(String ward) {
+        for (int i = 0; i < LocalStorage.wards.length; i++) {
+            if (TextUtils.removeAccents(LocalStorage.wards[i]).equals(TextUtils.removeAccents(ward))) {
+                return i;
+            }
+        }
+        return -1;
+    }
 
     public AddDialog(Frame parent) {
         super(parent, "Add Patient", true);
@@ -220,24 +245,97 @@ public class AddDialog extends JDialog {
 
         gbc.gridx = 0;
         gbc.gridy++;
-        inputPanel.add(new JLabel("Address:"), gbc);
-
+        gbc.gridwidth = 1;
+        inputPanel.add(new JLabel("Địa chỉ"), gbc);
+        gbc.gridwidth = 3;
         gbc.gridx = 1;
-        provinceOptions = new String[]{"Province 1", "Province 2", "Province 3"};
-        provinceComboBox = new JComboBox(provinceOptions);
+        customerAddressField = new JTextField(15);
+        inputPanel.add(customerAddressField, gbc);
+
+        gbc.gridy++;
+        gbc.gridx = 1;
+        gbc.gridwidth = 1;
+        provinceComboBox = new JComboBox<>(LocalStorage.provinces);
         inputPanel.add(provinceComboBox, gbc);
 
+
         gbc.gridx = 2;
-        districtOptions = new String[]{"District 1", "District 2", "District 3"};
-        districtComboBox = new JComboBox(districtOptions);
+        districtComboBox = new JComboBox<>(new String[]{"Huyện 1", "Huyện 2", "Huyện 3"});
         inputPanel.add(districtComboBox, gbc);
+        // set not editable
+        districtComboBox.setEnabled(false);
+
 
         gbc.gridx = 3;
-        villagesOptions = new String[]{"Village 1", "Village 2", "Village 3"};
-        villageComboBox = new JComboBox(villagesOptions);
-        inputPanel.add(villageComboBox, gbc);
+        wardComboBox = new JComboBox<>(new String[]{"Phường 1", "Phường 2", "Phường 3"});
+        inputPanel.add(wardComboBox, gbc);
+        // set not editable
+        wardComboBox.setEnabled(false);
+
+        // Province ComboBox Listener
+        provinceComboBox.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                int selectedIndex = provinceComboBox.getSelectedIndex();
+                DefaultComboBoxModel<String> districtModel = new DefaultComboBoxModel<>(new String[]{"Quận/Huyện"});
+                districtComboBox.setModel(districtModel); // Set district combo box model
+                if (selectedIndex != 0) { // If the selected index is not 0 (which corresponds to "Tỉnh/Thành phố")
+                    NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetDistrictRequest(LocalStorage.provinceToId
+                            .get(provinceComboBox.getSelectedItem().toString())));
+                    while (LocalStorage.districts == null || districtComboBox.getItemCount() <= 1) {
+                        try {
+                            Thread.sleep(100); // Wait for the district data to be fetched
+                            if(LocalStorage.districts != null) {
+                                districtModel = new DefaultComboBoxModel<>(LocalStorage.districts);
+                                districtComboBox.setModel(districtModel);
+                            }
+                        } catch (InterruptedException interruptedException) {
+                            interruptedException.printStackTrace();
+                        }
+                    }
+                    // Set district combo box model
+                    districtComboBox.setEnabled(true); // Enable district combo box
+                    wardComboBox.setSelectedItem("Xã/Phường"); // Set ward combo box to default value
+                    wardComboBox.setEnabled(false);
+                } else {
+                    districtComboBox.setEnabled(false); // Disable district combo box if "Tỉnh/Thành phố" is selected
+                    wardComboBox.setEnabled(false); // Disable ward combo box as well
+                }
+            }
+        });
 
 
+        // District ComboBox Listener
+        districtComboBox.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                int selectedIndex = districtComboBox.getSelectedIndex();
+                DefaultComboBoxModel<String> wardModel = new DefaultComboBoxModel<>(new String[]{"Xã/Phường"});
+                wardComboBox.setModel(wardModel); // Set district combo box model
+                if (selectedIndex != 0) { // If the selected index is not 0 (which corresponds to "Quận/Huyện")
+                    NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetWardRequest(LocalStorage.districtToId
+                            .get(districtComboBox.getSelectedItem().toString())));
+                    log.info("Sending GetWardRequest with district ID: {}", LocalStorage.districtToId
+                            .get(districtComboBox.getSelectedItem().toString()));
+                    while (LocalStorage.wards == null || wardComboBox.getItemCount() <= 1) {
+                        try {
+                            Thread.sleep(100); // Wait for the district data to be fetched
+                            if(LocalStorage.wards != null) {
+                                wardModel = new DefaultComboBoxModel<>(LocalStorage.wards);
+                                wardComboBox.setModel(wardModel);
+                            }
+                        } catch (InterruptedException interruptedException) {
+                            interruptedException.printStackTrace();
+                        }
+                    }
+                    wardComboBox.setSelectedItem("Xã/Phường"); // Set ward combo box to default value
+                    wardComboBox.setEnabled(true); // Enable ward combo box
+                } else {
+                    districtComboBox.setEnabled(false); // Disable district combo box if "Tỉnh/Thành phố" is selected
+                    wardComboBox.setEnabled(false); // Disable ward combo box as well
+                }
+            }
+        });
 
         JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, inputPanel, scrollPane);
         splitPane.setResizeWeight(0.1);
@@ -277,16 +375,34 @@ public class AddDialog extends JDialog {
         patientPhoneField.setText(patientPhone);
         patientGenderField.setSelectedItem(patientGender);
 
-        // Extract province, district, village from the address
+        // Extract province, district, ward from the address
         String[] addressParts = patientAddress.split(", ");
-        if (addressParts.length == 3) {
-            String village = addressParts[0];
-            String district = addressParts[1];
-            String province = addressParts[2];
+        if (addressParts.length == 4) {
+            String address = addressParts[0];
+            String ward = addressParts[1];
+            String district = addressParts[2];
+            String province = addressParts[3];
+            customerAddressField.setText(address);
+            provinceComboBox.setSelectedIndex(findProvinceIndex(province));
+            try {
+                Thread.sleep(100);
+                while(!districtComboBox.isEditable()) {
+                    districtComboBox.setSelectedIndex(findDistrictIndex(district));
+                    break;
+                }
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+            try {
+                Thread.sleep(100);
+                while(!wardComboBox.isEditable()) {
+                    wardComboBox.setSelectedIndex(findWardIndex(ward));
+                    break;
+                }
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
 
-            villageComboBox.setSelectedItem(village);
-            districtComboBox.setSelectedItem(district);
-            provinceComboBox.setSelectedItem(province);
         }
     }
 

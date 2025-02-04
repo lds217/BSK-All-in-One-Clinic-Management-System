@@ -314,6 +314,7 @@ public class CheckUpPage extends JPanel {
         dobPicker.setPreferredSize(new Dimension(100, 30));
         inputPanel.add(dobPicker, gbc);
 
+        // Địa chỉ
         gbc.gridx = 0;
         gbc.gridy++;
         gbc.gridwidth = 1;
