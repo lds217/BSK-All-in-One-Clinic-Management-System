@@ -7,9 +7,7 @@ import BsK.common.packet.req.GetDistrictRequest;
 import BsK.common.packet.req.GetDoctorGeneralInfo;
 import BsK.common.packet.req.GetRecentPatientRequest;
 import BsK.common.packet.req.GetWardRequest;
-import BsK.common.packet.res.GetDoctorGeneralInfoResponse;
-import BsK.common.packet.res.GetMedInfoResponse;
-import BsK.common.packet.res.GetRecentPatientResponse;
+import BsK.common.packet.res.*;
 import BsK.common.util.network.NetworkUtil;
 import BsK.common.util.text.TextUtils;
 import lombok.extern.slf4j.Slf4j;
@@ -36,7 +34,11 @@ public class AddDialog extends JDialog {
     private String[] patientColumns = {"Patient ID", "Patient Name", "Patient Year", "Patient Phone" ,"Patient Address"};
     private String[][] patientData;
     private final ResponseListener<GetRecentPatientResponse> getRecentPatientResponseListener = this::getRecentPatientHandler;
+    private final ResponseListener<GetDistrictResponse> districtResponseListener = this::handleGetDistrictResponse;
+    private final ResponseListener<GetWardResponse> wardResponseListener = this::handleGetWardResponse;
     private JComboBox doctorComboBox;
+    JButton saveButton;
+    private DefaultComboBoxModel<String> districtModel, wardModel;
 
     private void sendGetRecentPatientRequest() {
         log.info("Sending GetRecentPatientRequest");
@@ -89,7 +91,8 @@ public class AddDialog extends JDialog {
 
         // Send request to get the latest 20 patients in the database
         sendGetRecentPatientRequest();
-
+        ClientHandler.addResponseListener(GetDistrictResponse.class, districtResponseListener);
+        ClientHandler.addResponseListener(GetWardResponse.class, wardResponseListener);
 
         // Add patent table on the right side
         // Add a scroll pane to the table
@@ -140,10 +143,27 @@ public class AddDialog extends JDialog {
         gbc.gridwidth = 1;
         inputPanel.add(new JLabel("Patient name:"), gbc);
 
-        gbc.gridwidth = 3;
+        gbc.gridwidth = 2;
         gbc.gridx = 1;
         patientNameField = new JTextField(20);
         inputPanel.add(patientNameField, gbc);
+
+        ImageIcon addIcon = new ImageIcon("src/main/java/BsK/client/ui/assets/icon/add.png");
+        JButton addButton = new JButton(addIcon);
+        addButton.setPreferredSize(new Dimension(30, 30)); // Make the button square
+
+        addButton.addActionListener(e -> {
+            patientNameField.setText("");
+            patientYearField.setText("");
+            patientIdField.setText("");
+            patientPhoneField.setText("");
+            customerAddressField.setText("");
+            doctorComboBox.setSelectedIndex(0);
+            provinceComboBox.setSelectedIndex(0);
+        });
+        gbc.gridwidth = 1;
+        gbc.gridx = 4;
+        inputPanel.add(addButton, gbc);
 
         patientNameField.addKeyListener(new KeyAdapter() {
             @Override
@@ -176,6 +196,7 @@ public class AddDialog extends JDialog {
                 String searchText = patientNameField.getText().trim();
                 if (searchText.isEmpty()) {
                     // Clear selection if search text is empty
+                    saveButton.setEnabled(false);
                     patientTable.clearSelection();
                     return;
                 }
@@ -193,7 +214,11 @@ public class AddDialog extends JDialog {
                 }
 
                 if (!found) {
-                    patientTable.clearSelection(); // No matches found
+                    patientTable.clearSelection();
+                    saveButton.setEnabled(false);
+                }
+                else {
+                    saveButton.setEnabled(true);
                 }
             }
         });
@@ -277,26 +302,11 @@ public class AddDialog extends JDialog {
             @Override
             public void actionPerformed(ActionEvent e) {
                 int selectedIndex = provinceComboBox.getSelectedIndex();
-                DefaultComboBoxModel<String> districtModel = new DefaultComboBoxModel<>(new String[]{"Quận/Huyện"});
+                districtModel = new DefaultComboBoxModel<>(new String[]{"Quận/Huyện"});
                 districtComboBox.setModel(districtModel); // Set district combo box model
                 if (selectedIndex != 0) { // If the selected index is not 0 (which corresponds to "Tỉnh/Thành phố")
                     NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetDistrictRequest(LocalStorage.provinceToId
                             .get(provinceComboBox.getSelectedItem().toString())));
-                    while (LocalStorage.districts == null || districtComboBox.getItemCount() <= 1) {
-                        try {
-                            Thread.sleep(100); // Wait for the district data to be fetched
-                            if(LocalStorage.districts != null) {
-                                districtModel = new DefaultComboBoxModel<>(LocalStorage.districts);
-                                districtComboBox.setModel(districtModel);
-                            }
-                        } catch (InterruptedException interruptedException) {
-                            interruptedException.printStackTrace();
-                        }
-                    }
-                    // Set district combo box model
-                    districtComboBox.setEnabled(true); // Enable district combo box
-                    wardComboBox.setSelectedItem("Xã/Phường"); // Set ward combo box to default value
-                    wardComboBox.setEnabled(false);
                 } else {
                     districtComboBox.setEnabled(false); // Disable district combo box if "Tỉnh/Thành phố" is selected
                     wardComboBox.setEnabled(false); // Disable ward combo box as well
@@ -310,26 +320,11 @@ public class AddDialog extends JDialog {
             @Override
             public void actionPerformed(ActionEvent e) {
                 int selectedIndex = districtComboBox.getSelectedIndex();
-                DefaultComboBoxModel<String> wardModel = new DefaultComboBoxModel<>(new String[]{"Xã/Phường"});
+                wardModel = new DefaultComboBoxModel<>(new String[]{"Xã/Phường"});
                 wardComboBox.setModel(wardModel); // Set district combo box model
                 if (selectedIndex != 0) { // If the selected index is not 0 (which corresponds to "Quận/Huyện")
                     NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetWardRequest(LocalStorage.districtToId
                             .get(districtComboBox.getSelectedItem().toString())));
-                    log.info("Sending GetWardRequest with district ID: {}", LocalStorage.districtToId
-                            .get(districtComboBox.getSelectedItem().toString()));
-                    while (LocalStorage.wards == null || wardComboBox.getItemCount() <= 1) {
-                        try {
-                            Thread.sleep(100); // Wait for the district data to be fetched
-                            if(LocalStorage.wards != null) {
-                                wardModel = new DefaultComboBoxModel<>(LocalStorage.wards);
-                                wardComboBox.setModel(wardModel);
-                            }
-                        } catch (InterruptedException interruptedException) {
-                            interruptedException.printStackTrace();
-                        }
-                    }
-                    wardComboBox.setSelectedItem("Xã/Phường"); // Set ward combo box to default value
-                    wardComboBox.setEnabled(true); // Enable ward combo box
                 } else {
                     districtComboBox.setEnabled(false); // Disable district combo box if "Tỉnh/Thành phố" is selected
                     wardComboBox.setEnabled(false); // Disable ward combo box as well
@@ -338,7 +333,7 @@ public class AddDialog extends JDialog {
         });
 
         JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, inputPanel, scrollPane);
-        splitPane.setResizeWeight(0.1);
+        splitPane.setResizeWeight(0.6);
         add(splitPane, BorderLayout.CENTER);
 
 
@@ -349,10 +344,11 @@ public class AddDialog extends JDialog {
         });
         ButtonPanel.add(closeButton);
 
-        JButton saveButton = new JButton("Save");
+        saveButton = new JButton("Save");
         saveButton.addActionListener(e -> {
             // Send request to save the patient
         });
+        saveButton.setEnabled(false);
         ButtonPanel.add(saveButton);
 
         add(ButtonPanel, BorderLayout.SOUTH);
@@ -402,9 +398,27 @@ public class AddDialog extends JDialog {
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
-
         }
     }
+
+    private void handleGetDistrictResponse(GetDistrictResponse response) {
+        log.info("Received dialog district data");
+
+        LocalStorage.districts = response.getDistricts();
+        LocalStorage.districtToId = response.getDistrictToId();
+        districtModel = new DefaultComboBoxModel<>(LocalStorage.districts);
+        districtComboBox.setModel(districtModel);
+        districtComboBox.setEnabled(true); // Enable district combo box
+    }
+
+    private void handleGetWardResponse(GetWardResponse response) {
+        log.info("Received dialog ward data");
+        LocalStorage.wards = response.getWards();
+        wardModel = new DefaultComboBoxModel<>(LocalStorage.wards);
+        wardComboBox.setModel(wardModel);
+        wardComboBox.setEnabled(true); // Enable ward combo box
+    }
+
 
     public static void main(String[] args) {
         // add a button to open the dialog

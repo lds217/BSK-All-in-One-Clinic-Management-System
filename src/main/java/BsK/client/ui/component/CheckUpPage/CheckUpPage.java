@@ -11,11 +11,9 @@ import BsK.client.ui.component.MainFrame;
 import BsK.client.ui.component.common.DateLabelFormatter;
 import BsK.client.ui.component.common.RoundedPanel;
 import BsK.common.packet.req.*;
-import BsK.common.packet.res.ErrorResponse;
-import BsK.common.packet.res.GetCheckUpQueueResponse;
-import BsK.common.packet.res.GetCustomerHistoryResponse;
-import BsK.common.packet.res.GetDoctorGeneralInfoResponse;
+import BsK.common.packet.res.*;
 import BsK.common.util.network.NetworkUtil;
+import BsK.common.util.text.TextUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.jdatepicker.impl.JDatePanelImpl;
 import org.jdatepicker.impl.JDatePickerImpl;
@@ -44,7 +42,8 @@ public class CheckUpPage extends JPanel {
     private JTable table1, historyTable;
     private final ResponseListener<GetCheckUpQueueResponse> checkUpQueueListener = this::handleGetCheckUpQueueResponse;
     private final ResponseListener<GetCustomerHistoryResponse> customerHistoryListener = this::handleGetCustomerHistoryResponse;
-
+    private final ResponseListener<GetDistrictResponse> districtResponseListener = this::handleGetDistrictResponse;
+    private final ResponseListener<GetWardResponse> wardResponseListener = this::handleGetWardResponse;
     private JTextField checkupIdField, customerLastNameField, customerFirstNameField,customerAddressField, customerPhoneField, customerIdField;
     private JTextArea symptomsField, diagnosisField, notesField;
     private JComboBox<String> doctorComboBox, statusComboBox, genderComboBox, provinceComboBox, districtComboBox, wardComboBox;
@@ -58,20 +57,47 @@ public class CheckUpPage extends JPanel {
     private AddDialog addDialog = null;
     private int previousSelectedRow = -1;
     private boolean saved = false;
-
+    private DefaultComboBoxModel<String> districtModel, wardModel;
 
     boolean returnCell = false;
     public void updateQueue() {
         ClientHandler.addResponseListener(GetCheckUpQueueResponse.class, checkUpQueueListener);
         NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetCheckUpQueueRequest());
     }
+    private int findProvinceIndex(String province) {
+        for (int i = 0; i < LocalStorage.provinces.length; i++) {
+            if (TextUtils.removeAccents(LocalStorage.provinces[i]).equals(TextUtils.removeAccents(province))) {
+                return i;
+            }
+        }
+        return -1;
+    }
 
+    private int findDistrictIndex(String district) {
+        for (int i = 0; i < LocalStorage.districts.length; i++) {
+            if (TextUtils.removeAccents(LocalStorage.districts[i]).equals(TextUtils.removeAccents(district))) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private int findWardIndex(String ward) {
+        for (int i = 0; i < LocalStorage.wards.length; i++) {
+            if (TextUtils.removeAccents(LocalStorage.wards[i]).equals(TextUtils.removeAccents(ward))) {
+                return i;
+            }
+        }
+        return -1;
+    }
 
     public CheckUpPage(MainFrame mainFrame) {
         setLayout(new BorderLayout());
 
         // add history listener
         ClientHandler.addResponseListener(GetCustomerHistoryResponse.class, customerHistoryListener);
+        ClientHandler.addResponseListener(GetDistrictResponse.class, districtResponseListener);
+        ClientHandler.addResponseListener(GetWardResponse.class, wardResponseListener);
         updateQueue();
 
         // Navigation bar
@@ -349,26 +375,11 @@ public class CheckUpPage extends JPanel {
             @Override
             public void actionPerformed(ActionEvent e) {
                 int selectedIndex = provinceComboBox.getSelectedIndex();
-                DefaultComboBoxModel<String> districtModel = new DefaultComboBoxModel<>(new String[]{"Quận/Huyện"});
+                districtModel = new DefaultComboBoxModel<>(new String[]{"Quận/Huyện"});
                 districtComboBox.setModel(districtModel); // Set district combo box model
                 if (selectedIndex != 0) { // If the selected index is not 0 (which corresponds to "Tỉnh/Thành phố")
                     NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetDistrictRequest(LocalStorage.provinceToId
                             .get(provinceComboBox.getSelectedItem().toString())));
-                    while (LocalStorage.districts == null || districtComboBox.getItemCount() <= 1) {
-                        try {
-                            Thread.sleep(100); // Wait for the district data to be fetched
-                            if(LocalStorage.districts != null) {
-                                districtModel = new DefaultComboBoxModel<>(LocalStorage.districts);
-                                districtComboBox.setModel(districtModel);
-                            }
-                        } catch (InterruptedException interruptedException) {
-                            interruptedException.printStackTrace();
-                        }
-                    }
-                     // Set district combo box model
-                    districtComboBox.setEnabled(true); // Enable district combo box
-                    wardComboBox.setSelectedItem("Xã/Phường"); // Set ward combo box to default value
-                    wardComboBox.setEnabled(false);
                 } else {
                     districtComboBox.setEnabled(false); // Disable district combo box if "Tỉnh/Thành phố" is selected
                     wardComboBox.setEnabled(false); // Disable ward combo box as well
@@ -382,28 +393,12 @@ public class CheckUpPage extends JPanel {
             @Override
             public void actionPerformed(ActionEvent e) {
                 int selectedIndex = districtComboBox.getSelectedIndex();
-                DefaultComboBoxModel<String> wardModel = new DefaultComboBoxModel<>(new String[]{"Xã/Phường"});
+                wardModel = new DefaultComboBoxModel<>(new String[]{"Xã/Phường"});
                 wardComboBox.setModel(wardModel); // Set district combo box model
                 if (selectedIndex != 0) { // If the selected index is not 0 (which corresponds to "Quận/Huyện")
                     NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetWardRequest(LocalStorage.districtToId
                             .get(districtComboBox.getSelectedItem().toString())));
-                    log.info("Sending GetWardRequest with district ID: {}", LocalStorage.districtToId
-                            .get(districtComboBox.getSelectedItem().toString()));
-                    while (LocalStorage.wards == null || wardComboBox.getItemCount() <= 1) {
-                        try {
-                            Thread.sleep(100); // Wait for the district data to be fetched
-                            if(LocalStorage.wards != null) {
-                                wardModel = new DefaultComboBoxModel<>(LocalStorage.wards);
-                                wardComboBox.setModel(wardModel);
-                            }
-                        } catch (InterruptedException interruptedException) {
-                            interruptedException.printStackTrace();
-                        }
-                    }
-                    wardComboBox.setSelectedItem("Xã/Phường"); // Set ward combo box to default value
-                    wardComboBox.setEnabled(true); // Enable ward combo box
                 } else {
-                    districtComboBox.setEnabled(false); // Disable district combo box if "Tỉnh/Thành phố" is selected
                     wardComboBox.setEnabled(false); // Disable ward combo box as well
                 }
             }
@@ -717,7 +712,6 @@ public class CheckUpPage extends JPanel {
         String customerGender = queue[selectedRow][14];
         String customerDob = queue[selectedRow][15];
 
-
         log.info("Selected customer: {}", customerId);
         checkupIdField.setText(checkupId);
 
@@ -781,8 +775,54 @@ public class CheckUpPage extends JPanel {
         customerHeightSpinner.setValue(Double.parseDouble(customerHeight));
 
         NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetCustomerHistoryRequest(Integer.parseInt(queue[selectedRow][9])));
+
+        // Extract province, district, ward from the address
+        String[] addressParts = customerAddress.split(", ");
+        if (addressParts.length == 4) {
+            String address = addressParts[0];
+            String ward = addressParts[1];
+            String district = addressParts[2];
+            String province = addressParts[3];
+            customerAddressField.setText(address);
+            provinceComboBox.setSelectedIndex(findProvinceIndex(province));
+            try {
+                Thread.sleep(100);
+                while(!districtComboBox.isEditable()) {
+                    districtComboBox.setSelectedIndex(findDistrictIndex(district));
+                    break;
+                }
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+            try {
+                Thread.sleep(100);
+                while(!wardComboBox.isEditable()) {
+                    wardComboBox.setSelectedIndex(findWardIndex(ward));
+                    break;
+                }
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        }
     }
 
+    private void handleGetDistrictResponse(GetDistrictResponse response) {
+        log.info("Received district data");
+
+        LocalStorage.districts = response.getDistricts();
+        LocalStorage.districtToId = response.getDistrictToId();
+        districtModel = new DefaultComboBoxModel<>(LocalStorage.districts);
+        districtComboBox.setModel(districtModel);
+        districtComboBox.setEnabled(true); // Enable district combo box
+    }
+
+    private void handleGetWardResponse(GetWardResponse response) {
+        log.info("Received ward data");
+        LocalStorage.wards = response.getWards();
+        wardModel = new DefaultComboBoxModel<>(LocalStorage.wards);
+        wardComboBox.setModel(wardModel);
+        wardComboBox.setEnabled(true); // Enable ward combo box
+    }
 
     private void handleGetCustomerHistoryResponse(GetCustomerHistoryResponse response) {
         log.info("Received customer history");

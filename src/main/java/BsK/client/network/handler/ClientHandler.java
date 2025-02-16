@@ -32,23 +32,15 @@ public class ClientHandler extends SimpleChannelInboundHandler<TextWebSocketFram
   public static TextWebSocketFrame frame;
   public static final ClientHandler INSTANCE = new ClientHandler();
 
-  private static final Map<Class<?>, ResponseListener<?>> listeners = new ConcurrentHashMap<>();
+  private static final Map<Class<?>, List<ResponseListener<?>>> listeners = new ConcurrentHashMap<>();
 
   public static <T> void addResponseListener(Class<T> responseType, ResponseListener<T> listener) {
-    listeners.computeIfAbsent(responseType, k -> listener);
+    listeners.computeIfAbsent(responseType, k -> new ArrayList<>()).add(listener);
   }
 
   public static void clearListeners() {
     listeners.clear();
   }
-
-//  public static <T> void removeResponseListener(Class<T> responseType, ResponseListener<T> listener) {
-//    var listenerList = listeners.get(responseType);
-//    if (listenerList != null) {
-//      log.info("Removing listener for response type: {}", responseType.getName());
-//      listenerList.remove(listener);
-//    }
-//  }
 
   @Override
   protected void channelRead0(ChannelHandlerContext ctx, TextWebSocketFrame frame) {
@@ -90,31 +82,19 @@ public class ClientHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         return;
       }
 
-      if (packet instanceof GetDistrictResponse districtResponse) {
-          log.info("District info received: {}", districtResponse);
-          LocalStorage.districts = districtResponse.getDistricts();
-          LocalStorage.districtToId = districtResponse.getDistrictToId();
-          log.info("District to id: {}", LocalStorage.districtToId);
-          return;
-      }
-
-      if (packet instanceof GetWardResponse wardResponse) {
-          log.info("Ward info received: {}", wardResponse);
-          LocalStorage.wards = wardResponse.getWards();
-          return;
-      }
-
       listeners.forEach((key, value) -> {
         log.debug("Key: {}", key.getName());
 
       });
 
       // Process other packets
-      var responseListeners = listeners.get(packet.getClass());
-      if (responseListeners != null) {
-        notifyListener(responseListeners, packet);
+      List<ResponseListener<?>> responseListeners = listeners.get(packet.getClass());
+      if (responseListeners != null && !responseListeners.isEmpty()) {
+        for (ResponseListener<?> listener : new ArrayList<>(responseListeners)) {
+          notifyListener(listener, packet);
+        }
       } else {
-        log.warn("No listeners registered for response type: {}", packet.getClass().getName());
+        log.debug("No listeners registered for response type: {}", packet.getClass().getName());
       }
     } else {
       log.warn("Unknown or null packet received: {}", frame.text());
