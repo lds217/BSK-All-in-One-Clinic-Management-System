@@ -333,9 +333,10 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
               String customerGender = rs.getString("customer_gender");
 
               String result = String.join("|", customerId, customerLastName + " " + customerFirstName,
-                      year, customerNumber, customerAddress, customerGender);
+                      year, customerNumber, customerAddress, customerGender, customerDob);
               resultList.add(result);
             }
+
 
             String[] resultString = resultList.toArray(new String[0]);
             String[][] resultArray = new String[resultString.length][];
@@ -453,6 +454,28 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
           throw new RuntimeException(e);
         }
       }
+
+      if (packet instanceof AddPatientRequest addPatientRequest) {
+        log.debug("Received AddPatientRequest");
+        try {
+          PreparedStatement preparedStatement = Server.connection.prepareStatement(
+                  "INSERT INTO Customer (customer_last_name, customer_first_name, customer_dob, customer_number, customer_address, customer_gender) VALUES (?, ?, ?, ?, ?, ?)"
+          );
+          preparedStatement.setString(1, addPatientRequest.getPatientLastName());
+          preparedStatement.setString(2, addPatientRequest.getPatientFirstName());
+          preparedStatement.setLong(3, addPatientRequest.getPatientDob()); // DOB as long
+          preparedStatement.setString(4, addPatientRequest.getPatientPhone());
+          preparedStatement.setString(5, addPatientRequest.getPatientAddress());
+          preparedStatement.setString(6, addPatientRequest.getPatientGender());
+          preparedStatement.executeUpdate();
+          UserUtil.sendPacket(user.getSessionId(), new AddPatientResponse(true, "Thêm bệnh nhân thành công"));
+        } catch (SQLException e) {
+          String errorMessage = e.getMessage();
+          UserUtil.sendPacket(user.getSessionId(), new AddPatientResponse(false, "Lỗi: " + errorMessage));
+          throw new RuntimeException(e);
+        }
+      }
+
     }
   }
 

@@ -3,14 +3,15 @@ package BsK.client.ui.component.CheckUpPage.AddDialog;
 import BsK.client.LocalStorage;
 import BsK.client.network.handler.ClientHandler;
 import BsK.client.network.handler.ResponseListener;
-import BsK.common.packet.req.GetDistrictRequest;
-import BsK.common.packet.req.GetDoctorGeneralInfo;
-import BsK.common.packet.req.GetRecentPatientRequest;
-import BsK.common.packet.req.GetWardRequest;
+import BsK.client.ui.component.common.DateLabelFormatter;
+import BsK.common.packet.req.*;
 import BsK.common.packet.res.*;
 import BsK.common.util.network.NetworkUtil;
 import BsK.common.util.text.TextUtils;
 import lombok.extern.slf4j.Slf4j;
+import org.jdatepicker.impl.JDatePanelImpl;
+import org.jdatepicker.impl.JDatePickerImpl;
+import org.jdatepicker.impl.UtilDateModel;
 
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;
@@ -18,6 +19,11 @@ import javax.swing.event.DocumentListener;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.awt.event.*;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.Properties;
 
 
 @Slf4j
@@ -36,9 +42,13 @@ public class AddDialog extends JDialog {
     private final ResponseListener<GetRecentPatientResponse> getRecentPatientResponseListener = this::getRecentPatientHandler;
     private final ResponseListener<GetDistrictResponse> districtResponseListener = this::handleGetDistrictResponse;
     private final ResponseListener<GetWardResponse> wardResponseListener = this::handleGetWardResponse;
+    private final ResponseListener<AddPatientResponse> addPatientResponseListener = this::handleAddPatientResponse;
     private JComboBox doctorComboBox;
     JButton saveButton;
     private DefaultComboBoxModel<String> districtModel, wardModel;
+    private JDatePickerImpl dobPicker;
+
+
 
     private void sendGetRecentPatientRequest() {
         log.info("Sending GetRecentPatientRequest");
@@ -93,6 +103,7 @@ public class AddDialog extends JDialog {
         sendGetRecentPatientRequest();
         ClientHandler.addResponseListener(GetDistrictResponse.class, districtResponseListener);
         ClientHandler.addResponseListener(GetWardResponse.class, wardResponseListener);
+        ClientHandler.addResponseListener(AddPatientResponse.class, addPatientResponseListener);
 
         // Add patent table on the right side
         // Add a scroll pane to the table
@@ -160,6 +171,54 @@ public class AddDialog extends JDialog {
         JButton addButton = new JButton(addIcon);
         inputPanel.add(addButton, gbc);
 
+        // add event listener to the button
+        addButton.addActionListener(e -> {
+            if (!patientIdField.getText().isEmpty()) {
+                JOptionPane.showMessageDialog(this, "Bạn đã chọn bệnh nhân rồi");
+                return;
+            }
+            String patientName = patientNameField.getText();
+            String patientPhone = patientPhoneField.getText();
+            String patientGender = (String) patientGenderField.getSelectedItem();
+            String customerAddress = customerAddressField.getText();
+            String province = (String) provinceComboBox.getSelectedItem();
+            String district = (String) districtComboBox.getSelectedItem();
+            String ward = (String) wardComboBox.getSelectedItem();
+            String address = String.join(", ", customerAddress, ward, district, province);
+
+            //split name into first name and last name
+            String[] nameParts = patientName.split(" ");
+            String firstName = nameParts[nameParts.length - 1];
+            StringBuilder lastName = new StringBuilder();
+            for (int i = 0; i < nameParts.length - 1; i++) {
+                lastName.append(nameParts[i]);
+                if (i < nameParts.length - 2) {
+                    lastName.append(" ");
+                }
+            }
+
+            String lastNameStr = lastName.toString();
+            // check if dobPicker is not null
+            if (patientName.isEmpty()  || patientPhone.isEmpty() || customerAddress.isEmpty() || dobPicker.getJFormattedTextField().getText().isEmpty()) {
+                JOptionPane.showMessageDialog(this, "Please fill in all fields");
+                return;
+            }
+
+            String dateText = dobPicker.getJFormattedTextField().getText();
+
+            SimpleDateFormat dateFormat = new SimpleDateFormat("dd/MM/yyyy");
+            try {
+                Date date = dateFormat.parse(dateText);
+                long timestamp = date.getTime(); // This converts the Date to milliseconds since epoch (long)
+                NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new AddPatientRequest(firstName, lastNameStr, timestamp,
+                        patientPhone, address, patientGender));
+            } catch (ParseException pe) {
+                pe.printStackTrace();
+                JOptionPane.showMessageDialog(null, "Invalid date format: " + dateText);
+            }
+
+        });
+
         // Doctor row
         gbc.gridy++;
 
@@ -182,10 +241,18 @@ public class AddDialog extends JDialog {
         gbc.gridwidth = 1;
         inputPanel.add(new JLabel("Patient year:"), gbc);
 
-        // Year field
+        // dob field
+        UtilDateModel model = new UtilDateModel();
+        Properties p = new Properties();
+        p.put("text.today", "Today");
+        p.put("text.month", "Month");
+        p.put("text.year", "Year");
+        JDatePanelImpl datePanel = new JDatePanelImpl(model, p);
+        dobPicker = new JDatePickerImpl(datePanel, new DateLabelFormatter());
+        dobPicker.setPreferredSize(new Dimension(150, 30));
         gbc.gridx = 1;
-        patientYearField = new JTextField(8);
-        inputPanel.add(patientYearField, gbc);
+        gbc.gridwidth = 1;
+        inputPanel.add(dobPicker, gbc);
 
         // Gender label
         gbc.gridx = 2;
@@ -216,7 +283,7 @@ public class AddDialog extends JDialog {
         gbc.gridx = 3;
         patientIdField = new JTextField(4);
         inputPanel.add(patientIdField, gbc);
-
+        patientIdField.setEditable(false);
         // Address row
         gbc.gridy++;
 
@@ -284,6 +351,7 @@ public class AddDialog extends JDialog {
                     // Clear selection if search text is empty
                     saveButton.setEnabled(false);
                     patientTable.clearSelection();
+                    patientIdField.setText("");
                     return;
                 }
 
@@ -302,6 +370,7 @@ public class AddDialog extends JDialog {
                 if (!found) {
                     patientTable.clearSelection();
                     saveButton.setEnabled(false);
+                    patientIdField.setText("");
                 }
                 else {
                     saveButton.setEnabled(true);
@@ -374,13 +443,13 @@ public class AddDialog extends JDialog {
 
         String patientId = patientTable.getValueAt(selectedRow, 0).toString();
         String patientName = patientTable.getValueAt(selectedRow, 1).toString();
-        String patientYear = patientTable.getValueAt(selectedRow, 2).toString();
+        // String patientYear = patientTable.getValueAt(selectedRow, 2).toString();
         String patientPhone = patientTable.getValueAt(selectedRow, 3).toString();
         String patientAddress = patientTable.getValueAt(selectedRow, 4).toString();
         String patientGender = patientData[selectedRow][5];
+        String patientDob = patientData[selectedRow][6];
         patientIdField.setText(patientId);
         patientNameField.setText(patientName);
-        patientYearField.setText(patientYear);
         patientPhoneField.setText(patientPhone);
         patientGenderField.setSelectedItem(patientGender);
 
@@ -411,6 +480,36 @@ public class AddDialog extends JDialog {
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
+        }
+        SimpleDateFormat dobFormat;
+        try {
+            Date parsedDate;
+            if (patientDob.matches("\\d+")) {  // Check if the string is a timestamp
+                long timestamp = Long.parseLong(patientDob); // Convert the string to a long
+                parsedDate = new Date(timestamp); // Convert the timestamp to a Date
+            } else {
+                dobFormat = new SimpleDateFormat("dd/MM/yyyy");
+                parsedDate = dobFormat.parse(patientDob); // Parse formatted date string
+            }
+
+            Calendar calendar = Calendar.getInstance();
+            calendar.setTime(parsedDate);
+
+            dobPicker.getModel().setDate(calendar.get(Calendar.YEAR), calendar.get(Calendar.MONTH), calendar.get(Calendar.DAY_OF_MONTH));
+            dobPicker.getModel().setSelected(true);
+        } catch (ParseException | NumberFormatException exception) {
+            exception.printStackTrace();
+            JOptionPane.showMessageDialog(null, "Invalid date format: " + patientDob);
+        }
+    }
+
+    private void handleAddPatientResponse(AddPatientResponse response) {
+        log.info("Received AddPatientResponse");
+        if (response.isSuccess()) {
+            JOptionPane.showMessageDialog(this, "Thêm bệnh nhân thành công");
+            sendGetRecentPatientRequest();
+        } else {
+            JOptionPane.showMessageDialog(this, response.getMessage());
         }
     }
 
