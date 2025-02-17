@@ -129,41 +129,127 @@ public class AddDialog extends JDialog {
         JPanel inputPanel = new JPanel();
         inputPanel.setLayout(new GridBagLayout());
         GridBagConstraints gbc = new GridBagConstraints();
+        gbc.fill = GridBagConstraints.BOTH;  // Fill both directions
+        // Initial GridBagConstraints setup
+        gbc.insets = new Insets(5, 5, 5, 5);
+        gbc.weighty = 0.0;
 
-
-        gbc.insets = new Insets(5, 5, 5, 5); // Padding between components
-        gbc.weightx = 1.0; // Components stretch horizontally
-        gbc.weighty = 0.0; // Allow minor vertical flexibility
-
-
-        gbc.anchor = GridBagConstraints.WEST; // Align components to the  left
-        gbc.gridx = 0;
+        // Patient Name row
         gbc.gridy = 0;
 
+        // Label
+        gbc.gridx = 0;
         gbc.gridwidth = 1;
+        gbc.weightx = 0.0;
         inputPanel.add(new JLabel("Patient name:"), gbc);
 
-        gbc.gridwidth = 2;
+        // Text field
         gbc.gridx = 1;
-        patientNameField = new JTextField(20);
+        gbc.gridwidth = 2;
+        patientNameField = new JTextField(8);
         inputPanel.add(patientNameField, gbc);
 
-        ImageIcon addIcon = new ImageIcon("src/main/java/BsK/client/ui/assets/icon/add.png");
-        JButton addButton = new JButton(addIcon);
-        addButton.setPreferredSize(new Dimension(30, 30)); // Make the button square
-
-        addButton.addActionListener(e -> {
-            patientNameField.setText("");
-            patientYearField.setText("");
-            patientIdField.setText("");
-            patientPhoneField.setText("");
-            customerAddressField.setText("");
-            doctorComboBox.setSelectedIndex(0);
-            provinceComboBox.setSelectedIndex(0);
-        });
+        // Add button
+        gbc.gridx = 3;
         gbc.gridwidth = 1;
-        gbc.gridx = 4;
+        gbc.weightx = 0.0;
+        // This resolves paths relative to your class location
+        ImageIcon originalIcon = new ImageIcon("src/main/java/BsK/client/ui/assets/icon/add.png");
+        Image scaledImage = originalIcon.getImage().getScaledInstance(16, 16, Image.SCALE_SMOOTH);
+        ImageIcon addIcon = new ImageIcon(scaledImage);
+        JButton addButton = new JButton(addIcon);
         inputPanel.add(addButton, gbc);
+
+        // Doctor row
+        gbc.gridy++;
+
+        // Label
+        gbc.gridx = 0;
+        gbc.gridwidth = 1;
+        inputPanel.add(new JLabel("Doctor:"), gbc);
+
+        // Doctor combo box
+        gbc.gridx = 1;
+        gbc.gridwidth = 3;
+        doctorComboBox = new JComboBox<>(LocalStorage.doctorsName);
+        inputPanel.add(doctorComboBox, gbc);
+
+        // Patient year and gender row
+        gbc.gridy++;
+
+        // Year label
+        gbc.gridx = 0;
+        gbc.gridwidth = 1;
+        inputPanel.add(new JLabel("Patient year:"), gbc);
+
+        // Year field
+        gbc.gridx = 1;
+        patientYearField = new JTextField(8);
+        inputPanel.add(patientYearField, gbc);
+
+        // Gender label
+        gbc.gridx = 2;
+        inputPanel.add(new JLabel("Patient gender:"), gbc);
+
+        // Gender combo
+        gbc.gridx = 3;
+        patientGenderField = new JComboBox<>(new String[]{"Nam", "Nữ"});
+        inputPanel.add(patientGenderField, gbc);
+
+        // Phone and ID row
+        gbc.gridy++;
+
+        // Phone label
+        gbc.gridx = 0;
+        inputPanel.add(new JLabel("Patient phone:"), gbc);
+
+        // Phone field
+        gbc.gridx = 1;
+        patientPhoneField = new JTextField(8);
+        inputPanel.add(patientPhoneField, gbc);
+
+        // ID label
+        gbc.gridx = 2;
+        inputPanel.add(new JLabel("Patient ID:"), gbc);
+
+        // ID field
+        gbc.gridx = 3;
+        patientIdField = new JTextField(4);
+        inputPanel.add(patientIdField, gbc);
+
+        // Address row
+        gbc.gridy++;
+
+        // Address label
+        gbc.gridx = 0;
+        inputPanel.add(new JLabel("Địa chỉ"), gbc);
+
+        // Address field
+        gbc.gridx = 1;
+        gbc.gridwidth = 3;
+        customerAddressField = new JTextField(15);
+        inputPanel.add(customerAddressField, gbc);
+
+        // Province/District/Ward row
+        gbc.gridy++;
+        gbc.gridwidth = 1;
+
+        // Province combo
+        gbc.gridx = 1;
+        provinceComboBox = new JComboBox<>(LocalStorage.provinces);
+        inputPanel.add(provinceComboBox, gbc);
+
+        // District combo
+        gbc.gridx = 2;
+        districtComboBox = new JComboBox<>(new String[]{"Huyện 1", "Huyện 2", "Huyện 3"});
+        districtComboBox.setEnabled(false);
+        inputPanel.add(districtComboBox, gbc);
+
+        // Ward combo
+        gbc.gridx = 3;
+        wardComboBox = new JComboBox<>(new String[]{"Phường 1", "Phường 2", "Phường 3"});
+        wardComboBox.setEnabled(false);
+        inputPanel.add(wardComboBox, gbc);
 
         patientNameField.addKeyListener(new KeyAdapter() {
             @Override
@@ -223,79 +309,6 @@ public class AddDialog extends JDialog {
             }
         });
 
-        gbc.gridx = 0;
-        gbc.gridy++;
-        inputPanel.add(new JLabel("Doctor:"), gbc);
-
-        gbc.gridwidth = 3;
-        gbc.gridx = 1;
-
-        doctorComboBox = new JComboBox<>(LocalStorage.doctorsName);
-        inputPanel.add(doctorComboBox, gbc);
-
-        gbc.gridx = 0;
-        gbc.gridy++;
-        gbc.gridwidth = 1;
-        inputPanel.add(new JLabel("Patient year:"), gbc);
-
-        gbc.gridx = 1;
-        patientYearField = new JTextField(8);
-        inputPanel.add(patientYearField, gbc);
-
-        gbc.gridx = 2;
-        inputPanel.add(new JLabel("Patient gender:"), gbc);
-
-        gbc.gridx = 3;
-        patientGenderField = new JComboBox<>(new String[]{"Nam", "Nữ"});
-        inputPanel.add(patientGenderField, gbc);
-
-        gbc.gridx = 0;
-        gbc.gridy++;
-        inputPanel.add(new JLabel("Patient phone:"), gbc);
-
-        gbc.gridx = 1;
-        patientPhoneField = new JTextField(8);
-        inputPanel.add(patientPhoneField, gbc);
-
-
-        gbc.gridx = 2;
-        gbc.anchor = GridBagConstraints.NORTHEAST;
-        inputPanel.add(new JLabel("Patient ID:"), gbc);
-
-
-        gbc.gridx = 3;
-        gbc.anchor = GridBagConstraints.WEST;
-        patientIdField = new JTextField(4);
-        inputPanel.add(patientIdField, gbc);
-
-        gbc.gridx = 0;
-        gbc.gridy++;
-        gbc.gridwidth = 1;
-        inputPanel.add(new JLabel("Địa chỉ"), gbc);
-        gbc.gridwidth = 3;
-        gbc.gridx = 1;
-        customerAddressField = new JTextField(15);
-        inputPanel.add(customerAddressField, gbc);
-
-        gbc.gridy++;
-        gbc.gridx = 1;
-        gbc.gridwidth = 1;
-        provinceComboBox = new JComboBox<>(LocalStorage.provinces);
-        inputPanel.add(provinceComboBox, gbc);
-
-
-        gbc.gridx = 2;
-        districtComboBox = new JComboBox<>(new String[]{"Huyện 1", "Huyện 2", "Huyện 3"});
-        inputPanel.add(districtComboBox, gbc);
-        // set not editable
-        districtComboBox.setEnabled(false);
-
-
-        gbc.gridx = 3;
-        wardComboBox = new JComboBox<>(new String[]{"Phường 1", "Phường 2", "Phường 3"});
-        inputPanel.add(wardComboBox, gbc);
-        // set not editable
-        wardComboBox.setEnabled(false);
 
         // Province ComboBox Listener
         provinceComboBox.addActionListener(new ActionListener() {
@@ -331,7 +344,7 @@ public class AddDialog extends JDialog {
                 }
             }
         });
-
+        inputPanel.setMinimumSize(new Dimension(400, 0));
         JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, inputPanel, scrollPane);
         splitPane.setResizeWeight(0.6);
         add(splitPane, BorderLayout.CENTER);
