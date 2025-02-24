@@ -43,12 +43,22 @@ public class AddDialog extends JDialog {
     private final ResponseListener<GetDistrictResponse> districtResponseListener = this::handleGetDistrictResponse;
     private final ResponseListener<GetWardResponse> wardResponseListener = this::handleGetWardResponse;
     private final ResponseListener<AddPatientResponse> addPatientResponseListener = this::handleAddPatientResponse;
+    private final ResponseListener<AddCheckupResponse> addCheckupResponseListener = this::handleAddCheckupResponse;
     private JComboBox doctorComboBox;
     JButton saveButton;
     private DefaultComboBoxModel<String> districtModel, wardModel;
     private JDatePickerImpl dobPicker;
 
-
+    private void handleAddCheckupResponse(AddCheckupResponse response) {
+        log.info("Received AddCheckupResponse");
+        if (response.isSuccess()) {
+            JOptionPane.showMessageDialog(this, "Thêm bệnh nhân vào khám thành công");
+            setVisible(false);
+        } else {
+            JOptionPane.showMessageDialog(this, response.getError());
+        }
+        setVisible(false);
+    }
 
     private void sendGetRecentPatientRequest() {
         log.info("Sending GetRecentPatientRequest");
@@ -104,6 +114,7 @@ public class AddDialog extends JDialog {
         ClientHandler.addResponseListener(GetDistrictResponse.class, districtResponseListener);
         ClientHandler.addResponseListener(GetWardResponse.class, wardResponseListener);
         ClientHandler.addResponseListener(AddPatientResponse.class, addPatientResponseListener);
+        ClientHandler.addResponseListener(AddCheckupResponse.class, addCheckupResponseListener);
 
         // Add patent table on the right side
         // Add a scroll pane to the table
@@ -351,7 +362,6 @@ public class AddDialog extends JDialog {
                     // Clear selection if search text is empty
                     saveButton.setEnabled(false);
                     patientTable.clearSelection();
-                    patientIdField.setText("");
                     return;
                 }
 
@@ -426,9 +436,12 @@ public class AddDialog extends JDialog {
         });
         ButtonPanel.add(closeButton);
 
-        saveButton = new JButton("Save");
+        saveButton = new JButton("Add to Checkup");
         saveButton.addActionListener(e -> {
-            // Send request to save the patient
+            int patientId = Integer.parseInt(patientIdField.getText());
+            int doctorId = doctorComboBox.getSelectedIndex() + 1;
+            NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new AddCheckupRequest(patientId, doctorId, LocalStorage.userId));
+
         });
         saveButton.setEnabled(false);
         ButtonPanel.add(saveButton);
@@ -512,6 +525,7 @@ public class AddDialog extends JDialog {
             JOptionPane.showMessageDialog(this, response.getMessage());
         }
     }
+
 
     private void handleGetDistrictResponse(GetDistrictResponse response) {
         log.info("Received dialog district data");

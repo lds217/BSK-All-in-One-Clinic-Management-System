@@ -90,6 +90,7 @@ public class LoginPage extends JPanel {
         ClientHandler.addResponseListener(LoginSuccessResponse.class, response -> {
             log.info("Login successful, UserId: {}, Role: {}", response.getUserId(), response.getRole());
             LocalStorage.username = loginField.getText();
+            LocalStorage.userId = response.getUserId();
             NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new ClinicInfoRequest()); // Request clinic info
             NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetDoctorGeneralInfo()); // Request doctor info
             NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetProvinceRequest()); // Request province info

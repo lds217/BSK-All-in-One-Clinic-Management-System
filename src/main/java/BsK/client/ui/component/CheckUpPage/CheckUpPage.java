@@ -249,10 +249,9 @@ public class CheckUpPage extends JPanel {
         rightButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
 
         rightButton.addActionListener(e -> {
-            if(addDialog == null) {
-                addDialog = new AddDialog(mainFrame);
-            }
+            addDialog = new AddDialog(mainFrame);
             addDialog.setVisible(true);
+            updateQueue();
         });
 
         topPanel.add(titleText1, BorderLayout.WEST);

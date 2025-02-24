@@ -12,6 +12,7 @@ import BsK.server.network.util.UserUtil;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
+import io.netty.handler.codec.http.websocketx.Utf8FrameValidator;
 import io.netty.handler.codec.http.websocketx.WebSocketServerProtocolHandler.HandshakeComplete;
 import io.netty.handler.timeout.IdleState;
 import io.netty.handler.timeout.IdleStateEvent;
@@ -475,6 +476,58 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
           throw new RuntimeException(e);
         }
       }
+
+      if (packet instanceof AddCheckupRequest addCheckupRequest) {
+        log.debug("Received AddCheckupRequest to add patient{}", addCheckupRequest.getCustomerId());
+        try {
+          // Disable auto-commit
+          Server.connection.setAutoCommit(false);
+
+          // First query: Insert Checkup
+          PreparedStatement checkupStmt = Server.connection.prepareStatement(
+                  "INSERT INTO Checkup (customer_id, doctor_id) VALUES (?, ?)");
+          checkupStmt.setInt(1, addCheckupRequest.getCustomerId());
+          checkupStmt.setInt(2, addCheckupRequest.getDoctorId());
+          checkupStmt.executeUpdate();
+
+          // Second query: Insert MedicineOrder
+          PreparedStatement medOrderStmt = Server.connection.prepareStatement(
+                  "INSERT INTO MedicineOrder (checkup_id, customer_id, processed_by) VALUES (last_insert_rowid(), ?, ?)");
+          medOrderStmt.setInt(1, addCheckupRequest.getCustomerId());
+          medOrderStmt.setInt(2, addCheckupRequest.getProcessedById());
+          medOrderStmt.executeUpdate();
+
+          // Third query: Update Checkup
+          PreparedStatement updateStmt = Server.connection.prepareStatement(
+                  "UPDATE Checkup SET prescription_id = last_insert_rowid() WHERE checkup_id = last_insert_rowid()");
+          updateStmt.executeUpdate();
+
+          // Commit the transaction
+          Server.connection.commit();
+
+          UserUtil.sendPacket(user.getSessionId(), new AddCheckupResponse(true, "Thêm bệnh nhân thành công"));
+        }
+        catch (SQLException e) {
+          try {
+            // Rollback on error
+            Server.connection.rollback();
+          } catch (SQLException rollbackEx) {
+            log.error("Error during rollback", rollbackEx);
+          }
+          String errorMessage = e.getMessage();
+          UserUtil.sendPacket(user.getSessionId(), new AddPatientResponse(false, "Lỗi: " + errorMessage));
+          throw new RuntimeException(e);
+        }
+        finally {
+          try {
+            // Reset auto-commit
+            Server.connection.setAutoCommit(true);
+          } catch (SQLException e) {
+            log.error("Error resetting auto-commit", e);
+          }
+        }
+      }
+
 
     }
   }
