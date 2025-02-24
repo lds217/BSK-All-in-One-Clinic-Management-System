@@ -12,6 +12,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.jdatepicker.impl.JDatePanelImpl;
 import org.jdatepicker.impl.JDatePickerImpl;
 import org.jdatepicker.impl.UtilDateModel;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;
@@ -28,6 +30,7 @@ import java.util.Properties;
 
 @Slf4j
 public class AddDialog extends JDialog {
+    private static final Logger log = LoggerFactory.getLogger(AddDialog.class);
     private JTextField patientNameField;
     private JTextField patientYearField;
     private JTextField patientIdField;
@@ -56,11 +59,6 @@ public class AddDialog extends JDialog {
         } else {
             JOptionPane.showMessageDialog(this, response.getError());
         }
-        ClientHandler.deleteListener(AddCheckupResponse.class);
-        ClientHandler.deleteListener(AddPatientResponse.class);
-        ClientHandler.deleteListener(GetRecentPatientResponse.class);
-        ClientHandler.deleteListener(GetDistrictResponse.class);
-        ClientHandler.deleteListener(GetWardResponse.class);
         setVisible(false);
     }
 
@@ -104,8 +102,19 @@ public class AddDialog extends JDialog {
         return -1;
     }
 
+    @Override
+    public void dispose() {
+        // Clean up listeners
+        log.info("Cleaning up listeners");
+        ClientHandler.deleteListener(AddCheckupResponse.class);
+        ClientHandler.deleteListener(AddPatientResponse.class);
+        ClientHandler.deleteListener(GetRecentPatientResponse.class);
+        super.dispose();
+    }
+
     public AddDialog(Frame parent) {
         super(parent, "Add Patient", true);
+        setDefaultCloseOperation(DISPOSE_ON_CLOSE);
 
         // Set size of the dialog
         setSize(1000, 400);
@@ -436,11 +445,6 @@ public class AddDialog extends JDialog {
         JPanel ButtonPanel = new JPanel();
         JButton closeButton = new JButton("Close");
         closeButton.addActionListener(e -> {
-            ClientHandler.deleteListener(AddCheckupResponse.class);
-            ClientHandler.deleteListener(AddPatientResponse.class);
-            ClientHandler.deleteListener(GetRecentPatientResponse.class);
-            ClientHandler.deleteListener(GetDistrictResponse.class);
-            ClientHandler.deleteListener(GetWardResponse.class);
             setVisible(false);
         });
         ButtonPanel.add(closeButton);

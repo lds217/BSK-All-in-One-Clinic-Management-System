@@ -40,6 +40,7 @@ public class CheckUpPage extends JPanel {
     private String[][] history;
     private DefaultTableModel model, historyModel;
     private JTable table1, historyTable;
+    private final ResponseListener<GetCheckUpQueueUpdateResponse> checkUpQueueUpdateListener = this::handleGetCheckUpQueueUpdateResponse;
     private final ResponseListener<GetCheckUpQueueResponse> checkUpQueueListener = this::handleGetCheckUpQueueResponse;
     private final ResponseListener<GetCustomerHistoryResponse> customerHistoryListener = this::handleGetCustomerHistoryResponse;
     private final ResponseListener<GetDistrictResponse> districtResponseListener = this::handleGetDistrictResponse;
@@ -61,9 +62,13 @@ public class CheckUpPage extends JPanel {
 
     boolean returnCell = false;
     public void updateQueue() {
-        ClientHandler.addResponseListener(GetCheckUpQueueResponse.class, checkUpQueueListener);
         NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetCheckUpQueueRequest());
     }
+
+    public void updateUpdateQueue() {
+        NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetCheckUpQueueUpdateRequest());
+    }
+
     private int findProvinceIndex(String province) {
         for (int i = 0; i < LocalStorage.provinces.length; i++) {
             if (TextUtils.removeAccents(LocalStorage.provinces[i]).equals(TextUtils.removeAccents(province))) {
@@ -94,7 +99,9 @@ public class CheckUpPage extends JPanel {
     public CheckUpPage(MainFrame mainFrame) {
         setLayout(new BorderLayout());
 
-        // add history listener
+
+        ClientHandler.addResponseListener(GetCheckUpQueueResponse.class, checkUpQueueListener);
+        ClientHandler.addResponseListener(GetCheckUpQueueUpdateResponse.class, checkUpQueueUpdateListener);
         ClientHandler.addResponseListener(GetCustomerHistoryResponse.class, customerHistoryListener);
         ClientHandler.addResponseListener(GetDistrictResponse.class, districtResponseListener);
         ClientHandler.addResponseListener(GetWardResponse.class, wardResponseListener);
@@ -251,7 +258,7 @@ public class CheckUpPage extends JPanel {
         rightButton.addActionListener(e -> {
             addDialog = new AddDialog(mainFrame);
             addDialog.setVisible(true);
-            updateQueue();
+            updateUpdateQueue();
         });
 
         topPanel.add(titleText1, BorderLayout.WEST);
@@ -833,6 +840,12 @@ public class CheckUpPage extends JPanel {
         log.info("Received doctor general info");
         this.doctorOptions = response.getDoctorsName();
         LocalStorage.doctorsName = response.getDoctorsName();
+    }
+
+    private void handleGetCheckUpQueueUpdateResponse(GetCheckUpQueueUpdateResponse response) {
+        log.info("Received checkup update queue");
+        this.queue = response.getQueue();
+        model.setDataVector(this.queue, new String[]{"Mã khám bệnh", "Ngày Tháng", "Họ", "Tên", "Bác Sĩ", "Triệu chứng", "Chẩn đoán", "Ghi chú", "Trạng thái"});
     }
 
     private void handleGetCheckUpQueueResponse(GetCheckUpQueueResponse response) {

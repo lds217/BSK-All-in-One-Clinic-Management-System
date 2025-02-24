@@ -32,6 +32,10 @@ public class SessionManager {
     return SESSION_ID_MAP.get(sessionId);
   }
 
+  public static int getMaxSessionId() {
+    return SESSION_ID.get();
+  }
+
   public static int onUserLogin(Channel channel) {
     int sessionId = SESSION_ID.incrementAndGet();
     var user = new User(channel, sessionId);

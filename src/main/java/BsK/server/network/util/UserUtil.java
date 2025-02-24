@@ -11,6 +11,7 @@ import lombok.NoArgsConstructor;
 public class UserUtil {
   public static void sendPacket(int sessionId, Packet packet) {
     String channel = SessionManager.getChannelBySessionId(sessionId);
+    if (channel == null) return;
     var user = SessionManager.getUserByChannel(channel);
     if (user == null) return;
 
