@@ -8,5 +8,7 @@ import lombok.Data;
 @AllArgsConstructor
 public class AddPatientResponse implements Packet {
     public boolean success;
+    public int patientId;
     public String message;
+
 }

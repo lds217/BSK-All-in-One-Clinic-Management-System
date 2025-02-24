@@ -42,6 +42,17 @@ public class ClientHandler extends SimpleChannelInboundHandler<TextWebSocketFram
     listeners.clear();
   }
 
+  public static void deleteListener(Class<?> responseType, ResponseListener<?> listener) {
+    List<ResponseListener<?>> responseListeners = listeners.get(responseType);
+    if (responseListeners != null) {
+      responseListeners.remove(listener);
+    }
+  }
+
+  public static void deleteListener(Class<?> responseType) {
+    listeners.remove(responseType);
+  }
+
   @Override
   protected void channelRead0(ChannelHandlerContext ctx, TextWebSocketFrame frame) {
     log.debug("Received message: {}", frame.text());

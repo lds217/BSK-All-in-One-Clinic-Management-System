@@ -53,10 +53,14 @@ public class AddDialog extends JDialog {
         log.info("Received AddCheckupResponse");
         if (response.isSuccess()) {
             JOptionPane.showMessageDialog(this, "Thêm bệnh nhân vào khám thành công");
-            setVisible(false);
         } else {
             JOptionPane.showMessageDialog(this, response.getError());
         }
+        ClientHandler.deleteListener(AddCheckupResponse.class);
+        ClientHandler.deleteListener(AddPatientResponse.class);
+        ClientHandler.deleteListener(GetRecentPatientResponse.class);
+        ClientHandler.deleteListener(GetDistrictResponse.class);
+        ClientHandler.deleteListener(GetWardResponse.class);
         setVisible(false);
     }
 
@@ -432,6 +436,11 @@ public class AddDialog extends JDialog {
         JPanel ButtonPanel = new JPanel();
         JButton closeButton = new JButton("Close");
         closeButton.addActionListener(e -> {
+            ClientHandler.deleteListener(AddCheckupResponse.class);
+            ClientHandler.deleteListener(AddPatientResponse.class);
+            ClientHandler.deleteListener(GetRecentPatientResponse.class);
+            ClientHandler.deleteListener(GetDistrictResponse.class);
+            ClientHandler.deleteListener(GetWardResponse.class);
             setVisible(false);
         });
         ButtonPanel.add(closeButton);
@@ -439,7 +448,7 @@ public class AddDialog extends JDialog {
         saveButton = new JButton("Add to Checkup");
         saveButton.addActionListener(e -> {
             int patientId = Integer.parseInt(patientIdField.getText());
-            int doctorId = doctorComboBox.getSelectedIndex() + 1;
+            int doctorId = doctorComboBox.getSelectedIndex()+ 1;
             NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new AddCheckupRequest(patientId, doctorId, LocalStorage.userId));
 
         });
@@ -520,6 +529,7 @@ public class AddDialog extends JDialog {
         log.info("Received AddPatientResponse");
         if (response.isSuccess()) {
             JOptionPane.showMessageDialog(this, "Thêm bệnh nhân thành công");
+            patientIdField.setText(String.valueOf(response.getPatientId()));
             sendGetRecentPatientRequest();
         } else {
             JOptionPane.showMessageDialog(this, response.getMessage());

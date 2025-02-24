@@ -464,15 +464,24 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
           );
           preparedStatement.setString(1, addPatientRequest.getPatientLastName());
           preparedStatement.setString(2, addPatientRequest.getPatientFirstName());
-          preparedStatement.setLong(3, addPatientRequest.getPatientDob()); // DOB as long
+          preparedStatement.setLong(3, addPatientRequest.getPatientDob());
           preparedStatement.setString(4, addPatientRequest.getPatientPhone());
           preparedStatement.setString(5, addPatientRequest.getPatientAddress());
           preparedStatement.setString(6, addPatientRequest.getPatientGender());
           preparedStatement.executeUpdate();
-          UserUtil.sendPacket(user.getSessionId(), new AddPatientResponse(true, "Thêm bệnh nhân thành công"));
+
+          // Get the last inserted ID
+          PreparedStatement getIdStmt = Server.connection.prepareStatement("SELECT last_insert_rowid()");
+          ResultSet rs = getIdStmt.executeQuery();
+          int customerId = 0;
+          if (rs.next()) {
+            customerId = rs.getInt(1);
+          }
+
+          UserUtil.sendPacket(user.getSessionId(), new AddPatientResponse(true, customerId, "Thêm bệnh nhân thành công"));
         } catch (SQLException e) {
           String errorMessage = e.getMessage();
-          UserUtil.sendPacket(user.getSessionId(), new AddPatientResponse(false, "Lỗi: " + errorMessage));
+          UserUtil.sendPacket(user.getSessionId(), new AddPatientResponse(false,-1, "Lỗi: " + errorMessage));
           throw new RuntimeException(e);
         }
       }
@@ -498,8 +507,10 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
           medOrderStmt.executeUpdate();
 
           // Third query: Update Checkup
+
           PreparedStatement updateStmt = Server.connection.prepareStatement(
-                  "UPDATE Checkup SET prescription_id = last_insert_rowid() WHERE checkup_id = last_insert_rowid()");
+                  "UPDATE Checkup SET prescription_id = last_insert_rowid() WHERE checkup_id = (SELECT MAX(checkup_id) FROM Checkup WHERE customer_id = ?)");
+          updateStmt.setInt(1, addCheckupRequest.getCustomerId());
           updateStmt.executeUpdate();
 
           // Commit the transaction
@@ -515,7 +526,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
             log.error("Error during rollback", rollbackEx);
           }
           String errorMessage = e.getMessage();
-          UserUtil.sendPacket(user.getSessionId(), new AddPatientResponse(false, "Lỗi: " + errorMessage));
+          UserUtil.sendPacket(user.getSessionId(), new AddCheckupResponse(false, "Lỗi: " + errorMessage));
           throw new RuntimeException(e);
         }
         finally {
