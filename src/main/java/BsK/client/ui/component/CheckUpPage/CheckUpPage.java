@@ -11,6 +11,7 @@ import BsK.client.ui.component.MainFrame;
 import BsK.client.ui.component.common.DateLabelFormatter;
 import BsK.client.ui.component.common.RoundedPanel;
 import BsK.client.ui.component.QueueViewPage.QueueViewPage;
+import BsK.common.entity.Patient;
 import BsK.common.entity.Status;
 import BsK.common.packet.req.*;
 import BsK.common.packet.res.*;
@@ -33,13 +34,16 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.List;
 import java.util.Properties;
 
 @Slf4j
 public class CheckUpPage extends JPanel {
-    private String[][] queue;
+    private List<Patient> patientQueue = new ArrayList<>();
+    private String[][] rawQueueForTv = new String[][]{};
     private String[][] history;
     private DefaultTableModel model, historyModel;
     private JTable table1, historyTable;
@@ -76,6 +80,25 @@ public class CheckUpPage extends JPanel {
 
     public void updateUpdateQueue() {
         NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetCheckUpQueueUpdateRequest());
+    }
+
+    private String[][] preprocessPatientDataForTable(List<Patient> patients) {
+        if (patients == null) {
+            return new String[][]{};
+        }
+        String[][] tableData = new String[patients.size()][8];
+        for (int i = 0; i < patients.size(); i++) {
+            Patient p = patients.get(i);
+            tableData[i][0] = p.getCheckupId();
+            tableData[i][1] = p.getCheckupDate();
+            tableData[i][2] = p.getCustomerLastName();
+            tableData[i][3] = p.getCustomerFirstName();
+            tableData[i][4] = p.getDoctorName();
+            tableData[i][5] = p.getDiagnosis();
+            tableData[i][6] = p.getNotes();
+            tableData[i][7] = p.getStatus();
+        }
+        return tableData;
     }
 
     private int findProvinceIndex(String province) {
@@ -306,7 +329,7 @@ public class CheckUpPage extends JPanel {
             } else {
                 tvQueueFrame.toFront(); // Bring to front if already open
             }
-            tvQueueFrame.updateQueueData(this.queue); // Pass current queue data
+            tvQueueFrame.updateQueueData(this.rawQueueForTv); // Use rawQueueForTv for TV display
             tvQueueFrame.setVisible(true);
             // tvQueueFrame.optimizeForTv(); // Optional: Call if you want it to try to go fullscreen
         });
@@ -340,10 +363,8 @@ public class CheckUpPage extends JPanel {
         rightBottomPanel.setLayout(new BorderLayout());
         rightBottomPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 10));
 
-        String[] columns = {"Mã khám bệnh", "Ngày Tháng", "Họ", "Tên", "Bác Sĩ", "Triệu chứng", "Chẩn đoán", "Ghi chú", "Trạng thái"};
-        this.queue = new String[][]{}; // Initialize with empty data
-
-        model = new DefaultTableModel(this.queue, columns) {
+        String[] columns = {"Mã khám bệnh", "Ngày Tháng", "Họ", "Tên", "Bác Sĩ", "Chẩn đoán", "Ghi chú", "Trạng thái"};
+        model = new DefaultTableModel(preprocessPatientDataForTable(this.patientQueue), columns) {
             @Override
             public boolean isCellEditable(int row, int column) {
                 return false; // All cells are non-editable
@@ -484,6 +505,7 @@ public class CheckUpPage extends JPanel {
         patientInfoInnerPanel.add(new JLabel("Mã số BN"), gbcPatient); // Shortened label
         gbcPatient.gridx = 1;
         customerIdField = new JTextField(10);
+        customerIdField.setEditable(false);
         patientInfoInnerPanel.add(customerIdField, gbcPatient);
         gbcPatient.gridx = 2;
         patientInfoInnerPanel.add(new JLabel("SĐT"), gbcPatient); // Shortened label
@@ -842,6 +864,28 @@ public class CheckUpPage extends JPanel {
             }
         };
         historyTable = new JTable(historyModel);
+
+        // Customize the font for the table header and cells
+        historyTable.getTableHeader().setFont(new Font("Arial", Font.BOLD, 14));
+        historyTable.setFont(new Font("Arial", Font.PLAIN, 12));
+        historyTable.setRowHeight(25); // Increased row height
+
+        // Add a mouse listener for future click functionality
+        historyTable.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                if (e.getClickCount() == 1) { // Single click
+                    int selectedRow = historyTable.getSelectedRow();
+                    if (selectedRow != -1) {
+                        // Placeholder for showing more details
+                        System.out.println("Clicked on history row: " + selectedRow);
+                        // String checkupId = (String) historyTable.getValueAt(selectedRow, 1); // Assuming Mã khám bệnh is at index 1
+                        // JOptionPane.showMessageDialog(CheckUpPage.this, "Details for Checkup ID: " + checkupId + " will be shown here.", "History Details", JOptionPane.INFORMATION_MESSAGE);
+                    }
+                }
+            }
+        });
+
         JScrollPane tableScroll2 = new JScrollPane(historyTable);
         tableScroll2.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10)); // Inner padding
         rightTopPanel.add(tableScroll2, BorderLayout.CENTER);
@@ -864,114 +908,102 @@ public class CheckUpPage extends JPanel {
     }
 
     private void handleRowSelection(int selectedRow) {
-        String checkupId = (String) table1.getValueAt(selectedRow, 0);
-        String date = (String) table1.getValueAt(selectedRow, 1);
-        String customerLastName = (String) table1.getValueAt(selectedRow, 2);
-        String customerFirstName = (String) table1.getValueAt(selectedRow, 3);
-        String doctor = (String) table1.getValueAt(selectedRow, 4);
-        String symptoms = (String) table1.getValueAt(selectedRow, 5);
-        String diagnosis = (String) table1.getValueAt(selectedRow, 6);
-        String notes = (String) table1.getValueAt(selectedRow, 7);
-        String status = (String) table1.getValueAt(selectedRow, 8);
-        String customerId = queue[selectedRow][9];
-        String cutomerPhone = queue[selectedRow][10];
-        String customerAddress = queue[selectedRow][11];
-        String customerWeight = queue[selectedRow][12];
-        String customerHeight = queue[selectedRow][13];
-        String customerGender = queue[selectedRow][14];
-        String customerDob = queue[selectedRow][15];
+        if (selectedRow < 0 || selectedRow >= patientQueue.size()) {
+            log.warn("Selected row index out of bounds: {}", selectedRow);
+            return;
+        }
+        Patient selectedPatient = patientQueue.get(selectedRow);
 
-        log.info("Selected customer: {}", customerId);
-        checkupIdField.setText(checkupId);
+        checkupIdField.setText(selectedPatient.getCheckupId());
 
         SimpleDateFormat dateFormat = new SimpleDateFormat("dd/MM/yyyy");
         try {
             Date parsedDate;
-
-            // Check if the input is a Unix timestamp
-            if (date.matches("\\d+")) { // Matches numeric strings (Unix timestamps)
-                long timestamp = Long.parseLong(date); // Parse the timestamp
-                parsedDate = new Date(timestamp); // Convert the timestamp to a Date
+            String dateStr = selectedPatient.getCheckupDate();
+            if (dateStr.matches("\\d+")) {
+                long timestamp = Long.parseLong(dateStr);
+                parsedDate = new Date(timestamp);
             } else {
-                parsedDate = dateFormat.parse(date); // Parse formatted date strings
+                parsedDate = dateFormat.parse(dateStr);
             }
-
             Calendar calendar = Calendar.getInstance();
             calendar.setTime(parsedDate);
-
             datePicker.getModel().setDate(calendar.get(Calendar.YEAR), calendar.get(Calendar.MONTH), calendar.get(Calendar.DAY_OF_MONTH));
             datePicker.getModel().setSelected(true);
-
         } catch (ParseException | NumberFormatException exception) {
             exception.printStackTrace();
-            JOptionPane.showMessageDialog(null, "Invalid date format or timestamp: " + date);
+            JOptionPane.showMessageDialog(null, "Invalid date format or timestamp: " + selectedPatient.getCheckupDate());
         }
-
 
         SimpleDateFormat dobFormat;
         try {
             Date parsedDate;
-            if (customerDob.matches("\\d+")) {  // Check if the string is a timestamp
-                long timestamp = Long.parseLong(customerDob); // Convert the string to a long
-                parsedDate = new Date(timestamp); // Convert the timestamp to a Date
+            String dobStr = selectedPatient.getCustomerDob();
+            if (dobStr.matches("\\d+")) {
+                long timestamp = Long.parseLong(dobStr);
+                parsedDate = new Date(timestamp);
             } else {
                 dobFormat = new SimpleDateFormat("dd/MM/yyyy");
-                parsedDate = dobFormat.parse(customerDob); // Parse formatted date string
+                parsedDate = dobFormat.parse(dobStr);
             }
-
             Calendar calendar = Calendar.getInstance();
             calendar.setTime(parsedDate);
-
             dobPicker.getModel().setDate(calendar.get(Calendar.YEAR), calendar.get(Calendar.MONTH), calendar.get(Calendar.DAY_OF_MONTH));
             dobPicker.getModel().setSelected(true);
         } catch (ParseException | NumberFormatException exception) {
             exception.printStackTrace();
-            JOptionPane.showMessageDialog(null, "Invalid date format: " + customerDob);
+            JOptionPane.showMessageDialog(null, "Invalid date format: " + selectedPatient.getCustomerDob());
         }
 
+        customerLastNameField.setText(selectedPatient.getCustomerLastName());
+        customerFirstNameField.setText(selectedPatient.getCustomerFirstName());
+        doctorComboBox.setSelectedItem(selectedPatient.getDoctorName());
+        symptomsField.setText(selectedPatient.getSymptoms());
+        diagnosisField.setText(selectedPatient.getDiagnosis());
+        notesField.setText(selectedPatient.getNotes());
+        statusComboBox.setSelectedItem(selectedPatient.getStatus());
+        customerIdField.setText(selectedPatient.getCustomerId());
+        customerPhoneField.setText(selectedPatient.getCustomerNumber());
+        customerAddressField.setText(selectedPatient.getCustomerAddress());
+        customerWeightSpinner.setValue(Double.parseDouble(selectedPatient.getCustomerWeight()));
+        customerHeightSpinner.setValue(Double.parseDouble(selectedPatient.getCustomerHeight()));
+        genderComboBox.setSelectedItem(selectedPatient.getCustomerGender());
 
-        customerLastNameField.setText(customerLastName);
-        customerFirstNameField.setText(customerFirstName);
-        doctorComboBox.setSelectedItem(doctor);
-        symptomsField.setText(symptoms);
-        diagnosisField.setText(diagnosis);
-        notesField.setText(notes);
-        statusComboBox.setSelectedItem(status);
-        customerIdField.setText(customerId);
-        customerPhoneField.setText(cutomerPhone);
-        customerAddressField.setText(customerAddress);
-        customerWeightSpinner.setValue(Double.parseDouble(customerWeight));
-        customerHeightSpinner.setValue(Double.parseDouble(customerHeight));
-
-        NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetCustomerHistoryRequest(Integer.parseInt(queue[selectedRow][9])));
+        NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetCustomerHistoryRequest(Integer.parseInt(selectedPatient.getCustomerId())));
 
         // Extract province, district, ward from the address
-        String[] addressParts = customerAddress.split(", ");
+        String fullAddress = selectedPatient.getCustomerAddress();
+        String[] addressParts = fullAddress.split(", ");
         if (addressParts.length == 4) {
             String address = addressParts[0];
             String ward = addressParts[1];
             String district = addressParts[2];
             String province = addressParts[3];
             customerAddressField.setText(address);
-            provinceComboBox.setSelectedIndex(findProvinceIndex(province));
+            int provinceIdx = findProvinceIndex(province);
+            if (provinceIdx != -1) provinceComboBox.setSelectedIndex(provinceIdx);
             try {
                 Thread.sleep(100);
-                while(!districtComboBox.isEditable()) {
-                    districtComboBox.setSelectedIndex(findDistrictIndex(district));
-                    break;
-                }
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
-            try {
+                int districtIdx = findDistrictIndex(district);
+                if (districtIdx != -1) districtComboBox.setSelectedIndex(districtIdx);
+
                 Thread.sleep(100);
-                while(!wardComboBox.isEditable()) {
-                    wardComboBox.setSelectedIndex(findWardIndex(ward));
-                    break;
-                }
+                int wardIdx = findWardIndex(ward);
+                if (wardIdx != -1) wardComboBox.setSelectedIndex(wardIdx);
             } catch (InterruptedException e) {
-                throw new RuntimeException(e);
+                log.error("Interrupted during address component selection", e);
+                Thread.currentThread().interrupt(); // Restore interruption status
             }
+        } else {
+            customerAddressField.setText(fullAddress);
+            // Reset dependent combo boxes
+            provinceComboBox.setSelectedIndex(0);
+            districtModel.removeAllElements();
+            districtModel.addElement("Huyện");
+            districtComboBox.setEnabled(false);
+            wardModel.removeAllElements();
+            wardModel.addElement("Phường");
+            wardComboBox.setEnabled(false);
         }
     }
 
@@ -1030,19 +1062,31 @@ public class CheckUpPage extends JPanel {
 
     private void handleGetCheckUpQueueUpdateResponse(GetCheckUpQueueUpdateResponse response) {
         log.info("Received checkup update queue");
-        this.queue = response.getQueue();
-        model.setDataVector(this.queue, new String[]{"Mã khám bệnh", "Ngày Tháng", "Họ", "Tên", "Bác Sĩ", "Triệu chứng", "Chẩn đoán", "Ghi chú", "Trạng thái"});
+        this.rawQueueForTv = response.getQueue(); // Store raw data for TV
+        this.patientQueue.clear();
+        if (this.rawQueueForTv != null) {
+            for (String[] patientData : this.rawQueueForTv) {
+                this.patientQueue.add(new Patient(patientData));
+            }
+        }
+        model.setDataVector(preprocessPatientDataForTable(this.patientQueue), new String[]{"Mã khám bệnh", "Ngày Tháng", "Họ", "Tên", "Bác Sĩ", "Chẩn đoán", "Ghi chú", "Trạng thái"});
         if (tvQueueFrame != null && tvQueueFrame.isVisible()) {
-            tvQueueFrame.updateQueueData(this.queue);
+            tvQueueFrame.updateQueueData(this.rawQueueForTv);
         }
     }
 
     private void handleGetCheckUpQueueResponse(GetCheckUpQueueResponse response) {
         log.info("Received checkup queue");
-        this.queue = response.getQueue();
-        model.setDataVector(this.queue, new String[]{"Mã khám bệnh", "Ngày Tháng", "Họ", "Tên", "Bác Sĩ", "Triệu chứng", "Chẩn đoán", "Ghi chú", "Trạng thái"});
+        this.rawQueueForTv = response.getQueue(); // Store raw data for TV
+        this.patientQueue.clear();
+        if (this.rawQueueForTv != null) {
+            for (String[] patientData : this.rawQueueForTv) {
+                this.patientQueue.add(new Patient(patientData));
+            }
+        }
+        model.setDataVector(preprocessPatientDataForTable(this.patientQueue), new String[]{"Mã khám bệnh", "Ngày Tháng", "Họ", "Tên", "Bác Sĩ", "Chẩn đoán", "Ghi chú", "Trạng thái"});
         if (tvQueueFrame != null && tvQueueFrame.isVisible()) {
-            tvQueueFrame.updateQueueData(this.queue);
+            tvQueueFrame.updateQueueData(this.rawQueueForTv);
         }
     }
 
@@ -1053,22 +1097,22 @@ public class CheckUpPage extends JPanel {
                 String patientIdToFind = String.valueOf(response.getPatientId());
                 String patientDisplayInfo = patientIdToFind; // Default to ID if not found
 
-                if (this.queue != null) {
-                    for (String[] patientData : this.queue) {
-                        if (patientData != null && patientData.length > 15 && patientIdToFind.equals(patientData[0])) { // patientData[0] is maKhamBenh
-                            String ho = patientData[2];
-                            String ten = patientData[3];
-                            String customerDob = patientData[15]; // Assuming this is the DoB field
+                if (this.patientQueue != null) {
+                    for (Patient patient : this.patientQueue) {
+                        if (patient != null && patientIdToFind.equals(patient.getCheckupId())) {
+                            String ho = patient.getCustomerLastName();
+                            String ten = patient.getCustomerFirstName();
+                            String customerDob = patient.getCustomerDob();
                             String namSinh = "N/A";
 
                             try {
                                 SimpleDateFormat dobFormat;
                                 Date parsedDate;
-                                if (customerDob.matches("\\d+")) {  // Check if the string is a timestamp
+                                if (customerDob.matches("\\d+")) {
                                     long timestamp = Long.parseLong(customerDob);
                                     parsedDate = new Date(timestamp);
                                 } else {
-                                    dobFormat = new SimpleDateFormat("dd/MM/yyyy"); // Or your existing format
+                                    dobFormat = new SimpleDateFormat("dd/MM/yyyy");
                                     parsedDate = dobFormat.parse(customerDob);
                                 }
                                 Calendar calendar = Calendar.getInstance();
@@ -1078,11 +1122,10 @@ public class CheckUpPage extends JPanel {
                                 log.error("Error parsing DoB for TV display: {} for patient ID {}", customerDob, patientIdToFind, e);
                             }
                             patientDisplayInfo = ho + " " + ten + " (" + namSinh + ")";
-                            break; // Found the patient
+                            break; 
                         }
                     }
                 }
-                // Pass both the raw patient ID for the room box and the formatted info for the central display
                 tvQueueFrame.updateSpecificRoomStatus(response.getRoomId(), String.valueOf(response.getPatientId()), patientDisplayInfo, response.getStatus());
             } else if (response.getStatus() == Status.EMPTY) {
                 tvQueueFrame.markRoomAsFree(response.getRoomId());
@@ -1132,32 +1175,31 @@ public class CheckUpPage extends JPanel {
             JOptionPane.showMessageDialog(this, "Please select a patient from the queue to call.", "No Patient Selected", JOptionPane.WARNING_MESSAGE);
             return;
         }
+        
+        if (selectedRow < 0 || selectedRow >= patientQueue.size()){
+             JOptionPane.showMessageDialog(this, "Invalid patient selection.", "Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
 
-        // Assuming column indices from your table model setup:
-        // 0: Mã khám bệnh, 2: Họ, 3: Tên
-        String maKhamBenh = model.getValueAt(selectedRow, 0).toString();
-        String ho = model.getValueAt(selectedRow, 2).toString();
-        String ten = model.getValueAt(selectedRow, 3).toString();
-        String patientName = ho + " " + ten;
+        Patient selectedPatient = patientQueue.get(selectedRow);
+        String maKhamBenh = selectedPatient.getCheckupId();
+        String patientName = selectedPatient.getCustomerLastName() + " " + selectedPatient.getCustomerFirstName();
 
-        int selectedRoom = callRoomComboBox.getSelectedIndex() + 1; //Index
+        int selectedRoom = callRoomComboBox.getSelectedIndex() + 1; 
 
-        // For now, just a popup. Later, this will send a packet.
         JOptionPane.showMessageDialog(this,
-                "Calling patient " + patientName + " (ID: " + maKhamBenh + ") to " + selectedRoom,
+                "Calling patient " + patientName + " (ID: " + maKhamBenh + ") to Room " + selectedRoom, // Corrected room display
                 "Calling Patient",
                 JOptionPane.INFORMATION_MESSAGE);
 
-        // TODO: Implement sending CallPatientPacket to server
         NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new CallPatientRequest(selectedRoom, Integer.parseInt(maKhamBenh),
                                                                                     Status.PROCESSING));
         log.info("Called patient {} (ID: {}) to room {}", patientName, maKhamBenh, selectedRoom);
 
-        // Update the calling status label
-        String callingText = "<html><b>Calling:</b> Patient " + patientName + " (ID: " + maKhamBenh + ") to " + selectedRoom + "</html>";
+        String callingText = "<html><b>Calling:</b> Patient " + patientName + " (ID: " + maKhamBenh + ") to Room " + selectedRoom + "</html>"; // Corrected room display
         callingStatusLabel.setText(callingText);
         callingStatusLabel.setForeground(Color.WHITE);
-        callingStatusLabel.setBackground(new Color(217, 83, 79)); // A reddish color for active call
+        callingStatusLabel.setBackground(new Color(217, 83, 79));
     }
 }
 
