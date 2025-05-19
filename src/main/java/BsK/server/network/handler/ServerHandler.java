@@ -5,6 +5,7 @@ import BsK.common.packet.PacketSerializer;
 import BsK.common.packet.req.*;
 import BsK.common.packet.res.*;
 import BsK.common.packet.res.ErrorResponse.Error;
+import BsK.common.entity.Status;
 import BsK.common.util.date.DateUtils;
 import BsK.server.Server;
 import BsK.server.network.manager.SessionManager;
@@ -61,6 +62,16 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
           registerRequest.getPassword());
       // Tạo user trong database hoặc check exist
       boolean isUserExist = false;
+    } else if (packet instanceof LogoutRequest) {
+      var user = SessionManager.getUserByChannel(ctx.channel().id().asLongText());
+      if (user != null) {
+        log.info("User {} (Session {}) requested logout.", user.getUserId(), user.getSessionId());
+        SessionManager.onUserDisconnect(ctx.channel());
+        // Optionally, you could send a LogoutResponse back to the client if needed,
+        // but since the client navigates away, it might not be processed.
+      } else {
+        log.warn("Received LogoutRequest from a channel with no active user session: {}", ctx.channel().id().asLongText());
+      }
     } else {
       // Check if user is authenticated
       var user = SessionManager.getUserByChannel(ctx.channel().id().asLongText());
@@ -246,7 +257,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
             );
 
             if (!rs.isBeforeFirst()) {
-                System.out.println("No data found in the checkup table.");
+                System.out.println("No history data found in the checkup table.");
                 UserUtil.sendPacket(user.getSessionId(), new GetCustomerHistoryResponse(new String[0][7]));
             } else {
                 ArrayList<String> resultList = new ArrayList<>();
@@ -607,7 +618,17 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         }
       }
 
-
+      if (packet instanceof CallPatientRequest callPatientRequest) {
+        log.debug("Received CallPatientRequest to call patient{}", callPatientRequest.getPatientId());
+        int patientId = callPatientRequest.getPatientId();
+        int roomId = callPatientRequest.getRoomId();
+        Status status = callPatientRequest.getStatus();
+        // send to all clients
+        int maxCurId = SessionManager.getMaxSessionId();
+        for (int sessionId = 1; sessionId <= maxCurId; sessionId++) {
+          UserUtil.sendPacket(sessionId, new CallPatientResponse(patientId, roomId, status));
+        }
+      }
     }
   }
 
