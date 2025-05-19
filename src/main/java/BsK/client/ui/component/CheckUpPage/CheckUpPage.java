@@ -94,9 +94,9 @@ public class CheckUpPage extends JPanel {
             tableData[i][2] = p.getCustomerLastName();
             tableData[i][3] = p.getCustomerFirstName();
             tableData[i][4] = p.getDoctorName();
-            tableData[i][5] = p.getDiagnosis();
-            tableData[i][6] = p.getNotes();
-            tableData[i][7] = p.getStatus();
+            //tableData[i][5] = p.getDiagnosis();
+            //tableData[i][6] = p.getNotes();
+            tableData[i][5] = p.getStatus();
         }
         return tableData;
     }
@@ -363,7 +363,7 @@ public class CheckUpPage extends JPanel {
         rightBottomPanel.setLayout(new BorderLayout());
         rightBottomPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 10));
 
-        String[] columns = {"Mã khám bệnh", "Ngày Tháng", "Họ", "Tên", "Bác Sĩ", "Chẩn đoán", "Ghi chú", "Trạng thái"};
+        String[] columns = {"Mã khám bệnh", "Ngày Tháng", "Họ", "Tên", "Bác Sĩ", "Trạng thái"};
         model = new DefaultTableModel(preprocessPatientDataForTable(this.patientQueue), columns) {
             @Override
             public boolean isCellEditable(int row, int column) {
@@ -1069,7 +1069,7 @@ public class CheckUpPage extends JPanel {
                 this.patientQueue.add(new Patient(patientData));
             }
         }
-        model.setDataVector(preprocessPatientDataForTable(this.patientQueue), new String[]{"Mã khám bệnh", "Ngày Tháng", "Họ", "Tên", "Bác Sĩ", "Chẩn đoán", "Ghi chú", "Trạng thái"});
+        model.setDataVector(preprocessPatientDataForTable(this.patientQueue), new String[]{"Mã khám bệnh", "Ngày Tháng", "Họ", "Tên", "Bác Sĩ", "Trạng thái"});
         if (tvQueueFrame != null && tvQueueFrame.isVisible()) {
             tvQueueFrame.updateQueueData(this.rawQueueForTv);
         }
@@ -1084,7 +1084,7 @@ public class CheckUpPage extends JPanel {
                 this.patientQueue.add(new Patient(patientData));
             }
         }
-        model.setDataVector(preprocessPatientDataForTable(this.patientQueue), new String[]{"Mã khám bệnh", "Ngày Tháng", "Họ", "Tên", "Bác Sĩ", "Chẩn đoán", "Ghi chú", "Trạng thái"});
+        model.setDataVector(preprocessPatientDataForTable(this.patientQueue), new String[]{"Mã khám bệnh", "Ngày Tháng", "Họ", "Tên", "Bác Sĩ", "Trạng thái"});
         if (tvQueueFrame != null && tvQueueFrame.isVisible()) {
             tvQueueFrame.updateQueueData(this.rawQueueForTv);
         }
