@@ -55,7 +55,7 @@ public class CheckUpPage extends JPanel {
     private final ResponseListener<CallPatientResponse> callPatientResponseListener = this::handleCallPatientResponse;
     private JTextField checkupIdField, customerLastNameField, customerFirstNameField,customerAddressField, customerPhoneField, customerIdField;
     private JTextArea symptomsField, diagnosisField, notesField;
-    private JComboBox<String> doctorComboBox, statusComboBox, genderComboBox, provinceComboBox, districtComboBox, wardComboBox;
+    private JComboBox<String> doctorComboBox, statusComboBox, genderComboBox, provinceComboBox, districtComboBox, wardComboBox, checkupTypeComboBox;
     private JSpinner customerWeightSpinner, customerHeightSpinner;
     private JDatePickerImpl datePicker, dobPicker;
     private String[][] medicinePrescription;
@@ -96,7 +96,7 @@ public class CheckUpPage extends JPanel {
             tableData[i][4] = p.getDoctorName();
             //tableData[i][5] = p.getDiagnosis();
             //tableData[i][6] = p.getNotes();
-            tableData[i][5] = p.getStatus();
+            tableData[i][5] = p.getCheckupType();
         }
         return tableData;
     }
@@ -363,7 +363,7 @@ public class CheckUpPage extends JPanel {
         rightBottomPanel.setLayout(new BorderLayout());
         rightBottomPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 10));
 
-        String[] columns = {"Mã khám bệnh", "Ngày Tháng", "Họ", "Tên", "Bác Sĩ", "Trạng thái"};
+        String[] columns = {"Mã khám bệnh", "Ngày Tháng", "Họ", "Tên", "Bác Sĩ", "Loại khám"};
         model = new DefaultTableModel(preprocessPatientDataForTable(this.patientQueue), columns) {
             @Override
             public boolean isCellEditable(int row, int column) {
@@ -629,11 +629,18 @@ public class CheckUpPage extends JPanel {
         gbcCheckup.gridx = 0;
         gbcCheckup.gridy++;
         checkupInfoInnerPanel.add(new JLabel("Trạng thái"), gbcCheckup);
-        gbcCheckup.gridwidth = 3;
+        gbcCheckup.gridwidth = 1; // Status ComboBox takes 1 column
         gbcCheckup.gridx = 1;
         String[] statusOptions = {"PROCESSING", "NOT", "DONE"};
         statusComboBox = new JComboBox<>(statusOptions);
         checkupInfoInnerPanel.add(statusComboBox, gbcCheckup);
+
+        gbcCheckup.gridx = 2; // Label for Checkup Type ComboBox
+        checkupInfoInnerPanel.add(new JLabel("Loại khám"), gbcCheckup);
+        gbcCheckup.gridx = 3; // Checkup Type ComboBox
+        String[] checkupTypeOptions = {"BENH", "THAI", "KHAC"};
+        checkupTypeComboBox = new JComboBox<>(checkupTypeOptions);
+        checkupInfoInnerPanel.add(checkupTypeComboBox, gbcCheckup);
 
         // Add checkupInfoInnerPanel to the main inputPanel
         gbc.gridx = 0;
@@ -897,7 +904,7 @@ public class CheckUpPage extends JPanel {
         splitPaneRight.setDividerSize(5); // Set divider size
 
         JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, leftPanel, splitPaneRight);
-        splitPane.setResizeWeight(0.8); // Split
+        splitPane.setResizeWeight(0.5); // Split
         splitPane.setDividerSize(5); // Set divider size
 
         splitPane.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10)); // Remove border
@@ -968,6 +975,7 @@ public class CheckUpPage extends JPanel {
         customerWeightSpinner.setValue(Double.parseDouble(selectedPatient.getCustomerWeight()));
         customerHeightSpinner.setValue(Double.parseDouble(selectedPatient.getCustomerHeight()));
         genderComboBox.setSelectedItem(selectedPatient.getCustomerGender());
+        checkupTypeComboBox.setSelectedItem(selectedPatient.getCheckupType());
 
         NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetCustomerHistoryRequest(Integer.parseInt(selectedPatient.getCustomerId())));
 
@@ -1069,7 +1077,7 @@ public class CheckUpPage extends JPanel {
                 this.patientQueue.add(new Patient(patientData));
             }
         }
-        model.setDataVector(preprocessPatientDataForTable(this.patientQueue), new String[]{"Mã khám bệnh", "Ngày Tháng", "Họ", "Tên", "Bác Sĩ", "Trạng thái"});
+        model.setDataVector(preprocessPatientDataForTable(this.patientQueue), new String[]{"Mã khám bệnh", "Ngày Tháng", "Họ", "Tên", "Bác Sĩ", "Loại khám"});
         if (tvQueueFrame != null && tvQueueFrame.isVisible()) {
             tvQueueFrame.updateQueueData(this.rawQueueForTv);
         }
@@ -1084,7 +1092,7 @@ public class CheckUpPage extends JPanel {
                 this.patientQueue.add(new Patient(patientData));
             }
         }
-        model.setDataVector(preprocessPatientDataForTable(this.patientQueue), new String[]{"Mã khám bệnh", "Ngày Tháng", "Họ", "Tên", "Bác Sĩ", "Trạng thái"});
+        model.setDataVector(preprocessPatientDataForTable(this.patientQueue), new String[]{"Mã khám bệnh", "Ngày Tháng", "Họ", "Tên", "Bác Sĩ", "Loại khám"});
         if (tvQueueFrame != null && tvQueueFrame.isVisible()) {
             tvQueueFrame.updateQueueData(this.rawQueueForTv);
         }

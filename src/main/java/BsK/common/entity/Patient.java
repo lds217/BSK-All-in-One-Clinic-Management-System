@@ -23,6 +23,7 @@ public class Patient {
     private String customerHeight;
     private String customerGender;
     private String customerDob;
+    private String checkupType;
 
     public Patient(String[][] array) {
         this.checkupId = array[0][0];
@@ -41,12 +42,13 @@ public class Patient {
         this.customerHeight = array[0][13];
         this.customerGender = array[0][14];
         this.customerDob = array[0][15];
+        this.checkupType = array[0][16];
     }
 
     // New constructor for a single patient data row
     public Patient(String[] data) {
-        if (data.length < 16) {
-            throw new IllegalArgumentException("Patient data array must contain at least 16 elements.");
+        if (data.length < 17) {
+            throw new IllegalArgumentException("Patient data array must contain at least 17 elements.");
         }
         this.checkupId = data[0];
         this.checkupDate = data[1];
@@ -64,5 +66,6 @@ public class Patient {
         this.customerHeight = data[13];
         this.customerGender = data[14];
         this.customerDob = data[15];
+        this.checkupType = data[16];
     }
 }

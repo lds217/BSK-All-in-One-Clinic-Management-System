@@ -86,7 +86,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
           ResultSet rs = statement.executeQuery(
                   "select a.checkup_id, a.checkup_date, c.customer_last_name, c.customer_first_name,\n" +
                           "d.doctor_first_name, d.doctor_last_name, a.symptoms, a.diagnosis, a.notes, a.status, a.customer_id, \n" +
-                          "c.customer_number, c.customer_address, c.customer_weight, c.customer_height, c.customer_gender, c.customer_dob\n" +
+                          "c.customer_number, c.customer_address, c.customer_weight, c.customer_height, c.customer_gender, c.customer_dob, a.checkup_type\n" +
                           "from checkup as a\n" +
                           "join customer as c on a.customer_id = c.customer_id\n" +
                           "join Doctor D on a.doctor_id = D.doctor_id\n" +
@@ -121,13 +121,14 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
               String customerHeight = rs.getString("customer_height");
               String customerGender = rs.getString("customer_gender");
               String customerDob = rs.getString("customer_dob");
+              String checkupType = rs.getString("checkup_type");
 
 
               String result = String.join("|", checkupId,
                       checkupDate, customerLastName, customerFirstName,
                       doctorLastName + " " + doctorFirstName, symptoms,
                       diagnosis, notes, status, customerId, customerNumber, customerAddress, customerWeight, customerHeight,
-                      customerGender, customerDob
+                      customerGender, customerDob, checkupType
               );
 
               resultList.add(result);
@@ -152,7 +153,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
           ResultSet rs = statement.executeQuery(
                   "select a.checkup_id, a.checkup_date, c.customer_last_name, c.customer_first_name,\n" +
                           "d.doctor_first_name, d.doctor_last_name, a.symptoms, a.diagnosis, a.notes, a.status, a.customer_id, \n" +
-                          "c.customer_number, c.customer_address, c.customer_weight, c.customer_height, c.customer_gender, c.customer_dob\n" +
+                          "c.customer_number, c.customer_address, c.customer_weight, c.customer_height, c.customer_gender, c.customer_dob, a.checkup_type\n" +
                           "from checkup as a\n" +
                           "join customer as c on a.customer_id = c.customer_id\n" +
                           "join Doctor D on a.doctor_id = D.doctor_id\n" +
@@ -187,13 +188,14 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
               String customerHeight = rs.getString("customer_height");
               String customerGender = rs.getString("customer_gender");
               String customerDob = rs.getString("customer_dob");
+              String checkupType = rs.getString("checkup_type");
 
 
               String result = String.join("|", checkupId,
                       checkupDate, customerLastName, customerFirstName,
                       doctorLastName + " " + doctorFirstName, symptoms,
                       diagnosis, notes, status, customerId, customerNumber, customerAddress, customerWeight, customerHeight,
-                      customerGender, customerDob
+                      customerGender, customerDob, checkupType
               );
 
               resultList.add(result);
@@ -573,9 +575,10 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
 
           // First query: Insert Checkup
           PreparedStatement checkupStmt = Server.connection.prepareStatement(
-                  "INSERT INTO Checkup (customer_id, doctor_id) VALUES (?, ?)");
+                  "INSERT INTO Checkup (customer_id, doctor_id, checkup_type) VALUES (?, ?, ?)");
           checkupStmt.setInt(1, addCheckupRequest.getCustomerId());
           checkupStmt.setInt(2, addCheckupRequest.getDoctorId());
+          checkupStmt.setString(3, addCheckupRequest.getCheckupType());
           checkupStmt.executeUpdate();
 
           // Second query: Insert MedicineOrder
