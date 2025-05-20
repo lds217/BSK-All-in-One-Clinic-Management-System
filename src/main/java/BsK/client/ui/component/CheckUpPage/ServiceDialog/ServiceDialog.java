@@ -21,7 +21,9 @@ import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 
 @Slf4j
 public class ServiceDialog extends JDialog {
@@ -31,70 +33,154 @@ public class ServiceDialog extends JDialog {
     private JTextField totalField;
     private JTextArea noteField;
     private DefaultTableModel tableModel, selectedTableModel;
-    private String[] serviceColumns = {"ID", "Service Name", "Price"};
+    private String[] serviceColumns = {"ID", "Tên dịch vụ", "Giá (VNĐ)"};
     private String[][] serviceData;
     private final ResponseListener<GetSerInfoResponse> getSerInfoResponseListener = this::getSerInfoHandler;
     private TableColumnModel columnModel;
-    private HashMap<String, Boolean> selectedService = new HashMap<>();
     private JTable serviceTable;
     private JTable selectedTable;
 
     private String[][] servicePrescription;
+    private static final Logger logger = LoggerFactory.getLogger(ServiceDialog.class);
 
     public String[][] getServicePrescription() {
         return servicePrescription;
     }
 
     void getSerInfoHandler(GetSerInfoResponse response) {
-        log.info("Received service data");
+        logger.info("Received service data");
         serviceData = response.getSerInfo();
         tableModel.setDataVector(serviceData, serviceColumns);
-
-        // resize column width
-        columnModel = serviceTable.getColumnModel();
-        columnModel.getColumn(0).setPreferredWidth(10);
-        columnModel.getColumn(1).setPreferredWidth(200);
-        columnModel.getColumn(2).setPreferredWidth(50);
+        resizeServiceTableColumns();
     }
 
     void sendGetSerInfoRequest() {
-        log.info("Sending GetSerInfoRequest");
+        logger.info("Sending GetSerInfoRequest");
         NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetSerInfoRequest());
     }
 
     public ServiceDialog(Frame parent) {
-        super(parent, "Enter Service Details", true);
-
-        // Set the size of the dialog
-        setSize(1100, 500);
+        super(parent, "Thêm dịch vụ", true);
+        setDefaultCloseOperation(DISPOSE_ON_CLOSE);
+        setSize(1100, 600);
+        setLocationRelativeTo(parent);
         setResizable(true);
 
         ClientHandler.addResponseListener(GetSerInfoResponse.class, getSerInfoResponseListener);
         sendGetSerInfoRequest();
 
-        setLayout(new BorderLayout());
+        setLayout(new BorderLayout(10, 10));
 
+        JPanel mainInputPanel = new JPanel(new GridBagLayout());
+        mainInputPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        GridBagConstraints mainGbc = new GridBagConstraints();
+        mainGbc.fill = GridBagConstraints.HORIZONTAL;
+        mainGbc.anchor = GridBagConstraints.NORTHWEST;
+        mainGbc.insets = new Insets(5, 5, 5, 5);
+        mainGbc.weightx = 1.0;
 
-        JPanel inputPanel = new JPanel();
-        inputPanel.setLayout(new GridBagLayout());
+        JPanel serviceInfoPanel = new JPanel(new GridBagLayout());
+        serviceInfoPanel.setBorder(BorderFactory.createTitledBorder(
+                BorderFactory.createEtchedBorder(), "Thông tin dịch vụ",
+                javax.swing.border.TitledBorder.LEADING, javax.swing.border.TitledBorder.TOP,
+                new Font("Arial", Font.BOLD, 14), new Color(50, 50, 50)
+        ));
+        mainGbc.gridx = 0;
+        mainGbc.gridy = 0;
+        mainInputPanel.add(serviceInfoPanel, mainGbc);
+
+        JPanel notePanel = new JPanel(new GridBagLayout());
+        notePanel.setBorder(BorderFactory.createTitledBorder(
+                BorderFactory.createEtchedBorder(), "Ghi chú",
+                javax.swing.border.TitledBorder.LEADING, javax.swing.border.TitledBorder.TOP,
+                new Font("Arial", Font.BOLD, 14), new Color(50, 50, 50)
+        ));
+        mainGbc.gridy = 1;
+        mainInputPanel.add(notePanel, mainGbc);
+
+        JPanel addServiceButtonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
+        JButton addServiceButton = new JButton("Thêm dịch vụ");
+        addServiceButtonPanel.add(addServiceButton);
+        mainGbc.gridy = 2;
+        mainInputPanel.add(addServiceButtonPanel, mainGbc);
+
+        mainGbc.gridy = 3;
+        mainGbc.weighty = 1.0;
+        mainInputPanel.add(new JPanel(), mainGbc);
+
         GridBagConstraints gbc = new GridBagConstraints();
-
-
-        gbc.insets = new Insets(5, 5, 5, 5); // Padding between components
-        gbc.weightx = 1.0; // Components stretch horizontally
-        gbc.weighty = 0.0; // Allow minor vertical flexibility
         gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.anchor = GridBagConstraints.WEST;
+        gbc.insets = new Insets(5, 5, 5, 5);
+        gbc.weightx = 0.0;
+        gbc.weighty = 0.0;
 
-        gbc.anchor = GridBagConstraints.WEST; // Align components to the  left
-        gbc.gridx = 0;
         gbc.gridy = 0;
+        gbc.gridx = 0;
+        serviceInfoPanel.add(new JLabel("Tên dịch vụ:"), gbc);
 
-        inputPanel.add(new JLabel("Service Name:"), gbc);
         gbc.gridx = 1;
-        serviceNameField = new JTextField(15);
-        inputPanel.add(serviceNameField, gbc);
+        gbc.gridwidth = 3;
+        gbc.weightx = 1.0;
+        serviceNameField = new JTextField(20);
+        serviceInfoPanel.add(serviceNameField, gbc);
+        gbc.gridwidth = 1;
+        gbc.weightx = 0.0;
 
-        // Listen for changes in the text event
+        gbc.gridy++;
+        gbc.gridx = 0;
+        serviceInfoPanel.add(new JLabel("Số lượng:"), gbc);
+
+        gbc.gridx = 1;
+        gbc.weightx = 0.5;
+        quantitySpinner = new JSpinner(new SpinnerNumberModel(1, 1, 100, 1));
+        quantitySpinner.setPreferredSize(new Dimension(80, 25));
+        serviceInfoPanel.add(quantitySpinner, gbc);
+        gbc.weightx = 0.0;
+
+        gbc.gridx = 2;
+        serviceInfoPanel.add(new JLabel("Đơn giá (VNĐ):"), gbc);
+
+        gbc.gridx = 3;
+        gbc.weightx = 0.5;
+        priceField = new JTextField(10);
+        priceField.setEditable(false);
+        serviceInfoPanel.add(priceField, gbc);
+        gbc.weightx = 0.0;
+
+        gbc.gridy++;
+        gbc.gridx = 0;
+        serviceInfoPanel.add(new JLabel("Thành tiền (VNĐ):"), gbc);
+
+        gbc.gridx = 1;
+        gbc.gridwidth = 3;
+        gbc.weightx = 1.0;
+        totalField = new JTextField(10);
+        totalField.setEditable(false);
+        serviceInfoPanel.add(totalField, gbc);
+        gbc.gridwidth = 1;
+        gbc.weightx = 0.0;
+
+        gbc.gridy = 0;
+        gbc.gridx = 0;
+        gbc.anchor = GridBagConstraints.NORTHWEST;
+        notePanel.add(new JLabel("Ghi chú:"), gbc);
+        gbc.anchor = GridBagConstraints.WEST;
+
+        gbc.gridx = 1;
+        gbc.weightx = 1.0;
+        gbc.weighty = 1.0;
+        gbc.fill = GridBagConstraints.BOTH;
+        noteField = new JTextArea(3, 20);
+        noteField.setLineWrap(true);
+        noteField.setWrapStyleWord(true);
+        JScrollPane noteScrollPane = new JScrollPane(noteField);
+        noteScrollPane.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED);
+        notePanel.add(noteScrollPane, gbc);
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.weightx = 0.0;
+        gbc.weighty = 0.0;
+
         tableModel = new DefaultTableModel(serviceData, serviceColumns) {
             @Override
             public boolean isCellEditable(int row, int column) {
@@ -102,27 +188,77 @@ public class ServiceDialog extends JDialog {
             }
         };
         serviceTable = new JTable(tableModel);
-        serviceTable.setFont(new Font("Serif", Font.BOLD, 20));
-        serviceTable.setRowHeight(30);
+        serviceTable.setFont(new Font("Arial", Font.PLAIN, 14));
+        serviceTable.setRowHeight(25);
         serviceTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        JScrollPane scrollPane = new JScrollPane(serviceTable);
+        serviceTable.setAutoCreateRowSorter(true);
+        JScrollPane serviceTableScrollPane = new JScrollPane(serviceTable);
+        serviceTableScrollPane.setPreferredSize(new Dimension(550, 250));
 
+        String[] selectedColumnNames = {"ID", "Tên dịch vụ", "Số lượng", "Đơn giá", "Thành tiền", "Ghi chú"};
+        selectedTableModel = new DefaultTableModel(new String[][]{}, selectedColumnNames) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return column == 2 || column == 5;
+            }
+        };
+        selectedTable = new JTable(selectedTableModel);
+        selectedTable.setFont(new Font("Arial", Font.PLAIN, 14));
+        selectedTable.setRowHeight(25);
+        JScrollPane selectedTableScrollPane = new JScrollPane(selectedTable);
+        selectedTableScrollPane.setPreferredSize(new Dimension(550, 150));
 
-        serviceTable.setPreferredScrollableViewportSize(new Dimension(625, 200));
+        JPanel removeServiceButtonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        JButton removeServiceButton = new JButton("Xóa dịch vụ đã chọn");
+        removeServiceButtonPanel.add(removeServiceButton);
 
+        JPanel rightPanel = new JPanel(new BorderLayout(0,5));
+        rightPanel.add(serviceTableScrollPane, BorderLayout.CENTER);
+        JPanel bottomRightPanel = new JPanel(new BorderLayout(0,5));
+        bottomRightPanel.add(selectedTableScrollPane, BorderLayout.CENTER);
+        bottomRightPanel.add(removeServiceButtonPanel, BorderLayout.SOUTH);
+        rightPanel.add(bottomRightPanel, BorderLayout.SOUTH);
 
-        scrollPane.setPreferredSize(new Dimension(625, 200));
+        JScrollPane mainInputScrollPane = new JScrollPane(mainInputPanel);
+        mainInputScrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
+        mainInputScrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+        mainInputScrollPane.setBorder(BorderFactory.createEmptyBorder());
 
+        JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, mainInputScrollPane, rightPanel);
+        splitPane.setResizeWeight(0.4);
+        add(splitPane, BorderLayout.CENTER);
+
+        JPanel bottomButtonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        JButton okButton = new JButton("Lưu");
+        JButton cancelButton = new JButton("Hủy");
+        bottomButtonPanel.add(okButton);
+        bottomButtonPanel.add(cancelButton);
+        add(bottomButtonPanel, BorderLayout.SOUTH);
+
+        serviceNameField.getDocument().addDocumentListener(new DocumentListener() {
+            public void changedUpdate(DocumentEvent e) { SwingUtilities.invokeLater(() -> filterServiceTable()); }
+            public void removeUpdate(DocumentEvent e) { SwingUtilities.invokeLater(() -> filterServiceTable()); }
+            public void insertUpdate(DocumentEvent e) { SwingUtilities.invokeLater(() -> filterServiceTable()); }
+        });
 
         serviceTable.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
-                SwingUtilities.invokeLater(() -> {
-                    int selectedRow = serviceTable.getSelectedRow();
-                    if (selectedRow != -1) {
-                        handleRowSelection(selectedRow);
-                    }
-                });
+                if (e.getClickCount() == 1) {
+                    SwingUtilities.invokeLater(() -> {
+                        int selectedRow = serviceTable.getSelectedRow();
+                        if (selectedRow != -1) {
+                            handleServiceTableRowSelection(selectedRow);
+                        }
+                    });
+                } else if (e.getClickCount() == 2) {
+                    SwingUtilities.invokeLater(() -> {
+                        int selectedRow = serviceTable.getSelectedRow();
+                        if (selectedRow != -1) {
+                            addSelectedService();
+                        }
+                    });
+                }
             }
         });
 
@@ -130,206 +266,255 @@ public class ServiceDialog extends JDialog {
             @Override
             public void keyPressed(KeyEvent e) {
                 if (e.getKeyCode() == KeyEvent.VK_ENTER) {
-                    handleRowSelection(serviceTable.getSelectedRow());
-                }
-            }
-        });
-
-
-        serviceNameField.getDocument().addDocumentListener(new DocumentListener() {
-            @Override
-            public void insertUpdate(DocumentEvent e) {
-                findAndSelectRow();
-            }
-
-            @Override
-            public void removeUpdate(DocumentEvent e) {
-                findAndSelectRow();
-            }
-
-            @Override
-            public void changedUpdate(DocumentEvent e) {
-                findAndSelectRow();
-            }
-
-            private void findAndSelectRow() {
-                String searchText = serviceNameField.getText().trim();
-                if (searchText.isEmpty()) {
-                    // Clear selection if search text is empty
-                    serviceTable.clearSelection();
-                    return;
-                }
-
-                boolean found = false;
-                for (int row = 0; row < serviceTable.getRowCount(); row++) {
-                    // Assuming the search is targeting the name column (column index 1)
-                    String cellValue = serviceTable.getValueAt(row, 1).toString();
-                    if (TextUtils.removeAccents(cellValue.toLowerCase()).contains(TextUtils.removeAccents(searchText
-                            .toLowerCase()))) {
-                        serviceTable.setRowSelectionInterval(row, row);
-                        serviceTable.scrollRectToVisible(serviceTable.getCellRect(row, 1, true));
-                        found = true;
-                        break; // Stop after selecting the first match
+                    if (serviceTable.getSelectedRow() != -1) {
+                        addSelectedService();
+                    }
+                } else if (e.getKeyCode() == KeyEvent.VK_DOWN) {
+                    if (serviceTable.getRowCount() > 0) {
+                        int selectedRow = serviceTable.getSelectedRow();
+                        if (selectedRow < serviceTable.getRowCount() - 1) {
+                            serviceTable.setRowSelectionInterval(selectedRow + 1, selectedRow + 1);
+                            serviceTable.scrollRectToVisible(serviceTable.getCellRect(selectedRow + 1, 0, true));
+                            handleServiceTableRowSelection(selectedRow+1);
+                        } else {
+                            serviceTable.setRowSelectionInterval(0,0);
+                            serviceTable.scrollRectToVisible(serviceTable.getCellRect(0,0,true));
+                            handleServiceTableRowSelection(0);
+                        }
+                    }
+                } else if (e.getKeyCode() == KeyEvent.VK_UP) {
+                    if (serviceTable.getRowCount() > 0) {
+                        int selectedRow = serviceTable.getSelectedRow();
+                        if (selectedRow > 0) {
+                            serviceTable.setRowSelectionInterval(selectedRow - 1, selectedRow - 1);
+                            serviceTable.scrollRectToVisible(serviceTable.getCellRect(selectedRow - 1, 0, true));
+                             handleServiceTableRowSelection(selectedRow - 1);
+                        } else {
+                            serviceTable.setRowSelectionInterval(serviceTable.getRowCount()-1, serviceTable.getRowCount()-1);
+                            serviceTable.scrollRectToVisible(serviceTable.getCellRect(serviceTable.getRowCount()-1,0,true));
+                            handleServiceTableRowSelection(serviceTable.getRowCount()-1);
+                        }
                     }
                 }
-
-                if (!found) {
-                    serviceTable.clearSelection(); // No matches found
-                }
             }
         });
 
-        gbc.gridx = 0;
-        gbc.gridy++;
-        inputPanel.add(new JLabel("Quantity:"), gbc);
+        quantitySpinner.addChangeListener(e -> updateTotalField());
 
-        gbc.gridx = 1;
-        // Create and set preferred size for the spinner
-        quantitySpinner = new JSpinner();
-        quantitySpinner.setPreferredSize(new Dimension(100, 25)); // Adjust width and height as needed
-        inputPanel.add(quantitySpinner, gbc);
+        addServiceButton.addActionListener(e -> addSelectedService());
+        removeServiceButton.addActionListener(e -> removeSelectedService());
 
-
-        gbc.gridx = 0;
-        gbc.gridy++;
-        inputPanel.add(new JLabel("Price:"), gbc);
-        gbc.gridx = 1;
-        priceField = new JTextField(15);
-        inputPanel.add(priceField, gbc);
-
-        gbc.gridx = 0;
-        gbc.gridy++;
-        inputPanel.add(new JLabel("Total:"), gbc);
-        gbc.gridx = 1;
-        totalField = new JTextField(15);
-        inputPanel.add(totalField, gbc);
-
-        gbc.anchor = GridBagConstraints.NORTHWEST;
-        gbc.gridx = 0;
-        gbc.gridy++;
-        inputPanel.add(new JLabel("Note:"), gbc);
-        gbc.gridx = 1;
-        noteField = new JTextArea(2, 15);
-        inputPanel.add(noteField, gbc);
-        gbc.anchor = GridBagConstraints.WEST;
-
-        quantitySpinner.addChangeListener(e -> {
-            int quantity = (int) quantitySpinner.getValue();
-            if (quantity < 0) {
-                quantity = 0;
-                quantitySpinner.setValue(quantity);
+        okButton.addActionListener(e -> {
+            collectPrescriptionData();
+            if (servicePrescription == null || servicePrescription.length == 0) {
+                JOptionPane.showMessageDialog(this, "Chưa có dịch vụ nào được chọn.", "Thông báo", JOptionPane.INFORMATION_MESSAGE);
+                return;
             }
-
-            double price = Double.parseDouble(priceField.getText());
-            totalField.setText(String.valueOf(quantity * price));
-        });
-
-
-
-        // Set the split pane
-        JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, inputPanel, scrollPane);
-        splitPane.setResizeWeight(0.5); // Allocate more space to the inputPanel
-        // Wrap the splitPane in a JPanel to control height
-        JPanel topPanel = new JPanel(new BorderLayout());
-        topPanel.add(splitPane, BorderLayout.CENTER);
-
-
-        // Create a table to display selected services
-        String[] columnNames = {"ID", "Service Name", "Quantity", "Single Price", "Total Price", "Note"};
-        selectedTableModel = new DefaultTableModel(new String[][]{}, columnNames) {
-            @Override
-            public boolean isCellEditable(int row, int column) {
-                return false;
-            }
-        };
-
-        selectedTable = new JTable(selectedTableModel);
-        JScrollPane tableScrollPane = new JScrollPane(selectedTable);
-
-        // Create a panel for add and remove buttons
-        JPanel buttonPanel = new JPanel();
-        JButton addButton = new JButton("Add");
-        JButton removeButton = new JButton("Remove");
-        JButton submitButton = new JButton("Submit");
-        buttonPanel.add(addButton);
-        buttonPanel.add(removeButton);
-        buttonPanel.add(submitButton);
-
-        addButton.addActionListener(e -> {
-            int selectedRow = serviceTable.getSelectedRow();
-            if (selectedRow != -1) {
-                int modelRow = serviceTable.convertRowIndexToModel(selectedRow);
-                if(selectedService.containsKey(tableModel.getValueAt(modelRow, 0).toString())) {
-                    JOptionPane.showMessageDialog(this, "Service already added", "Error", JOptionPane.ERROR_MESSAGE);
-                    return;
-                }
-                selectedService.put((String) tableModel.getValueAt(modelRow, 0), true);
-                Object[] rowData = new Object[6];
-
-                rowData[0] = tableModel.getValueAt(modelRow, 0);
-                rowData[1] = tableModel.getValueAt(modelRow, 1);
-                rowData[2] = quantitySpinner.getValue();
-                rowData[3] = priceField.getText();
-                rowData[4] = totalField.getText();
-                rowData[5] = noteField.getText();
-                selectedTableModel.addRow(rowData);
-                log.info("Added service with id: {}", tableModel.getValueAt(modelRow, 0));
-            }
-        });
-
-        removeButton.addActionListener(e -> {
-            int selectedRow = selectedTable.getSelectedRow();
-            if (selectedRow != -1) {
-                String id = selectedTableModel.getValueAt(selectedRow, 0).toString();
-                selectedService.remove(id);
-                log.info("Removed service with id: {}", id);
-                selectedTableModel.removeRow(selectedRow);
-            }
-        });
-
-        submitButton.addActionListener(e -> {
-            int rows = selectedTableModel.getRowCount();
-            servicePrescription = new String[rows][6];
-            for (int i = 0; i < rows; i++) {
-                for (int j = 0; j < 6; j++) {
-                    servicePrescription[i][j] = selectedTableModel.getValueAt(i, j).toString();
-                }
-            }
+            logger.info("Service prescription saved.");
             dispose();
         });
 
-        // Add components to the dialog
-        add(topPanel, BorderLayout.NORTH);
-        add(tableScrollPane, BorderLayout.CENTER);
-        add(buttonPanel, BorderLayout.SOUTH);
-
-        setLocationRelativeTo(parent);
+        cancelButton.addActionListener(e -> {
+            servicePrescription = null;
+            dispose();
+        });
     }
 
-    private void handleRowSelection(int selectedRow) {
-        String id = (String) tableModel.getValueAt(selectedRow, 0);
-        String name = (String) tableModel.getValueAt(selectedRow, 1);
-        String price = (String) tableModel.getValueAt(selectedRow, 2);
+    private void filterServiceTable() {
+        String filterText = serviceNameField.getText().trim();
+        if (serviceData == null) return;
 
-        serviceNameField.setText(name);
-        quantitySpinner.setValue(0);
-        priceField.setText(price);
-        totalField.setText("0");
+        if (filterText.isEmpty()) {
+            tableModel.setDataVector(serviceData, serviceColumns);
+            resizeServiceTableColumns();
+            serviceTable.clearSelection();
+        } else {
+            List<String[]> filteredData = new ArrayList<>();
+            String lowerCaseFilterText = TextUtils.removeAccents(filterText.toLowerCase());
+            for (String[] row : serviceData) {
+                if (row.length > 1 && row[1] != null) {
+                    String cellValue = TextUtils.removeAccents(row[1].toLowerCase());
+                    if (cellValue.contains(lowerCaseFilterText)) {
+                        filteredData.add(row);
+                    }
+                }
+            }
+            tableModel.setDataVector(filteredData.toArray(new String[0][0]), serviceColumns);
+            resizeServiceTableColumns();
+             if (!filteredData.isEmpty()) {
+                serviceTable.setRowSelectionInterval(0,0);
+                handleServiceTableRowSelection(0);
+            } else {
+                 clearInputFields();
+             }
+        }
+    }
+
+    private void resizeServiceTableColumns() {
+        columnModel = serviceTable.getColumnModel();
+        columnModel.getColumn(0).setPreferredWidth(30);
+        columnModel.getColumn(1).setPreferredWidth(300);
+        columnModel.getColumn(2).setPreferredWidth(100);
+    }
+
+    private void handleServiceTableRowSelection(int viewRow) {
+        if (viewRow < 0 || viewRow >= serviceTable.getRowCount()) {
+            clearInputFields();
+            return;
+        }
+        int modelRow = serviceTable.convertRowIndexToModel(viewRow);
+        serviceNameField.setText(tableModel.getValueAt(modelRow, 1).toString());
+        priceField.setText(tableModel.getValueAt(modelRow, 2).toString());
+        quantitySpinner.setValue(1);
+        noteField.setText("");
+        updateTotalField();
+    }
+
+    private void clearInputFields(){
+        priceField.setText("");
+        totalField.setText("");
+        quantitySpinner.setValue(1);
         noteField.setText("");
     }
 
+    private void updateTotalField() {
+        try {
+            int quantity = (Integer) quantitySpinner.getValue();
+            if (quantity < 0) {
+                quantitySpinner.setValue(0);
+                quantity = 0;
+            }
+            double price = 0;
+            if (!priceField.getText().isEmpty()) {
+                price = Double.parseDouble(priceField.getText());
+            }
+            totalField.setText(String.format("%.0f", quantity * price));
+        } catch (NumberFormatException e) {
+            totalField.setText("Giá không hợp lệ");
+            logger.error("Error parsing price for total: " + priceField.getText(), e);
+        }
+    }
+
+    private void addSelectedService() {
+        int selectedRowInServiceTable = serviceTable.getSelectedRow();
+        if (selectedRowInServiceTable == -1 && serviceNameField.getText().isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Vui lòng chọn một dịch vụ từ danh sách hoặc tìm kiếm.", "Chưa chọn dịch vụ", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        String serviceId;
+        String name;
+        String currentPrice;
+
+        if (selectedRowInServiceTable != -1) {
+            int modelRow = serviceTable.convertRowIndexToModel(selectedRowInServiceTable);
+            serviceId = tableModel.getValueAt(modelRow, 0).toString();
+            name = tableModel.getValueAt(modelRow, 1).toString();
+            currentPrice = tableModel.getValueAt(modelRow, 2).toString();
+        } else {
+            String searchName = serviceNameField.getText().trim();
+            String foundId = null;
+            String foundPrice = null;
+            String actualName = null;
+
+            for (String[] serv : serviceData) {
+                if (TextUtils.removeAccents(serv[1].toLowerCase()).equals(TextUtils.removeAccents(searchName.toLowerCase()))) {
+                    foundId = serv[0];
+                    actualName = serv[1];
+                    foundPrice = serv[2];
+                    break;
+                }
+            }
+
+            if (foundId == null) {
+                JOptionPane.showMessageDialog(this, "Không tìm thấy ID cho dịch vụ: " + searchName + ". Vui lòng chọn từ bảng.", "Lỗi", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            serviceId = foundId;
+            name = actualName;
+            currentPrice = foundPrice;
+        }
+
+        int quantity = (Integer) quantitySpinner.getValue();
+        String note = noteField.getText();
+        String totalAmount = totalField.getText();
+
+        if (quantity <= 0) {
+            JOptionPane.showMessageDialog(this, "Số lượng phải lớn hơn 0.", "Số lượng không hợp lệ", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        for (int i = 0; i < selectedTableModel.getRowCount(); i++) {
+            if (selectedTableModel.getValueAt(i, 0).equals(serviceId)) {
+                int existingQuantity = Integer.parseInt(selectedTableModel.getValueAt(i, 2).toString());
+                int newQuantity = existingQuantity + quantity;
+                double singlePrice = Double.parseDouble(selectedTableModel.getValueAt(i, 3).toString());
+                selectedTableModel.setValueAt(newQuantity, i, 2);
+                selectedTableModel.setValueAt(String.format("%.0f", newQuantity * singlePrice), i, 4);
+                return;
+            }
+        }
+        selectedTableModel.addRow(new Object[]{serviceId, name, quantity, currentPrice, totalAmount, note});
+    }
+
+    private void removeSelectedService() {
+        int selectedRow = selectedTable.getSelectedRow();
+        if (selectedRow != -1) {
+            selectedTableModel.removeRow(selectedRow);
+        } else {
+            JOptionPane.showMessageDialog(this, "Vui lòng chọn một dịch vụ từ bảng dưới để xóa.", "Chưa chọn dịch vụ", JOptionPane.WARNING_MESSAGE);
+        }
+    }
+
+    private void collectPrescriptionData() {
+        int rowCount = selectedTableModel.getRowCount();
+        if (rowCount == 0) {
+            servicePrescription = new String[0][0];
+            return;
+        }
+        servicePrescription = new String[rowCount][6];
+        for (int i = 0; i < rowCount; i++) {
+            servicePrescription[i][0] = selectedTableModel.getValueAt(i, 0).toString();
+            servicePrescription[i][1] = selectedTableModel.getValueAt(i, 1).toString();
+            servicePrescription[i][2] = selectedTableModel.getValueAt(i, 2).toString();
+            servicePrescription[i][3] = selectedTableModel.getValueAt(i, 3).toString();
+            servicePrescription[i][4] = selectedTableModel.getValueAt(i, 4).toString();
+            servicePrescription[i][5] = selectedTableModel.getValueAt(i, 5).toString();
+        }
+    }
+
+    @Override
+    public void dispose() {
+        logger.info("Cleaning up ServiceDialog listeners");
+        ClientHandler.deleteListener(GetSerInfoResponse.class);
+        super.dispose();
+    }
+
     public static void main(String[] args) {
-        JFrame frame = new JFrame();
-        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        frame.setSize(400, 300);
-        frame.setVisible(true);
+        SwingUtilities.invokeLater(() -> {
+            JFrame frame = new JFrame("Test Service Dialog");
+            frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+            frame.setSize(400, 300);
+            frame.setLocationRelativeTo(null);
 
-        JButton openDialogButton = new JButton("Open Service Dialog");
-        openDialogButton.addActionListener(e -> {
-            ServiceDialog dialog = new ServiceDialog(frame);
-            dialog.setVisible(true);
+            JButton openDialogButton = new JButton("Open Service Dialog");
+            openDialogButton.addActionListener(e -> {
+                ServiceDialog dialog = new ServiceDialog(frame);
+                dialog.setVisible(true);
+                String[][] prescription = dialog.getServicePrescription();
+                if (prescription != null && prescription.length > 0) {
+                    System.out.println("Service Prescription obtained:");
+                    for (String[] item : prescription) {
+                        System.out.println(String.join(", ", item));
+                    }
+                } else {
+                    System.out.println("No service prescription or dialog was cancelled.");
+                }
+            });
+
+            frame.setLayout(new FlowLayout());
+            frame.add(openDialogButton);
+            frame.setVisible(true);
         });
-
-        frame.add(openDialogButton, BorderLayout.CENTER);
     }
 }

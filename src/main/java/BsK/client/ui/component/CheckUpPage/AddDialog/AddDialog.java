@@ -194,7 +194,7 @@ public class AddDialog extends JDialog {
         };
 
         patientTable = new JTable(patientTableModel);
-        patientTable.setFont(new Font("Serif", Font.BOLD, 20));
+        patientTable.setFont(new Font("Serif", Font.PLAIN, 14));
         patientTable.setRowHeight(30);
         patientTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         JScrollPane scrollPane = new JScrollPane(patientTable);
