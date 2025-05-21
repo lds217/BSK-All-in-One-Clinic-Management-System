@@ -3,12 +3,38 @@
   <Appenders>
     <Console name="ConsoleAppender" target="SYSTEM_OUT">
       <PatternLayout
-        pattern="%d{HH:mm:ss.SSS} %5p - %-40.40c{1.} : %m%n"/>
+        pattern="%d{yyyy-MM-dd HH:mm:ss.SSS} %5p - %-40.40c{1.} : %m%n"/>
     </Console>
+
+    <File name="ServerFileAppender" fileName="logs/bsk_server.log">
+      <PatternLayout>
+        <Pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %5p - %-40.40c{1.} : %m%n</Pattern>
+      </PatternLayout>
+    </File>
+
+    <File name="ClientFileAppender" fileName="logs/bsk_client.log">
+      <PatternLayout>
+        <Pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %5p - %-40.40c{1.} : %m%n</Pattern>
+      </PatternLayout>
+    </File>
   </Appenders>
   <Loggers>
+    <!-- Logger for server-side classes -->
+    <Logger name="BsK.server" level="DEBUG" additivity="false">
+      <AppenderRef ref="ConsoleAppender"/>
+      <AppenderRef ref="ServerFileAppender"/>
+    </Logger>
+
+    <!-- Logger for client-side classes -->
+    <Logger name="BsK.client" level="DEBUG" additivity="false">
+      <AppenderRef ref="ConsoleAppender"/>
+      <AppenderRef ref="ClientFileAppender"/>
+    </Logger>
+
+    <!-- Root logger: catches all other logs -->
     <Root level="DEBUG">
       <AppenderRef ref="ConsoleAppender"/>
+      <!-- Optionally, add a default file appender for root logs if desired, e.g., logs/application.log -->
     </Root>
   </Loggers>
 </Configuration>

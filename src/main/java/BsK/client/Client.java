@@ -19,13 +19,33 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.concurrent.TimeUnit;
 import lombok.extern.slf4j.Slf4j;
+import java.io.InputStream;
+import java.util.Properties;
+import java.io.IOException;
 
 @Slf4j
 public class Client {
     public static void main(String[] args) throws Exception {
         var thread = new Thread(() -> {
-            var serverAddress = "localhost";
-            var port = 1999;
+            Properties props = new Properties();
+            try (InputStream input = Client.class.getClassLoader().getResourceAsStream("client.properties")) {
+                if (input == null) {
+                    log.error("Sorry, unable to find client.properties");
+                    return;
+                }
+                props.load(input);
+            } catch (IOException ex) {
+                log.error("Error loading client.properties", ex);
+                return;
+            }
+
+            var serverAddress = props.getProperty("server.address", "localhost");
+            var port = Integer.parseInt(props.getProperty("server.port", "1999"));
+
+            if ("YOUR_SERVER_IP_ADDRESS".equals(serverAddress)) {
+                log.warn("Please update 'server.address' in src/main/resources/client.properties with the actual server IP address.");
+            }
+            
             URI uri = null;
             try {
                 uri = new URI("ws://" + serverAddress + ":" + port + "/");
