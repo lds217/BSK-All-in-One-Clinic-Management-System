@@ -45,6 +45,7 @@ public class MedicineDialog extends JDialog {
     private HashMap<String, Boolean> selectedMedicine = new HashMap<>();
     private JTable medicineTable;
     private JTable selectedTable;
+    private boolean isProgrammaticallySettingMedicineNameField = false;
 
     private String[][] medicinePrescription;
     private static final Logger logger = LoggerFactory.getLogger(MedicineDialog.class);
@@ -344,9 +345,21 @@ public class MedicineDialog extends JDialog {
         add(bottomButtonPanel, BorderLayout.SOUTH);
 
         medicineNameField.getDocument().addDocumentListener(new DocumentListener() {
-            public void changedUpdate(DocumentEvent e) { SwingUtilities.invokeLater(() -> filterMedicineTable()); }
-            public void removeUpdate(DocumentEvent e) { SwingUtilities.invokeLater(() -> filterMedicineTable()); }
-            public void insertUpdate(DocumentEvent e) { SwingUtilities.invokeLater(() -> filterMedicineTable()); }
+            public void changedUpdate(DocumentEvent e) { 
+                if (!isProgrammaticallySettingMedicineNameField) {
+                    SwingUtilities.invokeLater(() -> filterMedicineTable()); 
+                }
+            }
+            public void removeUpdate(DocumentEvent e) { 
+                if (!isProgrammaticallySettingMedicineNameField) {
+                    SwingUtilities.invokeLater(() -> filterMedicineTable()); 
+                }
+            }
+            public void insertUpdate(DocumentEvent e) { 
+                if (!isProgrammaticallySettingMedicineNameField) {
+                    SwingUtilities.invokeLater(() -> filterMedicineTable()); 
+                }
+            }
         });
 
         medicineTable.addMouseListener(new MouseAdapter() {
@@ -357,13 +370,6 @@ public class MedicineDialog extends JDialog {
                         int selectedRow = medicineTable.getSelectedRow();
                         if (selectedRow != -1) {
                             handleMedicineTableRowSelection(selectedRow);
-                        }
-                    });
-                } else if (e.getClickCount() == 2) {
-                    SwingUtilities.invokeLater(() -> {
-                        int selectedRow = medicineTable.getSelectedRow();
-                        if (selectedRow != -1) {
-                            addSelectedMedicine();
                         }
                     });
                 }
@@ -462,12 +468,17 @@ public class MedicineDialog extends JDialog {
             return;
         }
         int modelRow = medicineTable.convertRowIndexToModel(viewRow);
+
+        isProgrammaticallySettingMedicineNameField = true;
+        medicineNameField.setText(tableModel.getValueAt(modelRow, 1).toString());
+        isProgrammaticallySettingMedicineNameField = false;
+
         medicineCompanyField.setText(tableModel.getValueAt(modelRow, 2).toString());
         medicineDescriptionField.setText(tableModel.getValueAt(modelRow, 3).toString());
         quantityLeftField.setText(tableModel.getValueAt(modelRow, 4).toString());
         UnitComboBox.setSelectedItem(tableModel.getValueAt(modelRow, 5).toString());
         priceField.setText(tableModel.getValueAt(modelRow, 6).toString());
-        medicineNameField.setText(tableModel.getValueAt(modelRow, 1).toString());
+        
         quantitySpinner.setValue(1);
         morningSpinner.setValue(0);
         noonSpinner.setValue(0);

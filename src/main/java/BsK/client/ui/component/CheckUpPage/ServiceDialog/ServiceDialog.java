@@ -39,6 +39,7 @@ public class ServiceDialog extends JDialog {
     private TableColumnModel columnModel;
     private JTable serviceTable;
     private JTable selectedTable;
+    private boolean isProgrammaticallySettingNameField = false;
 
     private String[][] servicePrescription;
     private static final Logger logger = LoggerFactory.getLogger(ServiceDialog.class);
@@ -236,9 +237,21 @@ public class ServiceDialog extends JDialog {
         add(bottomButtonPanel, BorderLayout.SOUTH);
 
         serviceNameField.getDocument().addDocumentListener(new DocumentListener() {
-            public void changedUpdate(DocumentEvent e) { SwingUtilities.invokeLater(() -> filterServiceTable()); }
-            public void removeUpdate(DocumentEvent e) { SwingUtilities.invokeLater(() -> filterServiceTable()); }
-            public void insertUpdate(DocumentEvent e) { SwingUtilities.invokeLater(() -> filterServiceTable()); }
+            public void changedUpdate(DocumentEvent e) { 
+                if (!isProgrammaticallySettingNameField) {
+                    SwingUtilities.invokeLater(() -> filterServiceTable()); 
+                }
+            }
+            public void removeUpdate(DocumentEvent e) { 
+                if (!isProgrammaticallySettingNameField) {
+                    SwingUtilities.invokeLater(() -> filterServiceTable()); 
+                }
+            }
+            public void insertUpdate(DocumentEvent e) { 
+                if (!isProgrammaticallySettingNameField) {
+                    SwingUtilities.invokeLater(() -> filterServiceTable()); 
+                }
+            }
         });
 
         serviceTable.addMouseListener(new MouseAdapter() {
@@ -249,13 +262,6 @@ public class ServiceDialog extends JDialog {
                         int selectedRow = serviceTable.getSelectedRow();
                         if (selectedRow != -1) {
                             handleServiceTableRowSelection(selectedRow);
-                        }
-                    });
-                } else if (e.getClickCount() == 2) {
-                    SwingUtilities.invokeLater(() -> {
-                        int selectedRow = serviceTable.getSelectedRow();
-                        if (selectedRow != -1) {
-                            addSelectedService();
                         }
                     });
                 }
@@ -363,7 +369,11 @@ public class ServiceDialog extends JDialog {
             return;
         }
         int modelRow = serviceTable.convertRowIndexToModel(viewRow);
+        
+        isProgrammaticallySettingNameField = true;
         serviceNameField.setText(tableModel.getValueAt(modelRow, 1).toString());
+        isProgrammaticallySettingNameField = false;
+        
         priceField.setText(tableModel.getValueAt(modelRow, 2).toString());
         quantitySpinner.setValue(1);
         noteField.setText("");
