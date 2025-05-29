@@ -12,6 +12,8 @@ import com.itextpdf.layout.borders.Border;
 import com.itextpdf.layout.element.*;
 import com.itextpdf.layout.element.Image;
 import com.itextpdf.layout.property.UnitValue;
+import com.itextpdf.barcodes.Barcode128;
+import com.itextpdf.kernel.colors.ColorConstants;
 
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.rendering.PDFRenderer;
@@ -210,6 +212,30 @@ public class MedicineInvoice{
                 .setBorder(Border.NO_BORDER).setPaddingLeft(5)); // Reduced padding
         
         document.add(headerTable);
+
+        // --- BARCODE FOR CHECKUP ID ---
+        if (this.id != null && !this.id.isEmpty()) {
+            Barcode128 barcode = new Barcode128(pdfDoc);
+            barcode.setCodeType(Barcode128.CODE128);
+            barcode.setCode(this.id); // Use the checkup ID for the barcode
+            barcode.setBarHeight(10f); // Further reduced barcode height (from 15f)
+            barcode.setX(0.5f); // Further reduce narrow bar width (from 0.6f)
+            barcode.setN(1.5f); 
+            barcode.setFont(null); 
+            
+            Image barcodeImage = new Image(barcode.createFormXObject(ColorConstants.BLACK, ColorConstants.BLACK, pdfDoc));
+            barcodeImage.setWidth(UnitValue.createPercentValue(15)); // Further reduced width (from 20%)
+            barcodeImage.setHorizontalAlignment(com.itextpdf.layout.property.HorizontalAlignment.CENTER);
+            barcodeImage.setMarginTop(1); // Further reduced space above barcode
+            barcodeImage.setMarginBottom(1); // Further reduced space below barcode
+            document.add(barcodeImage);
+
+            Paragraph idText = new Paragraph(this.id)
+                    .setFont(font).setFontSize(5) // Further reduced font size for ID text
+                    .setTextAlignment(com.itextpdf.layout.property.TextAlignment.CENTER)
+                    .setMarginBottom(2); // Further reduced margin for the ID text
+            document.add(idText);
+        }
 
         // --- INVOICE TITLE ---
         Paragraph titleParagraph = new Paragraph("TOA THUỐC")
