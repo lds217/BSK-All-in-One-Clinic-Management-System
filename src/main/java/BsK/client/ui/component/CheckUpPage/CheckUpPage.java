@@ -26,6 +26,7 @@ import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
 import javax.swing.border.TitledBorder;
+import javax.swing.border.Border;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeModel;
@@ -73,6 +74,7 @@ public class CheckUpPage extends JPanel {
     private JComboBox<String> callRoomComboBox;
     private JButton callPatientButton;
     private JLabel callingStatusLabel;
+    private JLabel activeNavItem = null; // To keep track of the active navigation item
 
     private QueueViewPage tvQueueFrame;
 
@@ -157,49 +159,99 @@ public class CheckUpPage extends JPanel {
 
         JPanel navItemsPanel = new JPanel();
         navItemsPanel.setBackground(new Color(63, 81, 181));
-        navItemsPanel.setLayout(new FlowLayout(FlowLayout.LEFT, 20, 10)); 
+        navItemsPanel.setLayout(new FlowLayout(FlowLayout.LEFT, 30, 15)); // Increased vgap to 15
         navItemsPanel.setAlignmentY(Component.CENTER_ALIGNMENT); 
 
-        String[] navBarItems = {"Thống kê", "Thăm khám", "Dữ liệu", "Kho", "Người dùng", "Thông tin"};
-        String[] destination = {"DashboardPage", "CheckUpPage", "PatientDataPage", "InventoryPage", "UserPage", "InfoPage"};
+        String[] navBarItems = {"Thống kê", "Thăm khám", "Dữ liệu", "Kho", "Thanh toán", "Người dùng", "Thông tin"};
+        String[] destination = {"DashboardPage", "CheckUpPage", "PatientDataPage", "InventoryPage", "CheckoutPage", "UserPage", "InfoPage"};
+        String[] iconFiles = {"dashboard.png", "health-check.png", "database.png", "warehouse.png", "cashier-machine.png", "user.png", "info.png"}; // Icon files corresponding to items
+
+        final Color defaultNavColor = new Color(63, 81, 181); // Base navbar color (transparent items)
+        final Color hoverNavColor = new Color(50, 70, 170); // Darker for hover
+        final Color activeNavColor = new Color(33, 150, 243); // Existing active/click color
+
+        // Define borders
+        final Border defaultNavItemBorder = BorderFactory.createEmptyBorder(12, 15, 12, 15); // Increased top/bottom padding to 12
+        final Border activePageSpecificBorder = BorderFactory.createCompoundBorder(
+                BorderFactory.createMatteBorder(0, 0, 3, 0, activeNavColor), 
+                BorderFactory.createEmptyBorder(12, 15, 9, 15) // Adjusted padding for the border (12 top, 9 bottom to account for 3px border)
+        );
+
         for (int i = 0; i < navBarItems.length; i++) {
-            String item = navBarItems[i];
-            String dest = destination[i];
-            JLabel label = new JLabel(item);
+            final String itemText = navBarItems[i];
+            final String dest = destination[i];
+            String iconFileName = iconFiles[i];
+
+            final JLabel label = new JLabel(itemText);
             label.setForeground(Color.WHITE);
             label.setHorizontalAlignment(SwingConstants.CENTER);
-            label.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)); 
-            label.setFont(new Font("Arial", Font.BOLD, 14));
-            label.setBorder(BorderFactory.createEmptyBorder(7, 15, 10, 15));
+            label.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            label.setFont(new Font("Arial", Font.BOLD, 12));
+            label.setBorder(defaultNavItemBorder); // Apply default padding
+            label.setOpaque(false); // Default is transparent
 
-            if (item.equals("Thăm khám")) {
-                label.setBorder(BorderFactory.createMatteBorder(0, 0, 5, 0, new Color(33, 150, 243))); 
+            try {
+                String iconPath = "src/main/java/BsK/client/ui/assets/icon/" + iconFileName;
+                ImageIcon originalIcon = new ImageIcon(iconPath);
+                Image scaledImage = originalIcon.getImage().getScaledInstance(36, 36, Image.SCALE_SMOOTH); // Icon size 36x36
+                ImageIcon scaledIcon = new ImageIcon(scaledImage);
+                label.setIcon(scaledIcon);
+            } catch (Exception e) {
+                log.error("Error loading icon: {} for nav item: {}", iconFileName, itemText, e);
             }
+
+            label.setVerticalTextPosition(SwingConstants.BOTTOM);
+            label.setHorizontalTextPosition(SwingConstants.CENTER);
+
+            // Initial active state for "Thăm khám"
+            if (itemText.equals("Thăm khám")) {
+                label.setBorder(activePageSpecificBorder);
+                label.setBackground(activeNavColor); // Set background for active
+                label.setOpaque(true);
+                activeNavItem = label; // Set as initially active
+            }
+
             label.addMouseListener(new java.awt.event.MouseAdapter() {
                 @Override
                 public void mouseClicked(java.awt.event.MouseEvent e) {
-                    mainFrame.showPage(dest);
-                    for (Component comp : navItemsPanel.getComponents()) {
-                        JLabel lbl = (JLabel) comp;
-                        lbl.setBackground(null); 
-                        lbl.setOpaque(false); 
+                    if (activeNavItem != null && activeNavItem != label) {
+                        // Reset previous active item
+                        activeNavItem.setBackground(defaultNavColor); // Or null for transparent against navBar
+                        activeNavItem.setOpaque(false);
+                        activeNavItem.setForeground(Color.WHITE);
+                        activeNavItem.setBorder(defaultNavItemBorder); // Reset to default border
                     }
-                    label.setBackground(new Color(33, 150, 243)); 
-                    label.setOpaque(true);
-                    label.setForeground(Color.WHITE); 
+                    
+                    activeNavItem = label;
+                    // Apply active styling
+                    activeNavItem.setBackground(activeNavColor);
+                    activeNavItem.setOpaque(true);
+                    activeNavItem.setForeground(Color.WHITE); // Ensure text is white on active background
+                    if (itemText.equals("Thăm khám")) { // Specific border for "Thăm khám" page
+                        activeNavItem.setBorder(activePageSpecificBorder);
+                    } else {
+                        // For other items, active state might just be the background + default padding
+                        // Or a generic active border if desired. For now, background is the main indicator.
+                        activeNavItem.setBorder(defaultNavItemBorder); // Ensure it has correct padding
+                    }
+                    mainFrame.showPage(dest);
                 }
+
                 @Override
                 public void mouseEntered(java.awt.event.MouseEvent e) {
-                    label.setForeground(new Color(200, 230, 255)); 
-                    label.setBackground(new Color(33, 150, 243)); 
-                    label.setOpaque(true); 
+                    if (label != activeNavItem) {
+                        label.setForeground(new Color(200, 230, 255));
+                        label.setBackground(hoverNavColor);
+                        label.setOpaque(true);
+                    }
                 }
+
                 @Override
                 public void mouseExited(java.awt.event.MouseEvent e) {
-                    if (label.getBackground() != new Color(33, 150, 243)) { 
-                        label.setForeground(Color.WHITE); 
-                        label.setBackground(null); 
-                        label.setOpaque(false); 
+                    if (label != activeNavItem) {
+                        label.setForeground(Color.WHITE);
+                        label.setBackground(defaultNavColor); // Or null
+                        label.setOpaque(false);
                     }
                 }
             });
@@ -254,7 +306,7 @@ public class CheckUpPage extends JPanel {
             }
         });
         navBar.add(welcomeLabel, BorderLayout.EAST);
-        navBar.setPreferredSize(new Dimension(1200, 50));
+        navBar.setPreferredSize(new Dimension(1200, 85)); // Increased preferred height to 85
 
         // Panels
         RoundedPanel leftPanel = new RoundedPanel(20, Color.WHITE, false);
@@ -534,7 +586,7 @@ public class CheckUpPage extends JPanel {
                                     genderComboBox.getSelectedItem().toString(), 
                                     customerAddressField.getText() + ", " + (wardComboBox.getSelectedItem() != null ? wardComboBox.getSelectedItem().toString() : "") + ", " + (districtComboBox.getSelectedItem() != null ? districtComboBox.getSelectedItem().toString() : "") + ", " + (provinceComboBox.getSelectedItem() != null ? provinceComboBox.getSelectedItem().toString() : ""),
                                     doctorComboBox.getSelectedItem().toString(), diagnosisField.getText(),
-                                    notesField.getText(), medicinePrescription); 
+                                    notesField.getText(), medicinePrescription, servicePrescription); 
                             medicineInvoice.createDialog(mainFrame);
                             break;
                         default:
