@@ -43,6 +43,32 @@ import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
 import java.util.Properties;
+import java.awt.image.BufferedImage;
+
+// Imports for new functionality
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import javax.imageio.ImageIO;
+
+// Webcam imports
+import com.github.sarxos.webcam.Webcam;
+import com.github.sarxos.webcam.WebcamDiscoveryEvent;
+import com.github.sarxos.webcam.WebcamDiscoveryListener;
+import com.github.sarxos.webcam.WebcamEvent;
+import com.github.sarxos.webcam.WebcamListener;
+import com.github.sarxos.webcam.WebcamPanel;
+import com.github.sarxos.webcam.WebcamResolution;
+
+// JavaCV imports for video recording
+import org.bytedeco.javacv.FFmpegFrameRecorder;
+import org.bytedeco.javacv.Frame;
+import org.bytedeco.javacv.Java2DFrameConverter;
+import org.bytedeco.javacv.OpenCVFrameConverter;
+import org.bytedeco.opencv.opencv_core.IplImage;
+import static org.bytedeco.opencv.global.opencv_core.cvFlip;
 
 @Slf4j
 public class CheckUpPage extends JPanel {
@@ -87,6 +113,35 @@ public class CheckUpPage extends JPanel {
     private JLabel totalSerCostLabel;
     private JLabel overallTotalCostLabel;
     private static final DecimalFormat df = new DecimalFormat("#,##0");
+
+    // New member variables for Supersonic View
+    private JPanel supersonicViewPanelGlobal;
+    private JPanel imageGalleryPanel; // Displays thumbnails
+    private JScrollPane imageGalleryScrollPane;
+    private JLabel webcamFeedLabel; // Placeholder for webcam feed
+    private JComboBox<String> webcamDeviceComboBox;
+    private JButton takePictureButton;
+    private JButton recordVideoButton;
+    private String currentCheckupIdForMedia;
+    private Path currentCheckupMediaPath;
+    private javax.swing.Timer imageRefreshTimer;
+    private static final String CHECKUP_MEDIA_BASE_DIR = "src/main/resources/image/checkup_media"; // Updated media directory path
+    private static final int THUMBNAIL_WIDTH = 100;
+    private static final int THUMBNAIL_HEIGHT = 100;
+
+    // Webcam-specific variables
+    private Webcam selectedWebcam;
+    private WebcamPanel webcamPanel;
+    private volatile boolean isRecording = false;
+    private Thread recordingThread;
+    private final Object webcamLock = new Object();
+    private JLabel recordingTimeLabel;
+    private long recordingStartTime;
+    private javax.swing.Timer recordingTimer;
+
+    // Video recording components
+    private FFmpegFrameRecorder recorder;
+    private Java2DFrameConverter frameConverter;
 
     boolean returnCell = false;
     public void updateQueue() {
@@ -143,6 +198,18 @@ public class CheckUpPage extends JPanel {
 
     public CheckUpPage(MainFrame mainFrame) {
         setLayout(new BorderLayout());
+
+        // Ensure the base media directory exists
+        try {
+            Files.createDirectories(Paths.get(CHECKUP_MEDIA_BASE_DIR));
+            log.info("Created or verified media directory at: {}", CHECKUP_MEDIA_BASE_DIR);
+        } catch (IOException e) {
+            log.error("Failed to create media directory: {}", e.getMessage(), e);
+            JOptionPane.showMessageDialog(this,
+                "Không thể tạo thư mục lưu trữ media: " + e.getMessage(),
+                "Lỗi Khởi Tạo",
+                JOptionPane.ERROR_MESSAGE);
+        }
 
         ClientHandler.addResponseListener(GetCheckUpQueueResponse.class, checkUpQueueListener);
         ClientHandler.addResponseListener(GetCheckUpQueueUpdateResponse.class, checkUpQueueUpdateListener);
@@ -384,6 +451,24 @@ public class CheckUpPage extends JPanel {
         JScrollPane tableScroll1 = new JScrollPane(table1);
         tableScroll1.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10)); 
         leftPanel.add(tableScroll1, BorderLayout.CENTER);
+
+        // New structure for leftPanel to accommodate Supersonic View
+        leftPanel.setLayout(new BorderLayout()); 
+
+        JPanel queueSectionPanel = new JPanel(new BorderLayout());
+        queueSectionPanel.setOpaque(false); 
+        queueSectionPanel.add(topPanel, BorderLayout.NORTH);
+        queueSectionPanel.add(tableScroll1, BorderLayout.CENTER);
+
+        supersonicViewPanelGlobal = createSupersonicViewPanel(); 
+
+        JSplitPane verticalSplitLeft = new JSplitPane(JSplitPane.VERTICAL_SPLIT, queueSectionPanel, supersonicViewPanelGlobal);
+        verticalSplitLeft.setResizeWeight(0.65); // Queue gets 65% of space initially
+        verticalSplitLeft.setDividerSize(8);
+        verticalSplitLeft.setBorder(BorderFactory.createEmptyBorder()); 
+        verticalSplitLeft.setContinuousLayout(true);
+
+        leftPanel.add(verticalSplitLeft, BorderLayout.CENTER);
 
         // Right Bottom Panel (Details and Actions) - Setup remains similar
         rightBottomPanel.setLayout(new BorderLayout());
@@ -678,9 +763,10 @@ public class CheckUpPage extends JPanel {
         splitPaneRight.setDividerSize(5); 
 
         JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, leftPanel, splitPaneRight);
-        splitPane.setResizeWeight(0.4); 
-        splitPane.setDividerSize(5); 
+        splitPane.setResizeWeight(0.35); // Adjust overall horizontal split
+        splitPane.setDividerSize(8); // Main divider a bit thicker
         splitPane.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10)); 
+        splitPane.setContinuousLayout(true);
 
         add(navBar, BorderLayout.NORTH);
         add(splitPane, BorderLayout.CENTER);
@@ -689,7 +775,7 @@ public class CheckUpPage extends JPanel {
         table1.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
-                if (e.getClickCount() == 2) {
+                if (e.getClickCount() == 1) {
                     SwingUtilities.invokeLater(() -> {
                         int selectedRow = table1.getSelectedRow();
                         if (selectedRow != -1) {
@@ -781,6 +867,34 @@ public class CheckUpPage extends JPanel {
         }
         Patient selectedPatient = patientQueue.get(selectedRowInQueue);
 
+        // == Supersonic View Reset & Setup ==
+        if (imageRefreshTimer != null && imageRefreshTimer.isRunning()) {
+            imageRefreshTimer.stop();
+        }
+        
+        // Clean up webcam resources before switching patients
+        cleanupWebcam();
+        
+        currentCheckupIdForMedia = null;
+        currentCheckupMediaPath = null;
+        if (imageGalleryPanel != null) { // Clear previous images
+            imageGalleryPanel.removeAll();
+            JLabel loadingMsg = new JLabel("Đang tải hình ảnh (nếu có)...");
+            loadingMsg.setFont(new Font("Arial", Font.ITALIC, 12));
+            imageGalleryPanel.add(loadingMsg);
+            imageGalleryPanel.revalidate();
+            imageGalleryPanel.repaint();
+        }
+        
+        // Enable webcam controls for the new patient
+        if (takePictureButton != null) takePictureButton.setEnabled(false);
+        if (recordVideoButton != null) recordVideoButton.setEnabled(false);
+        if (webcamDeviceComboBox != null) webcamDeviceComboBox.setEnabled(false);
+        if (webcamPanel != null) {
+            webcamPanel.start(); // Start webcam preview for new patient
+        }
+        // == End Supersonic View Reset ==
+
         medicinePrescription = new String[0][0];
         servicePrescription = new String[0][0];
         medDialog = null; 
@@ -791,8 +905,14 @@ public class CheckUpPage extends JPanel {
         SimpleDateFormat dateFormat = new SimpleDateFormat("dd/MM/yyyy");
         try {
             Date parsedDate; String dateStr = selectedPatient.getCheckupDate();
-            if (dateStr.matches("\\d+")) parsedDate = new Date(Long.parseLong(dateStr));
-            else parsedDate = dateFormat.parse(dateStr);
+            if (dateStr != null && dateStr.matches("\\d+")) { // Check if string is all digits (timestamp)
+                 parsedDate = new Date(Long.parseLong(dateStr));
+            } else if (dateStr != null && !dateStr.trim().isEmpty()) { // Attempt to parse as dd/MM/yyyy
+                 parsedDate = dateFormat.parse(dateStr);
+            } else {
+                log.error("Invalid date format for checkup date: {}", selectedPatient.getCheckupDate());
+                return;
+            }
             Calendar calendar = Calendar.getInstance(); calendar.setTime(parsedDate);
             datePicker.getModel().setDate(calendar.get(Calendar.YEAR), calendar.get(Calendar.MONTH), calendar.get(Calendar.DAY_OF_MONTH));
             datePicker.getModel().setSelected(true);
@@ -803,14 +923,20 @@ public class CheckUpPage extends JPanel {
 
         try {
             Date parsedDate; String dobStr = selectedPatient.getCustomerDob();
-            if (dobStr.matches("\\d+")) parsedDate = new Date(Long.parseLong(dobStr));
-            else parsedDate = new SimpleDateFormat("dd/MM/yyyy").parse(dobStr);
+            if (dobStr != null && dobStr.matches("\\d+")) { // Timestamp
+                parsedDate = new Date(Long.parseLong(dobStr));
+            } else if (dobStr != null && !dobStr.trim().isEmpty()){ // Date string
+                parsedDate = new SimpleDateFormat("dd/MM/yyyy").parse(dobStr);
+            } else {
+                log.error("Invalid date format for DOB: {}", selectedPatient.getCustomerDob());
+                return;
+            }
             Calendar calendar = Calendar.getInstance(); calendar.setTime(parsedDate);
             dobPicker.getModel().setDate(calendar.get(Calendar.YEAR), calendar.get(Calendar.MONTH), calendar.get(Calendar.DAY_OF_MONTH));
             dobPicker.getModel().setSelected(true);
         } catch (ParseException | NumberFormatException exception) {
              log.error("Invalid date format for DOB: {}", selectedPatient.getCustomerDob(), exception);
-            JOptionPane.showMessageDialog(null, "Định dạng ngày không hợp lệ: " + selectedPatient.getCustomerDob(), "Lỗi định dạng ngày", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(null, "Định dạng ngày không hợp lệ cho ngày sinh: " + selectedPatient.getCustomerDob(), "Lỗi định dạng ngày", JOptionPane.ERROR_MESSAGE);
         }
 
         customerLastNameField.setText(selectedPatient.getCustomerLastName());
@@ -831,8 +957,8 @@ public class CheckUpPage extends JPanel {
 
         String fullAddress = selectedPatient.getCustomerAddress();
         String[] addressParts = fullAddress.split(", ");
-        if (addressParts.length >= 1) customerAddressField.setText(addressParts[0]);
-        else customerAddressField.setText(fullAddress);
+        if (addressParts.length > 0) customerAddressField.setText(addressParts[0]);
+        else if (fullAddress != null) customerAddressField.setText(fullAddress);
         
         if (addressParts.length == 4) {
             String ward = addressParts[1]; String district = addressParts[2]; String province = addressParts[3];
@@ -869,7 +995,47 @@ public class CheckUpPage extends JPanel {
             districtModel.removeAllElements(); districtModel.addElement("Huyện"); districtComboBox.setEnabled(false);
             wardModel.removeAllElements(); wardModel.addElement("Phường"); wardComboBox.setEnabled(false);
         }
-        saved = true; 
+
+        // Setup for Supersonic View media for the NEWLY selected patient
+        currentCheckupIdForMedia = selectedPatient.getCheckupId();
+        if (currentCheckupIdForMedia != null && !currentCheckupIdForMedia.trim().isEmpty()) {
+            ensureMediaDirectoryExists(currentCheckupIdForMedia);
+            currentCheckupMediaPath = Paths.get(CHECKUP_MEDIA_BASE_DIR, currentCheckupIdForMedia.trim());
+            
+            if (Files.exists(currentCheckupMediaPath)) {
+                loadAndDisplayImages(currentCheckupMediaPath); // Load initial images for this patient
+
+                if (imageRefreshTimer != null && !imageRefreshTimer.isRunning()) {
+                    imageRefreshTimer.start(); // Start/restart timer for this patient's media
+                }
+                if (takePictureButton != null) takePictureButton.setEnabled(true);
+                if (recordVideoButton != null) recordVideoButton.setEnabled(true);
+                if (webcamDeviceComboBox != null) webcamDeviceComboBox.setEnabled(true);
+            } else {
+                log.error("Media directory does not exist after creation attempt: {}", currentCheckupMediaPath);
+                JOptionPane.showMessageDialog(this, 
+                    "Không thể truy cập thư mục media cho bệnh nhân này.", 
+                    "Lỗi Thư Mục", 
+                    JOptionPane.ERROR_MESSAGE);
+                currentCheckupMediaPath = null;
+                if (takePictureButton != null) takePictureButton.setEnabled(false);
+                if (recordVideoButton != null) recordVideoButton.setEnabled(false);
+                if (webcamDeviceComboBox != null) webcamDeviceComboBox.setEnabled(false);
+            }
+        } else {
+            log.warn("No Checkup ID available (or it is empty) for media operations for selected patient (Customer ID: {}). Disabling media features.", selectedPatient.getCustomerId());
+            if (takePictureButton != null) takePictureButton.setEnabled(false);
+            if (recordVideoButton != null) recordVideoButton.setEnabled(false);
+            if (webcamDeviceComboBox != null) webcamDeviceComboBox.setEnabled(false);
+            if(imageGalleryPanel != null) {
+                imageGalleryPanel.removeAll();
+                imageGalleryPanel.add(new JLabel("Không có ID khám để hiển thị media."));
+                imageGalleryPanel.revalidate();
+                imageGalleryPanel.repaint();
+            }
+        }
+
+        saved = false; // Data loaded, any change from now on is "unsaved" until save button.
     }
 
     private void handleGetDistrictResponse(GetDistrictResponse response) {
@@ -903,7 +1069,7 @@ public class CheckUpPage extends JPanel {
     }
 
     private  void handleGetDoctorGeneralInfoResponse(GetDoctorGeneralInfoResponse response) {
-        log.info("Received doctor general info (though LocalStorage.doctorsName is typically used)");
+        log.info("Received doctor general info (though LocalStorage.doctorsName is typically used directly)");
     }
 
     private void handleGetCheckUpQueueUpdateResponse(GetCheckUpQueueUpdateResponse response) {
@@ -948,14 +1114,16 @@ public class CheckUpPage extends JPanel {
                         if (patient != null && patientIdToFind.equals(patient.getCheckupId())) {
                             String ho = patient.getCustomerLastName(); String ten = patient.getCustomerFirstName();
                             String customerDob = patient.getCustomerDob(); String namSinh = "N/A";
-                            try {
-                                Date parsedDate;
-                                if (customerDob.matches("\\d+")) parsedDate = new Date(Long.parseLong(customerDob));
-                                else parsedDate = new SimpleDateFormat("dd/MM/yyyy").parse(customerDob);
-                                Calendar calendar = Calendar.getInstance(); calendar.setTime(parsedDate);
-                                namSinh = String.valueOf(calendar.get(Calendar.YEAR));
-                            } catch (ParseException | NumberFormatException e) {
-                                log.error("Error parsing DoB for TV display: {} for patient ID {}", customerDob, patientIdToFind, e);
+                            if (customerDob != null && !customerDob.isEmpty()) {
+                                try {
+                                    Date parsedDate;
+                                    if (customerDob.matches("\\d+")) parsedDate = new Date(Long.parseLong(customerDob)); // Timestamp
+                                    else parsedDate = new SimpleDateFormat("dd/MM/yyyy").parse(customerDob); // Date string
+                                    Calendar calendar = Calendar.getInstance(); calendar.setTime(parsedDate);
+                                    namSinh = String.valueOf(calendar.get(Calendar.YEAR));
+                                } catch (ParseException | NumberFormatException e) {
+                                    log.error("Error parsing DoB for TV display: {} for patient ID {}", customerDob, patientIdToFind, e);
+                                }
                             }
                             patientDisplayInfo = ho + " " + ten + " (" + namSinh + ")";
                             break; 
@@ -1012,6 +1180,618 @@ public class CheckUpPage extends JPanel {
         callingStatusLabel.setText(callingText);
         callingStatusLabel.setForeground(Color.WHITE);
         callingStatusLabel.setBackground(new Color(217, 83, 79)); // Red background for calling
+    }
+
+    private JPanel createSupersonicViewPanel() {
+        JPanel panel = new JPanel(new BorderLayout(5, 5));
+        panel.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createEmptyBorder(5, 0, 0, 0), // Top margin for this section
+                BorderFactory.createTitledBorder(
+                        BorderFactory.createLineBorder(new Color(63, 81, 181), 1, true),
+                        "Siêu âm & Hình ảnh",
+                        TitledBorder.LEADING, TitledBorder.TOP,
+                        new Font("Arial", Font.BOLD, 16), new Color(63, 81, 181))));
+        panel.setMinimumSize(new Dimension(300, 250)); // Ensure it has some minimum height
+        panel.setPreferredSize(new Dimension(450, 300)); // Give it a decent preferred size
+
+        JPanel imageDisplayContainer = createImageDisplayPanel(); // Left side: Image gallery
+        JPanel webcamControlContainer = createWebcamControlPanel(); // Right side: Webcam controls
+
+        JSplitPane supersonicSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, imageDisplayContainer, webcamControlContainer);
+        supersonicSplitPane.setResizeWeight(0.60); // Image gallery gets 60% of the space
+        supersonicSplitPane.setDividerSize(6);
+        supersonicSplitPane.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5)); // Inner padding
+        supersonicSplitPane.setContinuousLayout(true);
+
+        panel.add(supersonicSplitPane, BorderLayout.CENTER);
+
+        // Initialize image refresh timer (if not already)
+        if (imageRefreshTimer == null) {
+            imageRefreshTimer = new javax.swing.Timer(5000, e -> { // Refresh every 5 seconds
+                if (currentCheckupMediaPath != null && Files.exists(currentCheckupMediaPath)) {
+                    loadAndDisplayImages(currentCheckupMediaPath);
+                }
+            });
+            imageRefreshTimer.setRepeats(true);
+        }
+        return panel;
+    }
+
+    private JPanel createImageDisplayPanel() {
+        JPanel panel = new JPanel(new BorderLayout(5, 5));
+        panel.setBorder(BorderFactory.createTitledBorder(
+                BorderFactory.createEtchedBorder(), "Thư viện Hình ảnh",
+                TitledBorder.CENTER, TitledBorder.TOP,
+                new Font("Arial", Font.ITALIC, 14), new Color(50, 50, 50)));
+
+        imageGalleryPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 10)); // Added more spacing
+        imageGalleryPanel.setBackground(Color.WHITE); // Set a background for the gallery
+
+        imageGalleryScrollPane = new JScrollPane(imageGalleryPanel);
+        imageGalleryScrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+        imageGalleryScrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
+        imageGalleryScrollPane.getVerticalScrollBar().setUnitIncrement(16);
+        imageGalleryScrollPane.setBorder(BorderFactory.createLineBorder(Color.LIGHT_GRAY)); // Border for scroll pane
+
+        panel.add(imageGalleryScrollPane, BorderLayout.CENTER);
+        panel.setPreferredSize(new Dimension(250, 0)); // Width preference, height will be determined by split
+        return panel;
+    }
+
+    private JPanel createWebcamControlPanel() {
+        JPanel panel = new JPanel(new BorderLayout(5, 10));
+        panel.setBorder(BorderFactory.createTitledBorder(
+                BorderFactory.createEtchedBorder(), "Điều khiển Webcam",
+                TitledBorder.CENTER, TitledBorder.TOP,
+                new Font("Arial", Font.ITALIC, 14), new Color(50, 50, 50)));
+        panel.setBackground(Color.WHITE);
+
+        // Initialize webcam components - only scan for devices once
+        Webcam.getDiscoveryService().stop(); // Stop automatic discovery
+        
+        List<Webcam> webcams = Webcam.getWebcams();
+        String[] webcamNames = webcams.stream()
+                .map(Webcam::getName)
+                .toArray(String[]::new);
+
+        // Panel for device selection
+        JPanel devicePanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        devicePanel.setOpaque(false);
+        devicePanel.add(new JLabel("Thiết bị:"));
+        webcamDeviceComboBox = new JComboBox<>(webcamNames.length > 0 ? webcamNames : new String[]{"Không tìm thấy webcam"});
+        webcamDeviceComboBox.addActionListener(e -> {
+            String selectedDevice = (String) webcamDeviceComboBox.getSelectedItem();
+            if (selectedDevice != null && !selectedDevice.equals("Không tìm thấy webcam")) {
+                switchWebcam(selectedDevice);
+            }
+        });
+        devicePanel.add(webcamDeviceComboBox);
+
+        // Create webcam panel with default webcam
+        if (!webcams.isEmpty()) {
+            selectedWebcam = webcams.get(0);
+            // Try to set a higher custom resolution
+            Dimension[] resolutions = selectedWebcam.getViewSizes();
+            Dimension bestResolution = WebcamResolution.VGA.getSize();
+            
+            // Find the best resolution that's at least VGA but not too high
+            for (Dimension resolution : resolutions) {
+                if (resolution.width >= 640 && resolution.height >= 480 &&
+                    resolution.width <= 1280 && resolution.height <= 720) {
+                    bestResolution = resolution;
+                    break;
+                }
+            }
+            
+            selectedWebcam.setViewSize(bestResolution);
+            webcamPanel = new WebcamPanel(selectedWebcam, false); // false = don't start automatically
+            webcamPanel.setFPSDisplayed(true);
+            webcamPanel.setPreferredSize(new Dimension(180, 140));
+            webcamPanel.setFitArea(true);
+            webcamPanel.setFPSLimit(30); // Limit FPS to reduce unnecessary updates
+            webcamPanel.start();
+        } else {
+            webcamPanel = null;
+            JLabel noWebcamLabel = new JLabel("Không tìm thấy webcam", SwingConstants.CENTER);
+            noWebcamLabel.setPreferredSize(new Dimension(180, 140));
+            panel.add(noWebcamLabel, BorderLayout.CENTER);
+        }
+
+        if (webcamPanel != null) {
+            panel.add(webcamPanel, BorderLayout.CENTER);
+        }
+
+        // Recording time label
+        recordingTimeLabel = new JLabel("00:00:00", SwingConstants.CENTER);
+        recordingTimeLabel.setFont(new Font("Monospaced", Font.BOLD, 14));
+        recordingTimeLabel.setForeground(Color.RED);
+        recordingTimeLabel.setVisible(false);
+
+        // Initialize recording timer
+        recordingTimer = new javax.swing.Timer(1000, e -> updateRecordingTime());
+
+        // Panel for buttons
+        JPanel buttonPanel = new JPanel(new GridLayout(1, 2, 5, 5)); // Changed to 1 row, 2 columns
+        buttonPanel.setOpaque(false);
+        
+        takePictureButton = new JButton("Chụp ảnh");
+        takePictureButton.setIcon(new ImageIcon("src/main/java/BsK/client/ui/assets/icon/camera.png"));
+        takePictureButton.addActionListener(e -> handleTakePicture());
+        
+        recordVideoButton = new JButton("Quay video");
+        recordVideoButton.setIcon(new ImageIcon("src/main/java/BsK/client/ui/assets/icon/video-camera.png"));
+        recordVideoButton.addActionListener(e -> handleRecordVideo());
+        
+        buttonPanel.add(takePictureButton);
+        buttonPanel.add(recordVideoButton);
+
+        // Layout for webcam controls
+        JPanel southControls = new JPanel(new BorderLayout(5,5));
+        southControls.setOpaque(false);
+        southControls.add(devicePanel, BorderLayout.NORTH);
+        southControls.add(recordingTimeLabel, BorderLayout.CENTER);
+        southControls.add(buttonPanel, BorderLayout.SOUTH);
+        panel.add(southControls, BorderLayout.SOUTH);
+
+        // Initially disable buttons until a patient is selected
+        takePictureButton.setEnabled(false);
+        recordVideoButton.setEnabled(false);
+        webcamDeviceComboBox.setEnabled(false);
+
+        panel.setPreferredSize(new Dimension(200,0));
+        return panel;
+    }
+
+    private void updateRecordingTime() {
+        if (!isRecording) return;
+        
+        long elapsedTime = System.currentTimeMillis() - recordingStartTime;
+        long seconds = (elapsedTime / 1000) % 60;
+        long minutes = (elapsedTime / (1000 * 60)) % 60;
+        long hours = (elapsedTime / (1000 * 60 * 60)) % 24;
+        
+        recordingTimeLabel.setText(String.format("%02d:%02d:%02d", hours, minutes, seconds));
+    }
+
+    private void switchWebcam(String deviceName) {
+        synchronized (webcamLock) {
+            if (selectedWebcam != null && selectedWebcam.isOpen()) {
+                webcamPanel.stop();
+                selectedWebcam.close();
+            }
+
+            // Find webcam from the existing list without triggering new discovery
+            Webcam newWebcam = Webcam.getWebcams().stream()
+                    .filter(webcam -> webcam.getName().equals(deviceName))
+                    .findFirst()
+                    .orElse(null);
+
+            if (newWebcam != null) {
+                selectedWebcam = newWebcam;
+                // Try to set a higher custom resolution
+                Dimension[] resolutions = selectedWebcam.getViewSizes();
+                Dimension bestResolution = WebcamResolution.VGA.getSize();
+                
+                // Find the best resolution that's at least VGA but not too high
+                for (Dimension resolution : resolutions) {
+                    if (resolution.width >= 640 && resolution.height >= 480 &&
+                        resolution.width <= 1280 && resolution.height <= 720) {
+                        bestResolution = resolution;
+                        break;
+                    }
+                }
+                
+                selectedWebcam.setViewSize(bestResolution);
+                
+                // Remove old webcam panel
+                if (webcamPanel != null && webcamPanel.getParent() != null) {
+                    Container parent = webcamPanel.getParent();
+                    parent.remove(webcamPanel);
+                    
+                    // Create and add new webcam panel
+                    webcamPanel = new WebcamPanel(selectedWebcam, false); // false = don't start automatically
+                    webcamPanel.setFPSDisplayed(true);
+                    webcamPanel.setPreferredSize(new Dimension(180, 140));
+                    webcamPanel.setFitArea(true);
+                    parent.add(webcamPanel, BorderLayout.CENTER);
+                    parent.revalidate();
+                    parent.repaint();
+                    webcamPanel.start();
+                }
+            }
+        }
+    }
+
+    private void handleTakePicture() {
+        if (currentCheckupMediaPath == null) {
+            JOptionPane.showMessageDialog(this, "Vui lòng chọn một lượt khám để lưu ảnh.", "Chưa chọn lượt khám", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        synchronized (webcamLock) {
+            if (selectedWebcam == null || !selectedWebcam.isOpen()) {
+                JOptionPane.showMessageDialog(this, "Webcam không khả dụng.", "Lỗi Webcam", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
+            String fileName = "IMG_" + currentCheckupIdForMedia + "_" + timestamp + ".png";
+            Path filePath = currentCheckupMediaPath.resolve(fileName);
+
+            try {
+                BufferedImage image = selectedWebcam.getImage();
+                if (image != null) {
+                    ImageIO.write(image, "PNG", filePath.toFile());
+                    log.info("Picture taken and saved at: {}", filePath);
+                    JOptionPane.showMessageDialog(this,
+                            "Đã chụp và lưu ảnh thành công tại:\n" + filePath.toString(),
+                            "Chụp ảnh thành công", JOptionPane.INFORMATION_MESSAGE);
+                    loadAndDisplayImages(currentCheckupMediaPath);
+                } else {
+                    throw new IOException("Không thể lấy ảnh từ webcam");
+                }
+            } catch (IOException ex) {
+                log.error("Error capturing/saving image: {}", filePath, ex);
+                JOptionPane.showMessageDialog(this, 
+                    "Lỗi khi chụp/lưu ảnh: " + ex.getMessage(), 
+                    "Lỗi Chụp Ảnh", 
+                    JOptionPane.ERROR_MESSAGE);
+            }
+        }
+    }
+
+    private void handleRecordVideo() {
+        if (currentCheckupMediaPath == null) {
+            JOptionPane.showMessageDialog(this, "Vui lòng chọn một lượt khám để lưu video.", "Chưa chọn lượt khám", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        synchronized (webcamLock) {
+            if (selectedWebcam == null || !selectedWebcam.isOpen()) {
+                JOptionPane.showMessageDialog(this, "Webcam không khả dụng.", "Lỗi Webcam", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            if (!isRecording) {
+                // Start recording
+                String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
+                String fileName = "VID_" + currentCheckupIdForMedia + "_" + timestamp + ".mp4";
+                Path filePath = currentCheckupMediaPath.resolve(fileName);
+
+                try {
+                    // Check if JavaCV classes are available
+                    try {
+                        Class.forName("org.bytedeco.javacv.Java2DFrameConverter");
+                        Class.forName("org.bytedeco.javacv.FFmpegFrameRecorder");
+                    } catch (ClassNotFoundException e) {
+                        throw new Exception("Không tìm thấy thư viện JavaCV cần thiết. Vui lòng kiểm tra cài đặt Maven.", e);
+                    }
+
+                    // Initialize frame converter
+                    frameConverter = new Java2DFrameConverter();
+
+                    // Get webcam's actual frame rate
+                    double webcamFPS = selectedWebcam.getFPS();
+                    // If webcam doesn't report FPS or reports an invalid value, default to 15
+                    if (webcamFPS <= 0 || Double.isNaN(webcamFPS)) {
+                        webcamFPS = 15.0;
+                    }
+                    
+                    // Set output FPS to match capture rate but use PTS multiplier for slower playback
+                    final double captureRate = webcamFPS;
+
+                    // Initialize the recorder with optimized settings
+                    try {
+                        Dimension size = selectedWebcam.getViewSize();
+                        recorder = new FFmpegFrameRecorder(filePath.toString(), size.width, size.height);
+                        
+                        // Video format and codec settings
+                        recorder.setVideoCodec(org.bytedeco.ffmpeg.global.avcodec.AV_CODEC_ID_H264);
+                        recorder.setFormat("mp4");
+                        recorder.setFrameRate(captureRate);
+                        recorder.setVideoQuality(1);
+                        
+                        // Pixel format and color space settings
+                        recorder.setPixelFormat(org.bytedeco.ffmpeg.global.avutil.AV_PIX_FMT_YUV420P);
+                        
+                        // Encoding settings for better performance
+                        recorder.setVideoOption("preset", "medium");
+                        recorder.setVideoOption("tune", "zerolatency");
+                        recorder.setVideoOption("crf", "23");
+                        
+                        // Buffer size settings - increased for smoother recording
+                        recorder.setVideoOption("bufsize", "5000k");
+                        recorder.setVideoOption("maxrate", "5000k");
+                        
+                        // Add filter to slow down playback by 3x
+                        recorder.setVideoOption("vf", "setpts=3.0*PTS");
+                        
+                        recorder.start();
+                    } catch (Exception e) {
+                        throw new Exception("Lỗi khởi tạo FFmpeg recorder: " + e.getMessage(), e);
+                    }
+
+                    recordingThread = new Thread(() -> {
+                        try {
+                            recordingStartTime = System.currentTimeMillis();
+                            long frameInterval = (long) (1000.0 / captureRate); // Time between frames in ms
+                            long lastFrameTime = System.currentTimeMillis();
+                            long frameCount = 0;
+                            long startTime = System.currentTimeMillis();
+
+                            while (isRecording) {
+                                if (selectedWebcam.isOpen()) {
+                                    long currentTime = System.currentTimeMillis();
+                                    long elapsedTime = currentTime - lastFrameTime;
+
+                                    if (elapsedTime >= frameInterval) {
+                                        BufferedImage image = selectedWebcam.getImage();
+                                        if (image != null) {
+                                            try {
+                                                // Convert color space from BGR to RGB
+                                                BufferedImage rgbImage = new BufferedImage(
+                                                    image.getWidth(), image.getHeight(), 
+                                                    BufferedImage.TYPE_3BYTE_BGR);
+                                                
+                                                Graphics2D g = rgbImage.createGraphics();
+                                                g.drawImage(image, 0, 0, null);
+                                                g.dispose();
+
+                                                Frame frame = frameConverter.convert(rgbImage);
+                                                recorder.record(frame);
+                                                
+                                                frameCount++;
+                                                lastFrameTime = currentTime;
+
+                                                // Calculate actual FPS every 30 frames
+                                                if (frameCount % 30 == 0) {
+                                                    long duration = System.currentTimeMillis() - startTime;
+                                                    double actualFPS = (frameCount * 1000.0) / duration;
+                                                    log.debug("Actual recording FPS: {}", String.format("%.2f", actualFPS));
+                                                }
+                                            } catch (Exception e) {
+                                                throw new Exception("Lỗi ghi frame: " + e.getMessage(), e);
+                                            }
+                                        }
+                                    } else {
+                                        // Sleep for a shorter time to be more responsive
+                                        Thread.sleep(Math.max(1, frameInterval - elapsedTime));
+                                    }
+                                } else {
+                                    Thread.sleep(100);
+                                }
+                            }
+                        } catch (Exception e) {
+                            log.error("Error during video recording: {}", e.getMessage(), e);
+                            SwingUtilities.invokeLater(() -> {
+                                JOptionPane.showMessageDialog(CheckUpPage.this,
+                                    "Lỗi trong quá trình ghi video: " + e.getMessage(),
+                                    "Lỗi Ghi Video",
+                                    JOptionPane.ERROR_MESSAGE);
+                                stopRecording();
+                            });
+                        }
+                    }, "VideoRecordingThread");
+
+                    recordingThread.setPriority(Thread.MAX_PRIORITY);
+
+                    isRecording = true;
+                    recordVideoButton.setText("Dừng");
+                    recordVideoButton.setBackground(Color.RED);
+                    recordingTimeLabel.setVisible(true);
+                    recordingTimeLabel.setForeground(Color.RED);
+                    recordingTimer.start();
+                    recordingThread.start();
+
+                    log.info("Started video recording to: {}", filePath);
+                } catch (Exception e) {
+                    log.error("Error initializing video recording: {}", e.getMessage(), e);
+                    String errorMessage = e.getMessage();
+                    if (e.getCause() != null) {
+                        errorMessage += "\n\nChi tiết lỗi: " + e.getCause().getMessage();
+                    }
+                    JOptionPane.showMessageDialog(this,
+                        "Lỗi khởi tạo ghi video:\n" + errorMessage,
+                        "Lỗi Ghi Video",
+                        JOptionPane.ERROR_MESSAGE);
+                    stopRecording();
+                }
+            } else {
+                stopRecording();
+            }
+        }
+    }
+
+    private void stopRecording() {
+        isRecording = false;
+        
+        if (recordingThread != null) {
+            try {
+                recordingThread.join(1000); // Wait for recording thread to finish
+            } catch (InterruptedException e) {
+                log.warn("Interrupted while waiting for recording thread to finish");
+            }
+            recordingThread = null;
+        }
+
+        if (recorder != null) {
+            try {
+                recorder.stop();
+                recorder.release();
+            } catch (Exception e) {
+                log.error("Error stopping recorder: {}", e.getMessage(), e);
+            }
+            recorder = null;
+        }
+
+        if (frameConverter != null) {
+            frameConverter = null;
+        }
+
+        recordVideoButton.setText("Quay video");
+        recordVideoButton.setBackground(null);
+        recordingTimeLabel.setVisible(false);
+        recordingTimer.stop();
+
+        log.info("Stopped video recording");
+    }
+
+    // Add cleanup method for webcam resources
+    private void cleanupWebcam() {
+        synchronized (webcamLock) {
+            if (webcamPanel != null) {
+                webcamPanel.stop();
+            }
+            if (selectedWebcam != null && selectedWebcam.isOpen()) {
+                selectedWebcam.close();
+            }
+            if (isRecording) {
+                isRecording = false;
+                if (recordingThread != null) {
+                    recordingThread.interrupt();
+                    recordingThread = null;
+                }
+            }
+        }
+    }
+
+    private void loadAndDisplayImages(Path mediaPath) {
+        if (imageGalleryPanel == null) {
+            log.warn("imageGalleryPanel is null, cannot load images.");
+            return;
+        }
+        // Ensure this runs on the EDT
+        if (!SwingUtilities.isEventDispatchThread()) {
+            SwingUtilities.invokeLater(() -> loadAndDisplayImages(mediaPath));
+            return;
+        }
+
+        imageGalleryPanel.removeAll(); // Clear existing images
+
+        File mediaFolder = mediaPath.toFile();
+        if (mediaFolder.exists() && mediaFolder.isDirectory()) {
+            File[] files = mediaFolder.listFiles((dir, name) -> {
+                String lowerName = name.toLowerCase();
+                return lowerName.endsWith(".png") ||
+                       lowerName.endsWith(".jpg") ||
+                       lowerName.endsWith(".jpeg") ||
+                       lowerName.endsWith(".gif");
+            });
+
+            if (files != null && files.length > 0) {
+                for (File file : files) {
+                    try {
+                        ImageIcon originalIcon = new ImageIcon(file.toURI().toURL()); // Use URL to avoid caching issues
+                        Image image = originalIcon.getImage();
+
+                        int originalWidth = originalIcon.getIconWidth();
+                        int originalHeight = originalIcon.getIconHeight();
+                        int newWidth = THUMBNAIL_WIDTH;
+                        int newHeight = THUMBNAIL_HEIGHT;
+
+                        if (originalWidth > 0 && originalHeight > 0) {
+                            double aspectRatio = (double) originalWidth / originalHeight;
+                            if (originalWidth > originalHeight) { // Landscape or square
+                                newHeight = (int) (THUMBNAIL_WIDTH / aspectRatio);
+                            } else { // Portrait
+                                newWidth = (int) (THUMBNAIL_HEIGHT * aspectRatio);
+                            }
+                             // Ensure new dimensions are at least 1x1
+                            newWidth = Math.max(1, newWidth);
+                            newHeight = Math.max(1, newHeight);
+                        } else {
+                             // Fallback for invalid image dimensions
+                            log.warn("Image {} has invalid dimensions ({}x{})", file.getName(), originalWidth, originalHeight);
+                            newWidth = THUMBNAIL_WIDTH / 2; newHeight = THUMBNAIL_HEIGHT / 2;
+                        }
+
+
+                        Image scaledImage = image.getScaledInstance(newWidth, newHeight, Image.SCALE_SMOOTH);
+                        JLabel imageLabel = new JLabel(new ImageIcon(scaledImage));
+                        imageLabel.setToolTipText(file.getName() + " (" + originalWidth + "x" + originalHeight + ")");
+                        imageLabel.setBorder(BorderFactory.createLineBorder(Color.DARK_GRAY));
+                        // Set fixed size for the label to ensure FlowLayout behaves
+                        imageLabel.setPreferredSize(new Dimension(THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT));
+                        imageLabel.setHorizontalAlignment(SwingConstants.CENTER);
+                        imageLabel.setVerticalAlignment(SwingConstants.CENTER);
+
+                        imageGalleryPanel.add(imageLabel);
+                    } catch (Exception ex) {
+                        log.error("Error loading image thumbnail: {}", file.getAbsolutePath(), ex);
+                        JLabel errorLabel = new JLabel("<html><center>Lỗi ảnh<br>" + file.getName().substring(0, Math.min(file.getName().length(),10)) + "...</center></html>");
+                        errorLabel.setPreferredSize(new Dimension(THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT));
+                        errorLabel.setHorizontalAlignment(SwingConstants.CENTER);
+                        errorLabel.setOpaque(true);
+                        errorLabel.setForeground(Color.RED);
+                        errorLabel.setBackground(Color.LIGHT_GRAY);
+                        imageGalleryPanel.add(errorLabel);
+                    }
+                }
+            } else {
+                JLabel noImagesLabel = new JLabel("Không có hình ảnh trong thư mục.");
+                noImagesLabel.setFont(new Font("Arial", Font.ITALIC, 12));
+                noImagesLabel.setHorizontalAlignment(SwingConstants.CENTER);
+                // Make label take up some space if gallery is empty
+                noImagesLabel.setPreferredSize(new Dimension(imageGalleryScrollPane.getViewport().getWidth() - 20 > 0 ? imageGalleryScrollPane.getViewport().getWidth() - 20 : 150, THUMBNAIL_HEIGHT));
+                imageGalleryPanel.add(noImagesLabel);
+            }
+        } else {
+            JLabel noFolderLabel = new JLabel("Thư mục media không tồn tại hoặc không thể truy cập.");
+            noFolderLabel.setFont(new Font("Arial", Font.ITALIC, 12));
+            noFolderLabel.setHorizontalAlignment(SwingConstants.CENTER);
+            noFolderLabel.setPreferredSize(new Dimension(imageGalleryScrollPane.getViewport().getWidth() - 20 > 0 ? imageGalleryScrollPane.getViewport().getWidth() - 20 : 200, THUMBNAIL_HEIGHT));
+            imageGalleryPanel.add(noFolderLabel);
+            log.warn("Media path does not exist or is not a directory: {}", mediaPath);
+        }
+        imageGalleryPanel.revalidate();
+        imageGalleryPanel.repaint();
+    }
+
+    public void cleanup() {
+        // Stop image refresh timer
+        if (imageRefreshTimer != null && imageRefreshTimer.isRunning()) {
+            imageRefreshTimer.stop();
+        }
+        
+        // Clean up webcam resources
+        cleanupWebcam();
+        
+        // Stop webcam discovery service
+        Webcam.getDiscoveryService().stop();
+    }
+
+    @Override
+    public void removeNotify() {
+        stopRecording(); // Ensure recording is stopped when component is removed
+        cleanup();
+        super.removeNotify();
+    }
+
+    private void ensureMediaDirectoryExists(String checkupId) {
+        try {
+            // First ensure base directory exists
+            Path baseDir = Paths.get(CHECKUP_MEDIA_BASE_DIR);
+            if (!Files.exists(baseDir)) {
+                Files.createDirectories(baseDir);
+                log.info("Created base media directory at: {}", baseDir);
+            }
+
+            // Then create patient-specific directory
+            if (checkupId != null && !checkupId.trim().isEmpty()) {
+                Path patientDir = baseDir.resolve(checkupId.trim());
+                if (!Files.exists(patientDir)) {
+                    Files.createDirectories(patientDir);
+                    log.info("Created patient media directory at: {}", patientDir);
+                }
+                return;
+            }
+        } catch (IOException e) {
+            log.error("Error creating media directories for checkup {}: {}", checkupId, e.getMessage(), e);
+            JOptionPane.showMessageDialog(null,
+                "Không thể tạo thư mục lưu trữ media: " + e.getMessage(),
+                "Lỗi Thư Mục",
+                JOptionPane.ERROR_MESSAGE);
+        }
     }
 }
 
