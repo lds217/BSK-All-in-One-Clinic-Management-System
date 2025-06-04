@@ -1477,8 +1477,16 @@ public class CheckUpPage extends JPanel {
                         webcamFPS = 15.0;
                     }
                     
-                    // Set output FPS to match capture rate but use PTS multiplier for slower playback
-                    final double captureRate = webcamFPS;
+                    // captureRate is used by the capture loop logic for polling interval
+                    final double captureRate = webcamFPS; 
+
+                    // If observed playback is 2x faster, the actual sustainable FPS for the recorder
+                    // should be half the reported/assumed FPS.
+                    double recorderFrameRate = webcamFPS / 2.0;
+                    if (recorderFrameRate < 1.0) { // Ensure a minimum frame rate of 1.0
+                        recorderFrameRate = 1.0;
+                    }
+                    log.info("Setting recorder frame rate to: {} (derived from webcam FPS: {})", String.format("%.2f", recorderFrameRate), String.format("%.2f", webcamFPS));
 
                     // Initialize the recorder with optimized settings
                     try {
@@ -1488,7 +1496,8 @@ public class CheckUpPage extends JPanel {
                         // Video format and codec settings
                         recorder.setVideoCodec(org.bytedeco.ffmpeg.global.avcodec.AV_CODEC_ID_H264);
                         recorder.setFormat("mp4");
-                        recorder.setFrameRate(captureRate);
+                        // Use the adjusted effective frame rate for the recorder
+                        recorder.setFrameRate(recorderFrameRate); 
                         recorder.setVideoQuality(1);
                         
                         // Pixel format and color space settings
@@ -1503,9 +1512,7 @@ public class CheckUpPage extends JPanel {
                         recorder.setVideoOption("bufsize", "5000k");
                         recorder.setVideoOption("maxrate", "5000k");
                         
-                        // Add filter to slow down playback by 3x
-                        recorder.setVideoOption("vf", "setpts=3.0*PTS");
-                        
+                        // Remove the speed filter and start recorder
                         recorder.start();
                     } catch (Exception e) {
                         throw new Exception("Lỗi khởi tạo FFmpeg recorder: " + e.getMessage(), e);
@@ -1514,7 +1521,9 @@ public class CheckUpPage extends JPanel {
                     recordingThread = new Thread(() -> {
                         try {
                             recordingStartTime = System.currentTimeMillis();
-                            long frameInterval = (long) (1000.0 / captureRate); // Time between frames in ms
+                            final long videoStartTimeNanos = System.nanoTime(); // For precise frame timestamps
+                            // Use captureRate (original webcamFPS) for the loop's polling interval calculation
+                            long frameInterval = (long) (1000.0 / captureRate); 
                             long lastFrameTime = System.currentTimeMillis();
                             long frameCount = 0;
                             long startTime = System.currentTimeMillis();
@@ -1538,6 +1547,8 @@ public class CheckUpPage extends JPanel {
                                                 g.dispose();
 
                                                 Frame frame = frameConverter.convert(rgbImage);
+                                                // Set explicit timestamp in microseconds
+                                                frame.timestamp = (System.nanoTime() - videoStartTimeNanos) / 1000L;
                                                 recorder.record(frame);
                                                 
                                                 frameCount++;

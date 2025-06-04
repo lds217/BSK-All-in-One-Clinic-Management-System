@@ -122,3 +122,14 @@ buildNumber.properties
 # JDT-specific (Eclipse Java Development Tools)
 .classpath
 src/main/resources/database/BSK.db
+src/main/resources/image/checkup_media/13/VID_13_20250604_115233.mp4
+src/main/resources/image/checkup_media/13/VID_13_20250604_115540.mp4
+src/main/resources/image/checkup_media/15/VID_15_20250604_115942.mp4
+src/main/resources/image/checkup_media/32/IMG_32_20250604_112118.png
+src/main/resources/image/checkup_media/32/IMG_32_20250604_112120.png
+src/main/resources/image/checkup_media/32/IMG_32_20250604_112123.png
+src/main/resources/image/checkup_media/34/IMG_34_20250604_120802.png
+src/main/resources/image/checkup_media/34/VID_34_20250604_120241.mp4
+src/main/resources/image/checkup_media/8/IMG_8_20250604_112523.png
+src/main/resources/image/checkup_media/8/IMG_8_20250604_112526.png
+src/main/resources/image/checkup_media/8/VID_8_20250604_115008.mp4
