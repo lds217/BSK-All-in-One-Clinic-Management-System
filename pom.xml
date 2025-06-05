@@ -12,6 +12,12 @@
     <exec.mainClass>BsK.LdS_BsK</exec.mainClass>
   </properties>
   <build>
+    <!-- <resources>
+      <resource>
+        <directory>src/main/resources</directory>
+        <filtering>false</filtering>
+      </resource>
+    </resources> -->
     <plugins>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
@@ -41,17 +47,35 @@
         <version>3.7.1</version>
         <executions>
           <execution>
+            <!-- <id>server-jar</id>
             <configuration>
               <archive>
                 <manifest>
-                  <mainClass>
-                    BsK.server.Server
-                  </mainClass>
+                  <mainClass>BsK.server.Server</mainClass>
                 </manifest>
               </archive>
               <descriptorRefs>
                 <descriptorRef>jar-with-dependencies</descriptorRef>
               </descriptorRefs>
+              <finalName>bsk-server</finalName>
+            </configuration>
+            <goals>
+              <goal>single</goal>
+            </goals>
+            <phase>package</phase>
+          </execution>
+          <execution>
+            <id>client-jar</id> -->
+            <configuration>
+              <archive>
+                <manifest>
+                  <mainClass>BsK.client.Client</mainClass>
+                </manifest>
+              </archive>
+              <descriptorRefs>
+                <descriptorRef>jar-with-dependencies</descriptorRef>
+              </descriptorRefs>
+              <!-- <finalName>bsk-client</finalName> -->
             </configuration>
             <goals>
               <goal>single</goal>
@@ -60,6 +84,57 @@
           </execution>
         </executions>
       </plugin>
+      <!-- <plugin>
+        <groupId>com.akathist.maven.plugins.launch4j</groupId>
+        <artifactId>launch4j-maven-plugin</artifactId>
+        <version>2.4.1</version>
+        <executions>
+          <execution>
+            <id>server-exe</id>
+            <phase>package</phase>
+            <goals>
+              <goal>launch4j</goal>
+            </goals>
+            <configuration>
+              <headerType>console</headerType>
+              <outfile>target/BSK-Server.exe</outfile>
+              <jar>target/bsk-server-jar-with-dependencies.jar</jar>
+              <errTitle>BSK Server Error</errTitle>
+              <classPath>
+                <mainClass>BsK.server.Server</mainClass>
+              </classPath>
+              <jre>
+                <minVersion>21.0.0</minVersion>
+                <path>C:\Program Files\Java\jdk-21</path>
+                <bundledJre64Bit>true</bundledJre64Bit>
+                <bundledJreAsFallback>true</bundledJreAsFallback>
+              </jre>
+            </configuration>
+          </execution>
+          <execution>
+            <id>client-exe</id>
+            <phase>package</phase>
+            <goals>
+              <goal>launch4j</goal>
+            </goals>
+            <configuration>
+              <headerType>gui</headerType>
+              <outfile>target/BSK-Client.exe</outfile>
+              <jar>target/bsk-client-jar-with-dependencies.jar</jar>
+              <errTitle>BSK Client Error</errTitle>
+              <classPath>
+                <mainClass>BsK.client.Client</mainClass>
+              </classPath>
+              <jre>
+                <minVersion>21.0.0</minVersion>
+                <path>C:\Program Files\Java\jdk-21</path>
+                <bundledJre64Bit>true</bundledJre64Bit>
+                <bundledJreAsFallback>true</bundledJreAsFallback>
+              </jre>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin> -->
     </plugins>
   </build>
   <dependencies>

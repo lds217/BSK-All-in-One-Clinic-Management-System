@@ -16,7 +16,13 @@ import io.netty.handler.codec.http.HttpServerCodec;
 import io.netty.handler.codec.http.websocketx.WebSocketServerProtocolHandler;
 import io.netty.handler.stream.ChunkedWriteHandler;
 import io.netty.handler.timeout.IdleStateHandler;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
 import java.net.InetSocketAddress;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
@@ -31,10 +37,29 @@ public class Server {
 
     static {
         try {
-            connection = DriverManager.getConnection("jdbc:sqlite:src/main/resources/database/BSK.db");
-        } catch (SQLException e) {
-            throw new RuntimeException(e);
+            // Get the database from resources and copy to a temp file
+            String dbPath = extractDatabaseFile();
+            connection = DriverManager.getConnection("jdbc:sqlite:" + dbPath);
+            // Delete the temp file when the JVM exits
+            new File(dbPath).deleteOnExit();
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to initialize database", e);
         }
+    }
+
+    private static String extractDatabaseFile() throws IOException {
+        // Create a temp file for the database
+        Path tempFile = Files.createTempFile("BSK", ".db");
+        
+        // Copy the database from resources to the temp file
+        try (InputStream in = Server.class.getResourceAsStream("/database/BSK.db")) {
+            if (in == null) {
+                throw new IOException("Database file not found in resources");
+            }
+            Files.copy(in, tempFile, StandardCopyOption.REPLACE_EXISTING);
+        }
+        
+        return tempFile.toString();
     }
 
     public static Statement statement;
