@@ -22,28 +22,64 @@ import lombok.extern.slf4j.Slf4j;
 import java.io.InputStream;
 import java.util.Properties;
 import java.io.IOException;
+import java.io.File;
+import java.nio.file.Files;
 
 @Slf4j
 public class Client {
     public static void main(String[] args) throws Exception {
         var thread = new Thread(() -> {
             Properties props = new Properties();
-            try (InputStream input = Client.class.getClassLoader().getResourceAsStream("client.properties")) {
-                if (input == null) {
-                    log.error("Sorry, unable to find client.properties");
+            
+            // First try to load from external config file
+            File externalConfig = new File("config/config.properties");
+            if (externalConfig.exists()) {
+                try (var input = Files.newInputStream(externalConfig.toPath())) {
+                    props.load(input);
+                    log.info("Loaded configuration from external file: {}", externalConfig.getAbsolutePath());
+                } catch (IOException e) {
+                    log.error("Error loading external config file", e);
+                }
+            }
+            
+            // If external config failed or doesn't exist, try internal config
+            if (props.isEmpty()) {
+                try (InputStream input = Client.class.getClassLoader().getResourceAsStream("config.properties")) {
+                    if (input == null) {
+                        log.error("Unable to find config.properties");
+                        return;
+                    }
+                    props.load(input);
+                    log.info("Loaded configuration from internal resources");
+                } catch (IOException e) {
+                    log.error("Error loading internal config file", e);
                     return;
                 }
-                props.load(input);
-            } catch (IOException ex) {
-                log.error("Error loading client.properties", ex);
-                return;
             }
 
-            var serverAddress = props.getProperty("server.address", "localhost");
-            var port = Integer.parseInt(props.getProperty("server.port", "1999"));
+            // Get server configuration
+            var serverAddress = props.getProperty("server.address");
+            var portStr = props.getProperty("server.port");
+            
+            // Use defaults if not configured
+            if (serverAddress == null) {
+                serverAddress = "localhost";
+                log.info("Using default server address: {}", serverAddress);
+            } else {
+                log.info("Using configured server address: {}", serverAddress);
+            }
+            
+            int port;
+            if (portStr != null) {
+                port = Integer.parseInt(portStr);
+                log.info("Using configured port: {}", port);
+            } else {
+                port = 1999;
+                log.info("Using default port: {}", port);
+            }
 
-            if ("YOUR_SERVER_IP_ADDRESS".equals(serverAddress)) {
-                log.warn("Please update 'server.address' in src/main/resources/client.properties with the actual server IP address.");
+            if ("127.0.0.1".equals(serverAddress)) {
+                log.info("Connecting to localhost");
             }
             
             URI uri = null;

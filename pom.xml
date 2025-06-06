@@ -12,12 +12,12 @@
     <exec.mainClass>BsK.LdS_BsK</exec.mainClass>
   </properties>
   <build>
-    <!-- <resources>
+    <resources>
       <resource>
         <directory>src/main/resources</directory>
         <filtering>false</filtering>
       </resource>
-    </resources> -->
+    </resources>
     <plugins>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
@@ -47,7 +47,7 @@
         <version>3.7.1</version>
         <executions>
           <execution>
-            <!-- <id>server-jar</id>
+            <id>server-jar</id>
             <configuration>
               <archive>
                 <manifest>
@@ -65,7 +65,7 @@
             <phase>package</phase>
           </execution>
           <execution>
-            <id>client-jar</id> -->
+            <id>client-jar</id>
             <configuration>
               <archive>
                 <manifest>
@@ -75,7 +75,7 @@
               <descriptorRefs>
                 <descriptorRef>jar-with-dependencies</descriptorRef>
               </descriptorRefs>
-              <!-- <finalName>bsk-client</finalName> -->
+              <finalName>bsk-client</finalName>
             </configuration>
             <goals>
               <goal>single</goal>
@@ -84,7 +84,7 @@
           </execution>
         </executions>
       </plugin>
-      <!-- <plugin>
+      <plugin>
         <groupId>com.akathist.maven.plugins.launch4j</groupId>
         <artifactId>launch4j-maven-plugin</artifactId>
         <version>2.4.1</version>
@@ -134,7 +134,7 @@
             </configuration>
           </execution>
         </executions>
-      </plugin> -->
+      </plugin>
     </plugins>
   </build>
   <dependencies>

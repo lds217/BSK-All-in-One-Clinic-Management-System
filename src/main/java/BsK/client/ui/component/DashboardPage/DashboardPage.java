@@ -26,48 +26,71 @@ public class DashboardPage extends JPanel {
         // --- Navigation Bar ---
         JPanel navBar = new JPanel();
         navBar.setLayout(new BoxLayout(navBar, BoxLayout.X_AXIS));
-        navBar.setBackground(new Color(240, 240, 240)); // Bright gray background
-        navBar.setBorder(BorderFactory.createEmptyBorder(20, 25, 20, 25));
+        navBar.setBackground(new Color(240, 240, 240));
+        navBar.setBorder(BorderFactory.createEmptyBorder(10, 25, 10, 25));
 
         // Left section with navigation items
         JPanel navItemsPanel = new JPanel();
         navItemsPanel.setBackground(navBar.getBackground());
         navItemsPanel.setLayout(new FlowLayout(FlowLayout.LEFT, 20, 0));
         navItemsPanel.setAlignmentY(Component.CENTER_ALIGNMENT);
-        navItemsPanel.setPreferredSize(new Dimension(750, 80));
+        navItemsPanel.setPreferredSize(new Dimension(750, 70));
 
         // Center section with current page title
-        JPanel titlePanel = new JPanel();
+        JPanel titlePanel = new JPanel(new GridBagLayout());
         titlePanel.setBackground(navBar.getBackground());
-        titlePanel.setLayout(new FlowLayout(FlowLayout.CENTER, 0, 0));
         titlePanel.setAlignmentY(Component.CENTER_ALIGNMENT);
         
         JLabel titleLabel = new JLabel("Thống kê");
         titleLabel.setFont(new Font("Arial", Font.BOLD, 24));
         titleLabel.setForeground(new Color(60, 60, 60));
-        titlePanel.add(titleLabel);
+        titlePanel.add(titleLabel, new GridBagConstraints());
 
         // Right section with user info
-        JPanel userPanel = new JPanel();
+        JPanel userPanel = new JPanel(new GridBagLayout());
         userPanel.setBackground(navBar.getBackground());
-        userPanel.setLayout(new FlowLayout(FlowLayout.RIGHT, 0, 0));
         userPanel.setAlignmentY(Component.CENTER_ALIGNMENT);
-        userPanel.setPreferredSize(new Dimension(200, 80));
+        userPanel.setPreferredSize(new Dimension(200, 70));
+
+        // Add welcome label with user info
+        JPanel welcomePanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        welcomePanel.setBackground(navBar.getBackground());
+        JLabel welcomeLabel = new JLabel("Chào, " + LocalStorage.username);
+        welcomeLabel.setFont(new Font("Arial", Font.BOLD, 14));
+        welcomeLabel.setForeground(new Color(60, 60, 60));
+        welcomeLabel.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        welcomeLabel.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                showUserMenu(welcomeLabel);
+            }
+            @Override
+            public void mouseEntered(MouseEvent e) {
+                welcomeLabel.setForeground(new Color(30, 30, 30));
+            }
+            @Override
+            public void mouseExited(MouseEvent e) {
+                welcomeLabel.setForeground(new Color(60, 60, 60));
+            }
+        });
+        welcomePanel.add(welcomeLabel);
+        userPanel.add(welcomePanel, new GridBagConstraints());
 
         String[] navBarItems = {"Thống kê", "Thăm khám", "Dữ liệu", "Kho", "Thanh toán", "Người dùng", "Thông tin"};
         String[] destination = {"DashboardPage", "CheckUpPage", "PatientDataPage", "InventoryPage", "CheckoutPage", "UserPage", "InfoPage"};
         String[] iconFiles = {"dashboard.png", "health-check.png", "database.png", "warehouse.png", "cashier-machine.png", "user.png", "info.png"};
         Color[] navItemColors = {
-            new Color(64, 169, 255),    // Blue
-            new Color(82, 196, 26),     // Green
-            new Color(250, 173, 20),    // Orange
-            new Color(255, 77, 79),     // Red
-            new Color(114, 46, 209),    // Purple
-            new Color(19, 194, 194),    // Cyan
-            new Color(245, 34, 45)      // Red-Orange
+            new Color(51, 135, 204),    // Darker Blue
+            new Color(66, 157, 21),     // Darker Green
+            new Color(200, 138, 16),    // Darker Orange
+            new Color(204, 62, 63),     // Darker Red
+            new Color(91, 37, 167),     // Darker Purple
+            new Color(15, 155, 155),    // Darker Cyan
+            new Color(196, 27, 36)      // Darker Red-Orange
         };
 
-        final Color defaultTextColor = new Color(255, 255, 255);
+        final Color defaultTextColor = new Color(50, 50, 50);
+        final Color activeTextColor = Color.WHITE;
         final Color shadowColor = new Color(0, 0, 0, 50);
 
         for (int i = 0; i < navBarItems.length; i++) {
@@ -76,15 +99,14 @@ public class DashboardPage extends JPanel {
             String iconFileName = iconFiles[i];
             final Color itemColor = navItemColors[i];
             
-            // Create panel with the item's color as default background
             RoundedPanel itemPanel = new RoundedPanel(15, itemColor.brighter(), true);
             itemPanel.setLayout(new BorderLayout(5, 5));
             itemPanel.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createEmptyBorder(2, 2, 4, 2),
-                BorderFactory.createEmptyBorder(12, 20, 12, 20)
+                BorderFactory.createEmptyBorder(2, 2, 2, 2),
+                BorderFactory.createEmptyBorder(10, 15, 10, 15) // Increased vertical padding from 8 to 10
             ));
             itemPanel.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-            itemPanel.setPreferredSize(new Dimension(130, 80));
+            itemPanel.setPreferredSize(new Dimension(130, 70)); // Increased from 60 to 70
 
             final JLabel label = new JLabel(itemText);
             label.setForeground(defaultTextColor);
@@ -95,7 +117,7 @@ public class DashboardPage extends JPanel {
             try {
                 String iconPath = "src/main/java/BsK/client/ui/assets/icon/" + iconFileName;
                 ImageIcon originalIcon = new ImageIcon(iconPath);
-                Image scaledImage = originalIcon.getImage().getScaledInstance(32, 32, Image.SCALE_SMOOTH);
+                Image scaledImage = originalIcon.getImage().getScaledInstance(30, 30, Image.SCALE_SMOOTH); // Increased from 28 to 30
                 ImageIcon scaledIcon = new ImageIcon(scaledImage);
                 label.setIcon(scaledIcon);
             } catch (Exception e) {
@@ -108,12 +130,12 @@ public class DashboardPage extends JPanel {
 
             if (itemText.equals("Thống kê")) {
                 itemPanel.setBackground(itemColor);
-                // Add a glow effect for selected item
+                label.setForeground(activeTextColor);
                 itemPanel.setBorder(BorderFactory.createCompoundBorder(
-                    BorderFactory.createEmptyBorder(2, 2, 4, 2),
+                    BorderFactory.createEmptyBorder(2, 2, 2, 2),
                     BorderFactory.createCompoundBorder(
-                        BorderFactory.createLineBorder(Color.WHITE, 2),
-                        BorderFactory.createEmptyBorder(10, 18, 10, 18)
+                        BorderFactory.createLineBorder(new Color(255, 255, 255, 200), 2),
+                        BorderFactory.createEmptyBorder(8, 13, 8, 13) // Increased vertical padding
                     )
                 ));
                 activeNavItem = label;
@@ -127,18 +149,19 @@ public class DashboardPage extends JPanel {
                         JPanel prevPanel = (JPanel) activeNavItem.getParent();
                         prevPanel.setBackground(navItemColors[findNavItemIndex(activeNavItem.getText(), navBarItems)].brighter());
                         prevPanel.setBorder(BorderFactory.createCompoundBorder(
-                            BorderFactory.createEmptyBorder(2, 2, 4, 2),
-                            BorderFactory.createEmptyBorder(12, 20, 12, 20)
+                            BorderFactory.createEmptyBorder(2, 2, 2, 2),
+                            BorderFactory.createEmptyBorder(10, 15, 10, 15)
                         ));
+                        activeNavItem.setForeground(defaultTextColor);
                     }
                     activeNavItem = label;
                     itemPanel.setBackground(itemColor);
-                    // Add selection effect with white border
+                    label.setForeground(activeTextColor);
                     itemPanel.setBorder(BorderFactory.createCompoundBorder(
-                        BorderFactory.createEmptyBorder(2, 2, 4, 2),
+                        BorderFactory.createEmptyBorder(2, 2, 2, 2),
                         BorderFactory.createCompoundBorder(
-                            BorderFactory.createLineBorder(Color.WHITE, 2),
-                            BorderFactory.createEmptyBorder(10, 18, 10, 18)
+                            BorderFactory.createLineBorder(new Color(255, 255, 255, 200), 2),
+                            BorderFactory.createEmptyBorder(8, 13, 8, 13)
                         )
                     ));
                     mainFrame.showPage(dest);
@@ -148,12 +171,12 @@ public class DashboardPage extends JPanel {
                 public void mouseEntered(MouseEvent e) {
                     if (label != activeNavItem) {
                         itemPanel.setBackground(itemColor);
-                        // Add hover glow effect
+                        label.setForeground(activeTextColor);
                         itemPanel.setBorder(BorderFactory.createCompoundBorder(
-                            BorderFactory.createEmptyBorder(2, 2, 4, 2),
+                            BorderFactory.createEmptyBorder(2, 2, 2, 2),
                             BorderFactory.createCompoundBorder(
-                                BorderFactory.createLineBorder(Color.WHITE, 1),
-                                BorderFactory.createEmptyBorder(11, 19, 11, 19)
+                                BorderFactory.createLineBorder(new Color(255, 255, 255, 150), 1),
+                                BorderFactory.createEmptyBorder(9, 14, 9, 14)
                             )
                         ));
                     }
@@ -163,9 +186,10 @@ public class DashboardPage extends JPanel {
                 public void mouseExited(MouseEvent e) {
                     if (label != activeNavItem) {
                         itemPanel.setBackground(itemColor.brighter());
+                        label.setForeground(defaultTextColor);
                         itemPanel.setBorder(BorderFactory.createCompoundBorder(
-                            BorderFactory.createEmptyBorder(2, 2, 4, 2),
-                            BorderFactory.createEmptyBorder(12, 20, 12, 20)
+                            BorderFactory.createEmptyBorder(2, 2, 2, 2),
+                            BorderFactory.createEmptyBorder(10, 15, 10, 15)
                         ));
                     }
                 }
@@ -173,54 +197,12 @@ public class DashboardPage extends JPanel {
             navItemsPanel.add(itemPanel);
         }
 
-        // Welcome Label with updated styling
-        RoundedPanel welcomePanel = new RoundedPanel(15, new Color(52, 73, 94), true);
-        welcomePanel.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createEmptyBorder(2, 2, 4, 2),
-            BorderFactory.createEmptyBorder(8, 15, 8, 15) // Smaller padding
-        ));
-        welcomePanel.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        welcomePanel.setPreferredSize(new Dimension(120, 40)); // Smaller size
-
-        JLabel welcomeLabel = new JLabel("Chào, " + LocalStorage.username);
-        welcomeLabel.setForeground(Color.WHITE);
-        welcomeLabel.setFont(new Font("Arial", Font.BOLD, 12)); // Smaller font
-        welcomeLabel.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                if (SwingUtilities.isLeftMouseButton(e)) {
-                    showUserMenu(welcomeLabel);
-                }
-            }
-            @Override
-            public void mouseEntered(MouseEvent e) {
-                welcomePanel.setBackground(new Color(44, 62, 80));
-                welcomePanel.setBorder(BorderFactory.createCompoundBorder(
-                    BorderFactory.createEmptyBorder(2, 2, 4, 2),
-                    BorderFactory.createCompoundBorder(
-                        BorderFactory.createLineBorder(new Color(70, 90, 120), 1),
-                        BorderFactory.createEmptyBorder(7, 14, 7, 14) // Smaller padding
-                    )
-                ));
-            }
-            @Override
-            public void mouseExited(MouseEvent e) {
-                welcomePanel.setBackground(new Color(52, 73, 94));
-                welcomePanel.setBorder(BorderFactory.createCompoundBorder(
-                    BorderFactory.createEmptyBorder(2, 2, 4, 2),
-                    BorderFactory.createEmptyBorder(8, 15, 8, 15) // Smaller padding
-                ));
-            }
-        });
-        welcomePanel.add(welcomeLabel);
-        userPanel.add(welcomePanel);
-
         navBar.add(navItemsPanel);
         navBar.add(Box.createHorizontalGlue());
         navBar.add(titlePanel);
         navBar.add(Box.createHorizontalGlue());
         navBar.add(userPanel);
-        navBar.setPreferredSize(new Dimension(1200, 120)); // Maintain height
+        navBar.setPreferredSize(new Dimension(1200, 90)); // Increased from 80 to 90
 
         add(navBar, BorderLayout.NORTH);
 

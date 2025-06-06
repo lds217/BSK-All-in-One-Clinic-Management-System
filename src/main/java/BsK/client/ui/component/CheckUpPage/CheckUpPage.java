@@ -70,6 +70,12 @@ import org.bytedeco.javacv.OpenCVFrameConverter;
 import org.bytedeco.opencv.opencv_core.IplImage;
 import static org.bytedeco.opencv.global.opencv_core.cvFlip;
 
+// Java imports for concurrent tasks
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+
 @Slf4j
 public class CheckUpPage extends JPanel {
     private MainFrame mainFrame;
@@ -139,6 +145,8 @@ public class CheckUpPage extends JPanel {
     private JLabel recordingTimeLabel;
     private long recordingStartTime;
     private javax.swing.Timer recordingTimer;
+    private boolean isWebcamInitialized = false;
+    private JPanel webcamContainer;
 
     // Video recording components
     private FFmpegFrameRecorder recorder;
@@ -223,48 +231,71 @@ public class CheckUpPage extends JPanel {
         // --- Navigation Bar ---
         JPanel navBar = new JPanel();
         navBar.setLayout(new BoxLayout(navBar, BoxLayout.X_AXIS));
-        navBar.setBackground(new Color(240, 240, 240)); // Bright gray background
-        navBar.setBorder(BorderFactory.createEmptyBorder(20, 25, 20, 25));
+        navBar.setBackground(new Color(240, 240, 240));
+        navBar.setBorder(BorderFactory.createEmptyBorder(10, 25, 10, 25));
 
         // Left section with navigation items
         JPanel navItemsPanel = new JPanel();
         navItemsPanel.setBackground(navBar.getBackground());
         navItemsPanel.setLayout(new FlowLayout(FlowLayout.LEFT, 20, 0));
         navItemsPanel.setAlignmentY(Component.CENTER_ALIGNMENT);
-        navItemsPanel.setPreferredSize(new Dimension(750, 80));
+        navItemsPanel.setPreferredSize(new Dimension(750, 70)); // Increased from 60 to 70
 
         // Center section with current page title
-        JPanel titlePanel = new JPanel();
+        JPanel titlePanel = new JPanel(new GridBagLayout()); // Changed to GridBagLayout for vertical centering
         titlePanel.setBackground(navBar.getBackground());
-        titlePanel.setLayout(new FlowLayout(FlowLayout.CENTER, 0, 0));
         titlePanel.setAlignmentY(Component.CENTER_ALIGNMENT);
         
         JLabel titleLabel = new JLabel("Thăm khám");
         titleLabel.setFont(new Font("Arial", Font.BOLD, 24));
         titleLabel.setForeground(new Color(60, 60, 60));
-        titlePanel.add(titleLabel);
+        titlePanel.add(titleLabel, new GridBagConstraints()); // This will center the label
 
         // Right section with user info
-        JPanel userPanel = new JPanel();
+        JPanel userPanel = new JPanel(new GridBagLayout());
         userPanel.setBackground(navBar.getBackground());
-        userPanel.setLayout(new FlowLayout(FlowLayout.RIGHT, 0, 0));
         userPanel.setAlignmentY(Component.CENTER_ALIGNMENT);
-        userPanel.setPreferredSize(new Dimension(200, 80));
+        userPanel.setPreferredSize(new Dimension(200, 70));
+
+        // Add welcome label with user info
+        JPanel welcomePanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        welcomePanel.setBackground(navBar.getBackground());
+        JLabel welcomeLabel = new JLabel("Chào, " + LocalStorage.username);
+        welcomeLabel.setFont(new Font("Arial", Font.BOLD, 14));
+        welcomeLabel.setForeground(new Color(60, 60, 60));
+        welcomeLabel.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        welcomeLabel.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                showUserMenu(welcomeLabel);
+            }
+            @Override
+            public void mouseEntered(MouseEvent e) {
+                welcomeLabel.setForeground(new Color(30, 30, 30));
+            }
+            @Override
+            public void mouseExited(MouseEvent e) {
+                welcomeLabel.setForeground(new Color(60, 60, 60));
+            }
+        });
+        welcomePanel.add(welcomeLabel);
+        userPanel.add(welcomePanel, new GridBagConstraints());
 
         String[] navBarItems = {"Thống kê", "Thăm khám", "Dữ liệu", "Kho", "Thanh toán", "Người dùng", "Thông tin"};
         String[] destination = {"DashboardPage", "CheckUpPage", "PatientDataPage", "InventoryPage", "CheckoutPage", "UserPage", "InfoPage"};
         String[] iconFiles = {"dashboard.png", "health-check.png", "database.png", "warehouse.png", "cashier-machine.png", "user.png", "info.png"};
         Color[] navItemColors = {
-            new Color(64, 169, 255),    // Blue
-            new Color(82, 196, 26),     // Green
-            new Color(250, 173, 20),    // Orange
-            new Color(255, 77, 79),     // Red
-            new Color(114, 46, 209),    // Purple
-            new Color(19, 194, 194),    // Cyan
-            new Color(245, 34, 45)      // Red-Orange
+            new Color(51, 135, 204),    // Darker Blue
+            new Color(66, 157, 21),     // Darker Green
+            new Color(200, 138, 16),    // Darker Orange
+            new Color(204, 62, 63),     // Darker Red
+            new Color(91, 37, 167),     // Darker Purple
+            new Color(15, 155, 155),    // Darker Cyan
+            new Color(196, 27, 36)      // Darker Red-Orange
         };
 
-        final Color defaultTextColor = new Color(255, 255, 255);
+        final Color defaultTextColor = new Color(50, 50, 50);
+        final Color activeTextColor = Color.WHITE;
         final Color shadowColor = new Color(0, 0, 0, 50);
 
         for (int i = 0; i < navBarItems.length; i++) {
@@ -273,15 +304,14 @@ public class CheckUpPage extends JPanel {
             String iconFileName = iconFiles[i];
             final Color itemColor = navItemColors[i];
             
-            // Create panel with the item's color as default background
             RoundedPanel itemPanel = new RoundedPanel(15, itemColor.brighter(), true);
             itemPanel.setLayout(new BorderLayout(5, 5));
             itemPanel.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createEmptyBorder(2, 2, 4, 2),
-                BorderFactory.createEmptyBorder(12, 20, 12, 20)
+                BorderFactory.createEmptyBorder(2, 2, 2, 2),
+                BorderFactory.createEmptyBorder(10, 15, 10, 15) // Increased vertical padding from 8 to 10
             ));
             itemPanel.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-            itemPanel.setPreferredSize(new Dimension(130, 80));
+            itemPanel.setPreferredSize(new Dimension(130, 70)); // Increased from 60 to 70
 
             final JLabel label = new JLabel(itemText);
             label.setForeground(defaultTextColor);
@@ -292,7 +322,7 @@ public class CheckUpPage extends JPanel {
             try {
                 String iconPath = "src/main/java/BsK/client/ui/assets/icon/" + iconFileName;
                 ImageIcon originalIcon = new ImageIcon(iconPath);
-                Image scaledImage = originalIcon.getImage().getScaledInstance(32, 32, Image.SCALE_SMOOTH);
+                Image scaledImage = originalIcon.getImage().getScaledInstance(30, 30, Image.SCALE_SMOOTH); // Increased from 28 to 30
                 ImageIcon scaledIcon = new ImageIcon(scaledImage);
                 label.setIcon(scaledIcon);
             } catch (Exception e) {
@@ -305,12 +335,12 @@ public class CheckUpPage extends JPanel {
 
             if (itemText.equals("Thăm khám")) {
                 itemPanel.setBackground(itemColor);
-                // Add a glow effect for selected item
+                label.setForeground(activeTextColor);
                 itemPanel.setBorder(BorderFactory.createCompoundBorder(
-                    BorderFactory.createEmptyBorder(2, 2, 4, 2),
+                    BorderFactory.createEmptyBorder(2, 2, 2, 2),
                     BorderFactory.createCompoundBorder(
-                        BorderFactory.createLineBorder(Color.WHITE, 2),
-                        BorderFactory.createEmptyBorder(10, 18, 10, 18)
+                        BorderFactory.createLineBorder(new Color(255, 255, 255, 200), 2),
+                        BorderFactory.createEmptyBorder(8, 13, 8, 13) // Increased vertical padding
                     )
                 ));
                 activeNavItem = label;
@@ -324,18 +354,19 @@ public class CheckUpPage extends JPanel {
                         JPanel prevPanel = (JPanel) activeNavItem.getParent();
                         prevPanel.setBackground(navItemColors[findNavItemIndex(activeNavItem.getText(), navBarItems)].brighter());
                         prevPanel.setBorder(BorderFactory.createCompoundBorder(
-                            BorderFactory.createEmptyBorder(2, 2, 4, 2),
-                            BorderFactory.createEmptyBorder(12, 20, 12, 20)
+                            BorderFactory.createEmptyBorder(2, 2, 2, 2),
+                            BorderFactory.createEmptyBorder(10, 15, 10, 15)
                         ));
+                        activeNavItem.setForeground(defaultTextColor);
                     }
                     activeNavItem = label;
                     itemPanel.setBackground(itemColor);
-                    // Add selection effect with white border
+                    label.setForeground(activeTextColor);
                     itemPanel.setBorder(BorderFactory.createCompoundBorder(
-                        BorderFactory.createEmptyBorder(2, 2, 4, 2),
+                        BorderFactory.createEmptyBorder(2, 2, 2, 2),
                         BorderFactory.createCompoundBorder(
-                            BorderFactory.createLineBorder(Color.WHITE, 2),
-                            BorderFactory.createEmptyBorder(10, 18, 10, 18)
+                            BorderFactory.createLineBorder(new Color(255, 255, 255, 200), 2),
+                            BorderFactory.createEmptyBorder(8, 13, 8, 13)
                         )
                     ));
                     mainFrame.showPage(dest);
@@ -345,12 +376,12 @@ public class CheckUpPage extends JPanel {
                 public void mouseEntered(MouseEvent e) {
                     if (label != activeNavItem) {
                         itemPanel.setBackground(itemColor);
-                        // Add hover glow effect
+                        label.setForeground(activeTextColor);
                         itemPanel.setBorder(BorderFactory.createCompoundBorder(
-                            BorderFactory.createEmptyBorder(2, 2, 4, 2),
+                            BorderFactory.createEmptyBorder(2, 2, 2, 2),
                             BorderFactory.createCompoundBorder(
-                                BorderFactory.createLineBorder(Color.WHITE, 1),
-                                BorderFactory.createEmptyBorder(11, 19, 11, 19)
+                                BorderFactory.createLineBorder(new Color(255, 255, 255, 150), 1),
+                                BorderFactory.createEmptyBorder(9, 14, 9, 14)
                             )
                         ));
                     }
@@ -360,9 +391,10 @@ public class CheckUpPage extends JPanel {
                 public void mouseExited(MouseEvent e) {
                     if (label != activeNavItem) {
                         itemPanel.setBackground(itemColor.brighter());
+                        label.setForeground(defaultTextColor);
                         itemPanel.setBorder(BorderFactory.createCompoundBorder(
-                            BorderFactory.createEmptyBorder(2, 2, 4, 2),
-                            BorderFactory.createEmptyBorder(12, 20, 12, 20)
+                            BorderFactory.createEmptyBorder(2, 2, 2, 2),
+                            BorderFactory.createEmptyBorder(10, 15, 10, 15)
                         ));
                     }
                 }
@@ -375,7 +407,7 @@ public class CheckUpPage extends JPanel {
         navBar.add(titlePanel);
         navBar.add(Box.createHorizontalGlue());
         navBar.add(userPanel);
-        navBar.setPreferredSize(new Dimension(1200, 120)); // Maintain height
+        navBar.setPreferredSize(new Dimension(1200, 90)); // Increased from 80 to 90
 
         add(navBar, BorderLayout.NORTH);
 
@@ -875,12 +907,14 @@ public class CheckUpPage extends JPanel {
             imageRefreshTimer.stop();
         }
         
-        // Clean up webcam resources before switching patients
-        cleanupWebcam();
+        // Only stop recording if it's active, don't cleanup webcam
+        if (isRecording) {
+            stopRecording();
+        }
         
         currentCheckupIdForMedia = null;
         currentCheckupMediaPath = null;
-        if (imageGalleryPanel != null) { // Clear previous images
+        if (imageGalleryPanel != null) {
             imageGalleryPanel.removeAll();
             JLabel loadingMsg = new JLabel("Đang tải hình ảnh (nếu có)...");
             loadingMsg.setFont(new Font("Arial", Font.ITALIC, 12));
@@ -1249,60 +1283,44 @@ public class CheckUpPage extends JPanel {
                 new Font("Arial", Font.ITALIC, 14), new Color(50, 50, 50)));
         panel.setBackground(Color.WHITE);
 
-        // Initialize webcam components - only scan for devices once
-        Webcam.getDiscoveryService().stop(); // Stop automatic discovery
-        
+        // Initialize webcam device list - but don't start webcam yet
         List<Webcam> webcams = Webcam.getWebcams();
-        String[] webcamNames = webcams.stream()
-                .map(Webcam::getName)
-                .toArray(String[]::new);
+        String[] webcamNames = new String[webcams.size() + 1];
+        webcamNames[0] = "Chọn thiết bị...";
+        for (int i = 0; i < webcams.size(); i++) {
+            webcamNames[i + 1] = webcams.get(i).getName();
+        }
 
         // Panel for device selection
         JPanel devicePanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         devicePanel.setOpaque(false);
         devicePanel.add(new JLabel("Thiết bị:"));
-        webcamDeviceComboBox = new JComboBox<>(webcamNames.length > 0 ? webcamNames : new String[]{"Không tìm thấy webcam"});
+        webcamDeviceComboBox = new JComboBox<>(webcamNames);
         webcamDeviceComboBox.addActionListener(e -> {
             String selectedDevice = (String) webcamDeviceComboBox.getSelectedItem();
-            if (selectedDevice != null && !selectedDevice.equals("Không tìm thấy webcam")) {
-                switchWebcam(selectedDevice);
+            if (selectedDevice != null && !selectedDevice.equals("Chọn thiết bị...")) {
+                initializeWebcam(selectedDevice);
+            } else {
+                cleanupWebcam();
+                if (webcamContainer != null) {
+                    webcamContainer.removeAll();
+                    JLabel noWebcamLabel = new JLabel("Chọn thiết bị webcam", SwingConstants.CENTER);
+                    noWebcamLabel.setPreferredSize(new Dimension(180, 140));
+                    webcamContainer.add(noWebcamLabel);
+                    webcamContainer.revalidate();
+                    webcamContainer.repaint();
+                }
             }
         });
         devicePanel.add(webcamDeviceComboBox);
 
-        // Create webcam panel with default webcam
-        if (!webcams.isEmpty()) {
-            selectedWebcam = webcams.get(0);
-            // Try to set a higher custom resolution
-            Dimension[] resolutions = selectedWebcam.getViewSizes();
-            Dimension bestResolution = WebcamResolution.VGA.getSize();
-            
-            // Find the best resolution that's at least VGA but not too high
-            for (Dimension resolution : resolutions) {
-                if (resolution.width >= 640 && resolution.height >= 480 &&
-                    resolution.width <= 1280 && resolution.height <= 720) {
-                    bestResolution = resolution;
-                    break;
-                }
-            }
-            
-            selectedWebcam.setViewSize(bestResolution);
-            webcamPanel = new WebcamPanel(selectedWebcam, false); // false = don't start automatically
-            webcamPanel.setFPSDisplayed(true);
-            webcamPanel.setPreferredSize(new Dimension(180, 140));
-            webcamPanel.setFitArea(true);
-            webcamPanel.setFPSLimit(30); // Limit FPS to reduce unnecessary updates
-            webcamPanel.start();
-        } else {
-            webcamPanel = null;
-            JLabel noWebcamLabel = new JLabel("Không tìm thấy webcam", SwingConstants.CENTER);
-            noWebcamLabel.setPreferredSize(new Dimension(180, 140));
-            panel.add(noWebcamLabel, BorderLayout.CENTER);
-        }
-
-        if (webcamPanel != null) {
-            panel.add(webcamPanel, BorderLayout.CENTER);
-        }
+        // Create webcam container panel
+        webcamContainer = new JPanel(new BorderLayout());
+        webcamContainer.setPreferredSize(new Dimension(180, 140));
+        JLabel initialLabel = new JLabel("Chọn thiết bị webcam", SwingConstants.CENTER);
+        initialLabel.setPreferredSize(new Dimension(180, 140));
+        webcamContainer.add(initialLabel, BorderLayout.CENTER);
+        panel.add(webcamContainer, BorderLayout.CENTER);
 
         // Recording time label
         recordingTimeLabel = new JLabel("00:00:00", SwingConstants.CENTER);
@@ -1314,16 +1332,18 @@ public class CheckUpPage extends JPanel {
         recordingTimer = new javax.swing.Timer(1000, e -> updateRecordingTime());
 
         // Panel for buttons
-        JPanel buttonPanel = new JPanel(new GridLayout(1, 2, 5, 5)); // Changed to 1 row, 2 columns
+        JPanel buttonPanel = new JPanel(new GridLayout(1, 2, 5, 5));
         buttonPanel.setOpaque(false);
         
         takePictureButton = new JButton("Chụp ảnh");
         takePictureButton.setIcon(new ImageIcon("src/main/java/BsK/client/ui/assets/icon/camera.png"));
         takePictureButton.addActionListener(e -> handleTakePicture());
+        takePictureButton.setEnabled(false);
         
         recordVideoButton = new JButton("Quay video");
         recordVideoButton.setIcon(new ImageIcon("src/main/java/BsK/client/ui/assets/icon/video-camera.png"));
         recordVideoButton.addActionListener(e -> handleRecordVideo());
+        recordVideoButton.setEnabled(false);
         
         buttonPanel.add(takePictureButton);
         buttonPanel.add(recordVideoButton);
@@ -1336,13 +1356,132 @@ public class CheckUpPage extends JPanel {
         southControls.add(buttonPanel, BorderLayout.SOUTH);
         panel.add(southControls, BorderLayout.SOUTH);
 
-        // Initially disable buttons until a patient is selected
-        takePictureButton.setEnabled(false);
-        recordVideoButton.setEnabled(false);
-        webcamDeviceComboBox.setEnabled(false);
-
         panel.setPreferredSize(new Dimension(200,0));
         return panel;
+    }
+
+    private ExecutorService cleanupExecutor = Executors.newSingleThreadExecutor();
+    private Future<?> cleanupTask;
+
+    private void cleanupWebcam() {
+        synchronized (webcamLock) {
+            if (isRecording) {
+                stopRecording();
+            }
+
+            // Submit cleanup to background thread
+            if (cleanupTask != null && !cleanupTask.isDone()) {
+                cleanupTask.cancel(true);
+            }
+
+            cleanupTask = cleanupExecutor.submit(() -> {
+                try {
+                    if (webcamPanel != null) {
+                        webcamPanel.stop();
+                    }
+                    if (selectedWebcam != null && selectedWebcam.isOpen()) {
+                        selectedWebcam.close();
+                    }
+                } catch (Exception e) {
+                    log.error("Error during webcam cleanup: ", e);
+                } finally {
+                    isWebcamInitialized = false;
+                    selectedWebcam = null;
+                    webcamPanel = null;
+                }
+            });
+        }
+    }
+
+    // Update cleanup method to handle the executor service
+    public void cleanup() {
+        if (imageRefreshTimer != null && imageRefreshTimer.isRunning()) {
+            imageRefreshTimer.stop();
+        }
+        
+        cleanupWebcam();
+        
+        // Stop webcam discovery service
+        Webcam.getDiscoveryService().stop();
+
+        // Shutdown cleanup executor
+        cleanupExecutor.shutdown();
+        try {
+            if (!cleanupExecutor.awaitTermination(500, TimeUnit.MILLISECONDS)) {
+                cleanupExecutor.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            cleanupExecutor.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    private void initializeWebcam(String deviceName) {
+        synchronized (webcamLock) {
+            // Clean up existing webcam if any
+            if (selectedWebcam != null && selectedWebcam.isOpen()) {
+                cleanupWebcam();
+                try {
+                    // Wait briefly for cleanup to complete
+                    if (cleanupTask != null) {
+                        cleanupTask.get(300, TimeUnit.MILLISECONDS);
+                    }
+                } catch (Exception e) {
+                    log.warn("Webcam cleanup interrupted, proceeding with initialization");
+                }
+            }
+
+            // Find the selected webcam
+            Webcam newWebcam = Webcam.getWebcams().stream()
+                    .filter(webcam -> webcam.getName().equals(deviceName))
+                    .findFirst()
+                    .orElse(null);
+
+            if (newWebcam != null) {
+                selectedWebcam = newWebcam;
+                // Set resolution
+                Dimension[] resolutions = selectedWebcam.getViewSizes();
+                Dimension bestResolution = WebcamResolution.VGA.getSize();
+                
+                for (Dimension resolution : resolutions) {
+                    if (resolution.width >= 640 && resolution.height >= 480 &&
+                        resolution.width <= 1280 && resolution.height <= 720) {
+                        bestResolution = resolution;
+                        break;
+                    }
+                }
+
+                try {
+                    selectedWebcam.setViewSize(bestResolution);
+                    selectedWebcam.open(true); // Non-blocking open
+
+                    // Create and add new webcam panel
+                    webcamPanel = new WebcamPanel(selectedWebcam, false);
+                    webcamPanel.setFPSDisplayed(true);
+                    webcamPanel.setPreferredSize(new Dimension(180, 140));
+                    webcamPanel.setFitArea(true);
+                    webcamPanel.setFPSLimit(30);
+
+                    webcamContainer.removeAll();
+                    webcamContainer.add(webcamPanel, BorderLayout.CENTER);
+                    webcamContainer.revalidate();
+                    webcamContainer.repaint();
+
+                    webcamPanel.start();
+                    isWebcamInitialized = true;
+
+                    // Enable buttons
+                    takePictureButton.setEnabled(true);
+                    recordVideoButton.setEnabled(true);
+                } catch (Exception e) {
+                    log.error("Error initializing webcam: ", e);
+                    JOptionPane.showMessageDialog(this,
+                        "Error initializing webcam: " + e.getMessage(),
+                        "Webcam Error",
+                        JOptionPane.ERROR_MESSAGE);
+                }
+            }
+        }
     }
 
     private void updateRecordingTime() {
@@ -1354,55 +1493,6 @@ public class CheckUpPage extends JPanel {
         long hours = (elapsedTime / (1000 * 60 * 60)) % 24;
         
         recordingTimeLabel.setText(String.format("%02d:%02d:%02d", hours, minutes, seconds));
-    }
-
-    private void switchWebcam(String deviceName) {
-        synchronized (webcamLock) {
-            if (selectedWebcam != null && selectedWebcam.isOpen()) {
-                webcamPanel.stop();
-                selectedWebcam.close();
-            }
-
-            // Find webcam from the existing list without triggering new discovery
-            Webcam newWebcam = Webcam.getWebcams().stream()
-                    .filter(webcam -> webcam.getName().equals(deviceName))
-                    .findFirst()
-                    .orElse(null);
-
-            if (newWebcam != null) {
-                selectedWebcam = newWebcam;
-                // Try to set a higher custom resolution
-                Dimension[] resolutions = selectedWebcam.getViewSizes();
-                Dimension bestResolution = WebcamResolution.VGA.getSize();
-                
-                // Find the best resolution that's at least VGA but not too high
-                for (Dimension resolution : resolutions) {
-                    if (resolution.width >= 640 && resolution.height >= 480 &&
-                        resolution.width <= 1280 && resolution.height <= 720) {
-                        bestResolution = resolution;
-                        break;
-                    }
-                }
-                
-                selectedWebcam.setViewSize(bestResolution);
-                
-                // Remove old webcam panel
-                if (webcamPanel != null && webcamPanel.getParent() != null) {
-                    Container parent = webcamPanel.getParent();
-                    parent.remove(webcamPanel);
-                    
-                    // Create and add new webcam panel
-                    webcamPanel = new WebcamPanel(selectedWebcam, false); // false = don't start automatically
-                    webcamPanel.setFPSDisplayed(true);
-                    webcamPanel.setPreferredSize(new Dimension(180, 140));
-                    webcamPanel.setFitArea(true);
-                    parent.add(webcamPanel, BorderLayout.CENTER);
-                    parent.revalidate();
-                    parent.repaint();
-                    webcamPanel.start();
-                }
-            }
-        }
     }
 
     private void handleTakePicture() {
@@ -1650,25 +1740,6 @@ public class CheckUpPage extends JPanel {
         log.info("Stopped video recording");
     }
 
-    // Add cleanup method for webcam resources
-    private void cleanupWebcam() {
-        synchronized (webcamLock) {
-            if (webcamPanel != null) {
-                webcamPanel.stop();
-            }
-            if (selectedWebcam != null && selectedWebcam.isOpen()) {
-                selectedWebcam.close();
-            }
-            if (isRecording) {
-                isRecording = false;
-                if (recordingThread != null) {
-                    recordingThread.interrupt();
-                    recordingThread = null;
-                }
-            }
-        }
-    }
-
     private void loadAndDisplayImages(Path mediaPath) {
         if (imageGalleryPanel == null) {
             log.warn("imageGalleryPanel is null, cannot load images.");
@@ -1759,19 +1830,6 @@ public class CheckUpPage extends JPanel {
         }
         imageGalleryPanel.revalidate();
         imageGalleryPanel.repaint();
-    }
-
-    public void cleanup() {
-        // Stop image refresh timer
-        if (imageRefreshTimer != null && imageRefreshTimer.isRunning()) {
-            imageRefreshTimer.stop();
-        }
-        
-        // Clean up webcam resources
-        cleanupWebcam();
-        
-        // Stop webcam discovery service
-        Webcam.getDiscoveryService().stop();
     }
 
     @Override

@@ -27,23 +27,66 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class Server {
-  private static final int PORT = 1999;
+  private static int PORT;
   public static Connection connection;
 
     static {
         try {
+            // Load configuration
+            Properties props = new Properties();
+            
+            // First try to load from external config file
+            File externalConfig = new File("config/config.properties");
+            if (externalConfig.exists()) {
+                try (var input = Files.newInputStream(externalConfig.toPath())) {
+                    props.load(input);
+                    log.info("Loaded configuration from external file: {}", externalConfig.getAbsolutePath());
+                }
+            } else {
+                // Fall back to internal config
+                try (InputStream input = Server.class.getClassLoader().getResourceAsStream("config.properties")) {
+                    if (input == null) {
+                        log.error("Unable to find config.properties");
+                        throw new RuntimeException("config.properties not found");
+                    }
+                    props.load(input);
+                    log.info("Loaded configuration from internal resources");
+                }
+            }
+            
+            // Get port configuration
+            String portStr = props.getProperty("server.port");
+            String addressStr = props.getProperty("server.address");
+            
+            // Log address configuration
+            if (addressStr != null) {
+                log.info("Server address configured as: {}", addressStr);
+            } else {
+                log.info("No server address configured, clients will need to use the correct address to connect");
+            }
+            
+            // Get port configuration
+            if (portStr != null) {
+                PORT = Integer.parseInt(portStr);
+                log.info("Using configured port: {}", PORT);
+            } else {
+                PORT = 1999;
+                log.info("Using default port: {}", PORT);
+            }
+
             // Get the database from resources and copy to a temp file
             String dbPath = extractDatabaseFile();
             connection = DriverManager.getConnection("jdbc:sqlite:" + dbPath);
             // Delete the temp file when the JVM exits
             new File(dbPath).deleteOnExit();
         } catch (Exception e) {
-            throw new RuntimeException("Failed to initialize database", e);
+            throw new RuntimeException("Failed to initialize server", e);
         }
     }
 
@@ -106,6 +149,9 @@ public class Server {
           ChannelFuture f = bootstrap.bind().sync();
 
           log.info("Server started on port {}", PORT);
+          log.info("To connect, clients should use:");
+          log.info(" - If on same machine: ws://localhost:{} or ws://127.0.0.1:{}", PORT, PORT);
+          log.info(" - If on network: ws://<this-computer's-ip>:{}", PORT);
           f.channel().closeFuture().sync();
         } finally {
           parentGroup.shutdownGracefully();
