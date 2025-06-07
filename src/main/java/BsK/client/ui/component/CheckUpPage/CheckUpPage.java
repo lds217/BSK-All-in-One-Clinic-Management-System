@@ -75,6 +75,15 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import javax.swing.JFrame;
+import javax.swing.JTextPane;
+import javax.swing.JToolBar;
+import javax.swing.text.StyledEditorKit;
+import javax.swing.text.rtf.RTFEditorKit;
+import javax.swing.text.MutableAttributeSet;
+import javax.swing.text.SimpleAttributeSet;
+import javax.swing.text.StyleConstants;
+import javax.swing.colorchooser.JColorChooser;
 
 @Slf4j
 public class CheckUpPage extends JPanel {
@@ -82,8 +91,8 @@ public class CheckUpPage extends JPanel {
     private List<Patient> patientQueue = new ArrayList<>();
     private String[][] rawQueueForTv = new String[][]{};
     private String[][] history;
-    private DefaultTableModel model, historyModel;
-    private JTable table1, historyTable;
+    private DefaultTableModel historyModel;
+    private JTable historyTable;
     private final ResponseListener<GetCheckUpQueueUpdateResponse> checkUpQueueUpdateListener = this::handleGetCheckUpQueueUpdateResponse;
     private final ResponseListener<GetCheckUpQueueResponse> checkUpQueueListener = this::handleGetCheckUpQueueResponse;
     private final ResponseListener<GetCustomerHistoryResponse> customerHistoryListener = this::handleGetCustomerHistoryResponse;
@@ -91,7 +100,8 @@ public class CheckUpPage extends JPanel {
     private final ResponseListener<GetWardResponse> wardResponseListener = this::handleGetWardResponse;
     private final ResponseListener<CallPatientResponse> callPatientResponseListener = this::handleCallPatientResponse;
     private JTextField checkupIdField, customerLastNameField, customerFirstNameField,customerAddressField, customerPhoneField, customerIdField;
-    private JTextArea symptomsField, diagnosisField, notesField;
+    private JTextArea symptomsField, diagnosisField;
+    private JTextPane notesField;
     private JComboBox<String> doctorComboBox, statusComboBox, genderComboBox, provinceComboBox, districtComboBox, wardComboBox, checkupTypeComboBox;
     private JSpinner customerWeightSpinner, customerHeightSpinner;
     private JDatePickerImpl datePicker, dobPicker;
@@ -110,6 +120,7 @@ public class CheckUpPage extends JPanel {
     private JLabel activeNavItem = null; // To keep track of the active navigation item
 
     private QueueViewPage tvQueueFrame;
+    private QueueManagementPage queueManagementPage; // The new queue window
 
     // New UI components for prescription display
     private JPanel prescriptionDisplayPanel;
@@ -226,6 +237,10 @@ public class CheckUpPage extends JPanel {
         ClientHandler.addResponseListener(GetDistrictResponse.class, districtResponseListener);
         ClientHandler.addResponseListener(GetWardResponse.class, wardResponseListener);
         ClientHandler.addResponseListener(CallPatientResponse.class, callPatientResponseListener);
+
+        // Instantiate the new queue page but don't show it yet
+        queueManagementPage = new QueueManagementPage();
+
         updateQueue();
 
         // --- Navigation Bar ---
@@ -411,28 +426,21 @@ public class CheckUpPage extends JPanel {
 
         add(navBar, BorderLayout.NORTH);
 
-        // Panels
-        RoundedPanel leftPanel = new RoundedPanel(20, Color.WHITE, false);
-        RoundedPanel rightTopPanel = new RoundedPanel(20, Color.WHITE, false); // History Panel
-        prescriptionDisplayPanel = new JPanel(new BorderLayout(5,5)); // New Prescription Panel
-        RoundedPanel rightBottomPanel = new RoundedPanel(20, Color.WHITE, false); // Details/Actions Panel
+        // --- Central Control Panel (New) ---
+        JPanel controlPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 15, 10));
+        controlPanel.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
+        controlPanel.setBackground(Color.WHITE);
 
-        JPanel topPanel = new JPanel(new BorderLayout());
-        JLabel titleText1 = new JLabel();
-        titleText1.setText("Danh sách chờ khám");
-        titleText1.setFont(new Font("Arial", Font.BOLD, 16));
-        titleText1.setBackground(Color.WHITE);
-        titleText1.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
-
-        callingStatusLabel = new JLabel(" ", SwingConstants.CENTER);
-        callingStatusLabel.setFont(new Font("Arial", Font.BOLD, 15));
-        callingStatusLabel.setForeground(new Color(0, 100, 0));
-        callingStatusLabel.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createLineBorder(Color.LIGHT_GRAY),
-            BorderFactory.createEmptyBorder(5, 10, 5, 10)
-        ));
-        callingStatusLabel.setOpaque(true);
-        callingStatusLabel.setBackground(new Color(230, 255, 230));
+        JButton openQueueButton = new JButton("Danh sách chờ");
+        openQueueButton.setBackground(new Color(255, 152, 0)); // Amber
+        openQueueButton.setForeground(Color.WHITE);
+        openQueueButton.setFocusPainted(false);
+        openQueueButton.setBorder(BorderFactory.createEmptyBorder(10, 15, 10, 15));
+        openQueueButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        openQueueButton.addActionListener(e -> {
+            queueManagementPage.setVisible(true);
+            queueManagementPage.toFront();
+        });
 
         JButton tvQueueButton = new JButton("Màn hình chờ TV");
         tvQueueButton.setBackground(new Color(0, 150, 136));
@@ -450,66 +458,45 @@ public class CheckUpPage extends JPanel {
             tvQueueFrame.setVisible(true);
         });
 
-        JButton rightButton = new JButton("  THÊM BN  ");
-        rightButton.setBackground(new Color(63, 81, 181));
-        rightButton.setForeground(Color.WHITE);
-        rightButton.setFocusPainted(false);
-        rightButton.setBorder(BorderFactory.createEmptyBorder(10, 20, 10, 20)); 
-        rightButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        rightButton.addActionListener(e -> {
+        JButton addPatientButton = new JButton("  THÊM BN  ");
+        addPatientButton.setBackground(new Color(63, 81, 181));
+        addPatientButton.setForeground(Color.WHITE);
+        addPatientButton.setFocusPainted(false);
+        addPatientButton.setBorder(BorderFactory.createEmptyBorder(10, 20, 10, 20));
+        addPatientButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        addPatientButton.addActionListener(e -> {
             addDialog = new AddDialog(mainFrame);
             addDialog.setVisible(true);
             updateUpdateQueue();
         });
 
-        topPanel.add(titleText1, BorderLayout.WEST);
-        topPanel.add(callingStatusLabel, BorderLayout.CENTER);
-        JPanel buttonPanelEast = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        buttonPanelEast.setOpaque(false); 
-        buttonPanelEast.add(tvQueueButton);
-        buttonPanelEast.add(rightButton);
-        topPanel.add(buttonPanelEast, BorderLayout.EAST);
+        controlPanel.add(openQueueButton);
+        controlPanel.add(tvQueueButton);
+        controlPanel.add(addPatientButton);
 
-        leftPanel.setLayout(new BorderLayout());
-        leftPanel.add(topPanel, BorderLayout.NORTH);
-        leftPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 10));
+        // --- Status Label ---
+        callingStatusLabel = new JLabel(" ", SwingConstants.CENTER);
+        callingStatusLabel.setFont(new Font("Arial", Font.BOLD, 13));
+        callingStatusLabel.setForeground(new Color(0, 100, 0));
+        callingStatusLabel.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(Color.LIGHT_GRAY),
+            BorderFactory.createEmptyBorder(2, 10, 2, 10)
+        ));
+        callingStatusLabel.setOpaque(true);
+        callingStatusLabel.setBackground(new Color(230, 255, 230));
 
-        String[] columns = {"Mã khám bệnh", "Ngày Tháng", "Họ", "Tên", "Bác Sĩ", "Loại khám"};
-        model = new DefaultTableModel(preprocessPatientDataForTable(this.patientQueue), columns) {
-            @Override
-            public boolean isCellEditable(int row, int column) { return false; }
-        };
-        table1 = new JTable(model);
-        table1.setPreferredScrollableViewportSize(new Dimension(400, 200));
-        table1.getTableHeader().setFont(new Font("Arial", Font.BOLD, 14));
-        table1.setFont(new Font("Arial", Font.PLAIN, 12));
-        table1.setRowHeight(25);
-        JScrollPane tableScroll1 = new JScrollPane(table1);
-        tableScroll1.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10)); 
-        leftPanel.add(tableScroll1, BorderLayout.CENTER);
+        // --- Main UI Panels ---
+        // These are the main building blocks for the new layout
+        RoundedPanel rightTopPanel = new RoundedPanel(20, Color.WHITE, false); // History Panel
+        prescriptionDisplayPanel = new JPanel(new BorderLayout(5,5)); // New Prescription Panel
+        RoundedPanel rightBottomPanel = new RoundedPanel(20, Color.WHITE, false); // Details/Actions Panel
+        JPanel imageGalleryViewPanel = createImageGalleryViewPanel(); // Image Gallery View Panel
+        JPanel webcamControlContainer = createWebcamControlPanel(); // Webcam controls are now separate
 
-        // New structure for leftPanel to accommodate Supersonic View
-        leftPanel.setLayout(new BorderLayout()); 
-
-        JPanel queueSectionPanel = new JPanel(new BorderLayout());
-        queueSectionPanel.setOpaque(false); 
-        queueSectionPanel.add(topPanel, BorderLayout.NORTH);
-        queueSectionPanel.add(tableScroll1, BorderLayout.CENTER);
-
-        supersonicViewPanelGlobal = createSupersonicViewPanel(); 
-
-        JSplitPane verticalSplitLeft = new JSplitPane(JSplitPane.VERTICAL_SPLIT, queueSectionPanel, supersonicViewPanelGlobal);
-        verticalSplitLeft.setResizeWeight(0.65); // Queue gets 65% of space initially
-        verticalSplitLeft.setDividerSize(8);
-        verticalSplitLeft.setBorder(BorderFactory.createEmptyBorder()); 
-        verticalSplitLeft.setContinuousLayout(true);
-
-        leftPanel.add(verticalSplitLeft, BorderLayout.CENTER);
-
-        // Right Bottom Panel (Details and Actions) - Setup remains similar
+        // Configure Details/Actions Panel (now on the left)
         rightBottomPanel.setLayout(new BorderLayout());
         rightBottomPanel.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createEmptyBorder(5, 5, 5, 5), 
+                BorderFactory.createEmptyBorder(5, 5, 5, 5),
                 BorderFactory.createTitledBorder(
                         BorderFactory.createLineBorder(new Color(63, 81, 181), 1, true),
                         "Chi tiết và Thao tác",
@@ -518,213 +505,10 @@ public class CheckUpPage extends JPanel {
                 )
         ));
 
-        JPanel inputPanel = new JPanel();
-        inputPanel.setLayout(new GridBagLayout());
-        GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(5, 5, 5, 5); 
-        gbc.fill = GridBagConstraints.HORIZONTAL;
-
-        JPanel patientInfoInnerPanel = new JPanel(new GridBagLayout());
-        patientInfoInnerPanel.setBorder(BorderFactory.createTitledBorder(
-                BorderFactory.createEtchedBorder(), "Thông tin bệnh nhân",
-                TitledBorder.LEADING, TitledBorder.TOP,
-                new Font("Arial", Font.BOLD, 14), new Color(50, 50, 50)
-        ));
-        GridBagConstraints gbcPatient = new GridBagConstraints();
-        gbcPatient.insets = new Insets(3, 3, 3, 3);
-        gbcPatient.fill = GridBagConstraints.HORIZONTAL;
-
-        gbcPatient.gridwidth = 1; gbcPatient.gridx = 0; gbcPatient.gridy = 0; patientInfoInnerPanel.add(new JLabel("Họ"), gbcPatient);
-        gbcPatient.gridx = 1; customerLastNameField = new JTextField(10); patientInfoInnerPanel.add(customerLastNameField, gbcPatient);
-        gbcPatient.gridx = 2; patientInfoInnerPanel.add(new JLabel("Tên"), gbcPatient);
-        gbcPatient.gridx = 3; customerFirstNameField = new JTextField(10); patientInfoInnerPanel.add(customerFirstNameField, gbcPatient);
-        gbcPatient.gridx = 0; gbcPatient.gridy++; patientInfoInnerPanel.add(new JLabel("Giới tính"), gbcPatient);
-        gbcPatient.gridx = 1; String[] genderOptions = {"Nam", "Nữ"}; genderComboBox = new JComboBox<>(genderOptions); patientInfoInnerPanel.add(genderComboBox, gbcPatient);
-        gbcPatient.gridx = 2; patientInfoInnerPanel.add(new JLabel("Ngày sinh"), gbcPatient);
-        gbcPatient.gridx = 3; UtilDateModel dobModel = new UtilDateModel(); Properties dobProperties = new Properties(); dobProperties.put("text.today", "Hôm nay"); dobProperties.put("text.month", "Tháng"); dobProperties.put("text.year", "Năm"); JDatePanelImpl dobPanel = new JDatePanelImpl(dobModel, dobProperties); dobPicker = new JDatePickerImpl(dobPanel, new DateLabelFormatter()); dobPicker.setPreferredSize(new Dimension(120, 30)); patientInfoInnerPanel.add(dobPicker, gbcPatient);
-        gbcPatient.gridx = 0; gbcPatient.gridy++; patientInfoInnerPanel.add(new JLabel("Địa chỉ"), gbcPatient);
-        gbcPatient.gridx = 1; gbcPatient.gridwidth = 3; customerAddressField = new JTextField(); patientInfoInnerPanel.add(customerAddressField, gbcPatient);
-        gbcPatient.gridy++; gbcPatient.gridx = 1; gbcPatient.gridwidth = 1; provinceComboBox = new JComboBox<>(LocalStorage.provinces); patientInfoInnerPanel.add(provinceComboBox, gbcPatient);
-        gbcPatient.gridx = 2; districtModel = new DefaultComboBoxModel<>(new String[]{"Huyện"}); districtComboBox = new JComboBox<>(districtModel); patientInfoInnerPanel.add(districtComboBox, gbcPatient); districtComboBox.setEnabled(false);
-        gbcPatient.gridx = 3; wardModel = new DefaultComboBoxModel<>(new String[]{"Phường"}); wardComboBox = new JComboBox<>(wardModel); patientInfoInnerPanel.add(wardComboBox, gbcPatient); wardComboBox.setEnabled(false);
-
-        provinceComboBox.addActionListener(e -> {
-            String selectedProvince = (String) provinceComboBox.getSelectedItem();
-            if (selectedProvince != null && !selectedProvince.equals("Tỉnh/Thành phố")) {
-                String provinceId = LocalStorage.provinceToId.get(selectedProvince);
-                if (provinceId != null) {
-                    NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetDistrictRequest(provinceId));
-                    districtComboBox.setEnabled(false); districtModel.removeAllElements(); districtModel.addElement("Đang tải quận/huyện...");
-                    wardComboBox.setEnabled(false); wardModel.removeAllElements(); wardModel.addElement("Phường"); 
-                }
-            } else {
-                districtComboBox.setEnabled(false); districtModel.removeAllElements(); districtModel.addElement("Huyện");
-                wardComboBox.setEnabled(false); wardModel.removeAllElements(); wardModel.addElement("Phường");
-            }
-        });
-        districtComboBox.addActionListener(e -> {
-            String selectedDistrict = (String) districtComboBox.getSelectedItem();
-            if (selectedDistrict != null && LocalStorage.districtToId != null && LocalStorage.districtToId.containsKey(selectedDistrict)) {
-                String districtId = LocalStorage.districtToId.get(selectedDistrict);
-                if (districtId != null) {
-                    NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetWardRequest(districtId));
-                    wardComboBox.setEnabled(false); wardModel.removeAllElements(); wardModel.addElement("Đang tải phường/xã...");
-                }
-            } else {
-                wardComboBox.setEnabled(false); wardModel.removeAllElements(); wardModel.addElement("Phường");
-            }
-        });
-
-        gbcPatient.gridx = 0; gbcPatient.gridy++; patientInfoInnerPanel.add(new JLabel("Mã bệnh nhân"), gbcPatient); 
-        gbcPatient.gridx = 1; customerIdField = new JTextField(10); customerIdField.setEditable(false); patientInfoInnerPanel.add(customerIdField, gbcPatient);
-        gbcPatient.gridx = 2; patientInfoInnerPanel.add(new JLabel("SĐT"), gbcPatient); 
-        gbcPatient.gridx = 3; customerPhoneField = new JTextField(10); patientInfoInnerPanel.add(customerPhoneField, gbcPatient);
-        gbcPatient.gridx = 0; gbcPatient.gridy++; patientInfoInnerPanel.add(new JLabel("Cân nặng (kg)"), gbcPatient);
-        gbcPatient.gridx = 1; SpinnerModel weightModel = new SpinnerNumberModel(60, 0, 300, 0.5); customerWeightSpinner = new JSpinner(weightModel); patientInfoInnerPanel.add(customerWeightSpinner, gbcPatient);
-        gbcPatient.gridx = 2; patientInfoInnerPanel.add(new JLabel("Chiều cao (cm)"), gbcPatient);
-        gbcPatient.gridx = 3; SpinnerModel heightModel = new SpinnerNumberModel(170, 0, 230, 0.5); customerHeightSpinner = new JSpinner(heightModel); patientInfoInnerPanel.add(customerHeightSpinner, gbcPatient);
-        
-        gbc.gridx = 0; gbc.gridy = 0; gbc.gridwidth = 4; gbc.weightx = 1.0; inputPanel.add(patientInfoInnerPanel, gbc); gbc.weightx = 0; 
-
-        JPanel checkupInfoInnerPanel = new JPanel(new GridBagLayout());
-        checkupInfoInnerPanel.setBorder(BorderFactory.createTitledBorder(
-                BorderFactory.createEtchedBorder(), "Thông tin khám bệnh",
-                TitledBorder.LEADING, TitledBorder.TOP,
-                new Font("Arial", Font.BOLD, 14), new Color(50, 50, 50)
-        ));
-        GridBagConstraints gbcCheckup = new GridBagConstraints();
-        gbcCheckup.insets = new Insets(3, 3, 3, 3);
-        gbcCheckup.fill = GridBagConstraints.HORIZONTAL;
-
-        gbcCheckup.gridx = 0; gbcCheckup.gridy = 0; gbcCheckup.gridwidth = 1; gbcCheckup.anchor = GridBagConstraints.NORTHWEST; checkupInfoInnerPanel.add(new JLabel("Mã khám bệnh:"), gbcCheckup);
-        gbcCheckup.gridx = 1; checkupIdField = new JTextField(10); checkupIdField.setEditable(false); checkupInfoInnerPanel.add(checkupIdField, gbcCheckup);
-        UtilDateModel dateModel = new UtilDateModel(); Properties p = new Properties(); p.put("text.today", "Hôm nay"); p.put("text.month", "Tháng"); p.put("text.year", "Năm"); JDatePanelImpl datePanel = new JDatePanelImpl(dateModel, p); datePicker = new JDatePickerImpl(datePanel, new DateLabelFormatter()); datePicker.setPreferredSize(new Dimension(120, 30));
-        gbcCheckup.gridx = 2; checkupInfoInnerPanel.add(new JLabel("Đơn Ngày:"), gbcCheckup);
-        gbcCheckup.gridx = 3; checkupInfoInnerPanel.add(datePicker, gbcCheckup);
-        gbcCheckup.gridwidth = 1; gbcCheckup.gridx = 0; gbcCheckup.gridy++; checkupInfoInnerPanel.add(new JLabel("Bác Sĩ"), gbcCheckup);
-        gbcCheckup.gridwidth = 3; gbcCheckup.gridx = 1; doctorComboBox = new JComboBox<>(LocalStorage.doctorsName != null ? LocalStorage.doctorsName : new String[]{"Đang tải bác sĩ..."}); checkupInfoInnerPanel.add(doctorComboBox, gbcCheckup);
-        gbcCheckup.gridwidth = 1; gbcCheckup.gridx = 0; gbcCheckup.gridy++; checkupInfoInnerPanel.add(new JLabel("Triệu chứng"), gbcCheckup);
-        gbcCheckup.gridwidth = 3; gbcCheckup.gridx = 1; symptomsField = new JTextArea(3, 20); symptomsField.setLineWrap(true); symptomsField.setWrapStyleWord(true); gbcCheckup.weighty = 1.0; gbcCheckup.fill = GridBagConstraints.BOTH; checkupInfoInnerPanel.add(new JScrollPane(symptomsField), gbcCheckup); gbcCheckup.weighty = 0.0; gbcCheckup.fill = GridBagConstraints.HORIZONTAL; 
-        gbcCheckup.gridwidth = 1; gbcCheckup.gridx = 0; gbcCheckup.gridy++; checkupInfoInnerPanel.add(new JLabel("Chẩn đoán"), gbcCheckup);
-        gbcCheckup.gridwidth = 3; gbcCheckup.gridx = 1; diagnosisField = new JTextArea(3, 20); diagnosisField.setLineWrap(true); diagnosisField.setWrapStyleWord(true); gbcCheckup.weighty = 1.0; gbcCheckup.fill = GridBagConstraints.BOTH; checkupInfoInnerPanel.add(new JScrollPane(diagnosisField), gbcCheckup); gbcCheckup.weighty = 0.0; gbcCheckup.fill = GridBagConstraints.HORIZONTAL; 
-        gbcCheckup.gridwidth = 1; gbcCheckup.gridx = 0; gbcCheckup.gridy++; checkupInfoInnerPanel.add(new JLabel("Ghi chú"), gbcCheckup);
-        gbcCheckup.gridwidth = 3; gbcCheckup.gridx = 1; notesField = new JTextArea(3, 20); notesField.setLineWrap(true); notesField.setWrapStyleWord(true); gbcCheckup.weighty = 1.0; gbcCheckup.fill = GridBagConstraints.BOTH; checkupInfoInnerPanel.add(new JScrollPane(notesField), gbcCheckup); gbcCheckup.weighty = 0.0; gbcCheckup.fill = GridBagConstraints.HORIZONTAL; 
-        gbcCheckup.gridwidth = 1; gbcCheckup.gridx = 0; gbcCheckup.gridy++; checkupInfoInnerPanel.add(new JLabel("Trạng thái"), gbcCheckup);
-        gbcCheckup.gridwidth = 1; gbcCheckup.gridx = 1; String[] statusOptions = {"ĐANG KHÁM", "CHỜ KHÁM", "ĐÃ KHÁM"}; statusComboBox = new JComboBox<>(statusOptions); checkupInfoInnerPanel.add(statusComboBox, gbcCheckup);
-        gbcCheckup.gridx = 2; checkupInfoInnerPanel.add(new JLabel("Loại khám"), gbcCheckup);
-        gbcCheckup.gridx = 3; String[] checkupTypeOptions = {"BỆNH", "THAI", "KHÁC"}; checkupTypeComboBox = new JComboBox<>(checkupTypeOptions); checkupInfoInnerPanel.add(checkupTypeComboBox, gbcCheckup);
-        
-        gbc.gridx = 0; gbc.gridy = 1; gbc.gridwidth = 4; gbc.weightx = 1.0; gbc.weighty = 1.0; gbc.insets = new Insets(10, 0, 5, 0); inputPanel.add(checkupInfoInnerPanel, gbc); gbc.weightx = 0; gbc.weighty = 0; gbc.insets = new Insets(5,5,5,5); 
-        
-        gbc.gridwidth = 1; gbc.gridx = 0; gbc.gridy = 2; inputPanel.add(new JLabel("Gọi vào phòng:"), gbc);
-        gbc.gridx = 1; gbc.gridwidth = 1; String[] roomOptions = {"Phòng 1", "Phòng 2", "Phòng 3"}; callRoomComboBox = new JComboBox<>(roomOptions); inputPanel.add(callRoomComboBox, gbc);
-        gbc.gridx = 2; gbc.gridwidth = 2; callPatientButton = new JButton("Gọi bệnh nhân"); callPatientButton.setBackground(new Color(33, 150, 243)); callPatientButton.setForeground(Color.WHITE); callPatientButton.setFocusPainted(false); callPatientButton.addActionListener(e -> handleCallPatient()); inputPanel.add(callPatientButton, gbc);
-        gbc.gridx = 0; gbc.gridy = 3; gbc.gridwidth = 4; JButton freeRoomButton = new JButton("Đánh dấu phòng trống"); freeRoomButton.setBackground(new Color(46, 204, 113)); freeRoomButton.setForeground(Color.WHITE); freeRoomButton.setFocusPainted(false); freeRoomButton.addActionListener(e -> handleFreeRoom()); inputPanel.add(freeRoomButton, gbc);
-
-        JScrollPane inputScroll = new JScrollPane(inputPanel);
-        inputScroll.getVerticalScrollBar().setUnitIncrement(16); 
-        inputScroll.getVerticalScrollBar().setBlockIncrement(64); 
-        inputScroll.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
-        inputScroll.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
-        inputScroll.addMouseWheelListener(e -> {
-            JScrollBar scrollBar = inputScroll.getVerticalScrollBar();
-            int notches = e.getWheelRotation();
-            int currentValue = scrollBar.getValue();
-            int newValue = currentValue + (notches * scrollBar.getUnitIncrement() * 2);
-            scrollBar.setValue(newValue);
-        });
-        rightBottomPanel.add(inputScroll, BorderLayout.CENTER);
-        
-        JPanel iconPanel = new JPanel();
-        iconPanel.setLayout(new GridLayout(1, 5));
-        iconPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10)); 
-        iconPanel.setBackground(Color.WHITE);
-        String[] iconName = {"save", "service", "medicine", "printer"};
-        for (String name : iconName) {
-            ImageIcon originalIcon = new ImageIcon("src/main/java/BsK/client/ui/assets/icon/" + name + ".png");
-            Image scaledImage = originalIcon.getImage().getScaledInstance(32, 32, Image.SCALE_SMOOTH); 
-            ImageIcon scaledIcon = new ImageIcon(scaledImage);
-            JLabel iconLabel = new JLabel(scaledIcon);
-            iconLabel.setHorizontalAlignment(SwingConstants.CENTER);
-            iconLabel.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-            iconLabel.addMouseListener(new MouseAdapter() {
-                @Override
-                public void mouseClicked(MouseEvent e) {
-                    switch (name) {
-                        case "service":
-                            if (checkupIdField.getText().isEmpty()) {
-                                JOptionPane.showMessageDialog(null, "Vui lòng chọn một bệnh nhân từ hàng đợi", "Chưa chọn bệnh nhân", JOptionPane.WARNING_MESSAGE);
-                                return;
-                            }
-                            if(serDialog == null) {
-                                serDialog = new ServiceDialog(mainFrame);
-                            }
-                            serDialog.setVisible(true);
-                            saved = false;
-                            servicePrescription = serDialog.getServicePrescription();
-                            updatePrescriptionTree(); 
-                            log.info("Service prescription: {}", (Object) servicePrescription);
-                            break;
-                        case "save": {
-                            int option = JOptionPane.showOptionDialog(null, "Bạn có muốn lưu các thay đổi?",
-                                    "Lưu thay đổi", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE,
-                                    null, null, null);
-                            if (option == JOptionPane.NO_OPTION) {
-                                return;
-                            }
-                            saved = true;
-                            callingStatusLabel.setText(" ");
-                            callingStatusLabel.setBackground(new Color(230, 255, 230));
-                            callingStatusLabel.setForeground(new Color(0, 100, 0));
-                            // TODO: Add logic to actually save medicinePrescription and servicePrescription with other checkup data
-                            break;
-                        }
-                        case "medicine":
-                            if (checkupIdField.getText().isEmpty()) {
-                                JOptionPane.showMessageDialog(null, "Vui lòng chọn một bệnh nhân từ hàng đợi", "Chưa chọn bệnh nhân", JOptionPane.WARNING_MESSAGE);
-                                return;
-                            }
-                            if(medDialog == null) {
-                                medDialog = new MedicineDialog(mainFrame);
-                            }
-                            medDialog.setVisible(true);
-                            saved = false;
-                            medicinePrescription = medDialog.getMedicinePrescription();
-                            updatePrescriptionTree(); 
-                            log.info("Medicine prescription: {}", (Object) medicinePrescription);
-                            break;
-                        case "printer":
-                             if (checkupIdField.getText().isEmpty()) {
-                                JOptionPane.showMessageDialog(null, "Vui lòng chọn bệnh nhân trước.", "Chưa chọn bệnh nhân", JOptionPane.WARNING_MESSAGE); return;
-                            }
-                            if ((medicinePrescription == null || medicinePrescription.length == 0) && 
-                                (servicePrescription == null || servicePrescription.length == 0)) {
-                                JOptionPane.showMessageDialog(null, "Không có thuốc hoặc dịch vụ để in.", "Không có dữ liệu", JOptionPane.INFORMATION_MESSAGE); return;
-                            }
-                            MedicineInvoice medicineInvoice = new MedicineInvoice(checkupIdField.getText(),
-                                    customerLastNameField.getText() + " " + customerFirstNameField.getText(),
-                                    dobPicker.getJFormattedTextField().getText(), customerPhoneField.getText(),
-                                    genderComboBox.getSelectedItem().toString(), 
-                                    customerAddressField.getText() + ", " + (wardComboBox.getSelectedItem() != null ? wardComboBox.getSelectedItem().toString() : "") + ", " + (districtComboBox.getSelectedItem() != null ? districtComboBox.getSelectedItem().toString() : "") + ", " + (provinceComboBox.getSelectedItem() != null ? provinceComboBox.getSelectedItem().toString() : ""),
-                                    doctorComboBox.getSelectedItem().toString(), diagnosisField.getText(),
-                                    notesField.getText(), medicinePrescription, servicePrescription); 
-                            medicineInvoice.createDialog(mainFrame);
-                            break;
-                        default:
-                            throw new IllegalStateException("Unexpected value: " + name);
-                    }
-                }
-                @Override public void mouseEntered(MouseEvent e) { iconLabel.setBorder(BorderFactory.createLineBorder(Color.BLUE, 2)); }
-                @Override public void mouseExited(MouseEvent e) { iconLabel.setBorder(null); }
-            });
-            iconPanel.add(iconLabel);
-        }
-        rightBottomPanel.add(iconPanel, BorderLayout.SOUTH);
-
-        // Right Top Panel (History)
+        // Configure History Panel (rightTopPanel)
         rightTopPanel.setLayout(new BorderLayout());
         rightTopPanel.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createEmptyBorder(10, 10, 5, 10), 
+                BorderFactory.createEmptyBorder(10, 10, 5, 10),
                 BorderFactory.createTitledBorder(
                         BorderFactory.createLineBorder(new Color(63, 81, 181), 1, true),
                         "Lịch sử khám bệnh",
@@ -739,23 +523,24 @@ public class CheckUpPage extends JPanel {
         historyTable = new JTable(historyModel);
         historyTable.getTableHeader().setFont(new Font("Arial", Font.BOLD, 14));
         historyTable.setFont(new Font("Arial", Font.PLAIN, 12));
-        historyTable.setRowHeight(25); 
+        historyTable.setRowHeight(25);
         historyTable.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
-                if (e.getClickCount() == 1) { 
+                if (e.getClickCount() == 1) {
                     int selectedRow = historyTable.getSelectedRow();
                     // if (selectedRow != -1) { System.out.println("Clicked on history row: " + selectedRow); }
                 }
             }
         });
         JScrollPane tableScroll2 = new JScrollPane(historyTable);
-        tableScroll2.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10)); 
+        tableScroll2.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
         rightTopPanel.add(tableScroll2, BorderLayout.CENTER);
 
-        // Prescription Display Panel Setup
+
+        // Configure Prescription Display Panel (prescriptionDisplayPanel)
         prescriptionDisplayPanel.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createEmptyBorder(5, 10, 5, 10), 
+            BorderFactory.createEmptyBorder(5, 10, 5, 10),
             BorderFactory.createTitledBorder(
                 BorderFactory.createLineBorder(new Color(63, 81, 181), 1, true),
                 "Đơn thuốc và Dịch vụ",
@@ -770,8 +555,8 @@ public class CheckUpPage extends JPanel {
         prescriptionTree.setRowHeight(20);
         JScrollPane treeScrollPane = new JScrollPane(prescriptionTree);
         prescriptionDisplayPanel.add(treeScrollPane, BorderLayout.CENTER);
-        
-        JPanel totalCostPanel = new JPanel(new GridLayout(0,1, 5,5)); 
+
+        JPanel totalCostPanel = new JPanel(new GridLayout(0,1, 5,5));
         totalCostPanel.setBorder(BorderFactory.createEmptyBorder(5,5,5,5));
         totalMedCostLabel = new JLabel("Tổng tiền thuốc: 0 VNĐ");
         totalMedCostLabel.setFont(new Font("Arial", Font.BOLD, 13));
@@ -787,50 +572,764 @@ public class CheckUpPage extends JPanel {
         prescriptionDisplayPanel.add(totalCostPanel, BorderLayout.SOUTH);
         updatePrescriptionTree(); // Initialize tree display
 
-        // Split Panes Configuration
-        UIManager.getDefaults().put("SplitPane.border", BorderFactory.createEmptyBorder());
-        
-        JSplitPane prescriptionAndDetailsPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT, prescriptionDisplayPanel, rightBottomPanel);
-        prescriptionAndDetailsPane.setResizeWeight(0.4); 
-        prescriptionAndDetailsPane.setDividerSize(5);
 
-        JSplitPane splitPaneRight = new JSplitPane(JSplitPane.VERTICAL_SPLIT, rightTopPanel, prescriptionAndDetailsPane);
-        splitPaneRight.setResizeWeight(0.2);
-        splitPaneRight.setDividerSize(5); 
+        // Configure the Details/Actions Panel (rightBottomPanel)
+        rightBottomPanel.setLayout(new BorderLayout());
+        rightBottomPanel.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createEmptyBorder(5, 5, 5, 5),
+                BorderFactory.createTitledBorder(
+                        BorderFactory.createLineBorder(new Color(63, 81, 181), 1, true),
+                        "Chi tiết và Thao tác",
+                        TitledBorder.LEADING, TitledBorder.TOP,
+                        new Font("Arial", Font.BOLD, 16), new Color(63, 81, 181)
+                )
+        ));
 
-        JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, leftPanel, splitPaneRight);
-        splitPane.setResizeWeight(0.35); // Adjust overall horizontal split
-        splitPane.setDividerSize(8); // Main divider a bit thicker
-        splitPane.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10)); 
-        splitPane.setContinuousLayout(true);
+        // Main input panel with BorderLayout
+        JPanel inputPanel = new JPanel(new BorderLayout(10, 10));
+        inputPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
-        add(splitPane, BorderLayout.CENTER);
+        // Patient Info Section (Top)
+        JPanel patientInfoInnerPanel = new JPanel(new GridBagLayout());
+        patientInfoInnerPanel.setBorder(BorderFactory.createTitledBorder(
+                BorderFactory.createEtchedBorder(), "Thông tin bệnh nhân",
+                TitledBorder.LEADING, TitledBorder.TOP,
+                new Font("Arial", Font.BOLD, 16), new Color(50, 50, 50)
+        ));
 
-        table1.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        table1.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                if (e.getClickCount() == 1) {
-                    SwingUtilities.invokeLater(() -> {
-                        int selectedRow = table1.getSelectedRow();
-                        if (selectedRow != -1) {
-                            if (previousSelectedRow == selectedRow && !saved) {
-                                int confirm = JOptionPane.showConfirmDialog(
-                                        CheckUpPage.this,
-                                        "Các thay đổi chưa được lưu. Bạn có chắc chắn muốn chuyển sang bệnh nhân khác không?",
-                                        "Xác nhận chuyển bệnh nhân",
-                                        JOptionPane.YES_NO_OPTION,
-                                        JOptionPane.WARNING_MESSAGE);
-                                if (confirm == JOptionPane.NO_OPTION) {
-                                    return;
-                                }
-                            }
-                            handleRowSelection(selectedRow);
-                        }
-                    });
+        // Set up a larger, more readable font for labels and fields
+        Font labelFont = new Font("Arial", Font.BOLD, 14);
+        Font fieldFont = new Font("Arial", Font.BOLD, 14); // Changed to bold
+
+        GridBagConstraints gbcPatient = new GridBagConstraints();
+        gbcPatient.insets = new Insets(8, 8, 8, 8); // Increased padding
+        gbcPatient.fill = GridBagConstraints.HORIZONTAL;
+        gbcPatient.anchor = GridBagConstraints.WEST;
+
+        // Row 1: Name
+        gbcPatient.gridx = 0; gbcPatient.gridy = 0; gbcPatient.weightx = 0.1;
+        JLabel hoLabel = new JLabel("Họ");
+        hoLabel.setFont(labelFont);
+        patientInfoInnerPanel.add(hoLabel, gbcPatient);
+
+        gbcPatient.gridx = 1; gbcPatient.weightx = 0.4;
+        customerLastNameField = new JTextField(20);
+        customerLastNameField.setFont(fieldFont);
+        patientInfoInnerPanel.add(customerLastNameField, gbcPatient);
+
+        gbcPatient.gridx = 2; gbcPatient.weightx = 0.1;
+        JLabel tenLabel = new JLabel("Tên");
+        tenLabel.setFont(labelFont);
+        patientInfoInnerPanel.add(tenLabel, gbcPatient);
+
+        gbcPatient.gridx = 3; gbcPatient.weightx = 0.4;
+        customerFirstNameField = new JTextField(15);
+        customerFirstNameField.setFont(fieldFont);
+        patientInfoInnerPanel.add(customerFirstNameField, gbcPatient);
+
+        // Row 2: ID and Phone
+        gbcPatient.gridx = 0; gbcPatient.gridy = 1; gbcPatient.weightx = 0.1;
+        JLabel idLabel = new JLabel("Mã BN");
+        idLabel.setFont(labelFont);
+        patientInfoInnerPanel.add(idLabel, gbcPatient);
+
+        gbcPatient.gridx = 1; gbcPatient.weightx = 0.4;
+        customerIdField = new JTextField(15);
+        customerIdField.setFont(fieldFont);
+        customerIdField.setEditable(false);
+        patientInfoInnerPanel.add(customerIdField, gbcPatient);
+
+        // Initialize checkupIdField
+        checkupIdField = new JTextField(15);
+        checkupIdField.setFont(fieldFont);
+        checkupIdField.setEditable(false);
+
+        gbcPatient.gridx = 2; gbcPatient.weightx = 0.1;
+        JLabel phoneLabel = new JLabel("SĐT");
+        phoneLabel.setFont(labelFont);
+        patientInfoInnerPanel.add(phoneLabel, gbcPatient);
+
+        gbcPatient.gridx = 3; gbcPatient.weightx = 0.4;
+        customerPhoneField = new JTextField(15);
+        customerPhoneField.setFont(fieldFont);
+        patientInfoInnerPanel.add(customerPhoneField, gbcPatient);
+
+        // Row 3: Gender and DOB
+        gbcPatient.gridx = 0; gbcPatient.gridy = 2;
+        JLabel genderLabel = new JLabel("Giới tính");
+        genderLabel.setFont(labelFont);
+        patientInfoInnerPanel.add(genderLabel, gbcPatient);
+
+        gbcPatient.gridx = 1;
+        String[] genderOptions = {"Nam", "Nữ"};
+        genderComboBox = new JComboBox<>(genderOptions);
+        genderComboBox.setFont(fieldFont);
+        patientInfoInnerPanel.add(genderComboBox, gbcPatient);
+
+        gbcPatient.gridx = 2;
+        JLabel dobLabel = new JLabel("Ngày sinh");
+        dobLabel.setFont(labelFont);
+        patientInfoInnerPanel.add(dobLabel, gbcPatient);
+
+        gbcPatient.gridx = 3;
+        UtilDateModel dobModel = new UtilDateModel();
+        Properties dobProperties = new Properties();
+        dobProperties.put("text.today", "Hôm nay");
+        dobProperties.put("text.month", "Tháng");
+        dobProperties.put("text.year", "Năm");
+        JDatePanelImpl dobPanel = new JDatePanelImpl(dobModel, dobProperties);
+        dobPicker = new JDatePickerImpl(dobPanel, new DateLabelFormatter());
+        dobPicker.getJFormattedTextField().setFont(fieldFont);
+        patientInfoInnerPanel.add(dobPicker, gbcPatient);
+
+        // Row 4: Weight and Height
+        gbcPatient.gridx = 0; gbcPatient.gridy = 3;
+        JLabel weightLabel = new JLabel("Cân nặng (kg)");
+        weightLabel.setFont(labelFont);
+        patientInfoInnerPanel.add(weightLabel, gbcPatient);
+
+        gbcPatient.gridx = 1;
+        SpinnerModel weightModel = new SpinnerNumberModel(60, 0, 300, 0.5);
+        customerWeightSpinner = new JSpinner(weightModel);
+        customerWeightSpinner.setFont(fieldFont);
+        JComponent weightEditor = customerWeightSpinner.getEditor();
+        if (weightEditor instanceof JSpinner.DefaultEditor) {
+            ((JSpinner.DefaultEditor)weightEditor).getTextField().setFont(fieldFont);
+        }
+        patientInfoInnerPanel.add(customerWeightSpinner, gbcPatient);
+
+        gbcPatient.gridx = 2;
+        JLabel heightLabel = new JLabel("Chiều cao (cm)");
+        heightLabel.setFont(labelFont);
+        patientInfoInnerPanel.add(heightLabel, gbcPatient);
+
+        gbcPatient.gridx = 3;
+        SpinnerModel heightModel = new SpinnerNumberModel(170, 0, 230, 0.5);
+        customerHeightSpinner = new JSpinner(heightModel);
+        customerHeightSpinner.setFont(fieldFont);
+        JComponent heightEditor = customerHeightSpinner.getEditor();
+        if (heightEditor instanceof JSpinner.DefaultEditor) {
+            ((JSpinner.DefaultEditor)heightEditor).getTextField().setFont(fieldFont);
+        }
+        patientInfoInnerPanel.add(customerHeightSpinner, gbcPatient);
+
+        // Row 5: Address (full width)
+        gbcPatient.gridx = 0; gbcPatient.gridy = 4;
+        JLabel addressLabel = new JLabel("Địa chỉ");
+        addressLabel.setFont(labelFont);
+        patientInfoInnerPanel.add(addressLabel, gbcPatient);
+
+        gbcPatient.gridx = 1; gbcPatient.gridwidth = 3;
+        customerAddressField = new JTextField(40);
+        customerAddressField.setFont(fieldFont);
+        patientInfoInnerPanel.add(customerAddressField, gbcPatient);
+
+        // Row 6: Location dropdowns
+        gbcPatient.gridwidth = 1; // Reset gridwidth
+        gbcPatient.gridx = 1; gbcPatient.gridy = 5;
+        provinceComboBox = new JComboBox<>(LocalStorage.provinces);
+        provinceComboBox.setFont(fieldFont);
+        patientInfoInnerPanel.add(provinceComboBox, gbcPatient);
+
+        gbcPatient.gridx = 2;
+        districtModel = new DefaultComboBoxModel<>(new String[]{"Huyện"});
+        districtComboBox = new JComboBox<>(districtModel);
+        districtComboBox.setFont(fieldFont);
+        districtComboBox.setEnabled(false);
+        patientInfoInnerPanel.add(districtComboBox, gbcPatient);
+
+        gbcPatient.gridx = 3;
+        wardModel = new DefaultComboBoxModel<>(new String[]{"Phường"});
+        wardComboBox = new JComboBox<>(wardModel);
+        wardComboBox.setFont(fieldFont);
+        wardComboBox.setEnabled(false);
+        patientInfoInnerPanel.add(wardComboBox, gbcPatient);
+
+        // Add Room Selection Panel
+        JPanel roomControlPanel = new JPanel(new GridBagLayout());
+        roomControlPanel.setBorder(BorderFactory.createTitledBorder(
+                BorderFactory.createEtchedBorder(),
+                "Điều khiển phòng khám",
+                TitledBorder.LEADING, TitledBorder.TOP,
+                new Font("Arial", Font.BOLD, 14),
+                new Color(50, 50, 50)
+        ));
+
+        GridBagConstraints gbcRoom = new GridBagConstraints();
+        gbcRoom.insets = new Insets(8, 8, 8, 8);
+        gbcRoom.fill = GridBagConstraints.HORIZONTAL;
+
+        // Room Selection
+        gbcRoom.gridx = 0; gbcRoom.gridy = 0;
+        JLabel roomLabel = new JLabel("Phòng khám:");
+        roomLabel.setFont(labelFont);
+        roomControlPanel.add(roomLabel, gbcRoom);
+
+        gbcRoom.gridx = 1;
+        String[] roomOptions = {"Phòng 1", "Phòng 2", "Phòng 3"};
+        callRoomComboBox = new JComboBox<>(roomOptions);
+        callRoomComboBox.setFont(fieldFont);
+        roomControlPanel.add(callRoomComboBox, gbcRoom);
+
+        // Call Patient Button
+        gbcRoom.gridx = 2;
+        callPatientButton = new JButton("Gọi bệnh nhân");
+        callPatientButton.setFont(fieldFont);
+        callPatientButton.setBackground(new Color(33, 150, 243));
+        callPatientButton.setForeground(Color.WHITE);
+        callPatientButton.setFocusPainted(false);
+        callPatientButton.addActionListener(e -> handleCallPatient());
+        roomControlPanel.add(callPatientButton, gbcRoom);
+
+        // Free Room Button
+        gbcRoom.gridx = 0; gbcRoom.gridy = 1; gbcRoom.gridwidth = 3;
+        JButton freeRoomButton = new JButton("Đánh dấu phòng trống");
+        freeRoomButton.setFont(fieldFont);
+        freeRoomButton.setBackground(new Color(46, 204, 113));
+        freeRoomButton.setForeground(Color.WHITE);
+        freeRoomButton.setFocusPainted(false);
+        freeRoomButton.addActionListener(e -> handleFreeRoom());
+        roomControlPanel.add(freeRoomButton, gbcRoom);
+
+        // Add room control panel to the bottom of patient info panel
+        gbcPatient.gridx = 0; gbcPatient.gridy = 6; gbcPatient.gridwidth = 4;
+        patientInfoInnerPanel.add(roomControlPanel, gbcPatient);
+
+        // Add back the event listeners
+        provinceComboBox.addActionListener(e -> {
+            String selectedProvince = (String) provinceComboBox.getSelectedItem();
+            if (selectedProvince != null && !selectedProvince.equals("Tỉnh/Thành phố")) {
+                String provinceId = LocalStorage.provinceToId.get(selectedProvince);
+                if (provinceId != null) {
+                    NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetDistrictRequest(provinceId));
+                    districtComboBox.setEnabled(false); 
+                    districtModel.removeAllElements(); 
+                    districtModel.addElement("Đang tải quận/huyện...");
+                    wardComboBox.setEnabled(false); 
+                    wardModel.removeAllElements(); 
+                    wardModel.addElement("Phường"); 
                 }
+            } else {
+                districtComboBox.setEnabled(false); 
+                districtModel.removeAllElements(); 
+                districtModel.addElement("Huyện");
+                wardComboBox.setEnabled(false); 
+                wardModel.removeAllElements(); 
+                wardModel.addElement("Phường");
             }
         });
+
+        districtComboBox.addActionListener(e -> {
+            String selectedDistrict = (String) districtComboBox.getSelectedItem();
+            if (selectedDistrict != null && LocalStorage.districtToId != null && LocalStorage.districtToId.containsKey(selectedDistrict)) {
+                String districtId = LocalStorage.districtToId.get(selectedDistrict);
+                if (districtId != null) {
+                    NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetWardRequest(districtId));
+                    wardComboBox.setEnabled(false); 
+                    wardModel.removeAllElements(); 
+                    wardModel.addElement("Đang tải phường/xã...");
+                }
+            } else {
+                wardComboBox.setEnabled(false); 
+                wardModel.removeAllElements(); 
+                wardModel.addElement("Phường");
+            }
+        });
+
+        // Checkup Info Section
+        JPanel checkupInfoPanel = new JPanel(new BorderLayout(10, 10));
+        checkupInfoPanel.setBorder(BorderFactory.createTitledBorder(
+                BorderFactory.createEtchedBorder(), "Thông tin khám bệnh",
+                TitledBorder.LEADING, TitledBorder.TOP,
+                new Font("Arial", Font.BOLD, 14), new Color(50, 50, 50)
+        ));
+
+        // Top Row Panel (Doctor, Status, Type)
+        JPanel topRowPanel = new JPanel(new GridBagLayout());
+        GridBagConstraints gbcTop = new GridBagConstraints();
+        gbcTop.insets = new Insets(5, 5, 5, 5);
+        gbcTop.fill = GridBagConstraints.HORIZONTAL;
+
+        // Initialize datePicker
+        UtilDateModel dateModel = new UtilDateModel();
+        Properties p = new Properties();
+        p.put("text.today", "Hôm nay");
+        p.put("text.month", "Tháng");
+        p.put("text.year", "Năm");
+        JDatePanelImpl datePanel = new JDatePanelImpl(dateModel, p);
+        datePicker = new JDatePickerImpl(datePanel, new DateLabelFormatter());
+        datePicker.setPreferredSize(new Dimension(120, 30));
+        datePicker.getJFormattedTextField().setFont(fieldFont);
+
+        gbcTop.gridx = 0; gbcTop.gridy = 0;
+        JLabel doctorLabel = new JLabel("Bác Sĩ");
+        doctorLabel.setFont(labelFont);
+        topRowPanel.add(doctorLabel, gbcTop);
+
+        gbcTop.gridx = 1; gbcTop.weightx = 0.4;
+        doctorComboBox = new JComboBox<>(LocalStorage.doctorsName != null ? LocalStorage.doctorsName : new String[]{"Đang tải bác sĩ..."});
+        doctorComboBox.setFont(fieldFont);
+        topRowPanel.add(doctorComboBox, gbcTop);
+
+        gbcTop.gridx = 2; gbcTop.weightx = 0;
+        JLabel dateLabel = new JLabel("Đơn Ngày:");
+        dateLabel.setFont(labelFont);
+        topRowPanel.add(dateLabel, gbcTop);
+
+        gbcTop.gridx = 3; gbcTop.weightx = 0.3;
+        topRowPanel.add(datePicker, gbcTop);
+
+        gbcTop.gridx = 4; gbcTop.weightx = 0;
+        JLabel statusLabel = new JLabel("Trạng thái");
+        statusLabel.setFont(labelFont);
+        topRowPanel.add(statusLabel, gbcTop);
+
+        gbcTop.gridx = 5; gbcTop.weightx = 0.3;
+        statusComboBox = new JComboBox<>(new String[]{"ĐANG KHÁM", "CHỜ KHÁM", "ĐÃ KHÁM"});
+        statusComboBox.setFont(fieldFont);
+        topRowPanel.add(statusComboBox, gbcTop);
+
+        gbcTop.gridx = 6; gbcTop.weightx = 0;
+        JLabel typeLabel = new JLabel("Loại khám");
+        typeLabel.setFont(labelFont);
+        topRowPanel.add(typeLabel, gbcTop);
+
+        gbcTop.gridx = 7; gbcTop.weightx = 0.3;
+        checkupTypeComboBox = new JComboBox<>(new String[]{"BỆNH", "THAI", "KHÁC"});
+        checkupTypeComboBox.setFont(fieldFont);
+        topRowPanel.add(checkupTypeComboBox, gbcTop);
+
+        // Template Selection Row
+        JPanel templatePanel = new JPanel(new GridBagLayout());
+        GridBagConstraints gbcTemplate = new GridBagConstraints();
+        gbcTemplate.insets = new Insets(5, 5, 5, 5);
+        gbcTemplate.fill = GridBagConstraints.HORIZONTAL;
+
+        gbcTemplate.gridx = 0; gbcTemplate.gridy = 0;
+        JLabel templateLabel = new JLabel("Chọn mẫu:");
+        templateLabel.setFont(labelFont);
+        templatePanel.add(templateLabel, gbcTemplate);
+
+        gbcTemplate.gridx = 1; gbcTemplate.weightx = 1.0;
+        JComboBox<String> templateComboBox = new JComboBox<>(new String[]{
+            "Không sử dụng mẫu",
+            "Mẫu khám tổng quát",
+            "Mẫu khám thai",
+            "Mẫu khám nhi",
+            "Mẫu khám tim mạch"
+        });
+        templateComboBox.setFont(fieldFont);
+        templatePanel.add(templateComboBox, gbcTemplate);
+
+        // Main Content Panel with split layout
+        JPanel mainContentPanel = new JPanel(new BorderLayout(10, 10));
+        mainContentPanel.setBorder(BorderFactory.createEmptyBorder(10, 5, 5, 5));
+
+        // Create left panel for Nội dung (larger)
+        JPanel leftPanel = new JPanel(new BorderLayout(5, 5));
+        leftPanel.setBorder(BorderFactory.createTitledBorder(
+            BorderFactory.createEtchedBorder(),
+            "Nội dung",
+            TitledBorder.LEADING, TitledBorder.TOP,
+            new Font("Arial", Font.BOLD, 18), // Increased font size for title
+            new Color(63, 81, 181) // Match the blue theme
+        ));
+
+        notesField = new JTextPane();
+        notesField.setContentType("text/rtf");
+        notesField.setEditorKit(new RTFEditorKit());
+        notesField.setFont(new Font("Times New Roman", Font.BOLD, 16)); // Increased font size
+        notesField.setBackground(new Color(252, 252, 252)); // Very light gray background
+        notesField.setForeground(new Color(33, 33, 33)); // Dark gray text
+        
+        // Add tab support - 4 spaces per tab
+        notesField.getInputMap().put(KeyStroke.getKeyStroke("TAB"), "insertTab");
+        notesField.getActionMap().put("insertTab", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                notesField.replaceSelection("    ");
+            }
+        });
+        
+        // Set preferred size for notes field
+        notesField.setPreferredSize(new Dimension(0, 400)); // Make it tall
+
+        // Enhanced Toolbar for notes with more formatting options
+        JToolBar notesToolbar = new JToolBar(JToolBar.HORIZONTAL);
+        notesToolbar.setFloatable(false);
+        notesToolbar.setBorder(BorderFactory.createEmptyBorder(4, 4, 4, 4));
+        notesToolbar.setBackground(new Color(245, 245, 245));
+
+        // Style buttons with better visual appearance
+        JButton boldButton = new JButton(new StyledEditorKit.BoldAction());
+        boldButton.setText("B");
+        boldButton.setFont(new Font("Arial", Font.BOLD, 14));
+        boldButton.setFocusPainted(false);
+        boldButton.setToolTipText("In đậm (Ctrl+B)");
+        
+        JButton italicButton = new JButton(new StyledEditorKit.ItalicAction());
+        italicButton.setText("I");
+        italicButton.setFont(new Font("Arial", Font.ITALIC, 14));
+        italicButton.setFocusPainted(false);
+        italicButton.setToolTipText("In nghiêng (Ctrl+I)");
+        
+        JButton underlineButton = new JButton(new StyledEditorKit.UnderlineAction());
+        underlineButton.setText("U");
+        underlineButton.setFont(new Font("Arial", Font.PLAIN, 14));
+        underlineButton.setFocusPainted(false);
+        underlineButton.setToolTipText("Gạch chân (Ctrl+U)");
+
+        // Font size buttons
+        String[] sizes = {"12", "14", "16", "18", "20"};
+        JComboBox<String> sizeComboBox = new JComboBox<>(sizes);
+        sizeComboBox.setSelectedItem("16");
+        sizeComboBox.setFont(new Font("Arial", Font.PLAIN, 14));
+        sizeComboBox.setToolTipText("Cỡ chữ");
+        sizeComboBox.addActionListener(e -> {
+            String size = (String) sizeComboBox.getSelectedItem();
+            if (size != null) {
+                MutableAttributeSet attr = new SimpleAttributeSet();
+                StyleConstants.setFontSize(attr, Integer.parseInt(size));
+                notesField.getStyledDocument().setCharacterAttributes(
+                    notesField.getSelectionStart(),
+                    notesField.getSelectionEnd() - notesField.getSelectionStart(),
+                    attr, false);
+            }
+        });
+
+        // Add buttons to toolbar with separators and styling
+        notesToolbar.add(Box.createHorizontalStrut(5));
+        notesToolbar.add(sizeComboBox);
+        notesToolbar.addSeparator(new Dimension(10, 0));
+        notesToolbar.add(boldButton);
+        notesToolbar.addSeparator(new Dimension(5, 0));
+        notesToolbar.add(italicButton);
+        notesToolbar.addSeparator(new Dimension(5, 0));
+        notesToolbar.add(underlineButton);
+        notesToolbar.addSeparator(new Dimension(5, 0));
+
+        // Color chooser button
+        JButton colorButton = new JButton("Màu");
+        colorButton.setFont(new Font("Arial", Font.PLAIN, 14));
+        colorButton.setFocusPainted(false);
+        colorButton.setToolTipText("Chọn màu chữ");
+        colorButton.addActionListener(e -> {
+            Color newColor = JColorChooser.showDialog(CheckUpPage.this, "Chọn màu chữ", notesField.getForeground());
+            if (newColor != null) {
+                MutableAttributeSet attr = new SimpleAttributeSet();
+                StyleConstants.setForeground(attr, newColor);
+                notesField.setCharacterAttributes(attr, false);
+            }
+        });
+        notesToolbar.add(colorButton);
+
+        notesToolbar.add(Box.createHorizontalStrut(5));
+
+        // Style the toolbar buttons
+        for (Component c : notesToolbar.getComponents()) {
+            if (c instanceof JButton) {
+                JButton b = (JButton) c;
+                b.setBackground(new Color(250, 250, 250));
+                b.setBorder(BorderFactory.createCompoundBorder(
+                    BorderFactory.createLineBorder(new Color(200, 200, 200)),
+                    BorderFactory.createEmptyBorder(4, 8, 4, 8)
+                ));
+            }
+        }
+
+        leftPanel.add(notesToolbar, BorderLayout.NORTH);
+        JScrollPane notesScrollPane = new JScrollPane(notesField);
+        notesScrollPane.setPreferredSize(new Dimension(0, 400)); // Set scroll pane size too
+        leftPanel.add(notesScrollPane, BorderLayout.CENTER);
+
+        // Create right panel for Triệu chứng and Chẩn đoán
+        JPanel rightPanel = new JPanel();
+        rightPanel.setLayout(new BoxLayout(rightPanel, BoxLayout.Y_AXIS));
+        rightPanel.setPreferredSize(new Dimension(300, 0)); // Fixed width for right panel
+
+        // Symptoms Panel
+        JPanel symptomsPanel = new JPanel(new BorderLayout(5, 5));
+        symptomsPanel.setBorder(BorderFactory.createTitledBorder(
+            BorderFactory.createEtchedBorder(),
+            "Triệu chứng",
+            TitledBorder.LEADING, TitledBorder.TOP,
+            new Font("Arial", Font.BOLD, 14),
+            new Color(50, 50, 50)
+        ));
+        symptomsField = new JTextArea(10, 20); // Increased rows from 4 to 10
+        symptomsField.setFont(fieldFont);
+        symptomsField.setLineWrap(true);
+        symptomsField.setWrapStyleWord(true);
+        JScrollPane symptomsScrollPane = new JScrollPane(symptomsField);
+        symptomsScrollPane.setPreferredSize(new Dimension(0, 200)); // Set fixed height
+        symptomsPanel.add(symptomsScrollPane, BorderLayout.CENTER);
+        symptomsPanel.setMinimumSize(new Dimension(300, 200));
+        symptomsPanel.setPreferredSize(new Dimension(300, 200));
+
+        // Diagnosis Panel
+        JPanel diagnosisPanel = new JPanel(new BorderLayout(5, 5));
+        diagnosisPanel.setBorder(BorderFactory.createTitledBorder(
+            BorderFactory.createEtchedBorder(),
+            "Chẩn đoán",
+            TitledBorder.LEADING, TitledBorder.TOP,
+            new Font("Arial", Font.BOLD, 14),
+            new Color(50, 50, 50)
+        ));
+        diagnosisField = new JTextArea(4, 20);
+        diagnosisField.setFont(fieldFont);
+        diagnosisField.setLineWrap(true);
+        diagnosisField.setWrapStyleWord(true);
+        diagnosisPanel.add(new JScrollPane(diagnosisField), BorderLayout.CENTER);
+
+        rightPanel.add(symptomsPanel);
+        rightPanel.add(Box.createRigidArea(new Dimension(0, 10)));
+        rightPanel.add(diagnosisPanel);
+
+        // Create split pane for left and right panels
+        JSplitPane contentSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, leftPanel, rightPanel);
+        contentSplitPane.setResizeWeight(0.7); // Give more weight to the left panel
+        contentSplitPane.setDividerSize(5);
+        contentSplitPane.setBorder(null);
+
+        // Add to main content panel
+        mainContentPanel.add(templatePanel, BorderLayout.NORTH);
+        mainContentPanel.add(contentSplitPane, BorderLayout.CENTER);
+
+        // Assemble checkup info panel
+        checkupInfoPanel.add(topRowPanel, BorderLayout.NORTH);
+        checkupInfoPanel.add(mainContentPanel, BorderLayout.CENTER);
+
+                // Create tabbed pane for patient info and checkup info
+        JTabbedPane tabbedPane = new JTabbedPane();
+        tabbedPane.setFont(new Font("Arial", Font.BOLD, 14));
+        tabbedPane.setBackground(Color.WHITE);
+        tabbedPane.setForeground(new Color(63, 81, 181));
+        
+        // Add tabs with icons
+        ImageIcon patientIcon = new ImageIcon("src/main/java/BsK/client/ui/assets/icon/user.png");
+        ImageIcon checkupIcon = new ImageIcon("src/main/java/BsK/client/ui/assets/icon/health-check.png");
+        
+        // Scale icons if needed
+        if (patientIcon.getIconWidth() > 20) {
+            Image scaledImage = patientIcon.getImage().getScaledInstance(20, 20, Image.SCALE_SMOOTH);
+            patientIcon = new ImageIcon(scaledImage);
+        }
+        if (checkupIcon.getIconWidth() > 20) {
+            Image scaledImage = checkupIcon.getImage().getScaledInstance(20, 20, Image.SCALE_SMOOTH);
+            checkupIcon = new ImageIcon(scaledImage);
+        }
+
+        // Create scroll panes for each panel
+        JScrollPane patientScrollPane = new JScrollPane(patientInfoInnerPanel);
+        patientScrollPane.setBorder(BorderFactory.createEmptyBorder());
+        patientScrollPane.getVerticalScrollBar().setUnitIncrement(16);
+        
+        JScrollPane checkupScrollPane = new JScrollPane(checkupInfoPanel);
+        checkupScrollPane.setBorder(BorderFactory.createEmptyBorder());
+        checkupScrollPane.getVerticalScrollBar().setUnitIncrement(16);
+
+        // Add tabs with icons
+        tabbedPane.addTab("Thông tin bệnh nhân", patientIcon, patientScrollPane);
+        tabbedPane.addTab("Thông tin khám bệnh", checkupIcon, checkupScrollPane);
+
+        // Style the tabs
+        for (int i = 0; i < tabbedPane.getTabCount(); i++) {
+            tabbedPane.setBackgroundAt(i, new Color(245, 245, 245));
+        }
+
+        // Add some padding around the tabbed pane
+        JPanel tabbedPaneContainer = new JPanel(new BorderLayout());
+        tabbedPaneContainer.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
+        tabbedPaneContainer.add(tabbedPane, BorderLayout.CENTER);
+
+        // New panel to hold controls at the top of the details panel
+        JPanel topActionPanel = new JPanel(new BorderLayout(20, 0)); // Horizontal gap
+        topActionPanel.add(controlPanel, BorderLayout.WEST);
+        topActionPanel.add(callingStatusLabel, BorderLayout.CENTER);
+        
+        rightBottomPanel.add(topActionPanel, BorderLayout.NORTH);
+        rightBottomPanel.add(tabbedPaneContainer, BorderLayout.CENTER);
+        
+        // Create a more modern action panel
+        JPanel iconPanel = new JPanel(new GridLayout(1, 5, 10, 0)); // 5 buttons, 10px horizontal gap
+        iconPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        iconPanel.setBackground(Color.WHITE);
+
+        // Define button properties
+        Object[][] buttonData = {
+            {"save", "Lưu", new Color(63, 81, 181)},
+            {"medicine", "Thêm thuốc", new Color(0, 150, 136)},
+            {"service", "Thêm DV", new Color(255, 152, 0)},
+            {"printer", "In toa", new Color(156, 39, 176)},
+            {"ultrasound", "In kết quả", new Color(0, 172, 193)}
+        };
+
+        for (Object[] data : buttonData) {
+            String name = (String) data[0];
+            String text = (String) data[1];
+            Color color = (Color) data[2];
+
+            JButton button = createActionButton(name, text, color);
+            button.addActionListener(e -> {
+                 if (checkupIdField == null || checkupIdField.getText().isEmpty()) {
+                    JOptionPane.showMessageDialog(null, "Vui lòng chọn một bệnh nhân từ hàng đợi", "Chưa chọn bệnh nhân", JOptionPane.WARNING_MESSAGE);
+                    return;
+                }
+                 handleActionPanelClick(name);
+            });
+            iconPanel.add(button);
+        }
+
+        rightBottomPanel.add(iconPanel, BorderLayout.SOUTH);
+
+        // --- Assemble New Layout ---
+        UIManager.getDefaults().put("SplitPane.border", BorderFactory.createEmptyBorder());
+
+        // New Left Split Pane (Vertical): Details on top, Image Gallery on bottom
+        JSplitPane newLeftSplitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT, rightBottomPanel, imageGalleryViewPanel);
+        newLeftSplitPane.setResizeWeight(0.85);
+        newLeftSplitPane.setDividerSize(8);
+        newLeftSplitPane.setBorder(BorderFactory.createEmptyBorder());
+        newLeftSplitPane.setContinuousLayout(true);
+
+        // New Top-Right Split Pane (Vertical): Webcam on top of History
+        webcamControlContainer.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createEmptyBorder(10, 10, 5, 5),
+                BorderFactory.createTitledBorder(
+                        BorderFactory.createLineBorder(new Color(63, 81, 181), 1, true),
+                        "Webcam",
+                        TitledBorder.LEADING, TitledBorder.TOP,
+                        new Font("Arial", Font.BOLD, 16), new Color(63, 81, 181)
+                )
+        ));
+        webcamControlContainer.setPreferredSize(new Dimension(0, 300)); // Give it a preferred height
+
+        JSplitPane topRightSplitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT, webcamControlContainer, rightTopPanel);
+        topRightSplitPane.setResizeWeight(0.5); // Give webcam and history roughly equal initial space
+        topRightSplitPane.setDividerSize(5);
+        
+        // New Right Split Pane (Vertical): Top-Right-Pane on top, Prescription on bottom
+        JSplitPane newRightSplitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT, topRightSplitPane, prescriptionDisplayPanel);
+        newRightSplitPane.setResizeWeight(0.5); // Top part (Webcam+History) gets 50%
+        newRightSplitPane.setDividerSize(5);
+
+        // Main Split Pane (Horizontal)
+        JSplitPane mainSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, newLeftSplitPane, newRightSplitPane);
+        mainSplitPane.setResizeWeight(0.7); // Left side gets 70% of space
+        mainSplitPane.setDividerSize(8);
+        mainSplitPane.setContinuousLayout(true);
+        mainSplitPane.setBorder(BorderFactory.createEmptyBorder(10, 0, 0, 0));
+
+        // --- Add components to the main panel ---
+        JPanel centerContentPanel = new JPanel(new BorderLayout(0, 5));
+        centerContentPanel.setBorder(BorderFactory.createEmptyBorder(0, 10, 10, 10));
+
+        centerContentPanel.add(mainSplitPane, BorderLayout.CENTER);
+
+        add(centerContentPanel, BorderLayout.CENTER);
+    }
+
+    private JButton createActionButton(String iconName, String text, Color bgColor) {
+        JButton button = new JButton(text);
+        try {
+            String iconPath = "src/main/java/BsK/client/ui/assets/icon/" + iconName + ".png";
+            File iconFile = new File(iconPath);
+            if (!iconFile.exists()) {
+                 log.warn("Icon not found for button: {}, path: {}", iconName, iconPath);
+                 // Create a placeholder icon if the file is missing
+                 BufferedImage placeholder = new BufferedImage(32, 32, BufferedImage.TYPE_INT_ARGB);
+                 Graphics2D g = placeholder.createGraphics();
+                 g.setPaint(Color.GRAY);
+                 g.fillRect(0, 0, 32, 32);
+                 g.dispose();
+                 button.setIcon(new ImageIcon(placeholder));
+            } else {
+                 ImageIcon icon = new ImageIcon(iconPath);
+                 Image scaledImg = icon.getImage().getScaledInstance(32, 32, Image.SCALE_SMOOTH);
+                 button.setIcon(new ImageIcon(scaledImg));
+            }
+        } catch (Exception e) {
+            log.error("Failed to load icon for button: {}", iconName, e);
+        }
+        button.setVerticalTextPosition(SwingConstants.BOTTOM);
+        button.setHorizontalTextPosition(SwingConstants.CENTER);
+        button.setFont(new Font("Arial", Font.BOLD, 12));
+        button.setBackground(bgColor);
+        button.setForeground(Color.WHITE);
+        button.setFocusPainted(false);
+        button.setBorder(BorderFactory.createEmptyBorder(8, 12, 8, 12));
+        button.setCursor(new Cursor(Cursor.HAND_CURSOR));
+
+        // Non-flickering hover effect
+        button.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseEntered(MouseEvent e) {
+                button.setBackground(bgColor.darker());
+            }
+
+            @Override
+            public void mouseExited(MouseEvent e) {
+                button.setBackground(bgColor);
+            }
+        });
+
+        return button;
+    }
+
+    private void handleActionPanelClick(String name) {
+        switch (name) {
+            case "service":
+                if(serDialog == null) {
+                    serDialog = new ServiceDialog(mainFrame);
+                }
+                serDialog.setVisible(true);
+                saved = false;
+                servicePrescription = serDialog.getServicePrescription();
+                updatePrescriptionTree();
+                log.info("Service prescription: {}", (Object) servicePrescription);
+                break;
+            case "save": {
+                int option = JOptionPane.showOptionDialog(null, "Bạn có muốn lưu các thay đổi?",
+                        "Lưu thay đổi", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE,
+                        null, null, null);
+                if (option == JOptionPane.NO_OPTION) {
+                    return;
+                }
+                saved = true;
+                callingStatusLabel.setBackground(new Color(230, 255, 230));
+                callingStatusLabel.setForeground(new Color(0, 100, 0));
+                // TODO: Add logic to actually save medicinePrescription and servicePrescription with other checkup data
+                break;
+            }
+            case "medicine":
+                if(medDialog == null) {
+                    medDialog = new MedicineDialog(mainFrame);
+                }
+                medDialog.setVisible(true);
+                saved = false;
+                medicinePrescription = medDialog.getMedicinePrescription();
+                updatePrescriptionTree();
+                log.info("Medicine prescription: {}", (Object) medicinePrescription);
+                break;
+            case "printer":
+                if ((medicinePrescription == null || medicinePrescription.length == 0) &&
+                    (servicePrescription == null || servicePrescription.length == 0)) {
+                    JOptionPane.showMessageDialog(null, "Không có thuốc hoặc dịch vụ để in.", "Không có dữ liệu", JOptionPane.INFORMATION_MESSAGE);
+                    return;
+                }
+                MedicineInvoice medicineInvoice = new MedicineInvoice(checkupIdField.getText(),
+                        customerLastNameField.getText() + " " + customerFirstNameField.getText(),
+                        dobPicker.getJFormattedTextField().getText(), customerPhoneField.getText(),
+                        genderComboBox.getSelectedItem().toString(),
+                        customerAddressField.getText() + ", " + (wardComboBox.getSelectedItem() != null ? wardComboBox.getSelectedItem().toString() : "") + ", " + (districtComboBox.getSelectedItem() != null ? districtComboBox.getSelectedItem().toString() : "") + ", " + (provinceComboBox.getSelectedItem() != null ? provinceComboBox.getSelectedItem().toString() : ""),
+                        doctorComboBox.getSelectedItem().toString(), diagnosisField.getText(),
+                        notesField.getText(), medicinePrescription, servicePrescription);
+                medicineInvoice.createDialog(mainFrame);
+                break;
+            case "ultrasound":
+                JOptionPane.showMessageDialog(null, "Tính năng in kết quả siêu âm sẽ được triển khai.", "TODO", JOptionPane.INFORMATION_MESSAGE);
+                break;
+        }
     }
     
     private void updatePrescriptionTree() {
@@ -902,6 +1401,12 @@ public class CheckUpPage extends JPanel {
         }
         Patient selectedPatient = patientQueue.get(selectedRowInQueue);
 
+        // Reset saved flag for new patient
+        saved = true;
+
+        // Set checkupId field
+        checkupIdField.setText(selectedPatient.getCheckupId());
+
         // == Supersonic View Reset & Setup ==
         if (imageRefreshTimer != null && imageRefreshTimer.isRunning()) {
             imageRefreshTimer.stop();
@@ -938,7 +1443,6 @@ public class CheckUpPage extends JPanel {
         serDialog = null;
         updatePrescriptionTree(); 
 
-        checkupIdField.setText(selectedPatient.getCheckupId());
         SimpleDateFormat dateFormat = new SimpleDateFormat("dd/MM/yyyy");
         try {
             Date parsedDate; String dateStr = selectedPatient.getCheckupDate();
@@ -1118,7 +1622,9 @@ public class CheckUpPage extends JPanel {
                 this.patientQueue.add(new Patient(patientData));
             }
         }
-        model.setDataVector(preprocessPatientDataForTable(this.patientQueue), new String[]{"Mã khám bệnh", "Ngày Tháng", "Họ", "Tên", "Bác Sĩ", "Loại khám"});
+        if (queueManagementPage != null) {
+            queueManagementPage.updateQueueTable();
+        }
         if (tvQueueFrame != null && tvQueueFrame.isVisible()) {
             tvQueueFrame.updateQueueData(this.rawQueueForTv);
         }
@@ -1133,7 +1639,9 @@ public class CheckUpPage extends JPanel {
                 this.patientQueue.add(new Patient(patientData));
             }
         }
-        model.setDataVector(preprocessPatientDataForTable(this.patientQueue), new String[]{"Mã khám bệnh", "Ngày Tháng", "Họ", "Tên", "Bác Sĩ", "Loại khám"});
+        if (queueManagementPage != null) {
+            queueManagementPage.updateQueueTable();
+        }
         if (tvQueueFrame != null && tvQueueFrame.isVisible()) {
             tvQueueFrame.updateQueueData(this.rawQueueForTv);
         }
@@ -1196,7 +1704,7 @@ public class CheckUpPage extends JPanel {
     }
 
     private void handleCallPatient() {
-        int selectedRow = table1.getSelectedRow();
+        int selectedRow = queueManagementPage.getSelectedRow(); // Get from the queue window now
         if (selectedRow == -1) {
             JOptionPane.showMessageDialog(this, "Vui lòng chọn một bệnh nhân từ hàng đợi để gọi.", "Chưa chọn bệnh nhân", JOptionPane.WARNING_MESSAGE);
             return;
@@ -1219,28 +1727,21 @@ public class CheckUpPage extends JPanel {
         callingStatusLabel.setBackground(new Color(217, 83, 79)); // Red background for calling
     }
 
-    private JPanel createSupersonicViewPanel() {
+    private JPanel createImageGalleryViewPanel() {
         JPanel panel = new JPanel(new BorderLayout(5, 5));
         panel.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createEmptyBorder(5, 0, 0, 0), // Top margin for this section
                 BorderFactory.createTitledBorder(
                         BorderFactory.createLineBorder(new Color(63, 81, 181), 1, true),
-                        "Siêu âm & Hình ảnh",
+                        "Thư viện Hình ảnh & Video",
                         TitledBorder.LEADING, TitledBorder.TOP,
                         new Font("Arial", Font.BOLD, 16), new Color(63, 81, 181))));
         panel.setMinimumSize(new Dimension(300, 250)); // Ensure it has some minimum height
         panel.setPreferredSize(new Dimension(450, 300)); // Give it a decent preferred size
 
-        JPanel imageDisplayContainer = createImageDisplayPanel(); // Left side: Image gallery
-        JPanel webcamControlContainer = createWebcamControlPanel(); // Right side: Webcam controls
+        JPanel imageDisplayContainer = createImageDisplayPanel();
 
-        JSplitPane supersonicSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, imageDisplayContainer, webcamControlContainer);
-        supersonicSplitPane.setResizeWeight(0.60); // Image gallery gets 60% of the space
-        supersonicSplitPane.setDividerSize(6);
-        supersonicSplitPane.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5)); // Inner padding
-        supersonicSplitPane.setContinuousLayout(true);
-
-        panel.add(supersonicSplitPane, BorderLayout.CENTER);
+        panel.add(imageDisplayContainer, BorderLayout.CENTER);
 
         // Initialize image refresh timer (if not already)
         if (imageRefreshTimer == null) {
@@ -1906,5 +2407,94 @@ public class CheckUpPage extends JPanel {
         item.addActionListener(action);
         return item;
     }
+
+    /**
+     * A separate window (JFrame) to manage and display the patient queue.
+     * It communicates with the main CheckUpPage to handle patient selection.
+     */
+    private class QueueManagementPage extends JFrame {
+        private JTable queueTable;
+        private DefaultTableModel queueTableModel;
+
+        public QueueManagementPage() {
+            setTitle("Danh sách chờ khám");
+            setIconImage(new ImageIcon("src/main/java/BsK/client/ui/assets/icon/database.png").getImage());
+            setSize(800, 600);
+            setLayout(new BorderLayout());
+
+            String[] columns = {"Mã khám bệnh", "Ngày Tháng", "Họ", "Tên", "Bác Sĩ", "Loại khám"};
+            queueTableModel = new DefaultTableModel(preprocessPatientDataForTable(patientQueue), columns) {
+                @Override
+                public boolean isCellEditable(int row, int column) { return false; }
+            };
+            queueTable = new JTable(queueTableModel);
+            queueTable.setPreferredScrollableViewportSize(new Dimension(750, 400));
+            queueTable.getTableHeader().setFont(new Font("Arial", Font.BOLD, 14));
+            queueTable.setFont(new Font("Arial", Font.PLAIN, 12));
+            queueTable.setRowHeight(25);
+            queueTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+            queueTable.addMouseListener(new MouseAdapter() {
+                @Override
+                public void mouseClicked(MouseEvent e) {
+                    if (e.getClickCount() == 1) {
+                        SwingUtilities.invokeLater(() -> {
+                            int selectedRow = queueTable.getSelectedRow();
+                            if (selectedRow != -1) {
+                                // Check for unsaved changes before switching
+                                if (previousSelectedRow != -1 && previousSelectedRow != selectedRow && !saved) {
+                                    int confirm = JOptionPane.showConfirmDialog(
+                                            QueueManagementPage.this,
+                                            "Các thay đổi chưa được lưu. Bạn có chắc chắn muốn chuyển sang bệnh nhân khác không?",
+                                            "Xác nhận chuyển bệnh nhân",
+                                            JOptionPane.YES_NO_OPTION,
+                                            JOptionPane.WARNING_MESSAGE);
+                                    if (confirm == JOptionPane.NO_OPTION) {
+                                        // Reselect the previous row visually to avoid confusion
+                                        if (previousSelectedRow < queueTable.getRowCount()) {
+                                            queueTable.setRowSelectionInterval(previousSelectedRow, previousSelectedRow);
+                                        }
+                                        return;
+                                    }
+                                }
+                                // Call the parent class's method to handle the selection
+                                CheckUpPage.this.handleRowSelection(selectedRow);
+                                previousSelectedRow = selectedRow; // Update the last selected row
+                            }
+                        });
+                    }
+                }
+            });
+
+            JScrollPane scrollPane = new JScrollPane(queueTable);
+            scrollPane.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+
+            add(scrollPane, BorderLayout.CENTER);
+            setLocationRelativeTo(mainFrame);
+            setDefaultCloseOperation(JFrame.HIDE_ON_CLOSE);
+        }
+
+        /**
+         * Updates the data in the queue table. This should be called when the patient queue changes.
+         */
+        public void updateQueueTable() {
+            SwingUtilities.invokeLater(() -> {
+                String[] columns = {"Mã khám bệnh", "Ngày Tháng", "Họ", "Tên", "Bác Sĩ", "Loại khám"};
+                int selectedRow = queueTable.getSelectedRow();
+                queueTableModel.setDataVector(preprocessPatientDataForTable(patientQueue), columns);
+                if (selectedRow != -1 && selectedRow < queueTable.getRowCount()) {
+                    queueTable.setRowSelectionInterval(selectedRow, selectedRow);
+                }
+            });
+        }
+
+        /**
+         * Gets the currently selected row from the queue table.
+         * @return the selected row index, or -1 if no row is selected.
+         */
+        public int getSelectedRow() {
+            return queueTable.getSelectedRow();
+        }
+    }
 }
+
 

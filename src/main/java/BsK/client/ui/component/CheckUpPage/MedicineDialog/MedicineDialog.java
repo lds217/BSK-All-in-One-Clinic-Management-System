@@ -76,12 +76,16 @@ public class MedicineDialog extends JDialog {
     }
 
     public MedicineDialog(Frame parent) {
-        super(parent, "Thêm thuốc vào đơn", true);
+        super(parent, "Thêm thuốc", true);
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
-        setSize(1200, 750); // Adjusted size slightly for new panel
+        setSize(1100, 600);
         setLocationRelativeTo(parent);
         setResizable(true);
 
+        // Initialize medicinePrescription as empty array
+        medicinePrescription = new String[0][0];
+
+        // Add response listener and send request for medicine data
         ClientHandler.addResponseListener(GetMedInfoResponse.class, getMedInfoResponseListener);
         sendGetMedInfoRequest();
 

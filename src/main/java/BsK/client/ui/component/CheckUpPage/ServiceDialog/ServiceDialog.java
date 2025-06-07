@@ -67,6 +67,10 @@ public class ServiceDialog extends JDialog {
         setLocationRelativeTo(parent);
         setResizable(true);
 
+        // Initialize servicePrescription as empty array
+        servicePrescription = new String[0][0];
+
+        // Add response listener and send request for service data
         ClientHandler.addResponseListener(GetSerInfoResponse.class, getSerInfoResponseListener);
         sendGetSerInfoRequest();
 
