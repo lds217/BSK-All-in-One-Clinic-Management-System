@@ -8,6 +8,7 @@ import BsK.common.packet.res.ErrorResponse.Error;
 import BsK.common.entity.Status;
 import BsK.common.util.date.DateUtils;
 import BsK.server.Server;
+import BsK.server.ServerDashboard;
 import BsK.server.network.manager.SessionManager;
 import BsK.server.network.util.UserUtil;
 import io.netty.channel.ChannelHandlerContext;
@@ -39,6 +40,12 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
   @Override
   protected void channelRead0(ChannelHandlerContext ctx, TextWebSocketFrame frame) {
     log.debug("Received message: {}", frame.text());
+    // Update last activity time for the client
+    var connectedUser = SessionManager.getUserByChannel(ctx.channel().id().asLongText());
+    if (connectedUser != null) {
+      ServerDashboard.getInstance().refreshNetworkTable();
+    }
+    
     Packet packet = PacketSerializer.GSON.fromJson(frame.text(), Packet.class);
 
 
@@ -51,6 +58,8 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
       if (user.isAuthenticated()) {
         UserUtil.sendPacket(user.getSessionId(), new LoginSuccessResponse(user.getUserId(), user.getRole()));
         log.info("Send response to client User {} authenticated, role {}, session {}", user.getUserId(), user.getRole(), user.getSessionId());
+        // Update client connection info
+        SessionManager.updateUserRole(ctx.channel().id().asLongText(), user.getRole().toString(), user.getUserId());
       } else {
         log.info("User {} failed to authenticate", user.getUserId());
         UserUtil.sendPacket(user.getSessionId(), new ErrorResponse(Error.INVALID_CREDENTIALS));
@@ -63,9 +72,9 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
       // Tạo user trong database hoặc check exist
       boolean isUserExist = false;
     } else if (packet instanceof LogoutRequest) {
-      var user = SessionManager.getUserByChannel(ctx.channel().id().asLongText());
-      if (user != null) {
-        log.info("User {} (Session {}) requested logout.", user.getUserId(), user.getSessionId());
+      var logoutUser = SessionManager.getUserByChannel(ctx.channel().id().asLongText());
+      if (logoutUser != null) {
+        log.info("User {} (Session {}) requested logout.", logoutUser.getUserId(), logoutUser.getSessionId());
         SessionManager.onUserDisconnect(ctx.channel());
         // Optionally, you could send a LogoutResponse back to the client if needed,
         // but since the client navigates away, it might not be processed.
@@ -74,8 +83,8 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
       }
     } else {
       // Check if user is authenticated
-      var user = SessionManager.getUserByChannel(ctx.channel().id().asLongText());
-      if (!user.isAuthenticated()) {
+      var currentUser = SessionManager.getUserByChannel(ctx.channel().id().asLongText());
+      if (!currentUser.isAuthenticated()) {
         log.warn("Received packet from unauthenticated user: {}", packet);
         return;
       }
@@ -140,7 +149,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
             for (int i = 0; i < resultString.length; i++) {
               resultArray[i] = resultString[i].split("\\|");
             }
-            UserUtil.sendPacket(user.getSessionId(), new GetCheckUpQueueResponse(resultArray));
+            UserUtil.sendPacket(currentUser.getSessionId(), new GetCheckUpQueueResponse(resultArray));
           }
         } catch (SQLException e) {
           throw new RuntimeException(e);
@@ -237,7 +246,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                 resultList.add(doctorName);
               }
               String[] resultString = resultList.toArray(new String[0]);
-              UserUtil.sendPacket(user.getSessionId(), new GetDoctorGeneralInfoResponse(resultString));
+              UserUtil.sendPacket(currentUser.getSessionId(), new GetDoctorGeneralInfoResponse(resultString));
               log.info("Send response to client GetDoctorGeneralInfo");
           }
         }
@@ -260,7 +269,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
 
             if (!rs.isBeforeFirst()) {
                 System.out.println("No history data found in the checkup table.");
-                UserUtil.sendPacket(user.getSessionId(), new GetCustomerHistoryResponse(new String[0][7]));
+                UserUtil.sendPacket(currentUser.getSessionId(), new GetCustomerHistoryResponse(new String[0][7]));
             } else {
                 ArrayList<String> resultList = new ArrayList<>();
                 while (rs.next()) {
@@ -286,7 +295,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                     resultArray[i] = resultString[i].split("\\|");
                 }
 
-                UserUtil.sendPacket(user.getSessionId(), new GetCustomerHistoryResponse(resultArray));
+                UserUtil.sendPacket(currentUser.getSessionId(), new GetCustomerHistoryResponse(resultArray));
             }
 
         } catch (SQLException e) {
@@ -327,7 +336,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
               resultArray[i] = resultString[i].split("\\|");
             }
 
-            UserUtil.sendPacket(user.getSessionId(), new GetMedInfoResponse(resultArray));
+            UserUtil.sendPacket(currentUser.getSessionId(), new GetMedInfoResponse(resultArray));
           }
         } catch (SQLException e) {
           throw new RuntimeException(e);
@@ -361,7 +370,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
               resultArray[i] = resultString[i].split("\\|");
             }
 
-            UserUtil.sendPacket(user.getSessionId(), new GetSerInfoResponse(resultArray));
+            UserUtil.sendPacket(currentUser.getSessionId(), new GetSerInfoResponse(resultArray));
           }
         } catch (SQLException e) {
           throw new RuntimeException(e);
@@ -383,7 +392,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                 String clinicAddress = rs.getString("address");
                 String clinicPhone = rs.getString("phone");
 
-                UserUtil.sendPacket(user.getSessionId(), new ClinicInfoResponse(clinicName, clinicAddress, clinicPhone));
+                UserUtil.sendPacket(currentUser.getSessionId(), new ClinicInfoResponse(clinicName, clinicAddress, clinicPhone));
             }
         }
         catch (SQLException e) {
@@ -426,7 +435,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
               resultArray[i] = resultString[i].split("\\|");
             }
 
-            UserUtil.sendPacket(user.getSessionId(), new GetRecentPatientResponse(resultArray));
+            UserUtil.sendPacket(currentUser.getSessionId(), new GetRecentPatientResponse(resultArray));
           }
         } catch (SQLException e) {
           throw new RuntimeException(e);
@@ -456,7 +465,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
             }
 
             String[] resultString = resultList.toArray(new String[0]);
-            UserUtil.sendPacket(user.getSessionId(), new GetProvinceResponse(resultString, provinceIdMap));
+            UserUtil.sendPacket(currentUser.getSessionId(), new GetProvinceResponse(resultString, provinceIdMap));
           }
         } catch (SQLException e) {
           throw new RuntimeException(e);
@@ -493,7 +502,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
 
                 String[] resultString = resultList.toArray(new String[0]);
 
-                UserUtil.sendPacket(user.getSessionId(), new GetDistrictResponse(resultString, districtIdMap));
+                UserUtil.sendPacket(currentUser.getSessionId(), new GetDistrictResponse(resultString, districtIdMap));
             }
             } catch (SQLException e) {
           throw new RuntimeException(e);
@@ -529,10 +538,10 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
             }
 
             String[] resultString = resultList.toArray(new String[0]);
-            UserUtil.sendPacket(user.getSessionId(), new GetWardResponse(resultString));
+            UserUtil.sendPacket(currentUser.getSessionId(), new GetWardResponse(resultString));
           }
         } catch (SQLException e) {
-          UserUtil.sendPacket(user.getSessionId(), new ErrorResponse(Error.SQL_EXCEPTION));
+          UserUtil.sendPacket(currentUser.getSessionId(), new ErrorResponse(Error.SQL_EXCEPTION));
           throw new RuntimeException(e);
         }
       }
@@ -559,10 +568,10 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
             customerId = rs.getInt(1);
           }
 
-          UserUtil.sendPacket(user.getSessionId(), new AddPatientResponse(true, customerId, "Thêm bệnh nhân thành công"));
+          UserUtil.sendPacket(currentUser.getSessionId(), new AddPatientResponse(true, customerId, "Thêm bệnh nhân thành công"));
         } catch (SQLException e) {
           String errorMessage = e.getMessage();
-          UserUtil.sendPacket(user.getSessionId(), new AddPatientResponse(false,-1, "Lỗi: " + errorMessage));
+          UserUtil.sendPacket(currentUser.getSessionId(), new AddPatientResponse(false,-1, "Lỗi: " + errorMessage));
           throw new RuntimeException(e);
         }
       }
@@ -598,7 +607,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
           // Commit the transaction
           Server.connection.commit();
 
-          UserUtil.sendPacket(user.getSessionId(), new AddCheckupResponse(true, "Thêm bệnh nhân thành công"));
+          UserUtil.sendPacket(currentUser.getSessionId(), new AddCheckupResponse(true, "Thêm bệnh nhân thành công"));
         }
         catch (SQLException e) {
           try {
@@ -608,7 +617,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
             log.error("Error during rollback", rollbackEx);
           }
           String errorMessage = e.getMessage();
-          UserUtil.sendPacket(user.getSessionId(), new AddCheckupResponse(false, "Lỗi: " + errorMessage));
+          UserUtil.sendPacket(currentUser.getSessionId(), new AddCheckupResponse(false, "Lỗi: " + errorMessage));
           throw new RuntimeException(e);
         }
         finally {
@@ -638,9 +647,14 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
   @Override
   public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
     if (cause instanceof IOException) {
+      var user = SessionManager.getUserByChannel(ctx.channel().id().asLongText());
+      if (user != null) {
+        ServerDashboard.getInstance().addLog("Client disconnected: Session " + user.getSessionId());
+      }
       SessionManager.onUserDisconnect(ctx.channel());
     } else {
       log.error("ERROR: ", cause);
+      ServerDashboard.getInstance().addLog("Error: " + cause.getMessage());
     }
   }
 
@@ -649,14 +663,21 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
     if (evt instanceof IdleStateEvent event) {
       if (event.state() == IdleState.READER_IDLE) {
         try {
+          var user = SessionManager.getUserByChannel(ctx.channel().id().asLongText());
+          if (user != null) {
+            ServerDashboard.getInstance().addLog("Client timed out: Session " + user.getSessionId());
+          }
           SessionManager.onUserDisconnect(ctx.channel());
           ctx.channel().close();
         } catch (Exception e) {
+          ServerDashboard.getInstance().addLog("Error during client timeout: " + e.getMessage());
         }
       }
     } else if (evt instanceof HandshakeComplete) {
       int SessionId = SessionManager.onUserLogin(ctx.channel());
       log.info("Session {} logged in", SessionId);
+      ServerDashboard.getInstance().addLog("New client connected: Session " + SessionId);
+      ServerDashboard.incrementClients();
 
       UserUtil.sendPacket(SessionId, new HandshakeCompleteResponse());
     } else {

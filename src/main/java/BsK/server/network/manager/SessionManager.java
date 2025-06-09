@@ -1,7 +1,9 @@
 package BsK.server.network.manager;
 
 import BsK.server.network.entity.User;
+import BsK.server.network.entity.ClientConnection;
 import io.netty.channel.Channel;
+import java.util.Collection;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListMap;
@@ -16,6 +18,8 @@ public class SessionManager {
   private static final Map<String, Integer> CHANNEL_SESSION_ID_MAP = new ConcurrentHashMap<>();
 
   private static final Map<String, User> CHANNEL_TO_USER_MAP = new ConcurrentHashMap<>();
+
+  private static final Map<String, ClientConnection> CHANNEL_TO_CONNECTION_MAP = new ConcurrentHashMap<>();
 
   private static final AtomicInteger SESSION_ID = new AtomicInteger(0);
 
@@ -36,17 +40,37 @@ public class SessionManager {
     return SESSION_ID.get();
   }
 
+  public static Collection<ClientConnection> getAllConnections() {
+    return CHANNEL_TO_CONNECTION_MAP.values();
+  }
+
   public static int onUserLogin(Channel channel) {
     int sessionId = SESSION_ID.incrementAndGet();
     var user = new User(channel, sessionId);
-    SESSION_ID_MAP.put(sessionId, channel.id().asLongText());
-    CHANNEL_SESSION_ID_MAP.put(channel.id().asLongText(), sessionId);
-    CHANNEL_TO_USER_MAP.put(channel.id().asLongText(), user);
+    var connection = new ClientConnection(channel, sessionId);
+    
+    String channelId = channel.id().asLongText();
+    SESSION_ID_MAP.put(sessionId, channelId);
+    CHANNEL_SESSION_ID_MAP.put(channelId, sessionId);
+    CHANNEL_TO_USER_MAP.put(channelId, user);
+    CHANNEL_TO_CONNECTION_MAP.put(channelId, connection);
+    
     return sessionId;
   }
 
   public static void onUserDisconnect(Channel channel) {
-    int sessionId = CHANNEL_SESSION_ID_MAP.remove(channel.id().asLongText());
+    String channelId = channel.id().asLongText();
+    int sessionId = CHANNEL_SESSION_ID_MAP.remove(channelId);
     SESSION_ID_MAP.remove(sessionId);
+    CHANNEL_TO_USER_MAP.remove(channelId);
+    CHANNEL_TO_CONNECTION_MAP.remove(channelId);
+  }
+
+  public static void updateUserRole(String channelId, String role, int userId) {
+    ClientConnection conn = CHANNEL_TO_CONNECTION_MAP.get(channelId);
+    if (conn != null) {
+      conn.setUserRole(role);
+      conn.setUserId(userId);
+    }
   }
 }

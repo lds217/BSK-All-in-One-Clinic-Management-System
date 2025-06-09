@@ -16,6 +16,7 @@ import io.netty.handler.codec.http.HttpServerCodec;
 import io.netty.handler.codec.http.websocketx.WebSocketServerProtocolHandler;
 import io.netty.handler.stream.ChunkedWriteHandler;
 import io.netty.handler.timeout.IdleStateHandler;
+import java.awt.Color;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -119,6 +120,12 @@ public class Server {
     }
 
     public static void main(String[] args) throws InterruptedException, SQLException {
+        // Initialize and show server dashboard
+        ServerDashboard dashboard = ServerDashboard.getInstance();
+        dashboard.setVisible(true);
+        dashboard.updateStatus("Starting...", Color.ORANGE);
+        dashboard.updatePort(PORT);
+
         EventLoopGroup parentGroup =
             Epoll.isAvailable() ? new EpollEventLoopGroup() : new NioEventLoopGroup();
         EventLoopGroup childGroup =
@@ -152,8 +159,19 @@ public class Server {
           log.info("To connect, clients should use:");
           log.info(" - If on same machine: ws://localhost:{} or ws://127.0.0.1:{}", PORT, PORT);
           log.info(" - If on network: ws://<this-computer's-ip>:{}", PORT);
+          
+          // Update dashboard status to running
+          dashboard.updateStatus("Running", Color.GREEN);
+          dashboard.addLog("Server started successfully on port " + PORT);
+          
           f.channel().closeFuture().sync();
+        } catch (Exception e) {
+          dashboard.updateStatus("Error", Color.RED);
+          dashboard.addLog("Server error: " + e.getMessage());
+          throw e;
         } finally {
+          dashboard.updateStatus("Shutting down", Color.ORANGE);
+          dashboard.addLog("Server shutting down...");
           parentGroup.shutdownGracefully();
           childGroup.shutdownGracefully();
         }

@@ -22,7 +22,6 @@ public class User {
   public User(Channel channel, int sessionId) {
     this.channel = channel;
     this.sessionId = sessionId;
-
   }
 
   public void authenticate(String username, String password) {
@@ -36,14 +35,13 @@ public class User {
                   log.info(rs.getString("user_name") + " logged in");
                   role = Role.valueOf(rs.getString("role_name"));
                   userId = rs.getInt("user_id");
+                  // Update the client connection with the new role
+                  SessionManager.updateUserRole(channel.id().asLongText(), role.toString(), userId);
               }
-
           }
       } catch (SQLException e) {
           throw new RuntimeException(e);
       }
-
-
   }
 
   public boolean isAuthenticated() {

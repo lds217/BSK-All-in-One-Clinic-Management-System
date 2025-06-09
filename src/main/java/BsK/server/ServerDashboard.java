@@ -265,15 +265,17 @@ public class ServerDashboard extends JFrame {
     }
 
     public static void decrementClients() {
-        connectedClients--;
+        connectedClients = Math.max(0, connectedClients - 1); // Ensure we don't go below 0
         updateClientCount();
     }
 
     private static void updateClientCount() {
         if (instance != null) {
-            SwingUtilities.invokeLater(() -> 
-                instance.clientsLabel.setText("Connected Clients: " + connectedClients)
-            );
+            SwingUtilities.invokeLater(() -> {
+                instance.clientsLabel.setText("Connected Clients: " + connectedClients);
+                // Also update the network table since client count changed
+                instance.refreshNetworkTable();
+            });
         }
     }
 

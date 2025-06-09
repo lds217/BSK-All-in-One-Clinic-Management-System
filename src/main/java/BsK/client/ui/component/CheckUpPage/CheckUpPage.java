@@ -398,7 +398,7 @@ public class CheckUpPage extends JPanel {
         // Configure the Details/Actions Panel (rightBottomPanel)
         rightBottomPanel.setLayout(new BorderLayout());
         rightBottomPanel.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createEmptyBorder(5, 5, 5, 5),
+                BorderFactory.createEmptyBorder(5, 5, 5, 5), 
                 BorderFactory.createTitledBorder(
                         BorderFactory.createLineBorder(new Color(63, 81, 181), 1, true),
                         "Chi tiết và Thao tác",
@@ -974,7 +974,7 @@ public class CheckUpPage extends JPanel {
         
         // Create a more modern action panel
         JPanel iconPanel = new JPanel(new GridLayout(1, 5, 10, 0)); // 5 buttons, 10px horizontal gap
-        iconPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        iconPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10)); 
         iconPanel.setBackground(Color.WHITE);
 
         // Define button properties
@@ -994,9 +994,9 @@ public class CheckUpPage extends JPanel {
             JButton button = createActionButton(name, text, color);
             button.addActionListener(e -> {
                  if (checkupIdField == null || checkupIdField.getText().isEmpty()) {
-                    JOptionPane.showMessageDialog(null, "Vui lòng chọn một bệnh nhân từ hàng đợi", "Chưa chọn bệnh nhân", JOptionPane.WARNING_MESSAGE);
-                    return;
-                }
+                                JOptionPane.showMessageDialog(null, "Vui lòng chọn một bệnh nhân từ hàng đợi", "Chưa chọn bệnh nhân", JOptionPane.WARNING_MESSAGE);
+                                return;
+                            }
                  handleActionPanelClick(name);
             });
             iconPanel.add(button);
@@ -1101,53 +1101,53 @@ public class CheckUpPage extends JPanel {
     private void handleActionPanelClick(String name) {
         switch (name) {
             case "service":
-                if(serDialog == null) {
-                    serDialog = new ServiceDialog(mainFrame);
-                }
-                serDialog.setVisible(true);
-                saved = false;
-                servicePrescription = serDialog.getServicePrescription();
-                updatePrescriptionTree();
-                log.info("Service prescription: {}", (Object) servicePrescription);
-                break;
-            case "save": {
-                int option = JOptionPane.showOptionDialog(null, "Bạn có muốn lưu các thay đổi?",
-                        "Lưu thay đổi", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE,
-                        null, null, null);
-                if (option == JOptionPane.NO_OPTION) {
-                    return;
-                }
-                saved = true;
-                callingStatusLabel.setBackground(new Color(230, 255, 230));
-                callingStatusLabel.setForeground(new Color(0, 100, 0));
-                // TODO: Add logic to actually save medicinePrescription and servicePrescription with other checkup data
-                break;
-            }
-            case "medicine":
-                if(medDialog == null) {
-                    medDialog = new MedicineDialog(mainFrame);
-                }
-                medDialog.setVisible(true);
-                saved = false;
-                medicinePrescription = medDialog.getMedicinePrescription();
-                updatePrescriptionTree();
-                log.info("Medicine prescription: {}", (Object) medicinePrescription);
-                break;
-            case "printer":
-                if ((medicinePrescription == null || medicinePrescription.length == 0) &&
-                    (servicePrescription == null || servicePrescription.length == 0)) {
+                            if(serDialog == null) {
+                                serDialog = new ServiceDialog(mainFrame);
+                            }
+                            serDialog.setVisible(true);
+                            saved = false;
+                            servicePrescription = serDialog.getServicePrescription();
+                            updatePrescriptionTree(); 
+                            log.info("Service prescription: {}", (Object) servicePrescription);
+                            break;
+                        case "save": {
+                            int option = JOptionPane.showOptionDialog(null, "Bạn có muốn lưu các thay đổi?",
+                                    "Lưu thay đổi", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE,
+                                    null, null, null);
+                            if (option == JOptionPane.NO_OPTION) {
+                                return;
+                            }
+                            saved = true;
+                            callingStatusLabel.setBackground(new Color(230, 255, 230));
+                            callingStatusLabel.setForeground(new Color(0, 100, 0));
+                            // TODO: Add logic to actually save medicinePrescription and servicePrescription with other checkup data
+                            break;
+                        }
+                        case "medicine":
+                            if(medDialog == null) {
+                                medDialog = new MedicineDialog(mainFrame);
+                            }
+                            medDialog.setVisible(true);
+                            saved = false;
+                            medicinePrescription = medDialog.getMedicinePrescription();
+                            updatePrescriptionTree(); 
+                            log.info("Medicine prescription: {}", (Object) medicinePrescription);
+                            break;
+                        case "printer":
+                            if ((medicinePrescription == null || medicinePrescription.length == 0) && 
+                                (servicePrescription == null || servicePrescription.length == 0)) {
                     JOptionPane.showMessageDialog(null, "Không có thuốc hoặc dịch vụ để in.", "Không có dữ liệu", JOptionPane.INFORMATION_MESSAGE);
                     return;
-                }
-                MedicineInvoice medicineInvoice = new MedicineInvoice(checkupIdField.getText(),
-                        customerLastNameField.getText() + " " + customerFirstNameField.getText(),
-                        dobPicker.getJFormattedTextField().getText(), customerPhoneField.getText(),
-                        genderComboBox.getSelectedItem().toString(),
-                        customerAddressField.getText() + ", " + (wardComboBox.getSelectedItem() != null ? wardComboBox.getSelectedItem().toString() : "") + ", " + (districtComboBox.getSelectedItem() != null ? districtComboBox.getSelectedItem().toString() : "") + ", " + (provinceComboBox.getSelectedItem() != null ? provinceComboBox.getSelectedItem().toString() : ""),
-                        doctorComboBox.getSelectedItem().toString(), diagnosisField.getText(),
-                        notesField.getText(), medicinePrescription, servicePrescription);
-                medicineInvoice.createDialog(mainFrame);
-                break;
+                            }
+                            MedicineInvoice medicineInvoice = new MedicineInvoice(checkupIdField.getText(),
+                                    customerLastNameField.getText() + " " + customerFirstNameField.getText(),
+                                    dobPicker.getJFormattedTextField().getText(), customerPhoneField.getText(),
+                                    genderComboBox.getSelectedItem().toString(), 
+                                    customerAddressField.getText() + ", " + (wardComboBox.getSelectedItem() != null ? wardComboBox.getSelectedItem().toString() : "") + ", " + (districtComboBox.getSelectedItem() != null ? districtComboBox.getSelectedItem().toString() : "") + ", " + (provinceComboBox.getSelectedItem() != null ? provinceComboBox.getSelectedItem().toString() : ""),
+                                    doctorComboBox.getSelectedItem().toString(), diagnosisField.getText(),
+                                    notesField.getText(), medicinePrescription, servicePrescription); 
+                            medicineInvoice.createDialog(mainFrame);
+                            break;
             case "ultrasound":
                 JOptionPane.showMessageDialog(null, "Tính năng in kết quả siêu âm sẽ được triển khai.", "TODO", JOptionPane.INFORMATION_MESSAGE);
                 break;

@@ -24,12 +24,54 @@ import java.util.Properties;
 import java.io.IOException;
 import java.io.File;
 import java.nio.file.Files;
+import javax.swing.JOptionPane;
+import javax.swing.SwingUtilities;
 
 @Slf4j
 public class Client {
+    private static void showConnectionErrorDialog(String serverAddress, int port, Exception error) {
+        SwingUtilities.invokeLater(() -> {
+            String message = String.format(
+                """
+                Không thể kết nối đến máy chủ!
+                
+                Địa chỉ máy chủ: %s
+                Cổng: %d
+                
+                Nguyên nhân có thể:
+                1. Máy chủ chưa được khởi động
+                2. Địa chỉ hoặc cổng không chính xác
+                3. Tường lửa đang chặn kết nối
+                
+                Giải pháp:
+                1. Kiểm tra xem máy chủ đã được khởi động chưa
+                2. Kiểm tra lại cấu hình trong file config.properties
+                3. Tắt ứng dụng và khởi động lại
+                
+                Chi tiết lỗi: %s
+                """,
+                serverAddress,
+                port,
+                error.getMessage()
+            );
+            
+            JOptionPane.showMessageDialog(
+                null,
+                message,
+                "Lỗi Kết Nối",
+                JOptionPane.ERROR_MESSAGE
+            );
+            
+            // Exit the application after showing the error
+            System.exit(1);
+        });
+    }
+
     public static void main(String[] args) throws Exception {
         var thread = new Thread(() -> {
             Properties props = new Properties();
+            String serverAddress = "localhost";
+            int port = 1999;
             
             // First try to load from external config file
             File externalConfig = new File("config/config.properties");
@@ -47,37 +89,32 @@ public class Client {
                 try (InputStream input = Client.class.getClassLoader().getResourceAsStream("config.properties")) {
                     if (input == null) {
                         log.error("Unable to find config.properties");
+                        showConnectionErrorDialog(serverAddress, port, 
+                            new Exception("Không tìm thấy file cấu hình config.properties"));
                         return;
                     }
                     props.load(input);
                     log.info("Loaded configuration from internal resources");
                 } catch (IOException e) {
                     log.error("Error loading internal config file", e);
+                    showConnectionErrorDialog(serverAddress, port, e);
                     return;
                 }
             }
 
             // Get server configuration
-            var serverAddress = props.getProperty("server.address");
-            var portStr = props.getProperty("server.port");
+            serverAddress = props.getProperty("server.address", "localhost");
+            String portStr = props.getProperty("server.port");
             
             // Use defaults if not configured
-            if (serverAddress == null) {
-                serverAddress = "localhost";
-                log.info("Using default server address: {}", serverAddress);
-            } else {
-                log.info("Using configured server address: {}", serverAddress);
-            }
-            
-            int port;
             if (portStr != null) {
                 port = Integer.parseInt(portStr);
                 log.info("Using configured port: {}", port);
             } else {
-                port = 1999;
                 log.info("Using default port: {}", port);
             }
 
+            log.info("Using server address: {}", serverAddress);
             if ("127.0.0.1".equals(serverAddress)) {
                 log.info("Connecting to localhost");
             }
@@ -86,8 +123,10 @@ public class Client {
             try {
                 uri = new URI("ws://" + serverAddress + ":" + port + "/");
             } catch (URISyntaxException e) {
-                throw new RuntimeException(e);
+                showConnectionErrorDialog(serverAddress, port, e);
+                return;
             }
+
             EventLoopGroup group = new NioEventLoopGroup();
             try {
                 URI finalUri = uri;
@@ -120,18 +159,17 @@ public class Client {
                 channel.closeFuture().sync();
 
             } catch (Exception e) {
-
-                throw new RuntimeException(e);
+                log.error("Connection error", e);
+                showConnectionErrorDialog(serverAddress, port, e);
+                return;
             } finally {
                 try {
                     group.shutdownGracefully().sync();
                 } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
+                    log.error("Error shutting down", e);
                 }
             }
         });
         thread.start();
-
-
     }
 }
