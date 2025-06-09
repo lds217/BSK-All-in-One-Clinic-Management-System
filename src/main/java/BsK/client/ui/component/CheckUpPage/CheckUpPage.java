@@ -53,6 +53,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import javax.imageio.ImageIO;
+import javax.swing.JColorChooser;
 
 // Webcam imports
 import com.github.sarxos.webcam.Webcam;
@@ -84,7 +85,6 @@ import javax.swing.text.rtf.RTFEditorKit;
 import javax.swing.text.MutableAttributeSet;
 import javax.swing.text.SimpleAttributeSet;
 import javax.swing.text.StyleConstants;
-import javax.swing.colorchooser.JColorChooser;
 
 @Slf4j
 public class CheckUpPage extends JPanel {
@@ -118,6 +118,7 @@ public class CheckUpPage extends JPanel {
     private JComboBox<String> callRoomComboBox;
     private JButton callPatientButton;
     private JLabel callingStatusLabel;
+    private JPanel rightContainer; // Add this field
 
     private QueueViewPage tvQueueFrame;
     private QueueManagementPage queueManagementPage; // The new queue window
@@ -178,10 +179,30 @@ public class CheckUpPage extends JPanel {
             return new String[][]{};
         }
         String[][] tableData = new String[patients.size()][8];
+        SimpleDateFormat displayFormat = new SimpleDateFormat("dd/MM/yyyy");
+        
         for (int i = 0; i < patients.size(); i++) {
             Patient p = patients.get(i);
             tableData[i][0] = p.getCheckupId();
-            tableData[i][1] = p.getCheckupDate();
+            
+            // Convert DOB to display format
+            String dobStr = p.getCustomerDob();
+            try {
+                if (dobStr != null && !dobStr.trim().isEmpty()) {
+                    if (dobStr.matches("\\d+")) { // If it's a timestamp
+                        Date dobDate = new Date(Long.parseLong(dobStr));
+                        tableData[i][1] = displayFormat.format(dobDate);
+                    } else { // If it's already in date format
+                        tableData[i][1] = dobStr;
+                    }
+                } else {
+                    tableData[i][1] = "";
+                }
+            } catch (NumberFormatException e) {
+                log.warn("Invalid DOB format for patient {}: {}", p.getCheckupId(), dobStr);
+                tableData[i][1] = dobStr; // Use original string if parsing fails
+            }
+            
             tableData[i][2] = p.getCustomerLastName();
             tableData[i][3] = p.getCustomerFirstName();
             tableData[i][4] = p.getDoctorName();
@@ -972,38 +993,6 @@ public class CheckUpPage extends JPanel {
         rightBottomPanel.add(topActionPanel, BorderLayout.NORTH);
         rightBottomPanel.add(tabbedPaneContainer, BorderLayout.CENTER);
         
-        // Create a more modern action panel
-        JPanel iconPanel = new JPanel(new GridLayout(1, 5, 10, 0)); // 5 buttons, 10px horizontal gap
-        iconPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10)); 
-        iconPanel.setBackground(Color.WHITE);
-
-        // Define button properties
-        Object[][] buttonData = {
-            {"save", "Lưu", new Color(63, 81, 181)},
-            {"medicine", "Thêm thuốc", new Color(0, 150, 136)},
-            {"service", "Thêm DV", new Color(255, 152, 0)},
-            {"printer", "In toa", new Color(156, 39, 176)},
-            {"ultrasound", "In kết quả", new Color(0, 172, 193)}
-        };
-
-        for (Object[] data : buttonData) {
-            String name = (String) data[0];
-            String text = (String) data[1];
-            Color color = (Color) data[2];
-
-            JButton button = createActionButton(name, text, color);
-            button.addActionListener(e -> {
-                 if (checkupIdField == null || checkupIdField.getText().isEmpty()) {
-                                JOptionPane.showMessageDialog(null, "Vui lòng chọn một bệnh nhân từ hàng đợi", "Chưa chọn bệnh nhân", JOptionPane.WARNING_MESSAGE);
-                                return;
-                            }
-                 handleActionPanelClick(name);
-            });
-            iconPanel.add(button);
-        }
-
-        rightBottomPanel.add(iconPanel, BorderLayout.SOUTH);
-
         // --- Assemble New Layout ---
         UIManager.getDefaults().put("SplitPane.border", BorderFactory.createEmptyBorder());
 
@@ -1035,8 +1024,43 @@ public class CheckUpPage extends JPanel {
         newRightSplitPane.setResizeWeight(0.5); // Top part (Webcam+History) gets 50%
         newRightSplitPane.setDividerSize(5);
 
+        // Create a container for the right side that includes the split pane and action buttons
+        rightContainer = new JPanel(new BorderLayout());
+        rightContainer.add(newRightSplitPane, BorderLayout.CENTER);
+
+        // Create a more modern action panel
+        JPanel iconPanel = new JPanel(new GridLayout(1, 5, 10, 0)); // 5 buttons, 10px horizontal gap
+        iconPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10)); 
+        iconPanel.setBackground(Color.WHITE);
+
+        // Define button properties
+        Object[][] buttonData = {
+            {"save", "Lưu", new Color(63, 81, 181)},
+            {"medicine", "Thêm thuốc", new Color(0, 150, 136)},
+            {"service", "Thêm DV", new Color(255, 152, 0)},
+            {"printer", "In toa", new Color(156, 39, 176)},
+            {"ultrasound", "In kết quả", new Color(0, 172, 193)}
+        };
+
+        // Create array to store action buttons for later access
+        JButton[] actionButtons = new JButton[buttonData.length];
+
+        for (int i = 0; i < buttonData.length; i++) {
+            String name = (String) buttonData[i][0];
+            String text = (String) buttonData[i][1];
+            Color color = (Color) buttonData[i][2];
+
+            JButton button = createActionButton(name, text, color);
+            button.setEnabled(false); // Disabled by default
+            button.addActionListener(e -> handleActionPanelClick(name));
+            iconPanel.add(button);
+            actionButtons[i] = button;
+        }
+
+        rightContainer.add(iconPanel, BorderLayout.SOUTH);
+
         // Main Split Pane (Horizontal)
-        JSplitPane mainSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, newLeftSplitPane, newRightSplitPane);
+        JSplitPane mainSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, newLeftSplitPane, rightContainer);
         mainSplitPane.setResizeWeight(0.7); // Left side gets 70% of space
         mainSplitPane.setDividerSize(8);
         mainSplitPane.setContinuousLayout(true);
@@ -1086,12 +1110,16 @@ public class CheckUpPage extends JPanel {
         button.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseEntered(MouseEvent e) {
-                button.setBackground(bgColor.darker());
+                if (button.isEnabled()) {
+                    button.setBackground(bgColor.darker());
+                }
             }
 
             @Override
             public void mouseExited(MouseEvent e) {
-                button.setBackground(bgColor);
+                if (button.isEnabled()) {
+                    button.setBackground(bgColor);
+                }
             }
         });
 
@@ -1101,55 +1129,52 @@ public class CheckUpPage extends JPanel {
     private void handleActionPanelClick(String name) {
         switch (name) {
             case "service":
-                            if(serDialog == null) {
-                                serDialog = new ServiceDialog(mainFrame);
-                            }
-                            serDialog.setVisible(true);
-                            saved = false;
-                            servicePrescription = serDialog.getServicePrescription();
-                            updatePrescriptionTree(); 
-                            log.info("Service prescription: {}", (Object) servicePrescription);
-                            break;
-                        case "save": {
-                            int option = JOptionPane.showOptionDialog(null, "Bạn có muốn lưu các thay đổi?",
-                                    "Lưu thay đổi", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE,
-                                    null, null, null);
-                            if (option == JOptionPane.NO_OPTION) {
-                                return;
-                            }
-                            saved = true;
-                            callingStatusLabel.setBackground(new Color(230, 255, 230));
-                            callingStatusLabel.setForeground(new Color(0, 100, 0));
-                            // TODO: Add logic to actually save medicinePrescription and servicePrescription with other checkup data
-                            break;
-                        }
-                        case "medicine":
-                            if(medDialog == null) {
-                                medDialog = new MedicineDialog(mainFrame);
-                            }
-                            medDialog.setVisible(true);
-                            saved = false;
-                            medicinePrescription = medDialog.getMedicinePrescription();
-                            updatePrescriptionTree(); 
-                            log.info("Medicine prescription: {}", (Object) medicinePrescription);
-                            break;
-                        case "printer":
-                            if ((medicinePrescription == null || medicinePrescription.length == 0) && 
-                                (servicePrescription == null || servicePrescription.length == 0)) {
-                    JOptionPane.showMessageDialog(null, "Không có thuốc hoặc dịch vụ để in.", "Không có dữ liệu", JOptionPane.INFORMATION_MESSAGE);
+                if(serDialog == null) {
+                    serDialog = new ServiceDialog(mainFrame);
+                }
+                serDialog.setVisible(true);
+                saved = false;
+                servicePrescription = serDialog.getServicePrescription();
+                updatePrescriptionTree(); 
+                log.info("Service prescription: {}", (Object) servicePrescription);
+                break;
+            case "save":
+                int option = JOptionPane.showOptionDialog(null, "Bạn có muốn lưu các thay đổi?",
+                        "Lưu thay đổi", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE,
+                        null, null, null);
+                if (option == JOptionPane.NO_OPTION) {
                     return;
-                            }
-                            MedicineInvoice medicineInvoice = new MedicineInvoice(checkupIdField.getText(),
-                                    customerLastNameField.getText() + " " + customerFirstNameField.getText(),
-                                    dobPicker.getJFormattedTextField().getText(), customerPhoneField.getText(),
-                                    genderComboBox.getSelectedItem().toString(), 
-                                    customerAddressField.getText() + ", " + (wardComboBox.getSelectedItem() != null ? wardComboBox.getSelectedItem().toString() : "") + ", " + (districtComboBox.getSelectedItem() != null ? districtComboBox.getSelectedItem().toString() : "") + ", " + (provinceComboBox.getSelectedItem() != null ? provinceComboBox.getSelectedItem().toString() : ""),
-                                    doctorComboBox.getSelectedItem().toString(), diagnosisField.getText(),
-                                    notesField.getText(), medicinePrescription, servicePrescription); 
-                            medicineInvoice.createDialog(mainFrame);
-                            break;
+                }
+                saved = true;
+                callingStatusLabel.setBackground(new Color(230, 255, 230));
+                callingStatusLabel.setForeground(new Color(0, 100, 0));
+                break;
+            case "medicine":
+                if(medDialog == null) {
+                    medDialog = new MedicineDialog(mainFrame);
+                }
+                medDialog.setVisible(true);
+                saved = false;
+                medicinePrescription = medDialog.getMedicinePrescription();
+                updatePrescriptionTree(); 
+                log.info("Medicine prescription: {}", (Object) medicinePrescription);
+                break;
+            case "printer":
+                if ((medicinePrescription == null || medicinePrescription.length == 0) && 
+                    (servicePrescription == null || servicePrescription.length == 0)) {
+                    return; // Just return silently if there's nothing to print
+                }
+                MedicineInvoice medicineInvoice = new MedicineInvoice(checkupIdField.getText(),
+                        customerLastNameField.getText() + " " + customerFirstNameField.getText(),
+                        dobPicker.getJFormattedTextField().getText(), customerPhoneField.getText(),
+                        genderComboBox.getSelectedItem().toString(), 
+                        customerAddressField.getText() + ", " + (wardComboBox.getSelectedItem() != null ? wardComboBox.getSelectedItem().toString() : "") + ", " + (districtComboBox.getSelectedItem() != null ? districtComboBox.getSelectedItem().toString() : "") + ", " + (provinceComboBox.getSelectedItem() != null ? provinceComboBox.getSelectedItem().toString() : ""),
+                        doctorComboBox.getSelectedItem().toString(), diagnosisField.getText(),
+                        notesField.getText(), medicinePrescription, servicePrescription); 
+                medicineInvoice.createDialog(mainFrame);
+                break;
             case "ultrasound":
-                JOptionPane.showMessageDialog(null, "Tính năng in kết quả siêu âm sẽ được triển khai.", "TODO", JOptionPane.INFORMATION_MESSAGE);
+                // No dialog needed for now
                 break;
         }
     }
@@ -1222,6 +1247,13 @@ public class CheckUpPage extends JPanel {
             return;
         }
         Patient selectedPatient = patientQueue.get(selectedRowInQueue);
+
+        // Enable all action buttons when a patient is selected
+        for (Component comp : ((JPanel)((JPanel)rightContainer.getComponent(1))).getComponents()) {
+            if (comp instanceof JButton) {
+                comp.setEnabled(true);
+            }
+        }
 
         // Reset saved flag for new patient
         saved = true;
@@ -1558,8 +1590,8 @@ public class CheckUpPage extends JPanel {
                         "Thư viện Hình ảnh & Video",
                         TitledBorder.LEADING, TitledBorder.TOP,
                         new Font("Arial", Font.BOLD, 16), new Color(63, 81, 181))));
-        panel.setMinimumSize(new Dimension(300, 250)); // Ensure it has some minimum height
-        panel.setPreferredSize(new Dimension(450, 300)); // Give it a decent preferred size
+        panel.setMinimumSize(new Dimension(300, 200)); // Ensure it has some minimum height
+        panel.setPreferredSize(new Dimension(450, 200)); // Give it a decent preferred size
 
         JPanel imageDisplayContainer = createImageDisplayPanel();
 
@@ -2203,7 +2235,7 @@ public class CheckUpPage extends JPanel {
             setSize(800, 600);
             setLayout(new BorderLayout());
 
-            String[] columns = {"Mã khám bệnh", "Ngày Tháng", "Họ", "Tên", "Bác Sĩ", "Loại khám"};
+            String[] columns = {"Mã khám bệnh", "Ngày sinh", "Họ", "Tên", "Bác Sĩ", "Loại khám"};
             queueTableModel = new DefaultTableModel(preprocessPatientDataForTable(patientQueue), columns) {
                 @Override
                 public boolean isCellEditable(int row, int column) { return false; }
@@ -2259,7 +2291,7 @@ public class CheckUpPage extends JPanel {
          */
         public void updateQueueTable() {
             SwingUtilities.invokeLater(() -> {
-                String[] columns = {"Mã khám bệnh", "Ngày Tháng", "Họ", "Tên", "Bác Sĩ", "Loại khám"};
+                String[] columns = {"Mã khám bệnh", "Ngày sinh", "Họ", "Tên", "Bác Sĩ", "Loại khám"};
                 int selectedRow = queueTable.getSelectedRow();
                 queueTableModel.setDataVector(preprocessPatientDataForTable(patientQueue), columns);
                 if (selectedRow != -1 && selectedRow < queueTable.getRowCount()) {
