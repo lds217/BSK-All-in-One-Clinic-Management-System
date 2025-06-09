@@ -9,6 +9,7 @@ import BsK.client.ui.component.CheckUpPage.PrintDialog.MedicineInvoice;
 import BsK.client.ui.component.CheckUpPage.ServiceDialog.ServiceDialog;
 import BsK.client.ui.component.MainFrame;
 import BsK.client.ui.component.common.DateLabelFormatter;
+import BsK.client.ui.component.common.NavBar;
 import BsK.client.ui.component.common.RoundedPanel;
 import BsK.client.ui.component.QueueViewPage.QueueViewPage;
 import BsK.common.entity.Patient;
@@ -117,7 +118,6 @@ public class CheckUpPage extends JPanel {
     private JComboBox<String> callRoomComboBox;
     private JButton callPatientButton;
     private JLabel callingStatusLabel;
-    private JLabel activeNavItem = null; // To keep track of the active navigation item
 
     private QueueViewPage tvQueueFrame;
     private QueueManagementPage queueManagementPage; // The new queue window
@@ -164,6 +164,7 @@ public class CheckUpPage extends JPanel {
     private Java2DFrameConverter frameConverter;
 
     boolean returnCell = false;
+
     public void updateQueue() {
         NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetCheckUpQueueRequest());
     }
@@ -244,186 +245,7 @@ public class CheckUpPage extends JPanel {
         updateQueue();
 
         // --- Navigation Bar ---
-        JPanel navBar = new JPanel();
-        navBar.setLayout(new BoxLayout(navBar, BoxLayout.X_AXIS));
-        navBar.setBackground(new Color(240, 240, 240));
-        navBar.setBorder(BorderFactory.createEmptyBorder(10, 25, 10, 25));
-
-        // Left section with navigation items
-        JPanel navItemsPanel = new JPanel();
-        navItemsPanel.setBackground(navBar.getBackground());
-        navItemsPanel.setLayout(new FlowLayout(FlowLayout.LEFT, 20, 0));
-        navItemsPanel.setAlignmentY(Component.CENTER_ALIGNMENT);
-        navItemsPanel.setPreferredSize(new Dimension(750, 70)); // Increased from 60 to 70
-
-        // Center section with current page title
-        JPanel titlePanel = new JPanel(new GridBagLayout()); // Changed to GridBagLayout for vertical centering
-        titlePanel.setBackground(navBar.getBackground());
-        titlePanel.setAlignmentY(Component.CENTER_ALIGNMENT);
-        
-        JLabel titleLabel = new JLabel("Thăm khám");
-        titleLabel.setFont(new Font("Arial", Font.BOLD, 24));
-        titleLabel.setForeground(new Color(60, 60, 60));
-        titlePanel.add(titleLabel, new GridBagConstraints()); // This will center the label
-
-        // Right section with user info
-        JPanel userPanel = new JPanel(new GridBagLayout());
-        userPanel.setBackground(navBar.getBackground());
-        userPanel.setAlignmentY(Component.CENTER_ALIGNMENT);
-        userPanel.setPreferredSize(new Dimension(200, 70));
-
-        // Add welcome label with user info
-        JPanel welcomePanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        welcomePanel.setBackground(navBar.getBackground());
-        JLabel welcomeLabel = new JLabel("Chào, " + LocalStorage.username);
-        welcomeLabel.setFont(new Font("Arial", Font.BOLD, 14));
-        welcomeLabel.setForeground(new Color(60, 60, 60));
-        welcomeLabel.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        welcomeLabel.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                showUserMenu(welcomeLabel);
-            }
-            @Override
-            public void mouseEntered(MouseEvent e) {
-                welcomeLabel.setForeground(new Color(30, 30, 30));
-            }
-            @Override
-            public void mouseExited(MouseEvent e) {
-                welcomeLabel.setForeground(new Color(60, 60, 60));
-            }
-        });
-        welcomePanel.add(welcomeLabel);
-        userPanel.add(welcomePanel, new GridBagConstraints());
-
-        String[] navBarItems = {"Thống kê", "Thăm khám", "Dữ liệu", "Kho", "Thanh toán", "Người dùng", "Thông tin"};
-        String[] destination = {"DashboardPage", "CheckUpPage", "PatientDataPage", "InventoryPage", "CheckoutPage", "UserPage", "InfoPage"};
-        String[] iconFiles = {"dashboard.png", "health-check.png", "database.png", "warehouse.png", "cashier-machine.png", "user.png", "info.png"};
-        Color[] navItemColors = {
-            new Color(51, 135, 204),    // Darker Blue
-            new Color(66, 157, 21),     // Darker Green
-            new Color(200, 138, 16),    // Darker Orange
-            new Color(204, 62, 63),     // Darker Red
-            new Color(91, 37, 167),     // Darker Purple
-            new Color(15, 155, 155),    // Darker Cyan
-            new Color(196, 27, 36)      // Darker Red-Orange
-        };
-
-        final Color defaultTextColor = new Color(50, 50, 50);
-        final Color activeTextColor = Color.WHITE;
-        final Color shadowColor = new Color(0, 0, 0, 50);
-
-        for (int i = 0; i < navBarItems.length; i++) {
-            final String itemText = navBarItems[i];
-            final String dest = destination[i];
-            String iconFileName = iconFiles[i];
-            final Color itemColor = navItemColors[i];
-            
-            RoundedPanel itemPanel = new RoundedPanel(15, itemColor.brighter(), true);
-            itemPanel.setLayout(new BorderLayout(5, 5));
-            itemPanel.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createEmptyBorder(2, 2, 2, 2),
-                BorderFactory.createEmptyBorder(10, 15, 10, 15) // Increased vertical padding from 8 to 10
-            ));
-            itemPanel.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-            itemPanel.setPreferredSize(new Dimension(130, 70)); // Increased from 60 to 70
-
-            final JLabel label = new JLabel(itemText);
-            label.setForeground(defaultTextColor);
-            label.setHorizontalAlignment(SwingConstants.CENTER);
-            label.setFont(new Font("Arial", Font.BOLD, 13));
-            label.setOpaque(false);
-
-            try {
-                String iconPath = "src/main/java/BsK/client/ui/assets/icon/" + iconFileName;
-                ImageIcon originalIcon = new ImageIcon(iconPath);
-                Image scaledImage = originalIcon.getImage().getScaledInstance(30, 30, Image.SCALE_SMOOTH); // Increased from 28 to 30
-                ImageIcon scaledIcon = new ImageIcon(scaledImage);
-                label.setIcon(scaledIcon);
-            } catch (Exception e) {
-                log.error("Error loading icon: {} for nav item: {}", iconFileName, itemText, e);
-            }
-
-            label.setVerticalTextPosition(SwingConstants.BOTTOM);
-            label.setHorizontalTextPosition(SwingConstants.CENTER);
-            itemPanel.add(label, BorderLayout.CENTER);
-
-            if (itemText.equals("Thăm khám")) {
-                itemPanel.setBackground(itemColor);
-                label.setForeground(activeTextColor);
-                itemPanel.setBorder(BorderFactory.createCompoundBorder(
-                    BorderFactory.createEmptyBorder(2, 2, 2, 2),
-                    BorderFactory.createCompoundBorder(
-                        BorderFactory.createLineBorder(new Color(255, 255, 255, 200), 2),
-                        BorderFactory.createEmptyBorder(8, 13, 8, 13) // Increased vertical padding
-                    )
-                ));
-                activeNavItem = label;
-            }
-
-            final int index = i;
-            itemPanel.addMouseListener(new MouseAdapter() {
-                @Override
-                public void mouseClicked(MouseEvent e) {
-                    if (activeNavItem != null && activeNavItem != label) {
-                        JPanel prevPanel = (JPanel) activeNavItem.getParent();
-                        prevPanel.setBackground(navItemColors[findNavItemIndex(activeNavItem.getText(), navBarItems)].brighter());
-                        prevPanel.setBorder(BorderFactory.createCompoundBorder(
-                            BorderFactory.createEmptyBorder(2, 2, 2, 2),
-                            BorderFactory.createEmptyBorder(10, 15, 10, 15)
-                        ));
-                        activeNavItem.setForeground(defaultTextColor);
-                    }
-                    activeNavItem = label;
-                    itemPanel.setBackground(itemColor);
-                    label.setForeground(activeTextColor);
-                    itemPanel.setBorder(BorderFactory.createCompoundBorder(
-                        BorderFactory.createEmptyBorder(2, 2, 2, 2),
-                        BorderFactory.createCompoundBorder(
-                            BorderFactory.createLineBorder(new Color(255, 255, 255, 200), 2),
-                            BorderFactory.createEmptyBorder(8, 13, 8, 13)
-                        )
-                    ));
-                    mainFrame.showPage(dest);
-                }
-
-                @Override
-                public void mouseEntered(MouseEvent e) {
-                    if (label != activeNavItem) {
-                        itemPanel.setBackground(itemColor);
-                        label.setForeground(activeTextColor);
-                        itemPanel.setBorder(BorderFactory.createCompoundBorder(
-                            BorderFactory.createEmptyBorder(2, 2, 2, 2),
-                            BorderFactory.createCompoundBorder(
-                                BorderFactory.createLineBorder(new Color(255, 255, 255, 150), 1),
-                                BorderFactory.createEmptyBorder(9, 14, 9, 14)
-                            )
-                        ));
-                    }
-                }
-
-                @Override
-                public void mouseExited(MouseEvent e) {
-                    if (label != activeNavItem) {
-                        itemPanel.setBackground(itemColor.brighter());
-                        label.setForeground(defaultTextColor);
-                        itemPanel.setBorder(BorderFactory.createCompoundBorder(
-                            BorderFactory.createEmptyBorder(2, 2, 2, 2),
-                            BorderFactory.createEmptyBorder(10, 15, 10, 15)
-                        ));
-                    }
-                }
-            });
-            navItemsPanel.add(itemPanel);
-        }
-
-        navBar.add(navItemsPanel);
-        navBar.add(Box.createHorizontalGlue());
-        navBar.add(titlePanel);
-        navBar.add(Box.createHorizontalGlue());
-        navBar.add(userPanel);
-        navBar.setPreferredSize(new Dimension(1200, 90)); // Increased from 80 to 90
-
+        NavBar navBar = new NavBar(mainFrame, "Thăm khám");
         add(navBar, BorderLayout.NORTH);
 
         // --- Central Control Panel (New) ---
@@ -1218,7 +1040,7 @@ public class CheckUpPage extends JPanel {
         mainSplitPane.setResizeWeight(0.7); // Left side gets 70% of space
         mainSplitPane.setDividerSize(8);
         mainSplitPane.setContinuousLayout(true);
-        mainSplitPane.setBorder(BorderFactory.createEmptyBorder(10, 0, 0, 0));
+        mainSplitPane.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 0));
 
         // --- Add components to the main panel ---
         JPanel centerContentPanel = new JPanel(new BorderLayout(0, 5));
@@ -1237,15 +1059,15 @@ public class CheckUpPage extends JPanel {
             if (!iconFile.exists()) {
                  log.warn("Icon not found for button: {}, path: {}", iconName, iconPath);
                  // Create a placeholder icon if the file is missing
-                 BufferedImage placeholder = new BufferedImage(32, 32, BufferedImage.TYPE_INT_ARGB);
+                 BufferedImage placeholder = new BufferedImage(24, 24, BufferedImage.TYPE_INT_ARGB);
                  Graphics2D g = placeholder.createGraphics();
                  g.setPaint(Color.GRAY);
-                 g.fillRect(0, 0, 32, 32);
+                 g.fillRect(0, 0, 24, 24);
                  g.dispose();
                  button.setIcon(new ImageIcon(placeholder));
             } else {
                  ImageIcon icon = new ImageIcon(iconPath);
-                 Image scaledImg = icon.getImage().getScaledInstance(32, 32, Image.SCALE_SMOOTH);
+                 Image scaledImg = icon.getImage().getScaledInstance(24, 24, Image.SCALE_SMOOTH);
                  button.setIcon(new ImageIcon(scaledImg));
             }
         } catch (Exception e) {
@@ -1253,11 +1075,11 @@ public class CheckUpPage extends JPanel {
         }
         button.setVerticalTextPosition(SwingConstants.BOTTOM);
         button.setHorizontalTextPosition(SwingConstants.CENTER);
-        button.setFont(new Font("Arial", Font.BOLD, 12));
+        button.setFont(new Font("Arial", Font.BOLD, 11));
         button.setBackground(bgColor);
         button.setForeground(Color.WHITE);
         button.setFocusPainted(false);
-        button.setBorder(BorderFactory.createEmptyBorder(8, 12, 8, 12));
+        button.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
         button.setCursor(new Cursor(Cursor.HAND_CURSOR));
 
         // Non-flickering hover effect
@@ -2365,47 +2187,6 @@ public class CheckUpPage extends JPanel {
                 "Lỗi Thư Mục",
                 JOptionPane.ERROR_MESSAGE);
         }
-    }
-
-    private int findNavItemIndex(String text, String[] items) {
-        for (int i = 0; i < items.length; i++) {
-            if (items[i].equals(text)) return i;
-        }
-        return 0;
-    }
-
-    private void showUserMenu(JLabel welcomeLabel) {
-        JPopupMenu popupMenu = new JPopupMenu();
-        popupMenu.setBorder(BorderFactory.createEmptyBorder());
-        
-        JMenuItem profileItem = createMenuItem("Hồ sơ cá nhân", e -> 
-            JOptionPane.showMessageDialog(mainFrame, "Tính năng Hồ sơ cá nhân sắp ra mắt!", "Thông báo", JOptionPane.INFORMATION_MESSAGE));
-        
-        JMenuItem settingsItem = createMenuItem("Cài đặt", e -> 
-            JOptionPane.showMessageDialog(mainFrame, "Tính năng Cài đặt sắp ra mắt!", "Thông báo", JOptionPane.INFORMATION_MESSAGE));
-        
-        JMenuItem logoutItem = createMenuItem("Đăng xuất", e -> {
-            NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new LogoutRequest());
-            LocalStorage.username = null;
-            LocalStorage.userId = -1;
-            mainFrame.showPage("LandingPage");
-        });
-
-        popupMenu.add(profileItem);
-        popupMenu.add(settingsItem);
-        popupMenu.addSeparator();
-        popupMenu.add(logoutItem);
-        
-        popupMenu.setPreferredSize(new Dimension(180, popupMenu.getPreferredSize().height));
-        popupMenu.show(welcomeLabel, 0, welcomeLabel.getHeight());
-    }
-
-    private JMenuItem createMenuItem(String text, ActionListener action) {
-        JMenuItem item = new JMenuItem(text);
-        item.setFont(new Font("Arial", Font.PLAIN, 12));
-        item.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
-        item.addActionListener(action);
-        return item;
     }
 
     /**
