@@ -81,29 +81,16 @@ public class Server {
                 log.info("Using default port: {}", PORT);
             }
 
-            // Get the database from resources and copy to a temp file
-            String dbPath = extractDatabaseFile();
+            // Directly use the provided database path
+            String dbPath = "src/main/resources/database/BSK.db";
             connection = DriverManager.getConnection("jdbc:sqlite:" + dbPath);
-            // Delete the temp file when the JVM exits
-            new File(dbPath).deleteOnExit();
         } catch (Exception e) {
             throw new RuntimeException("Failed to initialize server", e);
         }
     }
 
     private static String extractDatabaseFile() throws IOException {
-        // Create a temp file for the database
-        Path tempFile = Files.createTempFile("BSK", ".db");
-        
-        // Copy the database from resources to the temp file
-        try (InputStream in = Server.class.getResourceAsStream("/database/BSK.db")) {
-            if (in == null) {
-                throw new IOException("Database file not found in resources");
-            }
-            Files.copy(in, tempFile, StandardCopyOption.REPLACE_EXISTING);
-        }
-        
-        return tempFile.toString();
+        throw new UnsupportedOperationException("extractDatabaseFile is not used anymore. Database is read directly from the specified path.");
     }
 
     public static Statement statement;

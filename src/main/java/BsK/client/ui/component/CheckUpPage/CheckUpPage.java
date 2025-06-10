@@ -772,7 +772,7 @@ public class CheckUpPage extends JPanel {
         JPanel leftPanel = new JPanel(new BorderLayout(5, 5));
         leftPanel.setBorder(BorderFactory.createTitledBorder(
             BorderFactory.createEtchedBorder(),
-            "Nội dung",
+            "Nội dung (chú thích)",
             TitledBorder.LEADING, TitledBorder.TOP,
             new Font("Arial", Font.BOLD, 18), // Increased font size for title
             new Color(63, 81, 181) // Match the blue theme
@@ -1339,7 +1339,8 @@ public class CheckUpPage extends JPanel {
         doctorComboBox.setSelectedItem(selectedPatient.getDoctorName());
         symptomsField.setText(selectedPatient.getSymptoms());
         diagnosisField.setText(selectedPatient.getDiagnosis());
-        notesField.setText(selectedPatient.getNotes());
+        log.info("Notes: {}", selectedPatient.getNotes());
+        notesField.setText(selectedPatient.getNotes()); 
         statusComboBox.setSelectedItem(selectedPatient.getStatus());
         customerIdField.setText(selectedPatient.getCustomerId());
         customerPhoneField.setText(selectedPatient.getCustomerNumber());
