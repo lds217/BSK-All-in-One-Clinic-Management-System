@@ -36,6 +36,8 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.awt.event.KeyEvent;
+import java.awt.datatransfer.*;
 import java.text.DecimalFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
@@ -85,6 +87,12 @@ import javax.swing.text.rtf.RTFEditorKit;
 import javax.swing.text.MutableAttributeSet;
 import javax.swing.text.SimpleAttributeSet;
 import javax.swing.text.StyleConstants;
+import javax.swing.text.BadLocationException;
+import javax.swing.text.Document;
+import java.io.ByteArrayOutputStream;
+import java.io.ByteArrayInputStream;
+import java.io.OutputStream;
+import java.io.InputStream;
 
 @Slf4j
 public class CheckUpPage extends JPanel {
@@ -348,38 +356,21 @@ public class CheckUpPage extends JPanel {
                 )
         ));
 
-        // Configure History Panel (rightTopPanel)
+        // Configure rightTopPanel for gallery
         rightTopPanel.setLayout(new BorderLayout());
         rightTopPanel.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createEmptyBorder(10, 10, 5, 10),
                 BorderFactory.createTitledBorder(
                         BorderFactory.createLineBorder(new Color(63, 81, 181), 1, true),
-                        "Lịch sử khám bệnh",
+                        "Thư viện Hình ảnh",
                         TitledBorder.LEADING, TitledBorder.TOP,
                         new Font("Arial", Font.BOLD, 16), new Color(63, 81, 181)
                 )
         ));
-        String historyColumns[] = {"Ngày Tháng","Mã khám bệnh", "Triệu chứng", "Chẩn đoán", "Ghi chú"};
-        historyModel = new DefaultTableModel(this.history, historyColumns) {
-            @Override public boolean isCellEditable(int row, int column) { return false; }
-        };
-        historyTable = new JTable(historyModel);
-        historyTable.getTableHeader().setFont(new Font("Arial", Font.BOLD, 14));
-        historyTable.setFont(new Font("Arial", Font.PLAIN, 12));
-        historyTable.setRowHeight(25);
-        historyTable.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                if (e.getClickCount() == 1) {
-                    int selectedRow = historyTable.getSelectedRow();
-                    // if (selectedRow != -1) { System.out.println("Clicked on history row: " + selectedRow); }
-                }
-            }
-        });
-        JScrollPane tableScroll2 = new JScrollPane(historyTable);
-        tableScroll2.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
-        rightTopPanel.add(tableScroll2, BorderLayout.CENTER);
-
+        
+        // Add image gallery to rightTopPanel
+        JPanel imageDisplayPanel = createImageDisplayPanel();
+        rightTopPanel.add(imageDisplayPanel, BorderLayout.CENTER);
 
         // Configure Prescription Display Panel (prescriptionDisplayPanel)
         prescriptionDisplayPanel.setBorder(BorderFactory.createCompoundBorder(
@@ -780,10 +771,23 @@ public class CheckUpPage extends JPanel {
 
         notesField = new JTextPane();
         notesField.setContentType("text/rtf");
-        notesField.setEditorKit(new RTFEditorKit());
-        notesField.setFont(new Font("Times New Roman", Font.BOLD, 16)); // Increased font size
-        notesField.setBackground(new Color(252, 252, 252)); // Very light gray background
-        notesField.setForeground(new Color(33, 33, 33)); // Dark gray text
+        
+        // Set default font and size
+        notesField.setFont(new Font("Times New Roman", Font.PLAIN, 16));
+        
+        // Set up RTF editor kit with proper character encoding
+        RTFEditorKit rtfKit = new RTFEditorKit();
+        notesField.setEditorKit(rtfKit);
+        
+        // Set up document properties
+        Document doc = notesField.getDocument();
+        doc.putProperty("IgnoreCharsetDirective", Boolean.TRUE);
+        
+        // Set up empty default template
+        String defaultTemplate = "{\\rtf1\\ansi\\ansicpg1252\\deff0\\deflang1033{\\fonttbl{\\f0\\fnil\\fcharset163 Times New Roman;}}\n" +
+                               "{\\colortbl ;\\red0\\green0\\blue0;}\n" +
+                               "\\viewkind4\\uc1\\pard\\cf1\\f0\\fs32\\par}";
+        setRtfContentFromString(defaultTemplate);
         
         // Add tab support - 4 spaces per tab
         notesField.getInputMap().put(KeyStroke.getKeyStroke("TAB"), "insertTab");
@@ -793,6 +797,18 @@ public class CheckUpPage extends JPanel {
                 notesField.replaceSelection("    ");
             }
         });
+
+        // Set default RTF template with proper Vietnamese character support
+        String defaultRtfTemplate = "{\\rtf1\\ansi\\ansicpg1252\\deff0\\deflang1033{\\fonttbl{\\f0\\fnil\\fcharset163 Times New Roman;}}\n" +
+                                  "{\\colortbl ;\\red0\\green0\\blue0;}\n" +
+                                  "\\viewkind4\\uc1\\pard\\cf1\\f0\\fs32\\par}";
+        try {
+            notesField.getDocument().remove(0, notesField.getDocument().getLength());
+            new RTFEditorKit().read(new ByteArrayInputStream(defaultRtfTemplate.getBytes("UTF-8")), 
+                                  notesField.getDocument(), 0);
+        } catch (Exception e) {
+            log.error("Error setting default RTF template", e);
+        }
         
         // Set preferred size for notes field
         notesField.setPreferredSize(new Dimension(0, 400)); // Make it tall
@@ -942,7 +958,7 @@ public class CheckUpPage extends JPanel {
         checkupInfoPanel.add(topRowPanel, BorderLayout.NORTH);
         checkupInfoPanel.add(mainContentPanel, BorderLayout.CENTER);
 
-                // Create tabbed pane for patient info and checkup info
+        // Create tabbed pane for patient info and checkup info
         JTabbedPane tabbedPane = new JTabbedPane();
         tabbedPane.setFont(new Font("Arial", Font.BOLD, 14));
         tabbedPane.setBackground(Color.WHITE);
@@ -962,8 +978,46 @@ public class CheckUpPage extends JPanel {
             checkupIcon = new ImageIcon(scaledImage);
         }
 
+        // Create a container for patient info and history
+        JPanel patientInfoContainer = new JPanel(new BorderLayout(0, 10));
+        patientInfoContainer.add(patientInfoInnerPanel, BorderLayout.CENTER);
+
+        // Add history panel to the bottom of patient info
+        JPanel historyPanel = new JPanel(new BorderLayout());
+        historyPanel.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createEmptyBorder(5, 5, 5, 5),
+                BorderFactory.createTitledBorder(
+                        BorderFactory.createLineBorder(new Color(63, 81, 181), 1, true),
+                        "Lịch sử khám bệnh",
+                        TitledBorder.LEADING, TitledBorder.TOP,
+                        new Font("Arial", Font.BOLD, 16), new Color(63, 81, 181)
+                )
+        ));
+        String historyColumns[] = {"Ngày Tháng","Mã khám bệnh", "Triệu chứng", "Chẩn đoán", "Ghi chú"};
+        historyModel = new DefaultTableModel(this.history, historyColumns) {
+            @Override public boolean isCellEditable(int row, int column) { return false; }
+        };
+        historyTable = new JTable(historyModel);
+        historyTable.getTableHeader().setFont(new Font("Arial", Font.BOLD, 14));
+        historyTable.setFont(new Font("Arial", Font.PLAIN, 12));
+        historyTable.setRowHeight(25);
+        historyTable.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                if (e.getClickCount() == 1) {
+                    int selectedRow = historyTable.getSelectedRow();
+                    // if (selectedRow != -1) { System.out.println("Clicked on history row: " + selectedRow); }
+                }
+            }
+        });
+        JScrollPane tableScroll2 = new JScrollPane(historyTable);
+        tableScroll2.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        historyPanel.add(tableScroll2, BorderLayout.CENTER);
+        historyPanel.setPreferredSize(new Dimension(0, 200)); // Set fixed height for history panel
+        patientInfoContainer.add(historyPanel, BorderLayout.SOUTH);
+
         // Create scroll panes for each panel
-        JScrollPane patientScrollPane = new JScrollPane(patientInfoInnerPanel);
+        JScrollPane patientScrollPane = new JScrollPane(patientInfoContainer);
         patientScrollPane.setBorder(BorderFactory.createEmptyBorder());
         patientScrollPane.getVerticalScrollBar().setUnitIncrement(16);
         
@@ -996,14 +1050,14 @@ public class CheckUpPage extends JPanel {
         // --- Assemble New Layout ---
         UIManager.getDefaults().put("SplitPane.border", BorderFactory.createEmptyBorder());
 
-        // New Left Split Pane (Vertical): Details on top, Image Gallery on bottom
-        JSplitPane newLeftSplitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT, rightBottomPanel, imageGalleryViewPanel);
-        newLeftSplitPane.setResizeWeight(0.85);
-        newLeftSplitPane.setDividerSize(8);
-        newLeftSplitPane.setBorder(BorderFactory.createEmptyBorder());
-        newLeftSplitPane.setContinuousLayout(true);
+        // Main Split Pane (Horizontal): Details on left, Right Panel on right
+        JSplitPane mainSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, rightBottomPanel, rightContainer);
+        mainSplitPane.setResizeWeight(0.7); // Left side gets 70% of space
+        mainSplitPane.setDividerSize(8);
+        mainSplitPane.setContinuousLayout(true);
+        mainSplitPane.setBorder(BorderFactory.createEmptyBorder());
 
-        // New Top-Right Split Pane (Vertical): Webcam on top of History
+        // Configure webcam container
         webcamControlContainer.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createEmptyBorder(10, 10, 5, 5),
                 BorderFactory.createTitledBorder(
@@ -1015,13 +1069,13 @@ public class CheckUpPage extends JPanel {
         ));
         webcamControlContainer.setPreferredSize(new Dimension(0, 300)); // Give it a preferred height
 
+        // New Right Split Pane (Vertical): Webcam on top, Gallery in middle, Prescription on bottom
         JSplitPane topRightSplitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT, webcamControlContainer, rightTopPanel);
-        topRightSplitPane.setResizeWeight(0.5); // Give webcam and history roughly equal initial space
+        topRightSplitPane.setResizeWeight(0.4); // Webcam gets 40% of space
         topRightSplitPane.setDividerSize(5);
         
-        // New Right Split Pane (Vertical): Top-Right-Pane on top, Prescription on bottom
         JSplitPane newRightSplitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT, topRightSplitPane, prescriptionDisplayPanel);
-        newRightSplitPane.setResizeWeight(0.5); // Top part (Webcam+History) gets 50%
+        newRightSplitPane.setResizeWeight(0.7); // Top part gets 70% of space
         newRightSplitPane.setDividerSize(5);
 
         // Create a container for the right side that includes the split pane and action buttons
@@ -1060,7 +1114,7 @@ public class CheckUpPage extends JPanel {
         rightContainer.add(iconPanel, BorderLayout.SOUTH);
 
         // Main Split Pane (Horizontal)
-        JSplitPane mainSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, newLeftSplitPane, rightContainer);
+        mainSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, rightBottomPanel, rightContainer);
         mainSplitPane.setResizeWeight(0.7); // Left side gets 70% of space
         mainSplitPane.setDividerSize(8);
         mainSplitPane.setContinuousLayout(true);
@@ -1073,6 +1127,9 @@ public class CheckUpPage extends JPanel {
         centerContentPanel.add(mainSplitPane, BorderLayout.CENTER);
 
         add(centerContentPanel, BorderLayout.CENTER);
+
+        // In the constructor, after creating notesField:
+        setupNotesPasteHandler();
     }
 
     private JButton createActionButton(String iconName, String text, Color bgColor) {
@@ -1145,7 +1202,8 @@ public class CheckUpPage extends JPanel {
                 if (option == JOptionPane.NO_OPTION) {
                     return;
                 }
-                saved = true;
+                handleSave();
+                callingStatusLabel.setText("Đã lưu thành công!");
                 callingStatusLabel.setBackground(new Color(230, 255, 230));
                 callingStatusLabel.setForeground(new Color(0, 100, 0));
                 break;
@@ -1339,8 +1397,28 @@ public class CheckUpPage extends JPanel {
         doctorComboBox.setSelectedItem(selectedPatient.getDoctorName());
         symptomsField.setText(selectedPatient.getSymptoms());
         diagnosisField.setText(selectedPatient.getDiagnosis());
-        log.info("Notes: {}", selectedPatient.getNotes());
-        notesField.setText(selectedPatient.getNotes()); 
+        
+        // Handle RTF notes content
+        String notes = selectedPatient.getNotes();
+        if (notes != null && !notes.isEmpty()) {
+            if (isValidRtfContent(notes)) {
+                // If it's valid RTF, load it directly
+                setRtfContentFromString(notes);
+            } else {
+                // If it's plain text, convert to RTF
+                StringBuilder rtfContent = new StringBuilder();
+                rtfContent.append("{\\rtf1\\ansi\\ansicpg1252\\deff0\\deflang1033{\\fonttbl{\\f0\\fnil\\fcharset163 Times New Roman;}}\n");
+                rtfContent.append("{\\colortbl ;\\red0\\green0\\blue0;}\n");
+                rtfContent.append("\\viewkind4\\uc1\\pard\\cf1\\f0\\fs32 ");
+                rtfContent.append(notes.replace("\n", "\\par "));
+                rtfContent.append("\\par}");
+                setRtfContentFromString(rtfContent.toString());
+            }
+        } else {
+            // Clear the notes field
+            setRtfContentFromString("{\\rtf1\\ansi\\ansicpg1252\\deff0\\deflang1033{\\fonttbl{\\f0\\fnil\\fcharset163 Times New Roman;}}\\viewkind4\\uc1\\pard\\f0\\fs32\\par}");
+        }
+        
         statusComboBox.setSelectedItem(selectedPatient.getStatus());
         customerIdField.setText(selectedPatient.getCustomerId());
         customerPhoneField.setText(selectedPatient.getCustomerNumber());
@@ -2308,6 +2386,209 @@ public class CheckUpPage extends JPanel {
         public int getSelectedRow() {
             return queueTable.getSelectedRow();
         }
+    }
+
+    private void handleRtfPaste() {
+        try {
+            Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
+            Transferable content = clipboard.getContents(null);
+            
+            if (content != null) {
+                // Try to get RTF data first
+                if (content.isDataFlavorSupported(new DataFlavor("text/rtf"))) {
+                    Object rtfData = content.getTransferData(new DataFlavor("text/rtf"));
+                    if (rtfData instanceof InputStream) {
+                        RTFEditorKit kit = (RTFEditorKit) notesField.getEditorKit();
+                        kit.read((InputStream) rtfData, notesField.getDocument(), notesField.getCaretPosition());
+                        return;
+                    }
+                }
+                
+                // Fall back to plain text if RTF is not available
+                if (content.isDataFlavorSupported(DataFlavor.stringFlavor)) {
+                    String text = (String) content.getTransferData(DataFlavor.stringFlavor);
+                    
+                    // Convert plain text to RTF with proper Vietnamese encoding
+                    StringBuilder rtfContent = new StringBuilder();
+                    rtfContent.append("{\\rtf1\\ansi\\ansicpg1252\\deff0\\deflang1033{\\fonttbl{\\f0\\fnil\\fcharset163 Times New Roman;}}\n");
+                    rtfContent.append("{\\colortbl ;\\red0\\green0\\blue0;}\n");
+                    rtfContent.append("\\viewkind4\\uc1\\pard\\cf1\\f0\\fs32 ");
+                    
+                    // Convert Vietnamese characters to RTF Unicode escape sequences
+                    for (char c : text.toCharArray()) {
+                        if (c < 128) {
+                            rtfContent.append(c);
+                        } else {
+                            rtfContent.append("\\u").append((int) c).append("?");
+                        }
+                    }
+                    
+                    rtfContent.append("\\par}");
+                    
+                    // Insert the RTF content
+                    ByteArrayInputStream in = new ByteArrayInputStream(rtfContent.toString().getBytes("ISO-8859-1"));
+                    RTFEditorKit kit = (RTFEditorKit) notesField.getEditorKit();
+                    kit.read(in, notesField.getDocument(), notesField.getCaretPosition());
+                }
+            }
+        } catch (Exception e) {
+            log.error("Error handling RTF paste", e);
+        }
+    }
+
+    // Add paste key binding to the notes field
+    private void setupNotesPasteHandler() {
+        notesField.getInputMap().put(KeyStroke.getKeyStroke(KeyEvent.VK_V, Toolkit.getDefaultToolkit().getMenuShortcutKeyMask()), "customPaste");
+        notesField.getActionMap().put("customPaste", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                handleRtfPaste();
+            }
+        });
+    }
+
+    /**
+     * Converts the current RTF content in the notesField to a string for database storage
+     * @return String representation of the RTF content
+     */
+    private String getRtfContentAsString() {
+        try {
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            notesField.getEditorKit().write(out, notesField.getDocument(), 0, notesField.getDocument().getLength());
+            // Return raw RTF content
+            return out.toString("ISO-8859-1");
+        } catch (Exception e) {
+            log.error("Error getting RTF content", e);
+            return "";
+        }
+    }
+
+    /**
+     * Sets the RTF content from a string (loaded from database)
+     * @param rtfContent The RTF content as string
+     */
+    private void setRtfContentFromString(String rtfContent) {
+        if (rtfContent == null || rtfContent.isEmpty()) {
+            return;
+        }
+
+        try {
+            // Clear existing content
+            notesField.getDocument().remove(0, notesField.getDocument().getLength());
+            
+            // Load RTF content directly without any conversion
+            notesField.getEditorKit().read(new ByteArrayInputStream(rtfContent.getBytes("ISO-8859-1")), 
+                                         notesField.getDocument(), 0);
+        } catch (Exception e) {
+            log.error("Error setting RTF content from string", e);
+        }
+    }
+
+    /**
+     * Gets plain text content from the RTF editor
+     * @return Plain text content without RTF formatting
+     */
+    private String getPlainTextContent() {
+        try {
+            return notesField.getDocument().getText(0, notesField.getDocument().getLength());
+        } catch (Exception e) {
+            log.error("Error getting plain text content", e);
+            return "";
+        }
+    }
+
+    /**
+     * Checks if the RTF content is valid
+     * @param rtfContent The RTF content to validate
+     * @return true if content is valid RTF
+     */
+    private boolean isValidRtfContent(String rtfContent) {
+        return rtfContent != null && rtfContent.startsWith("{\\rtf");
+    }
+
+
+
+    // Update the save method to get RTF content
+    private void handleSave() {
+        // Get all the field values
+        String rtfContent = getRtfContentAsString();
+        String checkupId = checkupIdField.getText();
+        String checkupDate = datePicker.getJFormattedTextField().getText();
+        String customerId = customerIdField.getText();
+        String customerLastName = customerLastNameField.getText();
+        String customerFirstName = customerFirstNameField.getText();
+        String customerDob = dobPicker.getJFormattedTextField().getText();
+        String customerGender = (String) genderComboBox.getSelectedItem();
+        
+        // Construct full address
+        String address = customerAddressField.getText();
+        String ward = (String) wardComboBox.getSelectedItem();
+        String district = (String) districtComboBox.getSelectedItem();
+        String province = (String) provinceComboBox.getSelectedItem();
+        String fullAddress = String.format("%s, %s, %s, %s", 
+            address,
+            ward != null && !ward.equals("Phường") ? ward : "",
+            district != null && !district.equals("Huyện") ? district : "",
+            province != null && !province.equals("Tỉnh/Thành phố") ? province : ""
+        ).replaceAll(", ,", ",").trim().replaceAll(",$", "");
+
+        String customerNumber = customerPhoneField.getText();
+        String customerWeight = customerWeightSpinner.getValue().toString();
+        String customerHeight = customerHeightSpinner.getValue().toString();
+        String doctorName = (String) doctorComboBox.getSelectedItem();
+        String symptoms = symptomsField.getText();
+        String diagnosis = diagnosisField.getText();
+        String status = (String) statusComboBox.getSelectedItem();
+        String checkupType = (String) checkupTypeComboBox.getSelectedItem();
+
+        // Log all fields that will be sent to backend
+        log.info("=== SaveCheckupRequest Data ===");
+        log.info("checkupId: {}", checkupId);
+        log.info("checkupDate: {}", checkupDate);
+        log.info("customerId: {}", customerId);
+        log.info("customerLastName: {}", customerLastName);
+        log.info("customerFirstName: {}", customerFirstName);
+        log.info("customerDob: {}", customerDob);
+        log.info("customerGender: {}", customerGender);
+        log.info("customerAddress: {}", fullAddress);
+        log.info("customerNumber: {}", customerNumber);
+        log.info("customerWeight: {}", customerWeight);
+        log.info("customerHeight: {}", customerHeight);
+        log.info("doctorName: {}", doctorName);
+        log.info("symptoms: {}", symptoms);
+        log.info("diagnosis: {}", diagnosis);
+        log.info("notes (RTF): {}", rtfContent);
+        log.info("status: {}", status);
+        log.info("checkupType: {}", checkupType);
+        log.info("medicinePrescription: {}", (Object) medicinePrescription);
+        log.info("servicePrescription: {}", (Object) servicePrescription);
+        log.info("=== End SaveCheckupRequest Data ===");
+
+        // Create and send the save request
+        SaveCheckupRequest request = new SaveCheckupRequest(
+            checkupId,
+            checkupDate,
+            customerId,
+            customerLastName,
+            customerFirstName,
+            customerDob,
+            customerGender,
+            fullAddress,
+            customerNumber,
+            customerWeight,
+            customerHeight,
+            doctorName,
+            symptoms,
+            diagnosis,
+            rtfContent, // Send RTF content as notes
+            status,
+            checkupType,
+            medicinePrescription,
+            servicePrescription
+        );
+
+        NetworkUtil.sendPacket(ClientHandler.ctx.channel(), request);
+        saved = true;
     }
 }
 
