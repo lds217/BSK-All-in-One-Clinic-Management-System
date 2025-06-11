@@ -9,15 +9,18 @@ import BsK.client.network.handler.ClientHandler;
 
 import javax.swing.*;
 import java.awt.*;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 
 public class MainFrame extends JFrame {
     private CardLayout cardLayout;
     private JPanel mainPanel;
+    private JPanel currentPage;
 
     public MainFrame() {
         setTitle("BSK");
         setSize(800, 600);
-        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
         setLocationRelativeTo(null);
 
         cardLayout = new CardLayout();
@@ -25,17 +28,27 @@ public class MainFrame extends JFrame {
 
         // Add pages to the main panel
         mainPanel.add(new LandingPage(this), "LandingPage");
-//        mainPanel.add(new CheckUpPage(this), "CheckUpPage");
+        currentPage = (JPanel) mainPanel.getComponent(0);
+
+        // Add window listener for proper cleanup
+        addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowClosing(WindowEvent e) {
+                performFullCleanup();
+                System.exit(0);
+            }
+        });
 
         add(mainPanel);
     }
 
-//    public void showPage(String pageName) {
-//        cardLayout.show(mainPanel, pageName);
-//    }
-
     public void showPage(String pageName) {
         try {
+            // Perform fast cleanup on current page if it's CheckUpPage
+            if (currentPage instanceof CheckUpPage) {
+                ((CheckUpPage) currentPage).fastCleanup();
+            }
+
             //  clear all listeners on current page
             ClientHandler.clearListeners();
 
@@ -43,10 +56,10 @@ public class MainFrame extends JFrame {
             String className = "BsK.client.ui.component." + pageName + "." + pageName;
             Class<?> pageClass = Class.forName(className);
             JPanel newPage = (JPanel) pageClass.getConstructor(MainFrame.class).newInstance(this);
-            // clear all listeners on new page
 
             mainPanel.add(newPage, pageName);
-            mainPanel.remove(0);
+            mainPanel.remove(currentPage);
+            currentPage = newPage;
             cardLayout.show(mainPanel, pageName);
         } catch (Exception e) {
             e.printStackTrace();
@@ -54,6 +67,14 @@ public class MainFrame extends JFrame {
         }
     }
 
+    private void performFullCleanup() {
+        // Perform full cleanup on current page if it's CheckUpPage
+        if (currentPage instanceof CheckUpPage) {
+            ((CheckUpPage) currentPage).fullCleanup();
+        }
+        // Clear all listeners
+        ClientHandler.clearListeners();
+    }
 
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {

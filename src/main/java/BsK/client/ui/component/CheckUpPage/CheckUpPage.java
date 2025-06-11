@@ -7,6 +7,7 @@ import BsK.client.ui.component.CheckUpPage.AddDialog.AddDialog;
 import BsK.client.ui.component.CheckUpPage.MedicineDialog.MedicineDialog;
 import BsK.client.ui.component.CheckUpPage.PrintDialog.MedicineInvoice;
 import BsK.client.ui.component.CheckUpPage.ServiceDialog.ServiceDialog;
+import BsK.client.ui.component.CheckUpPage.TemplateDialog.TemplateDialog;
 import BsK.client.ui.component.MainFrame;
 import BsK.client.ui.component.common.DateLabelFormatter;
 import BsK.client.ui.component.common.NavBar;
@@ -109,7 +110,7 @@ public class CheckUpPage extends JPanel {
     private final ResponseListener<GetWardResponse> wardResponseListener = this::handleGetWardResponse;
     private final ResponseListener<CallPatientResponse> callPatientResponseListener = this::handleCallPatientResponse;
     private JTextField checkupIdField, customerLastNameField, customerFirstNameField,customerAddressField, customerPhoneField, customerIdField;
-    private JTextArea symptomsField, diagnosisField;
+    private JTextArea suggestionField, diagnosisField, conclusionField; // Changed symptomsField to suggestionField
     private JTextPane notesField;
     private JComboBox<String> doctorComboBox, statusComboBox, genderComboBox, provinceComboBox, districtComboBox, wardComboBox, checkupTypeComboBox;
     private JSpinner customerWeightSpinner, customerHeightSpinner;
@@ -278,15 +279,15 @@ public class CheckUpPage extends JPanel {
         add(navBar, BorderLayout.NORTH);
 
         // --- Central Control Panel (New) ---
-        JPanel controlPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 15, 10));
-        controlPanel.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
+        JPanel controlPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 15, 5)); // Reduced vertical gap from 10 to 5
+        controlPanel.setBorder(BorderFactory.createEmptyBorder(3, 5, 3, 5)); // Reduced top/bottom from 5 to 3
         controlPanel.setBackground(Color.WHITE);
 
         JButton openQueueButton = new JButton("Danh sách chờ");
         openQueueButton.setBackground(new Color(255, 152, 0)); // Amber
         openQueueButton.setForeground(Color.WHITE);
         openQueueButton.setFocusPainted(false);
-        openQueueButton.setBorder(BorderFactory.createEmptyBorder(10, 15, 10, 15));
+        openQueueButton.setBorder(BorderFactory.createEmptyBorder(8, 15, 8, 15)); // Reduced vertical padding from 10 to 8
         openQueueButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         openQueueButton.addActionListener(e -> {
             queueManagementPage.setVisible(true);
@@ -297,7 +298,7 @@ public class CheckUpPage extends JPanel {
         tvQueueButton.setBackground(new Color(0, 150, 136));
         tvQueueButton.setForeground(Color.WHITE);
         tvQueueButton.setFocusPainted(false);
-        tvQueueButton.setBorder(BorderFactory.createEmptyBorder(10, 15, 10, 15));
+        tvQueueButton.setBorder(BorderFactory.createEmptyBorder(8, 15, 8, 15)); // Reduced vertical padding from 10 to 8
         tvQueueButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         tvQueueButton.addActionListener(e -> {
             if (tvQueueFrame == null || !tvQueueFrame.isDisplayable()) {
@@ -313,7 +314,7 @@ public class CheckUpPage extends JPanel {
         addPatientButton.setBackground(new Color(63, 81, 181));
         addPatientButton.setForeground(Color.WHITE);
         addPatientButton.setFocusPainted(false);
-        addPatientButton.setBorder(BorderFactory.createEmptyBorder(10, 20, 10, 20));
+        addPatientButton.setBorder(BorderFactory.createEmptyBorder(8, 20, 8, 20)); // Reduced vertical padding from 10 to 8
         addPatientButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         addPatientButton.addActionListener(e -> {
             addDialog = new AddDialog(mainFrame);
@@ -347,7 +348,7 @@ public class CheckUpPage extends JPanel {
         // Configure Details/Actions Panel (now on the left)
         rightBottomPanel.setLayout(new BorderLayout());
         rightBottomPanel.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createEmptyBorder(5, 5, 5, 5),
+                BorderFactory.createEmptyBorder(3, 5, 3, 5), // Reduced top/bottom from 5 to 3
                 BorderFactory.createTitledBorder(
                         BorderFactory.createLineBorder(new Color(63, 81, 181), 1, true),
                         "Chi tiết và Thao tác",
@@ -359,7 +360,7 @@ public class CheckUpPage extends JPanel {
         // Configure rightTopPanel for gallery
         rightTopPanel.setLayout(new BorderLayout());
         rightTopPanel.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createEmptyBorder(10, 10, 5, 10),
+                BorderFactory.createEmptyBorder(5, 10, 3, 10), // Reduced bottom from 5 to 3
                 BorderFactory.createTitledBorder(
                         BorderFactory.createLineBorder(new Color(63, 81, 181), 1, true),
                         "Thư viện Hình ảnh",
@@ -374,7 +375,7 @@ public class CheckUpPage extends JPanel {
 
         // Configure Prescription Display Panel (prescriptionDisplayPanel)
         prescriptionDisplayPanel.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createEmptyBorder(5, 10, 5, 10),
+            BorderFactory.createEmptyBorder(3, 10, 3, 10), // Reduced top/bottom from 5 to 3
             BorderFactory.createTitledBorder(
                 BorderFactory.createLineBorder(new Color(63, 81, 181), 1, true),
                 "Đơn thuốc và Dịch vụ",
@@ -420,8 +421,8 @@ public class CheckUpPage extends JPanel {
         ));
 
         // Main input panel with BorderLayout
-        JPanel inputPanel = new JPanel(new BorderLayout(10, 10));
-        inputPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        JPanel inputPanel = new JPanel(new BorderLayout(10, 5)); // Reduced vertical gap from 10 to 5
+        inputPanel.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10)); // Reduced top/bottom from 10 to 5
 
         // Patient Info Section (Top)
         JPanel patientInfoInnerPanel = new JPanel(new GridBagLayout());
@@ -432,17 +433,17 @@ public class CheckUpPage extends JPanel {
         ));
 
         // Set up a larger, more readable font for labels and fields
-        Font labelFont = new Font("Arial", Font.BOLD, 14);
-        Font fieldFont = new Font("Arial", Font.BOLD, 14); // Changed to bold
+        Font labelFont = new Font("Arial", Font.BOLD, 18); // Increased from 14 to 18
+        Font fieldFont = new Font("Arial", Font.BOLD, 16); // Increased from 14 to 16
 
         GridBagConstraints gbcPatient = new GridBagConstraints();
-        gbcPatient.insets = new Insets(8, 8, 8, 8); // Increased padding
+        gbcPatient.insets = new Insets(5, 8, 5, 8); // Reduced vertical insets from 8 to 5
         gbcPatient.fill = GridBagConstraints.HORIZONTAL;
         gbcPatient.anchor = GridBagConstraints.WEST;
 
         // Row 1: Name
         gbcPatient.gridx = 0; gbcPatient.gridy = 0; gbcPatient.weightx = 0.1;
-        JLabel hoLabel = new JLabel("Họ");
+        JLabel hoLabel = new JLabel("Họ", SwingConstants.RIGHT);
         hoLabel.setFont(labelFont);
         patientInfoInnerPanel.add(hoLabel, gbcPatient);
 
@@ -452,7 +453,7 @@ public class CheckUpPage extends JPanel {
         patientInfoInnerPanel.add(customerLastNameField, gbcPatient);
 
         gbcPatient.gridx = 2; gbcPatient.weightx = 0.1;
-        JLabel tenLabel = new JLabel("Tên");
+        JLabel tenLabel = new JLabel("Tên", SwingConstants.RIGHT);
         tenLabel.setFont(labelFont);
         patientInfoInnerPanel.add(tenLabel, gbcPatient);
 
@@ -463,7 +464,7 @@ public class CheckUpPage extends JPanel {
 
         // Row 2: ID and Phone
         gbcPatient.gridx = 0; gbcPatient.gridy = 1; gbcPatient.weightx = 0.1;
-        JLabel idLabel = new JLabel("Mã BN");
+        JLabel idLabel = new JLabel("Mã BN", SwingConstants.RIGHT);
         idLabel.setFont(labelFont);
         patientInfoInnerPanel.add(idLabel, gbcPatient);
 
@@ -479,7 +480,7 @@ public class CheckUpPage extends JPanel {
         checkupIdField.setEditable(false);
 
         gbcPatient.gridx = 2; gbcPatient.weightx = 0.1;
-        JLabel phoneLabel = new JLabel("SĐT");
+        JLabel phoneLabel = new JLabel("SĐT", SwingConstants.RIGHT);
         phoneLabel.setFont(labelFont);
         patientInfoInnerPanel.add(phoneLabel, gbcPatient);
 
@@ -490,7 +491,7 @@ public class CheckUpPage extends JPanel {
 
         // Row 3: Gender and DOB
         gbcPatient.gridx = 0; gbcPatient.gridy = 2;
-        JLabel genderLabel = new JLabel("Giới tính");
+        JLabel genderLabel = new JLabel("Giới tính", SwingConstants.RIGHT);
         genderLabel.setFont(labelFont);
         patientInfoInnerPanel.add(genderLabel, gbcPatient);
 
@@ -501,7 +502,7 @@ public class CheckUpPage extends JPanel {
         patientInfoInnerPanel.add(genderComboBox, gbcPatient);
 
         gbcPatient.gridx = 2;
-        JLabel dobLabel = new JLabel("Ngày sinh");
+        JLabel dobLabel = new JLabel("Ngày sinh", SwingConstants.RIGHT);
         dobLabel.setFont(labelFont);
         patientInfoInnerPanel.add(dobLabel, gbcPatient);
 
@@ -518,7 +519,7 @@ public class CheckUpPage extends JPanel {
 
         // Row 4: Weight and Height
         gbcPatient.gridx = 0; gbcPatient.gridy = 3;
-        JLabel weightLabel = new JLabel("Cân nặng (kg)");
+        JLabel weightLabel = new JLabel("Cân nặng (kg)", SwingConstants.RIGHT);
         weightLabel.setFont(labelFont);
         patientInfoInnerPanel.add(weightLabel, gbcPatient);
 
@@ -533,7 +534,7 @@ public class CheckUpPage extends JPanel {
         patientInfoInnerPanel.add(customerWeightSpinner, gbcPatient);
 
         gbcPatient.gridx = 2;
-        JLabel heightLabel = new JLabel("Chiều cao (cm)");
+        JLabel heightLabel = new JLabel("Chiều cao (cm)", SwingConstants.RIGHT);
         heightLabel.setFont(labelFont);
         patientInfoInnerPanel.add(heightLabel, gbcPatient);
 
@@ -549,7 +550,7 @@ public class CheckUpPage extends JPanel {
 
         // Row 5: Address (full width)
         gbcPatient.gridx = 0; gbcPatient.gridy = 4;
-        JLabel addressLabel = new JLabel("Địa chỉ");
+        JLabel addressLabel = new JLabel("Địa chỉ", SwingConstants.RIGHT);
         addressLabel.setFont(labelFont);
         patientInfoInnerPanel.add(addressLabel, gbcPatient);
 
@@ -590,12 +591,12 @@ public class CheckUpPage extends JPanel {
         ));
 
         GridBagConstraints gbcRoom = new GridBagConstraints();
-        gbcRoom.insets = new Insets(8, 8, 8, 8);
+        gbcRoom.insets = new Insets(5, 8, 5, 8); // Reduced vertical insets from 8 to 5
         gbcRoom.fill = GridBagConstraints.HORIZONTAL;
 
         // Room Selection
         gbcRoom.gridx = 0; gbcRoom.gridy = 0;
-        JLabel roomLabel = new JLabel("Phòng khám:");
+        JLabel roomLabel = new JLabel("Phòng khám:", SwingConstants.RIGHT);
         roomLabel.setFont(labelFont);
         roomControlPanel.add(roomLabel, gbcRoom);
 
@@ -671,7 +672,7 @@ public class CheckUpPage extends JPanel {
         });
 
         // Checkup Info Section
-        JPanel checkupInfoPanel = new JPanel(new BorderLayout(10, 10));
+        JPanel checkupInfoPanel = new JPanel(new BorderLayout(10, 5)); // Reduced vertical gap from 10 to 5
         checkupInfoPanel.setBorder(BorderFactory.createTitledBorder(
                 BorderFactory.createEtchedBorder(), "Thông tin khám bệnh",
                 TitledBorder.LEADING, TitledBorder.TOP,
@@ -681,7 +682,7 @@ public class CheckUpPage extends JPanel {
         // Top Row Panel (Doctor, Status, Type)
         JPanel topRowPanel = new JPanel(new GridBagLayout());
         GridBagConstraints gbcTop = new GridBagConstraints();
-        gbcTop.insets = new Insets(5, 5, 5, 5);
+        gbcTop.insets = new Insets(3, 5, 3, 5); // Reduced vertical insets from 5 to 3
         gbcTop.fill = GridBagConstraints.HORIZONTAL;
 
         // Initialize datePicker
@@ -736,7 +737,7 @@ public class CheckUpPage extends JPanel {
         // Template Selection Row
         JPanel templatePanel = new JPanel(new GridBagLayout());
         GridBagConstraints gbcTemplate = new GridBagConstraints();
-        gbcTemplate.insets = new Insets(5, 5, 5, 5);
+        gbcTemplate.insets = new Insets(3, 5, 3, 5); // Reduced vertical insets from 5 to 3
         gbcTemplate.fill = GridBagConstraints.HORIZONTAL;
 
         gbcTemplate.gridx = 0; gbcTemplate.gridy = 0;
@@ -755,9 +756,29 @@ public class CheckUpPage extends JPanel {
         templateComboBox.setFont(fieldFont);
         templatePanel.add(templateComboBox, gbcTemplate);
 
+        // Add "Thêm mẫu" button next to template combobox
+        gbcTemplate.gridx = 2; gbcTemplate.weightx = 0.0;
+        JButton addTemplateButton = new JButton("Thêm mẫu");
+        addTemplateButton.setFont(fieldFont);
+        addTemplateButton.setBackground(new Color(63, 81, 181));
+        addTemplateButton.setForeground(Color.WHITE);
+        addTemplateButton.setFocusPainted(false);
+        addTemplateButton.setPreferredSize(new Dimension(100, 25));
+        addTemplateButton.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(new Color(45, 63, 163)),
+            BorderFactory.createEmptyBorder(3, 8, 3, 8)
+        ));
+        addTemplateButton.addActionListener(e -> {
+            // TODO: Open template dialog
+            log.info("Opening template dialog");
+            TemplateDialog templateDialog = new TemplateDialog(mainFrame);
+            templateDialog.setVisible(true);
+        });
+        templatePanel.add(addTemplateButton, gbcTemplate);
+
         // Main Content Panel with split layout
-        JPanel mainContentPanel = new JPanel(new BorderLayout(10, 10));
-        mainContentPanel.setBorder(BorderFactory.createEmptyBorder(10, 5, 5, 5));
+        JPanel mainContentPanel = new JPanel(new BorderLayout(10, 5)); // Reduced vertical gap from 10 to 5
+        mainContentPanel.setBorder(BorderFactory.createEmptyBorder(5, 5, 3, 5)); // Reduced top from 10 to 5, bottom from 5 to 3
 
         // Create left panel for Nội dung (larger)
         JPanel leftPanel = new JPanel(new BorderLayout(5, 5));
@@ -904,26 +925,28 @@ public class CheckUpPage extends JPanel {
         // Create right panel for Triệu chứng and Chẩn đoán
         JPanel rightPanel = new JPanel();
         rightPanel.setLayout(new BoxLayout(rightPanel, BoxLayout.Y_AXIS));
-        rightPanel.setPreferredSize(new Dimension(300, 0)); // Fixed width for right panel
+        rightPanel.setPreferredSize(new Dimension(250, 0)); // Set a smaller fixed width for right panel
+        rightPanel.setMinimumSize(new Dimension(200, 0)); // Set minimum size to prevent it from shrinking too much
+        rightPanel.setMaximumSize(new Dimension(280, Integer.MAX_VALUE)); // Set maximum width to limit expansion
 
-        // Symptoms Panel
-        JPanel symptomsPanel = new JPanel(new BorderLayout(5, 5));
-        symptomsPanel.setBorder(BorderFactory.createTitledBorder(
+        // Suggestion Panel
+        JPanel suggestionPanel = new JPanel(new BorderLayout(5, 5));
+        suggestionPanel.setBorder(BorderFactory.createTitledBorder(
             BorderFactory.createEtchedBorder(),
-            "Triệu chứng",
+            "Đề nghị",
             TitledBorder.LEADING, TitledBorder.TOP,
             new Font("Arial", Font.BOLD, 14),
             new Color(50, 50, 50)
         ));
-        symptomsField = new JTextArea(10, 20); // Increased rows from 4 to 10
-        symptomsField.setFont(fieldFont);
-        symptomsField.setLineWrap(true);
-        symptomsField.setWrapStyleWord(true);
-        JScrollPane symptomsScrollPane = new JScrollPane(symptomsField);
-        symptomsScrollPane.setPreferredSize(new Dimension(0, 200)); // Set fixed height
-        symptomsPanel.add(symptomsScrollPane, BorderLayout.CENTER);
-        symptomsPanel.setMinimumSize(new Dimension(300, 200));
-        symptomsPanel.setPreferredSize(new Dimension(300, 200));
+        suggestionField = new JTextArea(10, 20); // Increased rows from 4 to 10
+        suggestionField.setFont(fieldFont);
+        suggestionField.setLineWrap(true);
+        suggestionField.setWrapStyleWord(true);
+        JScrollPane suggestionScrollPane = new JScrollPane(suggestionField);
+        suggestionScrollPane.setPreferredSize(new Dimension(0, 200)); // Set fixed height
+        suggestionPanel.add(suggestionScrollPane, BorderLayout.CENTER);
+        suggestionPanel.setMinimumSize(new Dimension(200, 200));
+        suggestionPanel.setPreferredSize(new Dimension(250, 200));
 
         // Diagnosis Panel
         JPanel diagnosisPanel = new JPanel(new BorderLayout(5, 5));
@@ -940,15 +963,33 @@ public class CheckUpPage extends JPanel {
         diagnosisField.setWrapStyleWord(true);
         diagnosisPanel.add(new JScrollPane(diagnosisField), BorderLayout.CENTER);
 
-        rightPanel.add(symptomsPanel);
+        // Conclusion Panel
+        JPanel conclusionPanel = new JPanel(new BorderLayout(5, 5));
+        conclusionPanel.setBorder(BorderFactory.createTitledBorder(
+            BorderFactory.createEtchedBorder(),
+            "Kết luận",
+            TitledBorder.LEADING, TitledBorder.TOP,
+            new Font("Arial", Font.BOLD, 14),
+            new Color(50, 50, 50)
+        ));
+        conclusionField = new JTextArea(4, 20);
+        conclusionField.setFont(fieldFont);
+        conclusionField.setLineWrap(true);
+        conclusionField.setWrapStyleWord(true);
+        conclusionPanel.add(new JScrollPane(conclusionField), BorderLayout.CENTER);
+
+        rightPanel.add(suggestionPanel);
         rightPanel.add(Box.createRigidArea(new Dimension(0, 10)));
         rightPanel.add(diagnosisPanel);
+        rightPanel.add(Box.createRigidArea(new Dimension(0, 10)));
+        rightPanel.add(conclusionPanel);
 
         // Create split pane for left and right panels
         JSplitPane contentSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, leftPanel, rightPanel);
-        contentSplitPane.setResizeWeight(0.7); // Give more weight to the left panel
-        contentSplitPane.setDividerSize(5);
+        contentSplitPane.setResizeWeight(1.0); // Give maximum weight to the left panel
+        contentSplitPane.setDividerSize(3); // Make divider even smaller
         contentSplitPane.setBorder(null);
+        contentSplitPane.setOneTouchExpandable(true); // Add one-touch expand/collapse buttons
 
         // Add to main content panel
         mainContentPanel.add(templatePanel, BorderLayout.NORTH);
@@ -958,7 +999,7 @@ public class CheckUpPage extends JPanel {
         checkupInfoPanel.add(topRowPanel, BorderLayout.NORTH);
         checkupInfoPanel.add(mainContentPanel, BorderLayout.CENTER);
 
-        // Create tabbed pane for patient info and checkup info
+                // Create tabbed pane for patient info and checkup info
         JTabbedPane tabbedPane = new JTabbedPane();
         tabbedPane.setFont(new Font("Arial", Font.BOLD, 14));
         tabbedPane.setBackground(Color.WHITE);
@@ -1053,13 +1094,13 @@ public class CheckUpPage extends JPanel {
         // Main Split Pane (Horizontal): Details on left, Right Panel on right
         JSplitPane mainSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, rightBottomPanel, rightContainer);
         mainSplitPane.setResizeWeight(0.7); // Left side gets 70% of space
-        mainSplitPane.setDividerSize(8);
+        mainSplitPane.setDividerSize(5); // Reduced from 8 to 5
         mainSplitPane.setContinuousLayout(true);
-        mainSplitPane.setBorder(BorderFactory.createEmptyBorder());
+        mainSplitPane.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 0));
 
         // Configure webcam container
         webcamControlContainer.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createEmptyBorder(10, 10, 5, 5),
+                BorderFactory.createEmptyBorder(5, 10, 3, 5), // Reduced top from 10 to 5, bottom from 5 to 3
                 BorderFactory.createTitledBorder(
                         BorderFactory.createLineBorder(new Color(63, 81, 181), 1, true),
                         "Webcam",
@@ -1067,16 +1108,16 @@ public class CheckUpPage extends JPanel {
                         new Font("Arial", Font.BOLD, 16), new Color(63, 81, 181)
                 )
         ));
-        webcamControlContainer.setPreferredSize(new Dimension(0, 300)); // Give it a preferred height
+        webcamControlContainer.setPreferredSize(new Dimension(0, 280)); // Reduced height from 300 to 280
 
         // New Right Split Pane (Vertical): Webcam on top, Gallery in middle, Prescription on bottom
         JSplitPane topRightSplitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT, webcamControlContainer, rightTopPanel);
         topRightSplitPane.setResizeWeight(0.4); // Webcam gets 40% of space
-        topRightSplitPane.setDividerSize(5);
+        topRightSplitPane.setDividerSize(3); // Reduced from 5 to 3
         
         JSplitPane newRightSplitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT, topRightSplitPane, prescriptionDisplayPanel);
         newRightSplitPane.setResizeWeight(0.7); // Top part gets 70% of space
-        newRightSplitPane.setDividerSize(5);
+        newRightSplitPane.setDividerSize(3); // Reduced from 5 to 3
 
         // Create a container for the right side that includes the split pane and action buttons
         rightContainer = new JPanel(new BorderLayout());
@@ -1084,7 +1125,7 @@ public class CheckUpPage extends JPanel {
 
         // Create a more modern action panel
         JPanel iconPanel = new JPanel(new GridLayout(1, 5, 10, 0)); // 5 buttons, 10px horizontal gap
-        iconPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10)); 
+        iconPanel.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10)); // Reduced top/bottom from 10 to 5
         iconPanel.setBackground(Color.WHITE);
 
         // Define button properties
@@ -1116,13 +1157,13 @@ public class CheckUpPage extends JPanel {
         // Main Split Pane (Horizontal)
         mainSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, rightBottomPanel, rightContainer);
         mainSplitPane.setResizeWeight(0.7); // Left side gets 70% of space
-        mainSplitPane.setDividerSize(8);
+        mainSplitPane.setDividerSize(5); // Reduced from 8 to 5
         mainSplitPane.setContinuousLayout(true);
         mainSplitPane.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 0));
 
         // --- Add components to the main panel ---
-        JPanel centerContentPanel = new JPanel(new BorderLayout(0, 5));
-        centerContentPanel.setBorder(BorderFactory.createEmptyBorder(0, 10, 10, 10));
+        JPanel centerContentPanel = new JPanel(new BorderLayout(0, 3)); // Reduced vertical gap from 5 to 3
+        centerContentPanel.setBorder(BorderFactory.createEmptyBorder(0, 10, 5, 10)); // Reduced bottom from 10 to 5
 
         centerContentPanel.add(mainSplitPane, BorderLayout.CENTER);
 
@@ -1228,7 +1269,7 @@ public class CheckUpPage extends JPanel {
                         genderComboBox.getSelectedItem().toString(), 
                         customerAddressField.getText() + ", " + (wardComboBox.getSelectedItem() != null ? wardComboBox.getSelectedItem().toString() : "") + ", " + (districtComboBox.getSelectedItem() != null ? districtComboBox.getSelectedItem().toString() : "") + ", " + (provinceComboBox.getSelectedItem() != null ? provinceComboBox.getSelectedItem().toString() : ""),
                         doctorComboBox.getSelectedItem().toString(), diagnosisField.getText(),
-                        notesField.getText(), medicinePrescription, servicePrescription); 
+                        conclusionField.getText(), medicinePrescription, servicePrescription); 
                 medicineInvoice.createDialog(mainFrame);
                 break;
             case "ultrasound":
@@ -1395,8 +1436,9 @@ public class CheckUpPage extends JPanel {
         customerLastNameField.setText(selectedPatient.getCustomerLastName());
         customerFirstNameField.setText(selectedPatient.getCustomerFirstName());
         doctorComboBox.setSelectedItem(selectedPatient.getDoctorName());
-        symptomsField.setText(selectedPatient.getSymptoms());
+        suggestionField.setText(selectedPatient.getSymptoms());
         diagnosisField.setText(selectedPatient.getDiagnosis());
+        conclusionField.setText(""); // Clear conclusion field for now
         
         // Handle RTF notes content
         String notes = selectedPatient.getNotes();
@@ -1796,126 +1838,178 @@ public class CheckUpPage extends JPanel {
 
     private ExecutorService cleanupExecutor = Executors.newSingleThreadExecutor();
     private Future<?> cleanupTask;
+    private volatile boolean isCleaningUp = false;
 
     private void cleanupWebcam() {
-        synchronized (webcamLock) {
-            if (isRecording) {
-                stopRecording();
-            }
-
-            // Submit cleanup to background thread
-            if (cleanupTask != null && !cleanupTask.isDone()) {
-                cleanupTask.cancel(true);
-            }
-
-            cleanupTask = cleanupExecutor.submit(() -> {
-                try {
-                    if (webcamPanel != null) {
-                        webcamPanel.stop();
-                    }
-                    if (selectedWebcam != null && selectedWebcam.isOpen()) {
-                        selectedWebcam.close();
-                    }
-                } catch (Exception e) {
-                    log.error("Error during webcam cleanup: ", e);
-                } finally {
-                    isWebcamInitialized = false;
-                    selectedWebcam = null;
-                    webcamPanel = null;
-                }
-            });
+        if (isCleaningUp) return; // Prevent multiple cleanup calls
+        
+        isCleaningUp = true;
+        
+        // Stop recording immediately if active
+        if (isRecording) {
+            stopRecording();
         }
+
+        // Cancel any existing cleanup task
+        if (cleanupTask != null && !cleanupTask.isDone()) {
+            cleanupTask.cancel(true);
+        }
+
+        // Submit non-blocking cleanup
+        cleanupTask = cleanupExecutor.submit(() -> {
+            try {
+                // Quick cleanup without waiting
+                if (webcamPanel != null) {
+                    SwingUtilities.invokeLater(() -> {
+                        if (webcamContainer != null) {
+                            webcamContainer.removeAll();
+                            JLabel placeholderLabel = new JLabel("Webcam đã tắt", SwingConstants.CENTER);
+                            placeholderLabel.setPreferredSize(new Dimension(180, 140));
+                            webcamContainer.add(placeholderLabel);
+                            webcamContainer.revalidate();
+                            webcamContainer.repaint();
+                        }
+                    });
+                    
+                    // Stop webcam panel in background
+                    try {
+                        webcamPanel.stop();
+                    } catch (Exception e) {
+                        log.debug("Webcam panel stop error (non-critical): {}", e.getMessage());
+                    }
+                }
+                
+                // Close webcam in background without blocking
+                if (selectedWebcam != null && selectedWebcam.isOpen()) {
+                    try {
+                        selectedWebcam.close();
+                    } catch (Exception e) {
+                        log.debug("Webcam close error (non-critical): {}", e.getMessage());
+                    }
+                }
+            } catch (Exception e) {
+                log.debug("Non-critical cleanup error: {}", e.getMessage());
+            } finally {
+                isWebcamInitialized = false;
+                selectedWebcam = null;
+                webcamPanel = null;
+                isCleaningUp = false;
+            }
+        });
     }
 
-    // Update cleanup method to handle the executor service
-    public void cleanup() {
+    // Fast, non-blocking cleanup for page switching
+    public void fastCleanup() {
+        // Stop timers immediately
         if (imageRefreshTimer != null && imageRefreshTimer.isRunning()) {
             imageRefreshTimer.stop();
         }
+        if (recordingTimer != null && recordingTimer.isRunning()) {
+            recordingTimer.stop();
+        }
         
+        // Stop recording immediately if active
+        if (isRecording) {
+            isRecording = false; // Stop recording flag immediately
+        }
+        
+        // Quick webcam cleanup without blocking
         cleanupWebcam();
         
-        // Stop webcam discovery service
-        Webcam.getDiscoveryService().stop();
+        // Don't stop webcam discovery service here - let it run for other instances
+    }
+
+    // Full cleanup only when application is closing
+    public void fullCleanup() {
+        fastCleanup();
+        
+        // Only stop discovery service on full shutdown
+        try {
+            Webcam.getDiscoveryService().stop();
+        } catch (Exception e) {
+            log.debug("Discovery service stop error (non-critical): {}", e.getMessage());
+        }
 
         // Shutdown cleanup executor
-        cleanupExecutor.shutdown();
-        try {
-            if (!cleanupExecutor.awaitTermination(500, TimeUnit.MILLISECONDS)) {
-                cleanupExecutor.shutdownNow();
-            }
-        } catch (InterruptedException e) {
-            cleanupExecutor.shutdownNow();
-            Thread.currentThread().interrupt();
+        if (cleanupExecutor != null && !cleanupExecutor.isShutdown()) {
+            cleanupExecutor.shutdown();
+            // Don't wait for termination - let it finish in background
         }
     }
 
+    @Override
+    public void removeNotify() {
+        // Use fast cleanup instead of full cleanup
+        fastCleanup();
+        super.removeNotify();
+    }
+
     private void initializeWebcam(String deviceName) {
-        synchronized (webcamLock) {
-            // Clean up existing webcam if any
-            if (selectedWebcam != null && selectedWebcam.isOpen()) {
-                cleanupWebcam();
-                try {
-                    // Wait briefly for cleanup to complete
-                    if (cleanupTask != null) {
-                        cleanupTask.get(300, TimeUnit.MILLISECONDS);
-                    }
-                } catch (Exception e) {
-                    log.warn("Webcam cleanup interrupted, proceeding with initialization");
-                }
-            }
-
-            // Find the selected webcam
-            Webcam newWebcam = Webcam.getWebcams().stream()
-                    .filter(webcam -> webcam.getName().equals(deviceName))
-                    .findFirst()
-                    .orElse(null);
-
-            if (newWebcam != null) {
-                selectedWebcam = newWebcam;
-                // Set resolution
-                Dimension[] resolutions = selectedWebcam.getViewSizes();
-                Dimension bestResolution = WebcamResolution.VGA.getSize();
-                
-                for (Dimension resolution : resolutions) {
-                    if (resolution.width >= 640 && resolution.height >= 480 &&
-                        resolution.width <= 1280 && resolution.height <= 720) {
-                        bestResolution = resolution;
-                        break;
-                    }
-                }
-
-                try {
-                    selectedWebcam.setViewSize(bestResolution);
-                    selectedWebcam.open(true); // Non-blocking open
-
-                    // Create and add new webcam panel
-                    webcamPanel = new WebcamPanel(selectedWebcam, false);
-                    webcamPanel.setFPSDisplayed(true);
-                    webcamPanel.setPreferredSize(new Dimension(180, 140));
-                    webcamPanel.setFitArea(true);
-                    webcamPanel.setFPSLimit(30);
-
-                    webcamContainer.removeAll();
-                    webcamContainer.add(webcamPanel, BorderLayout.CENTER);
-                    webcamContainer.revalidate();
-                    webcamContainer.repaint();
-
-                    webcamPanel.start();
-                    isWebcamInitialized = true;
-
-                    // Enable buttons
-                    takePictureButton.setEnabled(true);
-                    recordVideoButton.setEnabled(true);
-                } catch (Exception e) {
-                    log.error("Error initializing webcam: ", e);
-                    JOptionPane.showMessageDialog(this,
-                        "Error initializing webcam: " + e.getMessage(),
-                        "Webcam Error",
-                        JOptionPane.ERROR_MESSAGE);
-                }
-            }
+        // Don't block if already cleaning up
+        if (isCleaningUp) return;
+        
+        // Quick cleanup of existing webcam without waiting
+        if (selectedWebcam != null && selectedWebcam.isOpen()) {
+            cleanupWebcam();
         }
+
+        // Initialize in background to avoid blocking UI
+        cleanupExecutor.submit(() -> {
+            try {
+                // Find the selected webcam
+                Webcam newWebcam = Webcam.getWebcams().stream()
+                        .filter(webcam -> webcam.getName().equals(deviceName))
+                        .findFirst()
+                        .orElse(null);
+
+                if (newWebcam != null && !isCleaningUp) {
+                    selectedWebcam = newWebcam;
+                    
+                    // Set resolution quickly
+                    Dimension bestResolution = WebcamResolution.VGA.getSize();
+                    
+                    try {
+                        selectedWebcam.setViewSize(bestResolution);
+                        selectedWebcam.open(true); // Non-blocking open
+
+                        SwingUtilities.invokeLater(() -> {
+                            if (!isCleaningUp && webcamContainer != null) {
+                                // Create and add new webcam panel
+                                webcamPanel = new WebcamPanel(selectedWebcam, false);
+                                webcamPanel.setFPSDisplayed(false); // Disable FPS display for better performance
+                                webcamPanel.setPreferredSize(new Dimension(180, 140));
+                                webcamPanel.setFitArea(true);
+                                webcamPanel.setFPSLimit(15); // Lower FPS for better performance
+
+                                webcamContainer.removeAll();
+                                webcamContainer.add(webcamPanel, BorderLayout.CENTER);
+                                webcamContainer.revalidate();
+                                webcamContainer.repaint();
+
+                                webcamPanel.start();
+                                isWebcamInitialized = true;
+
+                                // Enable buttons
+                                if (takePictureButton != null) takePictureButton.setEnabled(true);
+                                if (recordVideoButton != null) recordVideoButton.setEnabled(true);
+                            }
+                        });
+                    } catch (Exception e) {
+                        log.error("Error initializing webcam: ", e);
+                        SwingUtilities.invokeLater(() -> {
+                            if (!isCleaningUp) {
+                                JOptionPane.showMessageDialog(CheckUpPage.this,
+                                    "Error initializing webcam: " + e.getMessage(),
+                                    "Webcam Error",
+                                    JOptionPane.ERROR_MESSAGE);
+                            }
+                        });
+                    }
+                }
+            } catch (Exception e) {
+                log.error("Error in webcam initialization thread: ", e);
+            }
+        });
     }
 
     private void updateRecordingTime() {
@@ -2266,13 +2360,6 @@ public class CheckUpPage extends JPanel {
         imageGalleryPanel.repaint();
     }
 
-    @Override
-    public void removeNotify() {
-        stopRecording(); // Ensure recording is stopped when component is removed
-        cleanup();
-        super.removeNotify();
-    }
-
     private void ensureMediaDirectoryExists(String checkupId) {
         try {
             // First ensure base directory exists
@@ -2536,8 +2623,9 @@ public class CheckUpPage extends JPanel {
         String customerWeight = customerWeightSpinner.getValue().toString();
         String customerHeight = customerHeightSpinner.getValue().toString();
         String doctorName = (String) doctorComboBox.getSelectedItem();
-        String symptoms = symptomsField.getText();
+        String suggestions = suggestionField.getText();
         String diagnosis = diagnosisField.getText();
+        String conclusion = conclusionField.getText();
         String status = (String) statusComboBox.getSelectedItem();
         String checkupType = (String) checkupTypeComboBox.getSelectedItem();
 
@@ -2555,8 +2643,9 @@ public class CheckUpPage extends JPanel {
         log.info("customerWeight: {}", customerWeight);
         log.info("customerHeight: {}", customerHeight);
         log.info("doctorName: {}", doctorName);
-        log.info("symptoms: {}", symptoms);
+        log.info("suggestions: {}", suggestions);
         log.info("diagnosis: {}", diagnosis);
+        log.info("conclusion: {}", conclusion);
         log.info("notes (RTF): {}", rtfContent);
         log.info("status: {}", status);
         log.info("checkupType: {}", checkupType);
@@ -2578,7 +2667,7 @@ public class CheckUpPage extends JPanel {
             customerWeight,
             customerHeight,
             doctorName,
-            symptoms,
+            suggestions,
             diagnosis,
             rtfContent, // Send RTF content as notes
             status,
