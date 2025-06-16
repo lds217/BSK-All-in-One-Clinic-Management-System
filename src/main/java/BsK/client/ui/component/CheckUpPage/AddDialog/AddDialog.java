@@ -173,9 +173,30 @@ public class AddDialog extends JDialog {
 
         // Set size of the dialog
         setSize(1000, 400);
-        // Put in the middle
-        setLocationRelativeTo(null);
+        // Put in the middle of parent window
+        setLocationRelativeTo(parent);
         setResizable(true);
+        
+        // Ensure modal behavior and proper parent relationship
+        setModalityType(Dialog.ModalityType.APPLICATION_MODAL);
+        setAlwaysOnTop(false); // Don't force always on top, let modal behavior handle this
+        
+        // Add window listener to handle minimize/restore events with parent
+        addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowIconified(WindowEvent e) {
+                if (parent != null) {
+                    parent.setState(Frame.ICONIFIED);
+                }
+            }
+            
+            @Override
+            public void windowDeiconified(WindowEvent e) {
+                if (parent != null && parent.getState() == Frame.ICONIFIED) {
+                    parent.setState(Frame.NORMAL);
+                }
+            }
+        });
 
         // Send request to get the latest 20 patients in the database
         sendGetRecentPatientRequest();

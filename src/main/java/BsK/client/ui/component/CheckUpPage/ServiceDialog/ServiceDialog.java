@@ -8,6 +8,7 @@ import javax.swing.table.TableColumnModel;
 
 import BsK.client.network.handler.ClientHandler;
 import BsK.client.network.handler.ResponseListener;
+import BsK.common.entity.Service;
 import BsK.common.packet.req.GetSerInfoRequest;
 import BsK.common.packet.res.GetSerInfoResponse;
 import BsK.common.util.network.NetworkUtil;
@@ -21,6 +22,8 @@ import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -41,6 +44,7 @@ public class ServiceDialog extends JDialog {
     private JTable selectedTable;
     private boolean isProgrammaticallySettingNameField = false;
 
+    private List<Service> services = new ArrayList<>();
     private String[][] servicePrescription;
     private static final Logger logger = LoggerFactory.getLogger(ServiceDialog.class);
 
@@ -51,6 +55,11 @@ public class ServiceDialog extends JDialog {
     void getSerInfoHandler(GetSerInfoResponse response) {
         logger.info("Received service data");
         serviceData = response.getSerInfo();
+        
+        // Get Service objects from the response
+        services = response.getServices();
+        
+        // Set the data vector with the raw string arrays for backward compatibility
         tableModel.setDataVector(serviceData, serviceColumns);
         resizeServiceTableColumns();
     }
@@ -66,6 +75,27 @@ public class ServiceDialog extends JDialog {
         setSize(1100, 600);
         setLocationRelativeTo(parent);
         setResizable(true);
+        
+        // Ensure modal behavior and proper parent relationship
+        setModalityType(Dialog.ModalityType.APPLICATION_MODAL);
+        setAlwaysOnTop(false); // Don't force always on top, let modal behavior handle this
+        
+        // Add window listener to handle minimize/restore events with parent
+        addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowIconified(WindowEvent e) {
+                if (parent != null) {
+                    parent.setState(Frame.ICONIFIED);
+                }
+            }
+            
+            @Override
+            public void windowDeiconified(WindowEvent e) {
+                if (parent != null && parent.getState() == Frame.ICONIFIED) {
+                    parent.setState(Frame.NORMAL);
+                }
+            }
+        });
 
         // Initialize servicePrescription as empty array
         servicePrescription = new String[0][0];
@@ -217,12 +247,29 @@ public class ServiceDialog extends JDialog {
         JButton removeServiceButton = new JButton("Xóa dịch vụ đã chọn");
         removeServiceButtonPanel.add(removeServiceButton);
 
+        // Create titled panels for right side sections
+        JPanel availableServicesPanel = new JPanel(new BorderLayout());
+        availableServicesPanel.setBorder(BorderFactory.createTitledBorder(
+                BorderFactory.createEtchedBorder(), "Dịch vụ có",
+                javax.swing.border.TitledBorder.LEADING, javax.swing.border.TitledBorder.TOP,
+                new Font("Arial", Font.BOLD, 14), new Color(63, 81, 181)
+        ));
+        availableServicesPanel.add(serviceTableScrollPane, BorderLayout.CENTER);
+        
+        JPanel chosenServicesPanel = new JPanel(new BorderLayout());
+        chosenServicesPanel.setBorder(BorderFactory.createTitledBorder(
+                BorderFactory.createEtchedBorder(), "Dịch vụ đã chọn",
+                javax.swing.border.TitledBorder.LEADING, javax.swing.border.TitledBorder.TOP,
+                new Font("Arial", Font.BOLD, 14), new Color(220, 20, 60)
+        ));
+        chosenServicesPanel.setBackground(new Color(255, 240, 240)); // Light red background
+        selectedTableScrollPane.setBackground(new Color(255, 240, 240)); // Light red background
+        chosenServicesPanel.add(selectedTableScrollPane, BorderLayout.CENTER);
+        chosenServicesPanel.add(removeServiceButtonPanel, BorderLayout.SOUTH);
+
         JPanel rightPanel = new JPanel(new BorderLayout(0,5));
-        rightPanel.add(serviceTableScrollPane, BorderLayout.CENTER);
-        JPanel bottomRightPanel = new JPanel(new BorderLayout(0,5));
-        bottomRightPanel.add(selectedTableScrollPane, BorderLayout.CENTER);
-        bottomRightPanel.add(removeServiceButtonPanel, BorderLayout.SOUTH);
-        rightPanel.add(bottomRightPanel, BorderLayout.SOUTH);
+        rightPanel.add(availableServicesPanel, BorderLayout.CENTER);
+        rightPanel.add(chosenServicesPanel, BorderLayout.SOUTH);
 
         JScrollPane mainInputScrollPane = new JScrollPane(mainInputPanel);
         mainInputScrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
@@ -333,30 +380,30 @@ public class ServiceDialog extends JDialog {
     private void filterServiceTable() {
         String filterText = serviceNameField.getText().trim();
         if (serviceData == null) return;
-
         if (filterText.isEmpty()) {
             tableModel.setDataVector(serviceData, serviceColumns);
             resizeServiceTableColumns();
             serviceTable.clearSelection();
         } else {
             List<String[]> filteredData = new ArrayList<>();
+            List<Service> filteredServices = new ArrayList<>();
             String lowerCaseFilterText = TextUtils.removeAccents(filterText.toLowerCase());
-            for (String[] row : serviceData) {
-                if (row.length > 1 && row[1] != null) {
-                    String cellValue = TextUtils.removeAccents(row[1].toLowerCase());
-                    if (cellValue.contains(lowerCaseFilterText)) {
-                        filteredData.add(row);
-                    }
+            
+            for (Service service : services) {
+                if (TextUtils.removeAccents(service.getName().toLowerCase()).contains(lowerCaseFilterText)) {
+                    filteredServices.add(service);
+                    filteredData.add(service.toStringArray());
                 }
             }
+            
             tableModel.setDataVector(filteredData.toArray(new String[0][0]), serviceColumns);
             resizeServiceTableColumns();
-             if (!filteredData.isEmpty()) {
+            if (!filteredData.isEmpty()) {
                 serviceTable.setRowSelectionInterval(0,0);
                 handleServiceTableRowSelection(0);
             } else {
-                 clearInputFields();
-             }
+                clearInputFields();
+            }
         }
     }
 
@@ -416,9 +463,7 @@ public class ServiceDialog extends JDialog {
             return;
         }
 
-        String serviceId;
-        String name;
-        String currentPrice;
+        String serviceId, name, currentPrice;
 
         if (selectedRowInServiceTable != -1) {
             int modelRow = serviceTable.convertRowIndexToModel(selectedRowInServiceTable);
@@ -427,26 +472,22 @@ public class ServiceDialog extends JDialog {
             currentPrice = tableModel.getValueAt(modelRow, 2).toString();
         } else {
             String searchName = serviceNameField.getText().trim();
-            String foundId = null;
-            String foundPrice = null;
-            String actualName = null;
-
-            for (String[] serv : serviceData) {
-                if (TextUtils.removeAccents(serv[1].toLowerCase()).equals(TextUtils.removeAccents(searchName.toLowerCase()))) {
-                    foundId = serv[0];
-                    actualName = serv[1];
-                    foundPrice = serv[2];
+            Service foundService = null;
+            
+            for (Service service : services) {
+                if (TextUtils.removeAccents(service.getName().toLowerCase()).equals(TextUtils.removeAccents(searchName.toLowerCase()))) {
+                    foundService = service;
                     break;
                 }
             }
-
-            if (foundId == null) {
+            
+            if (foundService == null) {
                 JOptionPane.showMessageDialog(this, "Không tìm thấy ID cho dịch vụ: " + searchName + ". Vui lòng chọn từ bảng.", "Lỗi", JOptionPane.ERROR_MESSAGE);
                 return;
             }
-            serviceId = foundId;
-            name = actualName;
-            currentPrice = foundPrice;
+            serviceId = foundService.getId();
+            name = foundService.getName(); 
+            currentPrice = foundService.getCost();
         }
 
         int quantity = (Integer) quantitySpinner.getValue();

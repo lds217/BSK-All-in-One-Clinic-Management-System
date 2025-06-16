@@ -12,7 +12,7 @@ public class Patient {
     private String customerLastName;
     private String customerFirstName;
     private String doctorName;
-    private String symptoms;
+    private String suggestion;
     private String diagnosis;
     private String notes;
     private String status;
@@ -24,6 +24,7 @@ public class Patient {
     private String customerGender;
     private String customerDob;
     private String checkupType;
+    private String conclusion;
 
     public Patient(String[][] array) {
         this.checkupId = array[0][0];
@@ -31,7 +32,7 @@ public class Patient {
         this.customerLastName = array[0][2];
         this.customerFirstName = array[0][3];
         this.doctorName = array[0][4];
-        this.symptoms = array[0][5];
+        this.suggestion = array[0][5];
         this.diagnosis = array[0][6];
         this.notes = array[0][7];
         this.status = array[0][8];
@@ -43,6 +44,7 @@ public class Patient {
         this.customerGender = array[0][14];
         this.customerDob = array[0][15];
         this.checkupType = array[0][16];
+        this.conclusion = array[0][17];
     }
 
     // New constructor for a single patient data row
@@ -55,7 +57,7 @@ public class Patient {
         this.customerLastName = data[2];
         this.customerFirstName = data[3];
         this.doctorName = data[4];
-        this.symptoms = data[5];
+        this.suggestion = data[5];
         this.diagnosis = data[6];
         this.notes = data[7];
         this.status = data[8];
@@ -67,5 +69,6 @@ public class Patient {
         this.customerGender = data[14];
         this.customerDob = data[15];
         this.checkupType = data[16];
+        this.conclusion = data[17];
     }
 }

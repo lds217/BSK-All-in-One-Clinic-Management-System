@@ -1,0 +1,10 @@
+<configuration name="BSK Client" type="Application" factoryName="Application">
+    <option name="MAIN_CLASS_NAME" value="BsK.client.Client" />
+    <module name="BSK-All-in-One-Clinic-Management-System" />
+    <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+    <option name="ALLOW_RUNNING_IN_PARALLEL" value="true" />
+    <option name="SINGLE_INSTANCE_ONLY" value="false" />
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration> 

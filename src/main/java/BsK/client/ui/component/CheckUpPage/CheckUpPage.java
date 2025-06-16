@@ -38,6 +38,8 @@ import java.awt.event.ActionListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.KeyEvent;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.awt.datatransfer.*;
 import java.text.DecimalFormat;
 import java.text.ParseException;
@@ -95,6 +97,11 @@ import java.io.ByteArrayInputStream;
 import java.io.OutputStream;
 import java.io.InputStream;
 
+// Add new imports
+import BsK.common.entity.PatientHistory;
+import BsK.common.packet.req.GetPatientHistoryRequest;
+import BsK.common.packet.res.GetPatientHistoryResponse;
+
 @Slf4j
 public class CheckUpPage extends JPanel {
     private MainFrame mainFrame;
@@ -105,7 +112,7 @@ public class CheckUpPage extends JPanel {
     private JTable historyTable;
     private final ResponseListener<GetCheckUpQueueUpdateResponse> checkUpQueueUpdateListener = this::handleGetCheckUpQueueUpdateResponse;
     private final ResponseListener<GetCheckUpQueueResponse> checkUpQueueListener = this::handleGetCheckUpQueueResponse;
-    private final ResponseListener<GetCustomerHistoryResponse> customerHistoryListener = this::handleGetCustomerHistoryResponse;
+    private final ResponseListener<GetPatientHistoryResponse> patientHistoryListener = this::handleGetPatientHistoryResponse;
     private final ResponseListener<GetDistrictResponse> districtResponseListener = this::handleGetDistrictResponse;
     private final ResponseListener<GetWardResponse> wardResponseListener = this::handleGetWardResponse;
     private final ResponseListener<CallPatientResponse> callPatientResponseListener = this::handleCallPatientResponse;
@@ -264,7 +271,7 @@ public class CheckUpPage extends JPanel {
 
         ClientHandler.addResponseListener(GetCheckUpQueueResponse.class, checkUpQueueListener);
         ClientHandler.addResponseListener(GetCheckUpQueueUpdateResponse.class, checkUpQueueUpdateListener);
-        ClientHandler.addResponseListener(GetCustomerHistoryResponse.class, customerHistoryListener);
+        ClientHandler.addResponseListener(GetPatientHistoryResponse.class, patientHistoryListener);
         ClientHandler.addResponseListener(GetDistrictResponse.class, districtResponseListener);
         ClientHandler.addResponseListener(GetWardResponse.class, wardResponseListener);
         ClientHandler.addResponseListener(CallPatientResponse.class, callPatientResponseListener);
@@ -1047,7 +1054,8 @@ public class CheckUpPage extends JPanel {
             public void mouseClicked(MouseEvent e) {
                 if (e.getClickCount() == 1) {
                     int selectedRow = historyTable.getSelectedRow();
-                    // if (selectedRow != -1) { System.out.println("Clicked on history row: " + selectedRow); }
+                    // send getPatientInfoByCheckupIdReq
+                    
                 }
             }
         });
@@ -1436,9 +1444,9 @@ public class CheckUpPage extends JPanel {
         customerLastNameField.setText(selectedPatient.getCustomerLastName());
         customerFirstNameField.setText(selectedPatient.getCustomerFirstName());
         doctorComboBox.setSelectedItem(selectedPatient.getDoctorName());
-        suggestionField.setText(selectedPatient.getSymptoms());
-        diagnosisField.setText(selectedPatient.getDiagnosis());
-        conclusionField.setText(""); // Clear conclusion field for now
+        suggestionField.setText(selectedPatient.getSuggestion()); // De nghi
+        diagnosisField.setText(selectedPatient.getDiagnosis()); // Chuan doan
+        conclusionField.setText(selectedPatient.getConclusion()); // Ket luan
         
         // Handle RTF notes content
         String notes = selectedPatient.getNotes();
@@ -1469,7 +1477,7 @@ public class CheckUpPage extends JPanel {
         genderComboBox.setSelectedItem(selectedPatient.getCustomerGender());
         checkupTypeComboBox.setSelectedItem(selectedPatient.getCheckupType());
 
-        NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetCustomerHistoryRequest(Integer.parseInt(selectedPatient.getCustomerId())));
+        NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetPatientHistoryRequest(Integer.parseInt(selectedPatient.getCustomerId())));
 
         String fullAddress = selectedPatient.getCustomerAddress();
         String[] addressParts = fullAddress.split(", ");
@@ -1578,9 +1586,13 @@ public class CheckUpPage extends JPanel {
         }
     }
 
-    private void handleGetCustomerHistoryResponse(GetCustomerHistoryResponse response) {
-        log.info("Received customer history");
+    private void handleGetPatientHistoryResponse(GetPatientHistoryResponse response) {
+        log.info("Received patient history");
         this.history = response.getHistory();
+        
+        // Access PatientHistory objects if needed
+        List<PatientHistory> patientHistories = response.getPatientHistoryList();
+        
         historyModel.setDataVector(this.history, new String[]{"Ngày Tháng","Mã khám bệnh", "Triệu chứng", "Chẩn đoán", "Ghi chú"});
     }
 
@@ -2400,6 +2412,29 @@ public class CheckUpPage extends JPanel {
             setIconImage(new ImageIcon("src/main/java/BsK/client/ui/assets/icon/database.png").getImage());
             setSize(800, 600);
             setLayout(new BorderLayout());
+            
+            // Add window listener to handle minimize/restore events with parent
+            addWindowListener(new WindowAdapter() {
+                @Override
+                public void windowIconified(WindowEvent e) {
+                    if (mainFrame != null) {
+                        mainFrame.setState(java.awt.Frame.ICONIFIED);
+                    }
+                }
+                
+                @Override
+                public void windowDeiconified(WindowEvent e) {
+                    if (mainFrame != null && mainFrame.getState() == java.awt.Frame.ICONIFIED) {
+                        mainFrame.setState(java.awt.Frame.NORMAL);
+                    }
+                }
+                
+                @Override
+                public void windowClosing(WindowEvent e) {
+                    // Hide instead of closing to maintain state
+                    setVisible(false);
+                }
+            });
 
             String[] columns = {"Mã khám bệnh", "Ngày sinh", "Họ", "Tên", "Bác Sĩ", "Loại khám"};
             queueTableModel = new DefaultTableModel(preprocessPatientDataForTable(patientQueue), columns) {
@@ -2622,7 +2657,7 @@ public class CheckUpPage extends JPanel {
         String customerNumber = customerPhoneField.getText();
         String customerWeight = customerWeightSpinner.getValue().toString();
         String customerHeight = customerHeightSpinner.getValue().toString();
-        String doctorName = (String) doctorComboBox.getSelectedItem();
+        String doctorId = String.valueOf(doctorComboBox.getSelectedIndex() + 1);
         String suggestions = suggestionField.getText();
         String diagnosis = diagnosisField.getText();
         String conclusion = conclusionField.getText();
@@ -2642,7 +2677,7 @@ public class CheckUpPage extends JPanel {
         log.info("customerNumber: {}", customerNumber);
         log.info("customerWeight: {}", customerWeight);
         log.info("customerHeight: {}", customerHeight);
-        log.info("doctorName: {}", doctorName);
+        log.info("doctorId: {}", doctorId);
         log.info("suggestions: {}", suggestions);
         log.info("diagnosis: {}", diagnosis);
         log.info("conclusion: {}", conclusion);
@@ -2653,7 +2688,7 @@ public class CheckUpPage extends JPanel {
         log.info("servicePrescription: {}", (Object) servicePrescription);
         log.info("=== End SaveCheckupRequest Data ===");
 
-        // Create and send the save request
+       
         SaveCheckupRequest request = new SaveCheckupRequest(
             checkupId,
             checkupDate,
@@ -2666,12 +2701,13 @@ public class CheckUpPage extends JPanel {
             customerNumber,
             customerWeight,
             customerHeight,
-            doctorName,
-            suggestions,
-            diagnosis,
+            doctorId,
+            suggestions, // De nghi
+            diagnosis, // Chuan doan
             rtfContent, // Send RTF content as notes
             status,
             checkupType,
+            conclusion, // Ket luan
             medicinePrescription,
             servicePrescription
         );

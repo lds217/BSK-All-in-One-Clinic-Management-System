@@ -19,6 +19,7 @@ import io.netty.handler.codec.http.websocketx.WebSocketServerProtocolHandler.Han
 import io.netty.handler.timeout.IdleState;
 import io.netty.handler.timeout.IdleStateEvent;
 import java.io.IOException;
+import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -30,6 +31,9 @@ import java.util.HashMap;
 
 import lombok.extern.slf4j.Slf4j;
 
+import BsK.common.entity.Medicine;
+import BsK.common.entity.Service;
+import BsK.common.entity.PatientHistory;
 
 import static BsK.server.Server.statement;
 
@@ -94,8 +98,8 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         try {
           ResultSet rs = statement.executeQuery(
                   "select a.checkup_id, a.checkup_date, c.customer_last_name, c.customer_first_name,\n" +
-                          "d.doctor_first_name, d.doctor_last_name, a.symptoms, a.diagnosis, a.notes, a.status, a.customer_id, \n" +
-                          "c.customer_number, c.customer_address, c.customer_weight, c.customer_height, c.customer_gender, c.customer_dob, a.checkup_type\n" +
+                          "d.doctor_first_name, d.doctor_last_name, a.suggestion, a.diagnosis, a.notes, a.status, a.customer_id, \n" +
+                          "c.customer_number, c.customer_address, c.customer_weight, c.customer_height, c.customer_gender, c.customer_dob, a.checkup_type, a.conclusion\n" +
                           "from checkup as a\n" +
                           "join customer as c on a.customer_id = c.customer_id\n" +
                           "join Doctor D on a.doctor_id = D.doctor_id\n" +
@@ -119,7 +123,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
               String customerFirstName = rs.getString("customer_first_name");
               String doctorFirstName = rs.getString("doctor_first_name");
               String doctorLastName = rs.getString("doctor_last_name");
-              String symptoms = rs.getString("symptoms");
+              String suggestion = rs.getString("suggestion");
               String diagnosis = rs.getString("diagnosis");
               String notes = rs.getString("notes");
               String status = rs.getString("status");
@@ -131,13 +135,13 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
               String customerGender = rs.getString("customer_gender");
               String customerDob = rs.getString("customer_dob");
               String checkupType = rs.getString("checkup_type");
-
+              String conclusion = rs.getString("conclusion");
 
               String result = String.join("|", checkupId,
                       checkupDate, customerLastName, customerFirstName,
-                      doctorLastName + " " + doctorFirstName, symptoms,
+                      doctorLastName + " " + doctorFirstName, suggestion,
                       diagnosis, notes, status, customerId, customerNumber, customerAddress, customerWeight, customerHeight,
-                      customerGender, customerDob, checkupType
+                      customerGender, customerDob, checkupType, conclusion
               );
 
               resultList.add(result);
@@ -161,7 +165,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         try {
           ResultSet rs = statement.executeQuery(
                   "select a.checkup_id, a.checkup_date, c.customer_last_name, c.customer_first_name,\n" +
-                          "d.doctor_first_name, d.doctor_last_name, a.symptoms, a.diagnosis, a.notes, a.status, a.customer_id, \n" +
+                          "d.doctor_first_name, d.doctor_last_name, a.suggestion, a.diagnosis, a.notes, a.status, a.customer_id, \n" +
                           "c.customer_number, c.customer_address, c.customer_weight, c.customer_height, c.customer_gender, c.customer_dob, a.checkup_type\n" +
                           "from checkup as a\n" +
                           "join customer as c on a.customer_id = c.customer_id\n" +
@@ -186,7 +190,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
               String customerFirstName = rs.getString("customer_first_name");
               String doctorFirstName = rs.getString("doctor_first_name");
               String doctorLastName = rs.getString("doctor_last_name");
-              String symptoms = rs.getString("symptoms");
+              String suggestion = rs.getString("suggestion");
               String diagnosis = rs.getString("diagnosis");
               String notes = rs.getString("notes");
               String status = rs.getString("status");
@@ -202,7 +206,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
 
               String result = String.join("|", checkupId,
                       checkupDate, customerLastName, customerFirstName,
-                      doctorLastName + " " + doctorFirstName, symptoms,
+                      doctorLastName + " " + doctorFirstName, suggestion,
                       diagnosis, notes, status, customerId, customerNumber, customerAddress, customerWeight, customerHeight,
                       customerGender, customerDob, checkupType
               );
@@ -255,21 +259,21 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         }
       }
 
-      if (packet instanceof GetCustomerHistoryRequest getCustomerHistoryRequest) {
-        log.debug("Received GetCustomerHistoryRequest");
+      if (packet instanceof GetPatientHistoryRequest getPatientHistoryRequest) {
+        log.debug("Received GetPatientHistoryRequest");
         try {
             ResultSet rs = statement.executeQuery(
-                    "select Checkup.checkup_date, Checkup.checkup_id, Checkup.symptoms, Checkup.diagnosis, Checkup.prescription_id, Checkup.notes\n" +
+                    "select Checkup.checkup_date, Checkup.checkup_id, Checkup.suggestion, Checkup.diagnosis, Checkup.prescription_id, Checkup.notes\n" +
                             "from Customer\n" +
                             "join Checkup on Customer.customer_id = Checkup.customer_id\n" +
                             "where Checkup.status = \"DONE\" and Customer.customer_id = " +
-                            getCustomerHistoryRequest.getCustomerId() +
+                            getPatientHistoryRequest.getPatientId() +
                             " order by checkup_date"
             );
 
             if (!rs.isBeforeFirst()) {
                 System.out.println("No history data found in the checkup table.");
-                UserUtil.sendPacket(currentUser.getSessionId(), new GetCustomerHistoryResponse(new String[0][7]));
+                UserUtil.sendPacket(currentUser.getSessionId(), new GetPatientHistoryResponse(new String[0][0]));
             } else {
                 ArrayList<String> resultList = new ArrayList<>();
                 while (rs.next()) {
@@ -280,11 +284,11 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                     SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy");
                     checkupDate = sdf.format(date);
                     String checkupId = rs.getString("checkup_id");
-                    String symptoms = rs.getString("symptoms");
+                    String suggestion = rs.getString("suggestion");
                     String diagnosis = rs.getString("diagnosis");
                     String prescriptionId = rs.getString("prescription_id");
                     String notes = rs.getString("notes");
-                    String result = String.join("|", checkupDate, checkupId, symptoms, diagnosis, prescriptionId, notes);
+                    String result = String.join("|", checkupDate, checkupId, suggestion, diagnosis, prescriptionId, notes);
                     resultList.add(result);
                     // log.info(result);
                 }
@@ -295,7 +299,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                     resultArray[i] = resultString[i].split("\\|");
                 }
 
-                UserUtil.sendPacket(currentUser.getSessionId(), new GetCustomerHistoryResponse(resultArray));
+                UserUtil.sendPacket(currentUser.getSessionId(), new GetPatientHistoryResponse(resultArray));
             }
 
         } catch (SQLException e) {
@@ -549,8 +553,12 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
       if (packet instanceof AddPatientRequest addPatientRequest) {
         log.debug("Received AddPatientRequest");
         try {
+          // Disable auto-commit for transaction
+          Server.connection.setAutoCommit(false);
+          
           PreparedStatement preparedStatement = Server.connection.prepareStatement(
-                  "INSERT INTO Customer (customer_last_name, customer_first_name, customer_dob, customer_number, customer_address, customer_gender) VALUES (?, ?, ?, ?, ?, ?)"
+                  "INSERT INTO Customer (customer_last_name, customer_first_name, customer_dob, customer_number, customer_address, customer_gender) VALUES (?, ?, ?, ?, ?, ?)",
+                  PreparedStatement.RETURN_GENERATED_KEYS // Use this instead of separate query
           );
           preparedStatement.setString(1, addPatientRequest.getPatientLastName());
           preparedStatement.setString(2, addPatientRequest.getPatientFirstName());
@@ -560,19 +568,40 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
           preparedStatement.setString(6, addPatientRequest.getPatientGender());
           preparedStatement.executeUpdate();
 
-          // Get the last inserted ID
-          PreparedStatement getIdStmt = Server.connection.prepareStatement("SELECT last_insert_rowid()");
-          ResultSet rs = getIdStmt.executeQuery();
+          // Get the generated key safely
           int customerId = 0;
-          if (rs.next()) {
-            customerId = rs.getInt(1);
+          try (ResultSet generatedKeys = preparedStatement.getGeneratedKeys()) {
+            if (generatedKeys.next()) {
+              customerId = generatedKeys.getInt(1);
+            } else {
+              throw new SQLException("Creating patient failed, no ID obtained.");
+            }
           }
+          
+          // Commit the transaction
+          Server.connection.commit();
+          
+          // Close resources
+          preparedStatement.close();
 
           UserUtil.sendPacket(currentUser.getSessionId(), new AddPatientResponse(true, customerId, "Thêm bệnh nhân thành công"));
         } catch (SQLException e) {
+          try {
+            // Rollback on error
+            Server.connection.rollback();
+          } catch (SQLException rollbackEx) {
+            log.error("Error during rollback", rollbackEx);
+          }
           String errorMessage = e.getMessage();
-          UserUtil.sendPacket(currentUser.getSessionId(), new AddPatientResponse(false,-1, "Lỗi: " + errorMessage));
-          throw new RuntimeException(e);
+          UserUtil.sendPacket(currentUser.getSessionId(), new AddPatientResponse(false, -1, "Lỗi: " + errorMessage));
+          log.error("Error adding patient", e);
+        } finally {
+          try {
+            // Reset auto-commit
+            Server.connection.setAutoCommit(true);
+          } catch (SQLException e) {
+            log.error("Error resetting auto-commit", e);
+          }
         }
       }
 
@@ -639,6 +668,238 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         int maxCurId = SessionManager.getMaxSessionId();
         for (int sessionId = 1; sessionId <= maxCurId; sessionId++) {
           UserUtil.sendPacket(sessionId, new CallPatientResponse(patientId, roomId, status));
+        }
+      }
+
+      if (packet instanceof SaveCheckupRequest saveCheckupRequest) {
+        log.debug("Received SaveCheckupRequest to save checkup {}", saveCheckupRequest.getCheckupId());
+        
+        Connection conn = null;
+        try {
+          conn = Server.connection;
+          // Start transaction
+          conn.setAutoCommit(false);
+          
+          // 1. Insert/Update Customer
+          String customerSql = """
+            INSERT INTO Customer (
+                customer_id, customer_first_name, customer_last_name, customer_dob,
+                customer_gender, customer_address, customer_number,
+                customer_weight, customer_height
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(customer_id) DO UPDATE SET
+                customer_first_name = excluded.customer_first_name,
+                customer_last_name = excluded.customer_last_name,
+                customer_dob = excluded.customer_dob,
+                customer_gender = excluded.customer_gender,
+                customer_address = excluded.customer_address,
+                customer_number = excluded.customer_number,
+                customer_weight = excluded.customer_weight,
+                customer_height = excluded.customer_height
+            """;
+          
+          PreparedStatement customerStmt = conn.prepareStatement(customerSql);
+          customerStmt.setString(1, saveCheckupRequest.getCustomerId());
+          customerStmt.setString(2, saveCheckupRequest.getCustomerFirstName());
+          customerStmt.setString(3, saveCheckupRequest.getCustomerLastName());
+          customerStmt.setString(4, saveCheckupRequest.getCustomerDob());
+          customerStmt.setString(5, saveCheckupRequest.getCustomerGender());
+          customerStmt.setString(6, saveCheckupRequest.getCustomerAddress());
+          customerStmt.setString(7, saveCheckupRequest.getCustomerNumber());
+          customerStmt.setString(8, saveCheckupRequest.getCustomerWeight());
+          customerStmt.setString(9, saveCheckupRequest.getCustomerHeight());
+          customerStmt.executeUpdate();
+          log.info("Customer saved successfully");
+          // 2. Generate prescription_id if we have medicine prescriptions
+          String prescriptionId = null;
+          if (saveCheckupRequest.getMedicinePrescription() != null && 
+              saveCheckupRequest.getMedicinePrescription().length > 0) {
+            
+            // Get next prescription_id
+            String getNextIdSql = "SELECT COALESCE(MAX(prescription_id), 0) + 1 as next_id FROM MedicineOrder";
+            PreparedStatement nextIdStmt = conn.prepareStatement(getNextIdSql);
+            ResultSet rs = nextIdStmt.executeQuery();
+            if (rs.next()) {
+              prescriptionId = rs.getString("next_id");
+            }
+            rs.close();
+            nextIdStmt.close();
+          }
+
+          // 3. Insert/Update Checkup
+          String checkupSql = """
+            INSERT INTO Checkup (
+                checkup_id, customer_id, doctor_id, checkup_date,
+                suggestion, diagnosis, prescription_id, notes, status, checkup_type, conclusion
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(checkup_id) DO UPDATE SET
+                suggestion = excluded.suggestion,
+                diagnosis = excluded.diagnosis,
+                prescription_id = excluded.prescription_id,
+                notes = excluded.notes,
+                status = excluded.status,
+                checkup_type = excluded.checkup_type,
+                conclusion = excluded.conclusion
+            """;
+          
+          PreparedStatement checkupStmt = conn.prepareStatement(checkupSql);
+          checkupStmt.setString(1, saveCheckupRequest.getCheckupId());
+          checkupStmt.setString(2, saveCheckupRequest.getCustomerId());
+          checkupStmt.setString(3, saveCheckupRequest.getDoctorId());
+          checkupStmt.setString(4, saveCheckupRequest.getCheckupDate());
+          checkupStmt.setString(5, saveCheckupRequest.getSuggestions());
+          checkupStmt.setString(6, saveCheckupRequest.getDiagnosis());
+          checkupStmt.setString(7, prescriptionId);
+          checkupStmt.setString(8, saveCheckupRequest.getNotes());
+          checkupStmt.setString(9, saveCheckupRequest.getStatus());
+          checkupStmt.setString(10, saveCheckupRequest.getCheckupType());
+          checkupStmt.setString(11, saveCheckupRequest.getConclusion());
+          checkupStmt.executeUpdate();
+          log.info("Prescription ID generated or edited: {}", prescriptionId);
+          log.info("Checkup saved successfully");
+          // 4. Handle Medicine Prescriptions
+          if (saveCheckupRequest.getMedicinePrescription() != null && 
+              saveCheckupRequest.getMedicinePrescription().length > 0 && prescriptionId != null) {
+            
+            // Calculate total amount for medicine order
+            double totalMedicineAmount = 0;
+            for (String[] medicine : saveCheckupRequest.getMedicinePrescription()) {
+              if (medicine.length > 8) {
+                try {
+                  totalMedicineAmount += Double.parseDouble(medicine[8]); // total_price
+                } catch (NumberFormatException e) {
+                  log.warn("Invalid medicine total price: {}", medicine[8]);
+                }
+              }
+            }
+            
+            // Insert/Update MedicineOrder
+            String medicineOrderSql = """
+              INSERT INTO MedicineOrder (
+                  prescription_id, checkup_id, customer_id,
+                  total_amount, payment_method, status,
+                  payment_status, processed_by, notes, datetime
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_DATE)
+              ON CONFLICT(prescription_id, checkup_id) DO UPDATE SET
+                  customer_id = excluded.customer_id,
+                  total_amount = excluded.total_amount,
+                  payment_method = excluded.payment_method,
+                  status = excluded.status,
+                  payment_status = excluded.payment_status,
+                  processed_by = excluded.processed_by,
+                  notes = excluded.notes,
+                  datetime = CURRENT_DATE
+              """;
+            
+            PreparedStatement medicineOrderStmt = conn.prepareStatement(medicineOrderSql);
+            medicineOrderStmt.setString(1, prescriptionId);
+            medicineOrderStmt.setString(2, saveCheckupRequest.getCheckupId());
+            medicineOrderStmt.setString(3, saveCheckupRequest.getCustomerId());
+            medicineOrderStmt.setDouble(4, totalMedicineAmount);
+            medicineOrderStmt.setString(5, ""); // payment_method
+            medicineOrderStmt.setString(6, "Pending"); // status
+            medicineOrderStmt.setString(7, "Unpaid"); // payment_status
+            medicineOrderStmt.setString(8, ""); // processed_by
+            medicineOrderStmt.setString(9, ""); // notes
+            medicineOrderStmt.executeUpdate();
+            log.info("MedicineOrder saved successfully");
+            // Insert OrderItems
+            String orderItemSql = """
+              INSERT INTO OrderItem (
+                  prescription_id, med_id, quantity_ordered,
+                  dosage, duration, price_per_unit, total_price, checkup_id, notes
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+              ON CONFLICT(order_item_id) DO UPDATE SET
+                  quantity_ordered = excluded.quantity_ordered,
+                  dosage = excluded.dosage,
+                  duration = excluded.duration,
+                  price_per_unit = excluded.price_per_unit,
+                  total_price = excluded.total_price,
+                  checkup_id = excluded.checkup_id,
+                  notes = excluded.notes
+              """;
+            log.info("OrderItem saved successfully");
+            PreparedStatement orderItemStmt = conn.prepareStatement(orderItemSql);
+            
+            for (String[] medicine : saveCheckupRequest.getMedicinePrescription()) {
+              if (medicine.length >= 10) {
+                orderItemStmt.setString(1, prescriptionId);
+                orderItemStmt.setString(2, medicine[0]); // med_id
+                orderItemStmt.setString(3, medicine[2]); // quantity
+                
+                // Build dosage string from morning, noon, evening
+                String dosage = String.format("Sáng %s, Trưa %s, Chiều %s", 
+                    medicine[4], medicine[5], medicine[6]);
+                orderItemStmt.setString(4, dosage);
+                orderItemStmt.setString(5, ""); // duration - could be calculated or added to request
+                orderItemStmt.setString(6, medicine[7]); // unit_price
+                orderItemStmt.setString(7, medicine[8]); // total_price
+                orderItemStmt.setString(8, saveCheckupRequest.getCheckupId());
+                orderItemStmt.setString(9, medicine[9]); // notes
+                orderItemStmt.addBatch();
+              }
+            }
+            orderItemStmt.executeBatch();
+          }
+          log.info("Medicine prescriptions saved successfully");
+          // 5. Handle Service Prescriptions
+          if (saveCheckupRequest.getServicePrescription() != null && 
+              saveCheckupRequest.getServicePrescription().length > 0) {
+            
+            String serviceSql = """
+              INSERT INTO CheckupService (
+                  checkup_id, service_id, quantity,
+                  total_cost, status, checkup_date
+              ) VALUES (?, ?, ?, ?, ?, CURRENT_DATE)
+              ON CONFLICT(order_id) DO UPDATE SET
+                  quantity = excluded.quantity,
+                  total_cost = excluded.total_cost,
+                  status = excluded.status
+              """;
+            
+            PreparedStatement serviceStmt = conn.prepareStatement(serviceSql);
+            
+            for (String[] service : saveCheckupRequest.getServicePrescription()) {
+              if (service.length >= 6) {
+                serviceStmt.setString(1, saveCheckupRequest.getCheckupId());
+                serviceStmt.setString(2, service[0]); // service_id
+                serviceStmt.setString(3, service[2]); // quantity
+                serviceStmt.setString(4, service[4]); // total_cost
+                serviceStmt.setString(5, "PENDING"); // status
+                
+                serviceStmt.addBatch();
+              }
+            }
+            serviceStmt.executeBatch();
+          }
+          log.info("Service prescriptions saved successfully");
+          // Commit transaction
+          conn.commit();
+          log.info("Successfully saved checkup {} with all related data", saveCheckupRequest.getCheckupId());
+          
+          UserUtil.sendPacket(currentUser.getSessionId(), new AddCheckupResponse(true, "Checkup saved successfully"));
+          
+        } catch (Exception e) {
+          log.error("Error saving checkup transaction", e);
+          // Rollback transaction on error
+          if (conn != null) {
+            try {
+              conn.rollback();
+              log.info("Transaction rolled back due to error");
+            } catch (SQLException rollbackEx) {
+              log.error("Error rolling back transaction", rollbackEx);
+            }
+          }
+          UserUtil.sendPacket(currentUser.getSessionId(), new ErrorResponse(Error.SQL_EXCEPTION));
+        } finally {
+          // Restore auto-commit
+          if (conn != null) {
+            try {
+              conn.setAutoCommit(true);
+            } catch (SQLException e) {
+              log.error("Error restoring auto-commit", e);
+            }
+          }
         }
       }
     }

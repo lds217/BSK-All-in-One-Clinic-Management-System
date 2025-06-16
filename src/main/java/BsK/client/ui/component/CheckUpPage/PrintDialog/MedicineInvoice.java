@@ -32,6 +32,8 @@ import java.util.ArrayList;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.text.DecimalFormat;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 
 public class MedicineInvoice{
 
@@ -107,6 +109,27 @@ public class MedicineInvoice{
         dialog.setResizable(true);
         dialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
         dialog.setLayout(new BorderLayout());
+        
+        // Ensure modal behavior and proper parent relationship
+        dialog.setModalityType(Dialog.ModalityType.APPLICATION_MODAL);
+        dialog.setAlwaysOnTop(false); // Don't force always on top, let modal behavior handle this
+        
+        // Add window listener to handle minimize/restore events with parent
+        dialog.addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowIconified(WindowEvent e) {
+                if (parent != null) {
+                    parent.setState(Frame.ICONIFIED);
+                }
+            }
+            
+            @Override
+            public void windowDeiconified(WindowEvent e) {
+                if (parent != null && parent.getState() == Frame.ICONIFIED) {
+                    parent.setState(Frame.NORMAL);
+                }
+            }
+        });
 
         JPanel buttonPanel = new JPanel(new GridLayout(1, 2));
         JButton saveButton = new JButton("Save PDF");

@@ -1,0 +1,72 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "java",
+            "name": "Client",
+            "request": "launch",
+            "mainClass": "BsK.client.Client",
+            "projectName": "ldS_BsK"
+        },
+        {
+            "type": "java",
+            "name": "Server",
+            "request": "launch",
+            "mainClass": "BsK.server.Server",
+            "projectName": "ldS_BsK"
+        },
+        {
+            "type": "java",
+            "name": "BSK Server",
+            "request": "launch",
+            "mainClass": "BsK.server.Server",
+            "projectName": "BSK-All-in-One-Clinic-Management-System",
+            "cwd": "${workspaceFolder}",
+            "console": "internalConsole",
+            "internalConsoleOptions": "openOnSessionStart",
+            "args": [],
+            "vmArgs": [],
+            "env": {},
+            "preLaunchTask": "${command:java.clean.workspace}"
+        },
+        {
+            "type": "java",
+            "name": "BSK Client",
+            "request": "launch",
+            "mainClass": "BsK.client.Client",
+            "projectName": "BSK-All-in-One-Clinic-Management-System",
+            "cwd": "${workspaceFolder}",
+            "console": "internalConsole",
+            "internalConsoleOptions": "openOnSessionStart",
+            "args": [],
+            "vmArgs": [],
+            "env": {}
+        },
+        {
+            "type": "java",
+            "name": "BSK Client (Instance 2)",
+            "request": "launch",
+            "mainClass": "BsK.client.Client",
+            "projectName": "BSK-All-in-One-Clinic-Management-System",
+            "cwd": "${workspaceFolder}",
+            "console": "internalConsole",
+            "internalConsoleOptions": "openOnSessionStart",
+            "args": [],
+            "vmArgs": [],
+            "env": {}
+        },
+        {
+            "type": "java",
+            "name": "BSK Client (Instance 3)",
+            "request": "launch",
+            "mainClass": "BsK.client.Client",
+            "projectName": "BSK-All-in-One-Clinic-Management-System",
+            "cwd": "${workspaceFolder}",
+            "console": "internalConsole",
+            "internalConsoleOptions": "openOnSessionStart",
+            "args": [],
+            "vmArgs": [],
+            "env": {}
+        }
+    ]
+} 

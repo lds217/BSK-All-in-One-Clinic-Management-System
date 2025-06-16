@@ -14,6 +14,8 @@ import javax.swing.text.StyleConstants;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 
 @Slf4j
 public class TemplateDialog extends JDialog {
@@ -45,6 +47,27 @@ public class TemplateDialog extends JDialog {
     public TemplateDialog(MainFrame mainFrame) {
         super(mainFrame, "Quản lý mẫu", true);
         this.mainFrame = mainFrame;
+        
+        // Ensure modal behavior and proper parent relationship
+        setModalityType(Dialog.ModalityType.APPLICATION_MODAL);
+        setAlwaysOnTop(false); // Don't force always on top, let modal behavior handle this
+        
+        // Add window listener to handle minimize/restore events with parent
+        addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowIconified(WindowEvent e) {
+                if (mainFrame != null) {
+                    mainFrame.setState(Frame.ICONIFIED);
+                }
+            }
+            
+            @Override
+            public void windowDeiconified(WindowEvent e) {
+                if (mainFrame != null && mainFrame.getState() == Frame.ICONIFIED) {
+                    mainFrame.setState(Frame.NORMAL);
+                }
+            }
+        });
         
         initializeComponents();
         setupLayout();

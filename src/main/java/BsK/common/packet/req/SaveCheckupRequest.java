@@ -20,12 +20,13 @@ public class SaveCheckupRequest implements Packet {
     private String customerNumber; // Phone number
     private String customerWeight;
     private String customerHeight;
-    private String doctorName; // Or doctorId if preferred for backend processing
-    private String symptoms;
+    private String doctorId; // Or doctorId if preferred for backend processing
+    private String suggestions;
     private String diagnosis;
     private String notes;
     private String status;
     private String checkupType;
+    private String conclusion;  
     private String[][] medicinePrescription; // Structure: [med_id, name, quantity, unit, dose_morning, dose_noon, dose_evening, unit_price, total_price, notes]
     private String[][] servicePrescription;  // Structure: [ser_id, name, quantity, unit_price, total_price, notes]
 } 
