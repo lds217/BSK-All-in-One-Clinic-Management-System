@@ -116,6 +116,7 @@ public class CheckUpPage extends JPanel {
     private final ResponseListener<GetDistrictResponse> districtResponseListener = this::handleGetDistrictResponse;
     private final ResponseListener<GetWardResponse> wardResponseListener = this::handleGetWardResponse;
     private final ResponseListener<CallPatientResponse> callPatientResponseListener = this::handleCallPatientResponse;
+    private final ResponseListener<GetOrderInfoByCheckupRes> orderInfoByCheckupListener = this::handleGetOrderInfoByCheckupResponse;
     private JTextField checkupIdField, customerLastNameField, customerFirstNameField,customerAddressField, customerPhoneField, customerIdField;
     private JTextArea suggestionField, diagnosisField, conclusionField; // Changed symptomsField to suggestionField
     private JTextPane notesField;
@@ -272,6 +273,7 @@ public class CheckUpPage extends JPanel {
         ClientHandler.addResponseListener(GetCheckUpQueueResponse.class, checkUpQueueListener);
         ClientHandler.addResponseListener(GetCheckUpQueueUpdateResponse.class, checkUpQueueUpdateListener);
         ClientHandler.addResponseListener(GetPatientHistoryResponse.class, patientHistoryListener);
+        ClientHandler.addResponseListener(GetOrderInfoByCheckupRes.class, orderInfoByCheckupListener);
         ClientHandler.addResponseListener(GetDistrictResponse.class, districtResponseListener);
         ClientHandler.addResponseListener(GetWardResponse.class, wardResponseListener);
         ClientHandler.addResponseListener(CallPatientResponse.class, callPatientResponseListener);
@@ -1235,9 +1237,7 @@ public class CheckUpPage extends JPanel {
     private void handleActionPanelClick(String name) {
         switch (name) {
             case "service":
-                if(serDialog == null) {
-                    serDialog = new ServiceDialog(mainFrame);
-                }
+                serDialog = new ServiceDialog(mainFrame, this.servicePrescription);
                 serDialog.setVisible(true);
                 saved = false;
                 servicePrescription = serDialog.getServicePrescription();
@@ -1257,9 +1257,7 @@ public class CheckUpPage extends JPanel {
                 callingStatusLabel.setForeground(new Color(0, 100, 0));
                 break;
             case "medicine":
-                if(medDialog == null) {
-                    medDialog = new MedicineDialog(mainFrame);
-                }
+                medDialog = new MedicineDialog(mainFrame, this.medicinePrescription);
                 medDialog.setVisible(true);
                 saved = false;
                 medicinePrescription = medDialog.getMedicinePrescription();
@@ -1478,7 +1476,7 @@ public class CheckUpPage extends JPanel {
         checkupTypeComboBox.setSelectedItem(selectedPatient.getCheckupType());
 
         NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetPatientHistoryRequest(Integer.parseInt(selectedPatient.getCustomerId())));
-
+        NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetOrderInfoByCheckupReq(selectedPatient.getCheckupId()));
         String fullAddress = selectedPatient.getCustomerAddress();
         String[] addressParts = fullAddress.split(", ");
         if (addressParts.length > 0) customerAddressField.setText(addressParts[0]);
@@ -1712,6 +1710,29 @@ public class CheckUpPage extends JPanel {
         callingStatusLabel.setText(callingText);
         callingStatusLabel.setForeground(Color.WHITE);
         callingStatusLabel.setBackground(new Color(217, 83, 79)); // Red background for calling
+    }
+
+    private void handleGetOrderInfoByCheckupResponse(GetOrderInfoByCheckupRes response) {
+        log.info("Received order info for checkup.");
+        
+        // Ensure UI updates are on the Event Dispatch Thread
+        SwingUtilities.invokeLater(() -> {
+            this.medicinePrescription = response.getMedicinePrescription() != null ? response.getMedicinePrescription() : new String[0][0];
+            this.servicePrescription = response.getServicePrescription() != null ? response.getServicePrescription() : new String[0][0];
+            
+            // Pass the updated prescriptions to the dialogs if they exist
+            if (medDialog != null) {
+                // Assuming MedicineDialog has a method to update its data
+                // medDialog.setPrescription(this.medicinePrescription);
+            }
+            if (serDialog != null) {
+                // Assuming ServiceDialog has a method to update its data
+                // serDialog.setPrescription(this.servicePrescription);
+            }
+            
+            // Update the UI tree display
+            updatePrescriptionTree();
+        });
     }
 
     private JPanel createImageGalleryViewPanel() {

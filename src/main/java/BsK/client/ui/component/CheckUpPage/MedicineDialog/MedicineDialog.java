@@ -84,8 +84,24 @@ public class MedicineDialog extends JDialog {
         NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetMedInfoRequest());
     }
 
-    public MedicineDialog(Frame parent) {
-        super(parent, "Thêm thuốc", true);
+    public MedicineDialog(final Frame parent) {
+        super(parent, "Đơn thuốc", true);
+        this.medicinePrescription = new String[0][0];
+        init(parent);
+    }
+    
+    public MedicineDialog(final Frame parent, String[][] existingPrescription) {
+        super(parent, "Đơn thuốc", true);
+        this.medicinePrescription = existingPrescription != null ? existingPrescription : new String[0][0];
+        init(parent);
+        if (existingPrescription != null) {
+            for (String[] row : existingPrescription) {
+                selectedTableModel.addRow(row);
+            }
+        }
+    }
+
+    private void init(final Frame parent) {
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
         setSize(1100, 600);
         setLocationRelativeTo(parent);
@@ -111,9 +127,6 @@ public class MedicineDialog extends JDialog {
                 }
             }
         });
-
-        // Initialize medicinePrescription as empty array
-        medicinePrescription = new String[0][0];
 
         // Add response listener and send request for medicine data
         ClientHandler.addResponseListener(GetMedInfoResponse.class, getMedInfoResponseListener);
@@ -472,7 +485,6 @@ public class MedicineDialog extends JDialog {
         });
 
         cancelButton.addActionListener(e -> {
-            medicinePrescription = null;
             dispose();
         });
     }

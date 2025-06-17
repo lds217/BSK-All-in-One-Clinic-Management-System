@@ -757,7 +757,19 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
           checkupStmt.executeUpdate();
           log.info("Prescription ID generated or edited: {}", prescriptionId);
           log.info("Checkup saved successfully");
+
           // 4. Handle Medicine Prescriptions
+          // First, delete all existing items for this checkup to handle edits/removals
+          try (PreparedStatement deleteOrderItemsStmt = conn.prepareStatement("DELETE FROM OrderItem WHERE checkup_id = ?")) {
+              deleteOrderItemsStmt.setString(1, saveCheckupRequest.getCheckupId());
+              deleteOrderItemsStmt.executeUpdate();
+          }
+          try (PreparedStatement deleteMedicineOrderStmt = conn.prepareStatement("DELETE FROM MedicineOrder WHERE checkup_id = ?")) {
+              deleteMedicineOrderStmt.setString(1, saveCheckupRequest.getCheckupId());
+              deleteMedicineOrderStmt.executeUpdate();
+          }
+          log.info("Cleared previous medicine prescription for checkup_id: {}", saveCheckupRequest.getCheckupId());
+
           if (saveCheckupRequest.getMedicinePrescription() != null && 
               saveCheckupRequest.getMedicinePrescription().length > 0 && prescriptionId != null) {
             
@@ -842,7 +854,15 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
             orderItemStmt.executeBatch();
           }
           log.info("Medicine prescriptions saved successfully");
+
           // 5. Handle Service Prescriptions
+          // First, delete all existing services for this checkup
+          try (PreparedStatement deleteServiceStmt = conn.prepareStatement("DELETE FROM CheckupService WHERE checkup_id = ?")) {
+              deleteServiceStmt.setString(1, saveCheckupRequest.getCheckupId());
+              deleteServiceStmt.executeUpdate();
+          }
+          log.info("Cleared previous service prescription for checkup_id: {}", saveCheckupRequest.getCheckupId());
+
           if (saveCheckupRequest.getServicePrescription() != null && 
               saveCheckupRequest.getServicePrescription().length > 0) {
             
@@ -877,7 +897,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
           conn.commit();
           log.info("Successfully saved checkup {} with all related data", saveCheckupRequest.getCheckupId());
           
-          UserUtil.sendPacket(currentUser.getSessionId(), new AddCheckupResponse(true, "Checkup saved successfully"));
+          UserUtil.sendPacket(currentUser.getSessionId(), new SaveCheckupRes(true, "Checkup saved successfully"));
           
         } catch (Exception e) {
           log.error("Error saving checkup transaction", e);
@@ -901,6 +921,110 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
             }
           }
         }
+      }
+      
+      if (packet instanceof GetOrderInfoByCheckupReq getOrderInfoByCheckupReq) {
+        log.debug("Received GetOrderInfoByCheckupReq for checkupId: {}", getOrderInfoByCheckupReq.getCheckupId());
+        
+        String checkupId = getOrderInfoByCheckupReq.getCheckupId();
+        String[][] medicinePrescription = null;
+        String[][] servicePrescription = null;
+
+        // Get Medicine Prescription
+        try {
+          PreparedStatement medStmt = Server.connection.prepareStatement(
+              """
+              SELECT
+                  M.med_id,
+                  M.med_name,
+                  OI.quantity_ordered,
+                  M.med_unit,
+                  OI.dosage,
+                  OI.price_per_unit,
+                  OI.total_price,
+                  OI.notes
+              FROM OrderItem OI
+              JOIN Medicine M ON OI.med_id = M.med_id
+              WHERE OI.checkup_id = ?
+              """
+          );
+          medStmt.setString(1, checkupId);
+          ResultSet medRs = medStmt.executeQuery();
+          
+          ArrayList<String[]> medList = new ArrayList<>();
+          while(medRs.next()) {
+            String[] med = new String[10];
+            med[0] = medRs.getString("med_id");
+            med[1] = medRs.getString("med_name");
+            med[2] = medRs.getString("quantity_ordered");
+            med[3] = medRs.getString("med_unit");
+            
+            // Parse dosage: "Sáng 1, Trưa 1, Chiều 1"
+            String dosage = medRs.getString("dosage");
+            String morning = "0", noon = "0", evening = "0";
+            if (dosage != null && !dosage.isEmpty()) {
+                String[] parts = dosage.split(", ");
+                for (String part : parts) {
+                    String[] dosagePart = part.split(" ");
+                    if (dosagePart.length == 2) {
+                        if ("Sáng".equals(dosagePart[0])) morning = dosagePart[1];
+                        else if ("Trưa".equals(dosagePart[0])) noon = dosagePart[1];
+                        else if ("Chiều".equals(dosagePart[0])) evening = dosagePart[1];
+                    }
+                }
+            }
+            med[4] = morning;
+            med[5] = noon;
+            med[6] = evening;
+
+            med[7] = medRs.getString("price_per_unit");
+            med[8] = medRs.getString("total_price");
+            med[9] = medRs.getString("notes");
+            medList.add(med);
+          }
+          medicinePrescription = medList.toArray(new String[0][]);
+          
+        } catch (SQLException e) {
+          log.error("Error getting medicine prescription for checkupId: " + checkupId, e);
+        }
+        
+        // Get Service Prescription
+        try {
+          PreparedStatement serStmt = Server.connection.prepareStatement(
+            """
+            SELECT
+                S.service_id,
+                S.service_name,
+                CS.quantity,
+                S.service_cost,
+                CS.total_cost
+            FROM CheckupService CS
+            JOIN Service S ON CS.service_id = S.service_id
+            WHERE CS.checkup_id = ?
+            """
+          );
+          serStmt.setString(1, checkupId);
+          ResultSet serRs = serStmt.executeQuery();
+          
+          ArrayList<String[]> serList = new ArrayList<>();
+          while(serRs.next()) {
+            String[] ser = new String[6];
+            ser[0] = serRs.getString("service_id");
+            ser[1] = serRs.getString("service_name");
+            ser[2] = serRs.getString("quantity");
+            ser[3] = serRs.getString("service_cost");
+            ser[4] = serRs.getString("total_cost");
+            ser[5] = ""; // Notes - not available in CheckupService table
+            serList.add(ser);
+          }
+          servicePrescription = serList.toArray(new String[0][]);
+
+        } catch (SQLException e) {
+          log.error("Error getting service prescription for checkupId: " + checkupId, e);
+        }
+        
+        UserUtil.sendPacket(currentUser.getSessionId(), new GetOrderInfoByCheckupRes(medicinePrescription, servicePrescription));
+        log.info("Sent order info for checkup {} to client", checkupId);
       }
     }
   }

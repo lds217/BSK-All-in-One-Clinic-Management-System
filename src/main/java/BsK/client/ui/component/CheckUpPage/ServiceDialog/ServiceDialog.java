@@ -71,6 +71,22 @@ public class ServiceDialog extends JDialog {
 
     public ServiceDialog(Frame parent) {
         super(parent, "Thêm dịch vụ", true);
+        this.servicePrescription = new String[0][0];
+        initUI(parent);
+    }
+    
+    public ServiceDialog(Frame parent, String[][] existingPrescription) {
+        super(parent, "Thêm dịch vụ", true);
+        this.servicePrescription = existingPrescription != null ? existingPrescription : new String[0][0];
+        initUI(parent);
+        if (existingPrescription != null) {
+            for (String[] row : existingPrescription) {
+                selectedTableModel.addRow(row);
+            }
+        }
+    }
+
+    private void initUI(Frame parent) {
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
         setSize(1100, 600);
         setLocationRelativeTo(parent);
@@ -96,9 +112,6 @@ public class ServiceDialog extends JDialog {
                 }
             }
         });
-
-        // Initialize servicePrescription as empty array
-        servicePrescription = new String[0][0];
 
         // Add response listener and send request for service data
         ClientHandler.addResponseListener(GetSerInfoResponse.class, getSerInfoResponseListener);
@@ -372,7 +385,6 @@ public class ServiceDialog extends JDialog {
         });
 
         cancelButton.addActionListener(e -> {
-            servicePrescription = null;
             dispose();
         });
     }
@@ -523,19 +535,16 @@ public class ServiceDialog extends JDialog {
 
     private void collectPrescriptionData() {
         int rowCount = selectedTableModel.getRowCount();
-        if (rowCount == 0) {
-            servicePrescription = new String[0][0];
-            return;
-        }
-        servicePrescription = new String[rowCount][6];
+        List<String[]> prescriptionList = new ArrayList<>();
         for (int i = 0; i < rowCount; i++) {
-            servicePrescription[i][0] = selectedTableModel.getValueAt(i, 0).toString();
-            servicePrescription[i][1] = selectedTableModel.getValueAt(i, 1).toString();
-            servicePrescription[i][2] = selectedTableModel.getValueAt(i, 2).toString();
-            servicePrescription[i][3] = selectedTableModel.getValueAt(i, 3).toString();
-            servicePrescription[i][4] = selectedTableModel.getValueAt(i, 4).toString();
-            servicePrescription[i][5] = selectedTableModel.getValueAt(i, 5).toString();
+            String[] rowData = new String[selectedTableModel.getColumnCount()];
+            for (int j = 0; j < selectedTableModel.getColumnCount(); j++) {
+                Object value = selectedTableModel.getValueAt(i, j);
+                rowData[j] = (value != null) ? value.toString() : "";
+            }
+            prescriptionList.add(rowData);
         }
+        this.servicePrescription = prescriptionList.toArray(new String[0][]);
     }
 
     @Override
