@@ -28,12 +28,14 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
 
 import lombok.extern.slf4j.Slf4j;
 
 import BsK.common.entity.Medicine;
 import BsK.common.entity.Service;
 import BsK.common.entity.PatientHistory;
+import BsK.common.entity.Template;
 
 import static BsK.server.Server.statement;
 
@@ -1025,6 +1027,107 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         
         UserUtil.sendPacket(currentUser.getSessionId(), new GetOrderInfoByCheckupRes(medicinePrescription, servicePrescription));
         log.info("Sent order info for checkup {} to client", checkupId);
+      }
+      if (packet instanceof AddTemplateReq addTemplateReq) {
+        log.debug("Received AddTemplateReq: {}", addTemplateReq);
+        String templateName = addTemplateReq.getTemplateName();
+        String templateTitle = addTemplateReq.getTemplateTitle();
+        String templateDiagnosis = addTemplateReq.getTemplateDiagnosis();
+        String templateConclusion = addTemplateReq.getTemplateConclusion();
+        String templateSuggestion = addTemplateReq.getTemplateSuggestion();
+        String templateImageCount = addTemplateReq.getTemplateImageCount();
+        String templatePrintType = addTemplateReq.getTemplatePrintType();
+        String templateGender = addTemplateReq.getTemplateGender();
+        String templateContent = addTemplateReq.getTemplateContent();
+        try {
+          PreparedStatement templateStmt = Server.connection.prepareStatement(
+            """
+            INSERT INTO CheckupTemplate (template_gender, template_name, template_title, photo_num, print_type, content, conclusion, suggestion, diagnosis)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """);
+          templateStmt.setString(1, templateGender);
+          templateStmt.setString(2, templateName);
+          templateStmt.setString(3, templateTitle);
+          templateStmt.setString(4, templateImageCount);
+          templateStmt.setString(5, templatePrintType);
+          templateStmt.setString(6, templateContent);
+          templateStmt.setString(7, templateConclusion);
+          templateStmt.setString(8, templateSuggestion);
+          templateStmt.setString(9, templateDiagnosis);
+          templateStmt.executeUpdate();
+          log.info("Template saved successfully");
+          UserUtil.sendPacket(currentUser.getSessionId(), new AddTemplateRes(true, "Template saved successfully"));
+        } catch (SQLException e) {
+          log.error("Error saving template", e);
+          UserUtil.sendPacket(currentUser.getSessionId(), new ErrorResponse(Error.SQL_EXCEPTION));
+        }
+      }
+      if (packet instanceof GetAllTemplatesReq) {
+        log.debug("Received GetAllTemplatesReq");
+        try {
+            PreparedStatement stmt = Server.connection.prepareStatement("SELECT * FROM CheckupTemplate");
+            ResultSet rs = stmt.executeQuery();
+            List<Template> templates = new ArrayList<>();
+            while (rs.next()) {
+                templates.add(new Template(
+                    rs.getInt("template_id"),
+                    rs.getString("template_gender"),
+                    rs.getString("template_name"),
+                    rs.getString("template_title"),
+                    rs.getString("photo_num"),
+                    rs.getString("print_type"),
+                    rs.getString("content"),
+                    rs.getString("conclusion"),
+                    rs.getString("suggestion"),
+                    rs.getString("diagnosis")
+                ));
+            }
+            UserUtil.sendPacket(currentUser.getSessionId(), new GetAllTemplatesRes(templates));
+        } catch (SQLException e) {
+            log.error("Error fetching templates", e);
+            UserUtil.sendPacket(currentUser.getSessionId(), new ErrorResponse(Error.SQL_EXCEPTION));
+        }
+      }
+      if (packet instanceof EditTemplateReq editTemplateReq) {
+        log.debug("Received EditTemplateReq: {}", editTemplateReq);
+        Template template = editTemplateReq.getTemplate();
+        try {
+            PreparedStatement stmt = Server.connection.prepareStatement(
+                """
+                UPDATE CheckupTemplate SET template_gender = ?, template_name = ?, template_title = ?, photo_num = ?, print_type = ?, content = ?, conclusion = ?, suggestion = ?, diagnosis = ?
+                WHERE template_id = ?
+                """
+            );
+            stmt.setString(1, template.getTemplateGender());
+            stmt.setString(2, template.getTemplateName());
+            stmt.setString(3, template.getTemplateTitle());
+            stmt.setString(4, template.getPhotoNum());
+            stmt.setString(5, template.getPrintType());
+            stmt.setString(6, template.getContent());
+            stmt.setString(7, template.getConclusion());
+            stmt.setString(8, template.getSuggestion());
+            stmt.setString(9, template.getDiagnosis());
+            stmt.setInt(10, template.getTemplateId());
+            stmt.executeUpdate();
+            log.info("Template updated successfully");
+            UserUtil.sendPacket(currentUser.getSessionId(), new EditTemplateRes(true, "Template updated successfully"));
+        } catch (SQLException e) {
+            log.error("Error updating template", e);
+            UserUtil.sendPacket(currentUser.getSessionId(), new EditTemplateRes(false, "Error updating template: " + e.getMessage()));
+        }
+      }
+      if (packet instanceof DeleteTemplateReq deleteTemplateReq) {
+        log.debug("Received DeleteTemplateReq: {}", deleteTemplateReq);
+        try {
+            PreparedStatement stmt = Server.connection.prepareStatement("DELETE FROM CheckupTemplate WHERE template_id = ?");
+            stmt.setInt(1, deleteTemplateReq.getTemplateId());
+            stmt.executeUpdate();
+            log.info("Template deleted successfully");
+            UserUtil.sendPacket(currentUser.getSessionId(), new DeleteTemplateRes(true, "Template deleted successfully"));
+        } catch (SQLException e) {
+            log.error("Error deleting template", e);
+            UserUtil.sendPacket(currentUser.getSessionId(), new DeleteTemplateRes(false, "Error deleting template: " + e.getMessage()));
+        }
       }
     }
   }

@@ -1,7 +1,17 @@
 package BsK.client.ui.component.CheckUpPage.TemplateDialog;
 
 import BsK.client.ui.component.MainFrame;
+import BsK.common.packet.req.AddTemplateReq;
+import BsK.common.packet.res.AddTemplateRes;
+import BsK.common.packet.req.DeleteTemplateReq;
+import BsK.common.packet.res.DeleteTemplateRes;
+import BsK.common.packet.req.EditTemplateReq;
+import BsK.common.packet.res.EditTemplateRes;
+import BsK.common.packet.req.GetAllTemplatesReq;
+import BsK.common.packet.res.GetAllTemplatesRes;
+import BsK.common.util.network.NetworkUtil;
 import lombok.extern.slf4j.Slf4j;
+import BsK.common.entity.Template;
 
 import javax.swing.*;
 import javax.swing.border.TitledBorder;
@@ -16,14 +26,23 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.io.ByteArrayOutputStream;
+import BsK.client.network.handler.ClientHandler;
+import BsK.client.network.handler.ResponseListener;
+import java.io.StringReader;
+import java.util.List;
 
 @Slf4j
 public class TemplateDialog extends JDialog {
     private MainFrame mainFrame;
+    private ResponseListener<AddTemplateRes> addTemplateResListener;
+    private ResponseListener<GetAllTemplatesRes> getAllTemplatesResListener;
+    private ResponseListener<EditTemplateRes> editTemplateResListener;
+    private ResponseListener<DeleteTemplateRes> deleteTemplateResListener;
+    private List<Template> templates;
     
     // Left panel components
     private JTextField idField;
-    private JSpinner sttSpinner;
     private JComboBox<String> genderComboBox;
     private JTextField templateNameField;
     private JTextField titleField;
@@ -67,6 +86,27 @@ public class TemplateDialog extends JDialog {
                     mainFrame.setState(Frame.NORMAL);
                 }
             }
+
+            @Override
+            public void windowOpened(WindowEvent e) {
+                loadTemplates();
+            }
+
+            @Override
+            public void windowClosed(WindowEvent e) {
+                if (addTemplateResListener != null) {
+                    ClientHandler.deleteListener(AddTemplateRes.class, addTemplateResListener);
+                }
+                if (getAllTemplatesResListener != null) {
+                    ClientHandler.deleteListener(GetAllTemplatesRes.class, getAllTemplatesResListener);
+                }
+                if (editTemplateResListener != null) {
+                    ClientHandler.deleteListener(EditTemplateRes.class, editTemplateResListener);
+                }
+                if (deleteTemplateResListener != null) {
+                    ClientHandler.deleteListener(DeleteTemplateRes.class, deleteTemplateResListener);
+                }
+            }
         });
         
         initializeComponents();
@@ -82,8 +122,7 @@ public class TemplateDialog extends JDialog {
         // Left panel components
         idField = new JTextField(10);
         idField.setEditable(false);
-        
-        sttSpinner = new JSpinner(new SpinnerNumberModel(1, 1, 999, 1));
+
         
         genderComboBox = new JComboBox<>(new String[]{"Chung", "Nam", "Nữ"});
         
@@ -98,7 +137,7 @@ public class TemplateDialog extends JDialog {
         printTypeComboBox = new JComboBox<>(new String[]{"Ngang", "Dọc"});
         
         // Table for template list
-        String[] columnNames = {"STT", "Tên mẫu"};
+        String[] columnNames = {"ID", "Tên mẫu"};
         tableModel = new DefaultTableModel(columnNames, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
@@ -175,50 +214,44 @@ public class TemplateDialog extends JDialog {
         buttonPanel.add(deleteButton);
         infoPanel.add(buttonPanel, gbc);
         
-        // Row 2: Id, STT
+        // Row 2: Id and Gender
         gbc.gridwidth = 1;
         gbc.gridx = 0; gbc.gridy = 1;
         infoPanel.add(new JLabel("Id:"), gbc);
         gbc.gridx = 1;
         infoPanel.add(idField, gbc);
-        
+
         gbc.gridx = 2;
-        infoPanel.add(new JLabel("STT:"), gbc);
-        gbc.gridx = 3;
-        infoPanel.add(sttSpinner, gbc);
-        
-        // Row 3: Giới
-        gbc.gridx = 0; gbc.gridy = 2;
         infoPanel.add(new JLabel("Giới:"), gbc);
-        gbc.gridx = 1; gbc.gridwidth = 3;
+        gbc.gridx = 3;
         infoPanel.add(genderComboBox, gbc);
-        
-        // Row 4: Tên mẫu
+
+        // Row 3: Tên mẫu
         gbc.gridwidth = 1;
-        gbc.gridx = 0; gbc.gridy = 3;
+        gbc.gridx = 0; gbc.gridy = 2;
         infoPanel.add(new JLabel("Tên mẫu:"), gbc);
         gbc.gridx = 1; gbc.gridwidth = 3; gbc.fill = GridBagConstraints.HORIZONTAL;
         infoPanel.add(templateNameField, gbc);
         
-        // Row 5: Tiêu đề
+        // Row 4: Tiêu đề
         gbc.gridwidth = 1; gbc.fill = GridBagConstraints.NONE;
-        gbc.gridx = 0; gbc.gridy = 4;
+        gbc.gridx = 0; gbc.gridy = 3;
         infoPanel.add(new JLabel("Tiêu đề:"), gbc);
         gbc.gridx = 1; gbc.gridwidth = 3; gbc.fill = GridBagConstraints.HORIZONTAL;
         infoPanel.add(titleField, gbc);
         
-        // Row 6: Chẩn đoán (2 row span instead of 3)
+        // Row 5: Chẩn đoán
         gbc.gridwidth = 1; gbc.fill = GridBagConstraints.NONE;
-        gbc.gridx = 0; gbc.gridy = 5;
+        gbc.gridx = 0; gbc.gridy = 4;
         infoPanel.add(new JLabel("Chẩn đoán:"), gbc);
         gbc.gridx = 1; gbc.gridwidth = 3; gbc.gridheight = 2;
         gbc.fill = GridBagConstraints.BOTH;
         infoPanel.add(new JScrollPane(diagnosisArea), gbc);
         
-        // Row 7: Số lượng hình, Kiểu in (fixed positioning)
+        // Row 6: Số lượng hình, Kiểu in
         gbc.gridheight = 1; gbc.fill = GridBagConstraints.NONE;
         gbc.gridwidth = 1;
-        gbc.gridx = 0; gbc.gridy = 7;
+        gbc.gridx = 0; gbc.gridy = 6;
         infoPanel.add(new JLabel("Số lượng hình:"), gbc);
         gbc.gridx = 1;
         infoPanel.add(imageCountComboBox, gbc);
@@ -402,7 +435,51 @@ public class TemplateDialog extends JDialog {
         
         addNewButton.addActionListener(e -> {
             // TODO: Implement add new template functionality
-            log.info("Add new template button clicked");
+            String templateName = templateNameField.getText();
+            String templateTitle = titleField.getText();
+            String templateDiagnosis = diagnosisArea.getText();
+            String templateConclusion = conclusionField.getText();
+            String templateSuggestion = suggestionField.getText();
+            String templateImageCount = imageCountComboBox.getSelectedItem().toString();
+            String templateContent = "";
+            try {
+                RTFEditorKit rtfEditorKit = (RTFEditorKit) contentRTFField.getEditorKit();
+                ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                rtfEditorKit.write(baos, contentRTFField.getDocument(), 0, contentRTFField.getDocument().getLength());
+                templateContent = baos.toString();
+            } catch (Exception ex) {
+                log.error("Could not get RTF text from contentRTFField", ex);
+            }
+            String templatePrintType = printTypeComboBox.getSelectedItem().toString();
+            String templateGender = genderComboBox.getSelectedItem().toString();
+            log.info("Template name: {}", templateName);
+            log.info("Template title: {}", templateTitle);
+            log.info("Template diagnosis: {}", templateDiagnosis);
+            log.info("Template conclusion: {}", templateConclusion);
+            log.info("Template suggestion: {}", templateSuggestion);
+            log.info("Template image count: {}", templateImageCount);
+            log.info("Template print type: {}", templatePrintType);
+            log.info("Template gender: {}", templateGender);
+            log.info("Template content: {}", templateContent);
+            addTemplateResListener = response -> {
+                SwingUtilities.invokeLater(() -> {
+                    loadTemplates();
+                    JOptionPane.showMessageDialog(this, response.getMessage(), response.isSuccess() ? "Success" : "Error", response.isSuccess() ? JOptionPane.INFORMATION_MESSAGE : JOptionPane.ERROR_MESSAGE);
+                    // delete listener
+            ClientHandler.deleteListener(AddTemplateRes.class, addTemplateResListener);
+                });
+            };
+            ClientHandler.addResponseListener(AddTemplateRes.class, addTemplateResListener);
+
+            NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new AddTemplateReq(templateName, templateTitle, templateDiagnosis, templateConclusion,
+                        templateSuggestion, templateImageCount, templatePrintType, templateGender, templateContent));
+                    
+            
+            
+            
+
+            
+            
         });
         
         cancelButton.addActionListener(e -> {
@@ -412,13 +489,11 @@ public class TemplateDialog extends JDialog {
         });
         
         saveButton.addActionListener(e -> {
-            // TODO: Implement save template functionality
-            log.info("Save template button clicked");
+            saveTemplate();
         });
         
         deleteButton.addActionListener(e -> {
-            // TODO: Implement delete template functionality
-            log.info("Delete template button clicked");
+            deleteTemplate();
         });
         
         templateTable.getSelectionModel().addListSelectionListener(e -> {
@@ -427,6 +502,11 @@ public class TemplateDialog extends JDialog {
                 int selectedRow = templateTable.getSelectedRow();
                 if (selectedRow >= 0) {
                     log.info("Template selected: row {}", selectedRow);
+                    int templateId = (int) templateTable.getValueAt(selectedRow, 0);
+                    templates.stream()
+                        .filter(t -> t.getTemplateId() == templateId)
+                        .findFirst()
+                        .ifPresent(this::populateFieldsFromTemplate);
                 }
             }
         });
@@ -434,18 +514,124 @@ public class TemplateDialog extends JDialog {
     
     // TODO: Add methods for backend communication
     private void loadTemplates() {
-        // TODO: Load templates from backend
+        getAllTemplatesResListener = response -> {
+            this.templates = response.getTemplates();
+            SwingUtilities.invokeLater(() -> {
+                tableModel.setRowCount(0);
+                for (Template template : templates) {
+                    tableModel.addRow(new Object[]{template.getTemplateId(), template.getTemplateName()});
+                }
+            });
+        };
+        ClientHandler.addResponseListener(GetAllTemplatesRes.class, getAllTemplatesResListener);
+        NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetAllTemplatesReq());
+    }
+
+    private void populateFieldsFromTemplate(Template template) {
+        idField.setText(String.valueOf(template.getTemplateId()));
+        genderComboBox.setSelectedItem(template.getTemplateGender());
+        templateNameField.setText(template.getTemplateName());
+        titleField.setText(template.getTemplateTitle());
+        diagnosisArea.setText(template.getDiagnosis());
+        imageCountComboBox.setSelectedItem(template.getPhotoNum());
+        printTypeComboBox.setSelectedItem(template.getPrintType());
+        conclusionField.setText(template.getConclusion());
+        suggestionField.setText(template.getSuggestion());
+        
+        try {
+            contentRTFField.setText(""); // Clear previous content
+            RTFEditorKit rtfEditorKit = (RTFEditorKit) contentRTFField.getEditorKit();
+            StringReader reader = new StringReader(template.getContent());
+            rtfEditorKit.read(reader, contentRTFField.getDocument(), 0);
+        } catch (Exception ex) {
+            log.error("Failed to load RTF content for template ID {}", template.getTemplateId(), ex);
+            contentRTFField.setText(template.getContent()); // Fallback to plain text
+        }
     }
     
     private void saveTemplate() {
-        // TODO: Save template to backend
+        if (idField.getText().isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Please select a template to edit.", "No Template Selected", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        String templateContent = "";
+        try {
+            RTFEditorKit rtfEditorKit = (RTFEditorKit) contentRTFField.getEditorKit();
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            rtfEditorKit.write(baos, contentRTFField.getDocument(), 0, contentRTFField.getDocument().getLength());
+            templateContent = baos.toString();
+        } catch (Exception ex) {
+            log.error("Could not get RTF text from contentRTFField", ex);
+        }
+
+        Template template = new Template(
+            Integer.parseInt(idField.getText()),
+            genderComboBox.getSelectedItem().toString(),
+            templateNameField.getText(),
+            titleField.getText(),
+            imageCountComboBox.getSelectedItem().toString(),
+            printTypeComboBox.getSelectedItem().toString(),
+            templateContent,
+            conclusionField.getText(),
+            suggestionField.getText(),
+            diagnosisArea.getText()
+        );
+
+        editTemplateResListener = response -> {
+            SwingUtilities.invokeLater(() -> {
+                JOptionPane.showMessageDialog(this, response.getMessage(), response.isSuccess() ? "Success" : "Error", response.isSuccess() ? JOptionPane.INFORMATION_MESSAGE : JOptionPane.ERROR_MESSAGE);
+                if (response.isSuccess()) {
+                    loadTemplates();
+                }
+                // delete listener
+                ClientHandler.deleteListener(EditTemplateRes.class, editTemplateResListener);
+            });
+        };
+
+        ClientHandler.addResponseListener(EditTemplateRes.class, editTemplateResListener);
+        NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new EditTemplateReq(template));
+
+        
     }
     
     private void deleteTemplate() {
-        // TODO: Delete template from backend
+        if (idField.getText().isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Please select a template to delete.", "No Template Selected", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        int response = JOptionPane.showConfirmDialog(this, "Are you sure you want to delete this template?", "Confirm Deletion", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+        if (response == JOptionPane.YES_OPTION) {
+            int templateId = Integer.parseInt(idField.getText());
+
+            deleteTemplateResListener = res -> {
+                SwingUtilities.invokeLater(() -> {
+                    JOptionPane.showMessageDialog(this, res.getMessage(), res.isSuccess() ? "Success" : "Error", res.isSuccess() ? JOptionPane.INFORMATION_MESSAGE : JOptionPane.ERROR_MESSAGE);
+                    if (res.isSuccess()) {
+                        loadTemplates();
+                        clearFields();
+                    }
+                    // delete listener
+                    ClientHandler.deleteListener(DeleteTemplateRes.class, deleteTemplateResListener);
+                });
+            };
+
+            ClientHandler.addResponseListener(DeleteTemplateRes.class, deleteTemplateResListener);
+            NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new DeleteTemplateReq(templateId));
+        }
     }
     
     private void clearFields() {
-        // TODO: Clear all input fields
+        idField.setText("");
+        genderComboBox.setSelectedIndex(0);
+        templateNameField.setText("");
+        titleField.setText("");
+        diagnosisArea.setText("");
+        imageCountComboBox.setSelectedIndex(0);
+        printTypeComboBox.setSelectedIndex(0);
+        contentRTFField.setText("");
+        conclusionField.setText("");
+        suggestionField.setText("");
     }
 } 
