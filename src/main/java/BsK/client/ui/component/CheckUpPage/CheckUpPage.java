@@ -4,6 +4,7 @@ import BsK.client.LocalStorage;
 import BsK.client.network.handler.ClientHandler;
 import BsK.client.network.handler.ResponseListener;
 import BsK.client.ui.component.CheckUpPage.AddDialog.AddDialog;
+import BsK.client.ui.component.CheckUpPage.HistoryViewDialog.HistoryViewDialog;
 import BsK.client.ui.component.CheckUpPage.MedicineDialog.MedicineDialog;
 import BsK.client.ui.component.CheckUpPage.PrintDialog.MedicineInvoice;
 import BsK.client.ui.component.CheckUpPage.ServiceDialog.ServiceDialog;
@@ -15,6 +16,7 @@ import BsK.client.ui.component.common.RoundedPanel;
 import BsK.client.ui.component.QueueViewPage.QueueViewPage;
 import BsK.common.entity.Patient;
 import BsK.common.entity.Status;
+import BsK.common.entity.Template;
 import BsK.common.packet.req.*;
 import BsK.common.packet.res.*;
 import BsK.common.util.network.NetworkUtil;
@@ -81,7 +83,10 @@ import static org.bytedeco.opencv.global.opencv_core.cvFlip;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import javax.swing.JFrame;
 import javax.swing.JTextPane;
 import javax.swing.JToolBar;
@@ -101,6 +106,15 @@ import java.io.InputStream;
 import BsK.common.entity.PatientHistory;
 import BsK.common.packet.req.GetPatientHistoryRequest;
 import BsK.common.packet.res.GetPatientHistoryResponse;
+import BsK.common.packet.req.SaveCheckupRequest;
+import BsK.common.packet.req.SearchAllRole;
+import BsK.common.packet.req.SearchAllUser;
+import BsK.common.packet.req.UploadCheckupImageRequest;
+import BsK.common.packet.res.AddCheckupResponse;
+import BsK.common.packet.res.AddPatientResponse;
+import BsK.common.packet.res.RegisterSuccessResponse;
+import BsK.common.packet.res.SaveCheckupRes;
+import BsK.common.packet.res.UploadCheckupImageResponse;
 
 @Slf4j
 public class CheckUpPage extends JPanel {
@@ -117,10 +131,12 @@ public class CheckUpPage extends JPanel {
     private final ResponseListener<GetWardResponse> wardResponseListener = this::handleGetWardResponse;
     private final ResponseListener<CallPatientResponse> callPatientResponseListener = this::handleCallPatientResponse;
     private final ResponseListener<GetOrderInfoByCheckupRes> orderInfoByCheckupListener = this::handleGetOrderInfoByCheckupResponse;
+    private final ResponseListener<GetAllTemplatesRes> getAllTemplatesListener = this::handleGetAllTemplatesResponse;
+    private final ResponseListener<UploadCheckupImageResponse> uploadImageResponseListener = this::handleUploadImageResponse;
     private JTextField checkupIdField, customerLastNameField, customerFirstNameField,customerAddressField, customerPhoneField, customerIdField;
     private JTextArea suggestionField, diagnosisField, conclusionField; // Changed symptomsField to suggestionField
     private JTextPane notesField;
-    private JComboBox<String> doctorComboBox, statusComboBox, genderComboBox, provinceComboBox, districtComboBox, wardComboBox, checkupTypeComboBox;
+    private JComboBox<String> doctorComboBox, statusComboBox, genderComboBox, provinceComboBox, districtComboBox, wardComboBox, checkupTypeComboBox, templateComboBox;
     private JSpinner customerWeightSpinner, customerHeightSpinner;
     private JDatePickerImpl datePicker, dobPicker;
     private String[][] medicinePrescription = new String[0][0]; // Initialize to empty
@@ -136,6 +152,7 @@ public class CheckUpPage extends JPanel {
     private JButton callPatientButton;
     private JLabel callingStatusLabel;
     private JPanel rightContainer; // Add this field
+    private List<Template> allTemplates;
 
     private QueueViewPage tvQueueFrame;
     private QueueManagementPage queueManagementPage; // The new queue window
@@ -176,6 +193,9 @@ public class CheckUpPage extends JPanel {
     private javax.swing.Timer recordingTimer;
     private boolean isWebcamInitialized = false;
     private JPanel webcamContainer;
+    private final ExecutorService imageUploadExecutor = Executors.newSingleThreadExecutor();
+    private final ScheduledExecutorService timeoutExecutor = Executors.newSingleThreadScheduledExecutor();
+    private final Map<String, Future<?>> uploadTimeoutTasks = new ConcurrentHashMap<>();
 
     // Video recording components
     private FFmpegFrameRecorder recorder;
@@ -183,8 +203,24 @@ public class CheckUpPage extends JPanel {
 
     boolean returnCell = false;
 
+    // Template print setting
+    private int photoNum = 0;
+    private String printType = "";
+    private String templateName = "";
+    private String templateTitle = "";
+    private String templateGender = "";
+    private String templateContent = "";
+    private String templateConclusion = "";
+    private String templateSuggestion = "";
+    
+
     public void updateQueue() {
         NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetCheckUpQueueRequest());
+    }
+
+
+    public void getAllTemplates() {
+        NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetAllTemplatesReq());
     }
 
     public void updateUpdateQueue() {
@@ -277,11 +313,14 @@ public class CheckUpPage extends JPanel {
         ClientHandler.addResponseListener(GetDistrictResponse.class, districtResponseListener);
         ClientHandler.addResponseListener(GetWardResponse.class, wardResponseListener);
         ClientHandler.addResponseListener(CallPatientResponse.class, callPatientResponseListener);
+        ClientHandler.addResponseListener(GetAllTemplatesRes.class, getAllTemplatesListener);
+        ClientHandler.addResponseListener(UploadCheckupImageResponse.class, uploadImageResponseListener);
 
         // Instantiate the new queue page but don't show it yet
         queueManagementPage = new QueueManagementPage();
 
         updateQueue();
+        getAllTemplates();
 
         // --- Navigation Bar ---
         NavBar navBar = new NavBar(mainFrame, "Thăm khám");
@@ -755,7 +794,7 @@ public class CheckUpPage extends JPanel {
         templatePanel.add(templateLabel, gbcTemplate);
 
         gbcTemplate.gridx = 1; gbcTemplate.weightx = 1.0;
-        JComboBox<String> templateComboBox = new JComboBox<>(new String[]{
+        templateComboBox = new JComboBox<>(new String[]{
             "Không sử dụng mẫu",
             "Mẫu khám tổng quát",
             "Mẫu khám thai",
@@ -763,8 +802,10 @@ public class CheckUpPage extends JPanel {
             "Mẫu khám tim mạch"
         });
         templateComboBox.setFont(fieldFont);
+        templateComboBox.addActionListener(e -> handleTemplateSelection());
         templatePanel.add(templateComboBox, gbcTemplate);
 
+        
         // Add "Thêm mẫu" button next to template combobox
         gbcTemplate.gridx = 2; gbcTemplate.weightx = 0.0;
         JButton addTemplateButton = new JButton("Thêm mẫu");
@@ -1056,8 +1097,16 @@ public class CheckUpPage extends JPanel {
             public void mouseClicked(MouseEvent e) {
                 if (e.getClickCount() == 1) {
                     int selectedRow = historyTable.getSelectedRow();
-                    // send getPatientInfoByCheckupIdReq
-                    
+                    if (selectedRow >= 0 && selectedRow < history.length) {
+                        // Get selected history data
+                        String[] selectedHistory = history[selectedRow];
+                        String checkupId = selectedHistory[0]; // Assuming first column is checkup ID
+                        String patientName = customerFirstNameField.getText() + " " + customerLastNameField.getText();
+                        String checkupDate = selectedHistory.length > 1 ? selectedHistory[1] : ""; // Assuming second column is date
+                        
+                        // Open history view dialog
+                        openHistoryViewDialog(checkupId, patientName, checkupDate);
+                    }
                 }
             }
         });
@@ -2075,22 +2124,88 @@ public class CheckUpPage extends JPanel {
             try {
                 BufferedImage image = selectedWebcam.getImage();
                 if (image != null) {
+                    // Save locally first for immediate UI feedback (PNG for high quality local cache)
                     ImageIO.write(image, "PNG", filePath.toFile());
-                    log.info("Picture taken and saved at: {}", filePath);
-                    JOptionPane.showMessageDialog(this,
-                            "Đã chụp và lưu ảnh thành công tại:\n" + filePath.toString(),
-                            "Chụp ảnh thành công", JOptionPane.INFORMATION_MESSAGE);
+                    log.info("Picture taken and saved locally at: {}", filePath);
+
+                    // Refresh UI to show the new image immediately
                     loadAndDisplayImages(currentCheckupMediaPath);
+
+                    // Now, upload in the background (will be compressed to JPG)
+                    uploadImageInBackground(filePath.getFileName().toString(), image);
+
                 } else {
                     throw new IOException("Không thể lấy ảnh từ webcam");
                 }
             } catch (IOException ex) {
-                log.error("Error capturing/saving image: {}", filePath, ex);
-                JOptionPane.showMessageDialog(this, 
-                    "Lỗi khi chụp/lưu ảnh: " + ex.getMessage(), 
-                    "Lỗi Chụp Ảnh", 
+                log.error("Error capturing/saving image locally: {}", filePath, ex);
+                JOptionPane.showMessageDialog(this,
+                    "Lỗi khi lưu ảnh cục bộ: " + ex.getMessage(),
+                    "Lỗi Lưu Ảnh",
                     JOptionPane.ERROR_MESSAGE);
             }
+        }
+    }
+
+    private void uploadImageInBackground(String fileName, BufferedImage image) {
+        imageUploadExecutor.submit(() -> {
+            try {
+                // Compress the image to JPEG for smaller size
+                ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                ImageIO.write(image, "jpg", baos);
+                byte[] compressedImageData = baos.toByteArray();
+
+                // Create and send the request
+                String checkupId = currentCheckupIdForMedia;
+
+                // Adjust file name to have .jpg extension for the server
+                String jpgFileName = fileName.substring(0, fileName.lastIndexOf('.')) + ".jpg";
+
+                // Schedule a timeout task for this upload
+                Future<?> timeoutTask = timeoutExecutor.schedule(() -> {
+                    // If the task is still in the map, it means we timed out
+                    if (uploadTimeoutTasks.remove(jpgFileName) != null) {
+                        SwingUtilities.invokeLater(() -> {
+                            JOptionPane.showMessageDialog(CheckUpPage.this,
+                                "Không nhận được phản hồi từ máy chủ khi tải lên ảnh: " + jpgFileName + "\n" +
+                                "Vui lòng kiểm tra lại kết nối mạng (Wi-Fi/Internet).",
+                                "Lỗi Mạng",
+                                JOptionPane.WARNING_MESSAGE);
+                        });
+                    }
+                }, 15, TimeUnit.SECONDS); // 15-second timeout
+
+                // Store the task so we can cancel it if we get a response
+                uploadTimeoutTasks.put(jpgFileName, timeoutTask);
+
+                UploadCheckupImageRequest request = new UploadCheckupImageRequest(checkupId, compressedImageData, jpgFileName);
+                NetworkUtil.sendPacket(ClientHandler.ctx.channel(), request);
+                log.info("Sent UploadCheckupImageRequest for {}", jpgFileName);
+
+            } catch (IOException e) {
+                log.error("Failed to compress image for upload: {}", fileName, e);
+                // The timeout mechanism will handle notifying the user of a potential network issue.
+            }
+        });
+    }
+
+    private void handleUploadImageResponse(UploadCheckupImageResponse response) {
+        String fileName = response.getFileName();
+        
+        // A response was received, so find and cancel the timeout task.
+        Future<?> timeoutTask = uploadTimeoutTasks.remove(fileName);
+        if (timeoutTask != null) {
+            timeoutTask.cancel(false); // Cancel the scheduled timeout
+        }
+        
+        if (response.isSuccess()) {
+            log.info("Successfully uploaded image: {}", response.getMessage());
+        } else {
+            log.error("Failed to upload image: {}", response.getMessage());
+            JOptionPane.showMessageDialog(this,
+                    "Lỗi khi tải ảnh lên server: " + response.getMessage(),
+                    "Lỗi Tải Ảnh",
+                    JOptionPane.ERROR_MESSAGE);
         }
     }
 
@@ -2735,6 +2850,72 @@ public class CheckUpPage extends JPanel {
 
         NetworkUtil.sendPacket(ClientHandler.ctx.channel(), request);
         saved = true;
+    }
+
+    private void handleTemplateSelection() {
+        String selectedTemplateName = (String) templateComboBox.getSelectedItem();
+
+        if (selectedTemplateName == null || allTemplates == null || selectedTemplateName.equals("Không sử dụng mẫu")) {
+            return;
+        }
+
+        allTemplates.stream()
+            .filter(t -> t.getTemplateName().equals(selectedTemplateName))
+            .findFirst()
+            .ifPresent(this::applyTemplate);
+    }
+
+    private void applyTemplate(Template template) {
+        diagnosisField.setText(template.getDiagnosis());
+        conclusionField.setText(template.getConclusion());
+        suggestionField.setText(template.getSuggestion());
+        
+        String rtfContent = template.getContent();
+        if (rtfContent != null && !rtfContent.isEmpty()) {
+            setRtfContentFromString(rtfContent);
+        } else {
+            setRtfContentFromString(""); // Clear if content is empty
+        }
+        // Set template print setting
+        photoNum = Integer.parseInt(template.getPhotoNum());
+        printType = template.getPrintType();
+        templateName = template.getTemplateName();
+        templateTitle = template.getTemplateTitle();
+        templateGender = template.getTemplateGender();
+        templateContent = template.getContent();
+        templateConclusion = template.getConclusion();
+        templateSuggestion = template.getSuggestion();
+    }
+
+    private void handleGetAllTemplatesResponse(GetAllTemplatesRes response) {
+        log.info("Get all templates response");
+        this.allTemplates = response.getTemplates();
+        List<Template> templates = response.getTemplates();
+        SwingUtilities.invokeLater(() -> {
+            templateComboBox.removeAllItems();
+            templateComboBox.addItem("Không sử dụng mẫu");
+            for (Template template : templates) {
+                templateComboBox.addItem(template.getTemplateName());
+            }
+        });
+
+        // No need to delete listener here because it will be called again when user click refresh button
+    }
+
+    /**
+     * Opens the history view dialog for the selected checkup
+     */
+    private void openHistoryViewDialog(String checkupId, String patientName, String checkupDate) {
+        try {
+            HistoryViewDialog historyDialog = new HistoryViewDialog(mainFrame, checkupId, patientName, checkupDate);
+            historyDialog.setVisible(true);
+        } catch (Exception e) {
+            log.error("Error opening history view dialog", e);
+            JOptionPane.showMessageDialog(this, 
+                "Không thể mở chi tiết lịch sử khám: " + e.getMessage(), 
+                "Lỗi", 
+                JOptionPane.ERROR_MESSAGE);
+        }
     }
 }
 

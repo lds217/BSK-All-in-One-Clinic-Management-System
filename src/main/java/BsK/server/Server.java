@@ -135,7 +135,7 @@ public class Server {
                               .addLast(new HttpServerCodec())
                               .addLast(new ChunkedWriteHandler())
                               .addLast(new HttpObjectAggregator(8192))
-                              .addLast("ws", new WebSocketServerProtocolHandler("/"))
+                              .addLast("ws", new WebSocketServerProtocolHandler("/", null, true, 1048576))
                               .addLast(new ServerHandler());
                         }
                       });

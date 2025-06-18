@@ -18,7 +18,11 @@ import io.netty.handler.codec.http.websocketx.Utf8FrameValidator;
 import io.netty.handler.codec.http.websocketx.WebSocketServerProtocolHandler.HandshakeComplete;
 import io.netty.handler.timeout.IdleState;
 import io.netty.handler.timeout.IdleStateEvent;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -42,6 +46,8 @@ import static BsK.server.Server.statement;
 
 @Slf4j
 public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFrame> {
+
+  private static final String IMAGE_DB_PATH = "img_db";
 
   @Override
   protected void channelRead0(ChannelHandlerContext ctx, TextWebSocketFrame frame) {
@@ -1127,6 +1133,43 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         } catch (SQLException e) {
             log.error("Error deleting template", e);
             UserUtil.sendPacket(currentUser.getSessionId(), new DeleteTemplateRes(false, "Error deleting template: " + e.getMessage()));
+        }
+      }
+
+      if (packet instanceof UploadCheckupImageRequest request) {
+        log.info("Received UploadCheckupImageRequest for checkupId: {}", request.getCheckupId());
+
+        String checkupId = request.getCheckupId();
+        String fileName = request.getFileName();
+        byte[] imageData = request.getImageData();
+
+        if (checkupId == null || checkupId.trim().isEmpty()) {
+            UserUtil.sendPacket(currentUser.getSessionId(), new UploadCheckupImageResponse(false, "CheckupID is null or empty. Cannot save image.", fileName));
+            return;
+        }
+
+        try {
+            // 1. Define and create storage directory
+            Path storageDir = Paths.get(IMAGE_DB_PATH, checkupId.trim());
+            Files.createDirectories(storageDir); // Create dirs if they don't exist
+
+            // 2. Save the file
+            Path filePath = storageDir.resolve(fileName);
+            try (FileOutputStream fos = new FileOutputStream(filePath.toFile())) {
+                fos.write(imageData);
+            }
+            String savedPath = filePath.toString().replace("\\", "/");
+            log.info("Successfully saved image to {}", savedPath);
+
+            // 3. TODO: Store file path in database, linking it to the checkupId
+            // A proper implementation would have a 'CheckupImages' table and an INSERT query here.
+
+            // 4. Send success response
+            UserUtil.sendPacket(currentUser.getSessionId(), new UploadCheckupImageResponse(true, "Image uploaded successfully to " + savedPath, fileName));
+
+        } catch (IOException e) {
+            log.error("Failed to save uploaded image for checkupId {}: {}", checkupId, e.getMessage());
+            UserUtil.sendPacket(currentUser.getSessionId(), new UploadCheckupImageResponse(false, "Server failed to save image: " + e.getMessage(), fileName));
         }
       }
     }

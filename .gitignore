@@ -128,6 +128,10 @@ buildNumber.properties
 # https://github.com/takari/maven-wrapper#usage-without-binary-jar
 .mvn/wrapper/maven-wrapper.jar
 
+# User-generated content
+img_db/
+src/main/resources/image/checkup_media/
+
 # Eclipse m2e generated files
 # Eclipse Core
 .project

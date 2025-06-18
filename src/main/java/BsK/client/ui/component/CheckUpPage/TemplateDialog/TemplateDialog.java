@@ -35,10 +35,10 @@ import java.util.List;
 @Slf4j
 public class TemplateDialog extends JDialog {
     private MainFrame mainFrame;
-    private ResponseListener<AddTemplateRes> addTemplateResListener;
-    private ResponseListener<GetAllTemplatesRes> getAllTemplatesResListener;
-    private ResponseListener<EditTemplateRes> editTemplateResListener;
-    private ResponseListener<DeleteTemplateRes> deleteTemplateResListener;
+    private final ResponseListener<AddTemplateRes> addTemplateResListener;
+    private final ResponseListener<GetAllTemplatesRes> getAllTemplatesResListener;
+    private final ResponseListener<EditTemplateRes> editTemplateResListener;
+    private final ResponseListener<DeleteTemplateRes> deleteTemplateResListener;
     private List<Template> templates;
     
     // Left panel components
@@ -67,6 +67,16 @@ public class TemplateDialog extends JDialog {
         super(mainFrame, "Quản lý mẫu", true);
         this.mainFrame = mainFrame;
         
+        this.getAllTemplatesResListener = this::handleGetAllTemplatesResponse;
+        this.addTemplateResListener = this::handleAddTemplateResponse;
+        this.editTemplateResListener = this::handleEditTemplateResponse;
+        this.deleteTemplateResListener = this::handleDeleteTemplateResponse;
+        
+        ClientHandler.addResponseListener(GetAllTemplatesRes.class, getAllTemplatesResListener);
+        ClientHandler.addResponseListener(AddTemplateRes.class, addTemplateResListener);
+        ClientHandler.addResponseListener(EditTemplateRes.class, editTemplateResListener);
+        ClientHandler.addResponseListener(DeleteTemplateRes.class, deleteTemplateResListener);
+        
         // Ensure modal behavior and proper parent relationship
         setModalityType(Dialog.ModalityType.APPLICATION_MODAL);
         setAlwaysOnTop(false); // Don't force always on top, let modal behavior handle this
@@ -94,18 +104,10 @@ public class TemplateDialog extends JDialog {
 
             @Override
             public void windowClosed(WindowEvent e) {
-                if (addTemplateResListener != null) {
-                    ClientHandler.deleteListener(AddTemplateRes.class, addTemplateResListener);
-                }
-                if (getAllTemplatesResListener != null) {
-                    ClientHandler.deleteListener(GetAllTemplatesRes.class, getAllTemplatesResListener);
-                }
-                if (editTemplateResListener != null) {
-                    ClientHandler.deleteListener(EditTemplateRes.class, editTemplateResListener);
-                }
-                if (deleteTemplateResListener != null) {
-                    ClientHandler.deleteListener(DeleteTemplateRes.class, deleteTemplateResListener);
-                }
+                ClientHandler.deleteListener(AddTemplateRes.class, addTemplateResListener);
+                ClientHandler.deleteListener(GetAllTemplatesRes.class, getAllTemplatesResListener);
+                ClientHandler.deleteListener(EditTemplateRes.class, editTemplateResListener);
+                ClientHandler.deleteListener(DeleteTemplateRes.class, deleteTemplateResListener);
             }
         });
         
@@ -461,24 +463,9 @@ public class TemplateDialog extends JDialog {
             log.info("Template print type: {}", templatePrintType);
             log.info("Template gender: {}", templateGender);
             log.info("Template content: {}", templateContent);
-            addTemplateResListener = response -> {
-                SwingUtilities.invokeLater(() -> {
-                    loadTemplates();
-                    JOptionPane.showMessageDialog(this, response.getMessage(), response.isSuccess() ? "Success" : "Error", response.isSuccess() ? JOptionPane.INFORMATION_MESSAGE : JOptionPane.ERROR_MESSAGE);
-                    // delete listener
-            ClientHandler.deleteListener(AddTemplateRes.class, addTemplateResListener);
-                });
-            };
-            ClientHandler.addResponseListener(AddTemplateRes.class, addTemplateResListener);
 
             NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new AddTemplateReq(templateName, templateTitle, templateDiagnosis, templateConclusion,
                         templateSuggestion, templateImageCount, templatePrintType, templateGender, templateContent));
-                    
-            
-            
-            
-
-            
             
         });
         
@@ -514,17 +501,17 @@ public class TemplateDialog extends JDialog {
     
     // TODO: Add methods for backend communication
     private void loadTemplates() {
-        getAllTemplatesResListener = response -> {
-            this.templates = response.getTemplates();
-            SwingUtilities.invokeLater(() -> {
-                tableModel.setRowCount(0);
-                for (Template template : templates) {
-                    tableModel.addRow(new Object[]{template.getTemplateId(), template.getTemplateName()});
-                }
-            });
-        };
-        ClientHandler.addResponseListener(GetAllTemplatesRes.class, getAllTemplatesResListener);
         NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetAllTemplatesReq());
+    }
+
+    private void handleGetAllTemplatesResponse(GetAllTemplatesRes response) {
+        this.templates = response.getTemplates();
+        SwingUtilities.invokeLater(() -> {
+            tableModel.setRowCount(0);
+            for (Template template : templates) {
+                tableModel.addRow(new Object[]{template.getTemplateId(), template.getTemplateName()});
+            }
+        });
     }
 
     private void populateFieldsFromTemplate(Template template) {
@@ -578,21 +565,7 @@ public class TemplateDialog extends JDialog {
             diagnosisArea.getText()
         );
 
-        editTemplateResListener = response -> {
-            SwingUtilities.invokeLater(() -> {
-                JOptionPane.showMessageDialog(this, response.getMessage(), response.isSuccess() ? "Success" : "Error", response.isSuccess() ? JOptionPane.INFORMATION_MESSAGE : JOptionPane.ERROR_MESSAGE);
-                if (response.isSuccess()) {
-                    loadTemplates();
-                }
-                // delete listener
-                ClientHandler.deleteListener(EditTemplateRes.class, editTemplateResListener);
-            });
-        };
-
-        ClientHandler.addResponseListener(EditTemplateRes.class, editTemplateResListener);
         NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new EditTemplateReq(template));
-
-        
     }
     
     private void deleteTemplate() {
@@ -605,23 +578,38 @@ public class TemplateDialog extends JDialog {
         if (response == JOptionPane.YES_OPTION) {
             int templateId = Integer.parseInt(idField.getText());
 
-            deleteTemplateResListener = res -> {
-                SwingUtilities.invokeLater(() -> {
-                    JOptionPane.showMessageDialog(this, res.getMessage(), res.isSuccess() ? "Success" : "Error", res.isSuccess() ? JOptionPane.INFORMATION_MESSAGE : JOptionPane.ERROR_MESSAGE);
-                    if (res.isSuccess()) {
-                        loadTemplates();
-                        clearFields();
-                    }
-                    // delete listener
-                    ClientHandler.deleteListener(DeleteTemplateRes.class, deleteTemplateResListener);
-                });
-            };
-
-            ClientHandler.addResponseListener(DeleteTemplateRes.class, deleteTemplateResListener);
             NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new DeleteTemplateReq(templateId));
         }
     }
     
+    private void handleAddTemplateResponse(AddTemplateRes response) {
+        SwingUtilities.invokeLater(() -> {
+            JOptionPane.showMessageDialog(this, response.getMessage(), response.isSuccess() ? "Success" : "Error", response.isSuccess() ? JOptionPane.INFORMATION_MESSAGE : JOptionPane.ERROR_MESSAGE);
+            if (response.isSuccess()) {
+                loadTemplates();
+            }
+        });
+    }
+
+    private void handleEditTemplateResponse(EditTemplateRes response) {
+        SwingUtilities.invokeLater(() -> {
+            JOptionPane.showMessageDialog(this, response.getMessage(), response.isSuccess() ? "Success" : "Error", response.isSuccess() ? JOptionPane.INFORMATION_MESSAGE : JOptionPane.ERROR_MESSAGE);
+            if (response.isSuccess()) {
+                loadTemplates();
+            }
+        });
+    }
+
+    private void handleDeleteTemplateResponse(DeleteTemplateRes response) {
+        SwingUtilities.invokeLater(() -> {
+            JOptionPane.showMessageDialog(this, response.getMessage(), response.isSuccess() ? "Success" : "Error", response.isSuccess() ? JOptionPane.INFORMATION_MESSAGE : JOptionPane.ERROR_MESSAGE);
+            if (response.isSuccess()) {
+                loadTemplates();
+                clearFields();
+            }
+        });
+    }
+
     private void clearFields() {
         idField.setText("");
         genderComboBox.setSelectedIndex(0);
