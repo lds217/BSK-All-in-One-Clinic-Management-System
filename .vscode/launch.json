@@ -3,6 +3,20 @@
     "configurations": [
         {
             "type": "java",
+            "name": "test_print",
+            "request": "launch",
+            "mainClass": "BsK.client.ui.component.CheckUpPage.PrintDialog.print_forms.test_print",
+            "projectName": "ldS_BsK"
+        },
+        {
+            "type": "java",
+            "name": "test_print",
+            "request": "launch",
+            "mainClass": "test_print",
+            "projectName": "ldS_BsK"
+        },
+        {
+            "type": "java",
             "name": "Client",
             "request": "launch",
             "mainClass": "BsK.client.Client",

@@ -7,6 +7,7 @@ import BsK.client.ui.component.CheckUpPage.AddDialog.AddDialog;
 import BsK.client.ui.component.CheckUpPage.HistoryViewDialog.HistoryViewDialog;
 import BsK.client.ui.component.CheckUpPage.MedicineDialog.MedicineDialog;
 import BsK.client.ui.component.CheckUpPage.PrintDialog.MedicineInvoice;
+import BsK.client.ui.component.CheckUpPage.PrintDialog.UltrasoundResult;
 import BsK.client.ui.component.CheckUpPage.ServiceDialog.ServiceDialog;
 import BsK.client.ui.component.CheckUpPage.TemplateDialog.TemplateDialog;
 import BsK.client.ui.component.MainFrame;
@@ -87,6 +88,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 import javax.swing.JFrame;
 import javax.swing.JTextPane;
 import javax.swing.JToolBar;
@@ -166,6 +168,8 @@ public class CheckUpPage extends JPanel {
     private JLabel totalSerCostLabel;
     private JLabel overallTotalCostLabel;
     private static final DecimalFormat df = new DecimalFormat("#,##0");
+
+    private List<File> selectedImagesForPrint = new ArrayList<>();
 
     // New member variables for Supersonic View
     private JPanel supersonicViewPanelGlobal;
@@ -1328,7 +1332,35 @@ public class CheckUpPage extends JPanel {
                 medicineInvoice.createDialog(mainFrame);
                 break;
             case "ultrasound":
-                // No dialog needed for now
+                if (selectedImagesForPrint.isEmpty()) {
+                    JOptionPane.showMessageDialog(this,
+                            "Vui lòng chọn ít nhất một hình ảnh để in kết quả.",
+                            "Chưa chọn ảnh", JOptionPane.WARNING_MESSAGE);
+                    return;
+                }
+                 if (photoNum != 0 && selectedImagesForPrint.size() > photoNum) {
+                    JOptionPane.showMessageDialog(this,
+                            "Số lượng ảnh đã chọn (" + selectedImagesForPrint.size() + ") nhiều hơn số lượng cho phép trong mẫu (" + photoNum + ").",
+                            "Quá nhiều ảnh", JOptionPane.WARNING_MESSAGE);
+                    return;
+                }
+
+                UltrasoundResult ultrasoundDialog = new UltrasoundResult(
+                        checkupIdField.getText(),
+                        customerLastNameField.getText() + " " + customerFirstNameField.getText(),
+                        dobPicker.getJFormattedTextField().getText(),
+                        (String) genderComboBox.getSelectedItem(),
+                        customerAddressField.getText() + ", " + (wardComboBox.getSelectedItem() != null ? wardComboBox.getSelectedItem().toString() : "") + ", " + (districtComboBox.getSelectedItem() != null ? districtComboBox.getSelectedItem().toString() : "") + ", " + (provinceComboBox.getSelectedItem() != null ? provinceComboBox.getSelectedItem().toString() : ""),
+                        (String) doctorComboBox.getSelectedItem(),
+                        datePicker.getJFormattedTextField().getText(),
+                        getRtfContentAsString(),
+                        conclusionField.getText(),
+                        suggestionField.getText(),
+                        selectedImagesForPrint,
+                        printType,
+                        templateTitle
+                );
+                ultrasoundDialog.createDialog(mainFrame);
                 break;
         }
     }
@@ -1419,6 +1451,8 @@ public class CheckUpPage extends JPanel {
         if (imageRefreshTimer != null && imageRefreshTimer.isRunning()) {
             imageRefreshTimer.stop();
         }
+        
+        selectedImagesForPrint.clear();
         
         // Only stop recording if it's active, don't cleanup webcam
         if (isRecording) {
@@ -2469,14 +2503,50 @@ public class CheckUpPage extends JPanel {
 
                         Image scaledImage = image.getScaledInstance(newWidth, newHeight, Image.SCALE_SMOOTH);
                         JLabel imageLabel = new JLabel(new ImageIcon(scaledImage));
-                        imageLabel.setToolTipText(file.getName() + " (" + originalWidth + "x" + originalHeight + ")");
-                        imageLabel.setBorder(BorderFactory.createLineBorder(Color.DARK_GRAY));
-                        // Set fixed size for the label to ensure FlowLayout behaves
-                        imageLabel.setPreferredSize(new Dimension(THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT));
+                        imageLabel.setToolTipText(file.getName());
+                        // These are important to center the image if it's smaller than the thumbnail bounds
                         imageLabel.setHorizontalAlignment(SwingConstants.CENTER);
                         imageLabel.setVerticalAlignment(SwingConstants.CENTER);
 
-                        imageGalleryPanel.add(imageLabel);
+                        JCheckBox selectCheckBox = new JCheckBox(""); // "box only"
+                        selectCheckBox.setToolTipText("Chọn để in");
+                        selectCheckBox.setOpaque(false); // Make it transparent to see the image behind
+                        
+                        // Check if the file is already in the list to maintain state on refresh
+                        if (selectedImagesForPrint.contains(file)) {
+                            selectCheckBox.setSelected(true);
+                        }
+
+                        final File imageFile = file;
+                        selectCheckBox.addActionListener(e -> {
+                            if (selectCheckBox.isSelected()) {
+                                if (!selectedImagesForPrint.contains(imageFile)) {
+                                    selectedImagesForPrint.add(imageFile);
+                                }
+                            } else {
+                                selectedImagesForPrint.remove(imageFile);
+                            }
+                            if (log.isInfoEnabled()) {
+                                log.info("Selected images for printing: {}", selectedImagesForPrint.stream().map(File::getName).collect(Collectors.toList()));
+                            }
+                        });
+                        
+                        // Use a JLayeredPane to overlay checkbox on the image
+                        JLayeredPane layeredPane = new JLayeredPane();
+                        layeredPane.setPreferredSize(new Dimension(THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT));
+                        layeredPane.setBorder(BorderFactory.createLineBorder(Color.GRAY));
+
+                        // The label will fill the entire pane
+                        imageLabel.setBounds(0, 0, THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT);
+
+                        // Position the checkbox at the top-right corner
+                        int checkboxSize = 20;
+                        selectCheckBox.setBounds(THUMBNAIL_WIDTH - checkboxSize - 2, 2, checkboxSize, checkboxSize); // 2px padding
+
+                        layeredPane.add(imageLabel, JLayeredPane.DEFAULT_LAYER);
+                        layeredPane.add(selectCheckBox, JLayeredPane.PALETTE_LAYER); // PALETTE_LAYER is on top of DEFAULT_LAYER
+                        
+                        imageGalleryPanel.add(layeredPane);
                     } catch (Exception ex) {
                         log.error("Error loading image thumbnail: {}", file.getAbsolutePath(), ex);
                         JLabel errorLabel = new JLabel("<html><center>Lỗi ảnh<br>" + file.getName().substring(0, Math.min(file.getName().length(),10)) + "...</center></html>");
