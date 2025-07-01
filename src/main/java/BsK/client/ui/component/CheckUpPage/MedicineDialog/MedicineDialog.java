@@ -52,6 +52,7 @@ public class MedicineDialog extends JDialog {
 
     private List<Medicine> medicines = new ArrayList<>();
     private String[][] medicinePrescription;
+    private String[][] originalPrescription; // Store original data for comparison
     private static final Logger logger = LoggerFactory.getLogger(MedicineDialog.class);
 
     public String[][] getMedicinePrescription() {
@@ -87,12 +88,14 @@ public class MedicineDialog extends JDialog {
     public MedicineDialog(final Frame parent) {
         super(parent, "Đơn thuốc", true);
         this.medicinePrescription = new String[0][0];
+        this.originalPrescription = new String[0][0];
         init(parent);
     }
     
     public MedicineDialog(final Frame parent, String[][] existingPrescription) {
         super(parent, "Đơn thuốc", true);
         this.medicinePrescription = existingPrescription != null ? existingPrescription : new String[0][0];
+        this.originalPrescription = deepCopyArray(existingPrescription);
         init(parent);
         if (existingPrescription != null) {
             for (String[] row : existingPrescription) {
@@ -472,14 +475,35 @@ public class MedicineDialog extends JDialog {
 
         okButton.addActionListener(e -> {
             collectPrescriptionData();
-            if (medicinePrescription == null || medicinePrescription.length == 0) {
-                JOptionPane.showMessageDialog(this, "Chưa có thuốc nào được chọn.", "Thông báo", JOptionPane.INFORMATION_MESSAGE);
+            
+            // Check if there are changes compared to the original prescription
+            boolean hasChanges = hasDataChanged();
+            
+            if (!hasChanges) {
+                // No changes made, allow closing without warning
+                logger.info("No changes made to prescription.");
+                dispose();
                 return;
             }
+            
+            // If there are changes but no items selected, show a confirmation
+            if (medicinePrescription == null || medicinePrescription.length == 0) {
+                int choice = JOptionPane.showConfirmDialog(this, 
+                    "Bạn đã xóa tất cả thuốc khỏi đơn. Bạn có muốn lưu thay đổi này không?", 
+                    "Xác nhận", 
+                    JOptionPane.YES_NO_OPTION, 
+                    JOptionPane.QUESTION_MESSAGE);
+                if (choice != JOptionPane.YES_OPTION) {
+                    return;
+                }
+            }
+            
             logger.info("Prescription saved.");
-            for (String[] row : medicinePrescription) {
-                logger.info("Med: ID={}, Name={}, Qty={}, Unit={}, M={}, N={}, E={}, Price={}, Total={}, Note={}", 
-                        row[0], row[1], row[2], row[3], row[4], row[5], row[6], row[7], row[8], row[9]);
+            if (medicinePrescription != null) {
+                for (String[] row : medicinePrescription) {
+                    logger.info("Med: ID={}, Name={}, Qty={}, Unit={}, M={}, N={}, E={}, Price={}, Total={}, Note={}", 
+                            row[0], row[1], row[2], row[3], row[4], row[5], row[6], row[7], row[8], row[9]);
+                }
             }
             dispose();
         });
@@ -658,6 +682,50 @@ public class MedicineDialog extends JDialog {
             medicinePrescription[i][8] = selectedTableModel.getValueAt(i, 8).toString();
             medicinePrescription[i][9] = selectedTableModel.getValueAt(i, 9).toString();
         }
+    }
+
+    private String[][] deepCopyArray(String[][] original) {
+        if (original == null) {
+            return new String[0][0];
+        }
+        String[][] copy = new String[original.length][];
+        for (int i = 0; i < original.length; i++) {
+            if (original[i] != null) {
+                copy[i] = new String[original[i].length];
+                System.arraycopy(original[i], 0, copy[i], 0, original[i].length);
+            }
+        }
+        return copy;
+    }
+
+    private boolean hasDataChanged() {
+        collectPrescriptionData();
+        
+        // If lengths are different, there's a change
+        if (originalPrescription.length != medicinePrescription.length) {
+            return true;
+        }
+        
+        // If both are empty, no changes
+        if (originalPrescription.length == 0 && medicinePrescription.length == 0) {
+            return false;
+        }
+        
+        // Compare each row
+        for (int i = 0; i < originalPrescription.length; i++) {
+            if (originalPrescription[i].length != medicinePrescription[i].length) {
+                return true;
+            }
+            for (int j = 0; j < originalPrescription[i].length; j++) {
+                String original = originalPrescription[i][j];
+                String current = medicinePrescription[i][j];
+                if (!java.util.Objects.equals(original, current)) {
+                    return true;
+                }
+            }
+        }
+        
+        return false;
     }
 
     @Override

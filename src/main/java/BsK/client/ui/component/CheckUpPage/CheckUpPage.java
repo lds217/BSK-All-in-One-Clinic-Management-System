@@ -1328,8 +1328,15 @@ public class CheckUpPage extends JPanel {
                         genderComboBox.getSelectedItem().toString(), 
                         customerAddressField.getText() + ", " + (wardComboBox.getSelectedItem() != null ? wardComboBox.getSelectedItem().toString() : "") + ", " + (districtComboBox.getSelectedItem() != null ? districtComboBox.getSelectedItem().toString() : "") + ", " + (provinceComboBox.getSelectedItem() != null ? provinceComboBox.getSelectedItem().toString() : ""),
                         doctorComboBox.getSelectedItem().toString(), diagnosisField.getText(),
-                        conclusionField.getText(), medicinePrescription, servicePrescription); 
-                medicineInvoice.createDialog(mainFrame);
+                        conclusionField.getText(), medicinePrescription, servicePrescription, 
+                        // fake supplements
+                        new String[][] {
+                            {"1", "Vitamin D3", "1", "viên", "1 viên/ngày sau ăn sáng", "30", "2000", "60000", "Bổ sung vitamin D"},
+                            {"2", "Omega 3", "2", "viên", "2 viên/ngày sau ăn", "60", "1500", "90000", "Bổ sung dầu cá"},
+                            {"3", "Calcium 500mg", "1", "viên", "1 viên/ngày sau ăn tối", "30", "2500", "75000", "Bổ sung canxi"}
+                        }
+                        ); 
+                medicineInvoice.showDirectJasperViewer(); // Use the direct JasperViewer method
                 break;
             case "ultrasound":
                 if (selectedImagesForPrint.isEmpty()) {

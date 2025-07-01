@@ -46,6 +46,7 @@ public class ServiceDialog extends JDialog {
 
     private List<Service> services = new ArrayList<>();
     private String[][] servicePrescription;
+    private String[][] originalPrescription; // Store original data for comparison
     private static final Logger logger = LoggerFactory.getLogger(ServiceDialog.class);
 
     public String[][] getServicePrescription() {
@@ -72,12 +73,14 @@ public class ServiceDialog extends JDialog {
     public ServiceDialog(Frame parent) {
         super(parent, "Thêm dịch vụ", true);
         this.servicePrescription = new String[0][0];
+        this.originalPrescription = new String[0][0];
         initUI(parent);
     }
     
     public ServiceDialog(Frame parent, String[][] existingPrescription) {
         super(parent, "Thêm dịch vụ", true);
         this.servicePrescription = existingPrescription != null ? existingPrescription : new String[0][0];
+        this.originalPrescription = deepCopyArray(existingPrescription);
         initUI(parent);
         if (existingPrescription != null) {
             for (String[] row : existingPrescription) {
@@ -376,10 +379,29 @@ public class ServiceDialog extends JDialog {
 
         okButton.addActionListener(e -> {
             collectPrescriptionData();
-            if (servicePrescription == null || servicePrescription.length == 0) {
-                JOptionPane.showMessageDialog(this, "Chưa có dịch vụ nào được chọn.", "Thông báo", JOptionPane.INFORMATION_MESSAGE);
+            
+            // Check if there are changes compared to the original prescription
+            boolean hasChanges = hasDataChanged();
+            
+            if (!hasChanges) {
+                // No changes made, allow closing without warning
+                logger.info("No changes made to service prescription.");
+                dispose();
                 return;
             }
+            
+            // If there are changes but no items selected, show a confirmation
+            if (servicePrescription == null || servicePrescription.length == 0) {
+                int choice = JOptionPane.showConfirmDialog(this, 
+                    "Bạn đã xóa tất cả dịch vụ khỏi đơn. Bạn có muốn lưu thay đổi này không?", 
+                    "Xác nhận", 
+                    JOptionPane.YES_NO_OPTION, 
+                    JOptionPane.QUESTION_MESSAGE);
+                if (choice != JOptionPane.YES_OPTION) {
+                    return;
+                }
+            }
+            
             logger.info("Service prescription saved.");
             dispose();
         });
@@ -545,6 +567,50 @@ public class ServiceDialog extends JDialog {
             prescriptionList.add(rowData);
         }
         this.servicePrescription = prescriptionList.toArray(new String[0][]);
+    }
+
+    private String[][] deepCopyArray(String[][] original) {
+        if (original == null) {
+            return new String[0][0];
+        }
+        String[][] copy = new String[original.length][];
+        for (int i = 0; i < original.length; i++) {
+            if (original[i] != null) {
+                copy[i] = new String[original[i].length];
+                System.arraycopy(original[i], 0, copy[i], 0, original[i].length);
+            }
+        }
+        return copy;
+    }
+
+    private boolean hasDataChanged() {
+        collectPrescriptionData();
+        
+        // If lengths are different, there's a change
+        if (originalPrescription.length != servicePrescription.length) {
+            return true;
+        }
+        
+        // If both are empty, no changes
+        if (originalPrescription.length == 0 && servicePrescription.length == 0) {
+            return false;
+        }
+        
+        // Compare each row
+        for (int i = 0; i < originalPrescription.length; i++) {
+            if (originalPrescription[i].length != servicePrescription[i].length) {
+                return true;
+            }
+            for (int j = 0; j < originalPrescription[i].length; j++) {
+                String original = originalPrescription[i][j];
+                String current = servicePrescription[i][j];
+                if (!java.util.Objects.equals(original, current)) {
+                    return true;
+                }
+            }
+        }
+        
+        return false;
     }
 
     @Override

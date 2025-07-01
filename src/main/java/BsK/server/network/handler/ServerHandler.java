@@ -111,7 +111,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                           "from checkup as a\n" +
                           "join customer as c on a.customer_id = c.customer_id\n" +
                           "join Doctor D on a.doctor_id = D.doctor_id\n" +
-                          "where a.status = 'PROCESSING'"
+                          "where a.status = 'ĐANG KHÁM'"
           );
 
           if (!rs.isBeforeFirst()) {
@@ -178,7 +178,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                           "from checkup as a\n" +
                           "join customer as c on a.customer_id = c.customer_id\n" +
                           "join Doctor D on a.doctor_id = D.doctor_id\n" +
-                          "where a.status = 'PROCESSING'"
+                          "where a.status = 'ĐANG KHÁM'"
           );
 
           if (!rs.isBeforeFirst()) {

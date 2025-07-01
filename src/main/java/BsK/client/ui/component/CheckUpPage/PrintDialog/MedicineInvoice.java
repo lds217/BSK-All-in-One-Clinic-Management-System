@@ -1,19 +1,14 @@
 package BsK.client.ui.component.CheckUpPage.PrintDialog;
 
 import BsK.client.LocalStorage;
-import com.itextpdf.io.image.ImageData;
-import com.itextpdf.io.image.ImageDataFactory;
-import com.itextpdf.kernel.font.PdfFont;
-import com.itextpdf.kernel.font.PdfFontFactory;
-import com.itextpdf.kernel.pdf.PdfDocument;
-import com.itextpdf.kernel.pdf.PdfWriter;
-import com.itextpdf.layout.Document;
-import com.itextpdf.layout.borders.Border;
-import com.itextpdf.layout.element.*;
-import com.itextpdf.layout.element.Image;
-import com.itextpdf.layout.property.UnitValue;
-import com.itextpdf.barcodes.Barcode128;
-import com.itextpdf.kernel.colors.ColorConstants;
+import BsK.client.ui.component.CheckUpPage.PrintDialog.print_forms.InvoiceItem;
+
+// JasperReports imports
+import net.sf.jasperreports.engine.*;
+import net.sf.jasperreports.engine.data.JRBeanCollectionDataSource;
+import net.sf.jasperreports.engine.design.JasperDesign;
+import net.sf.jasperreports.engine.xml.JRXmlLoader;
+import net.sf.jasperreports.view.JasperViewer;
 
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.rendering.PDFRenderer;
@@ -50,37 +45,108 @@ public class MedicineInvoice{
     private String id;
     private String[][] med; // Name, Quantity, Price
     private String[][] services; // Name, Quantity, Price
+    private String[][] supplements; // Name, Quantity, Price
     private static final DecimalFormat vndFormatter = new DecimalFormat("#,##0");
 
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
-            JButton openDialogButton = new JButton("Open Medicine Invoice");
+            JFrame frame = new JFrame("Medicine Invoice Test");
+            frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+            frame.setSize(600, 400);
+            frame.setLayout(new GridLayout(3, 2, 10, 10));
 
-            openDialogButton.addActionListener(e -> new MedicineInvoice("1212", "Nguyễn Văn A", "01/01/1990", "0123456789",
+            // Test Case 1: Only Medicines
+            JButton medicineOnlyButton = new JButton("Only Medicines");
+            medicineOnlyButton.addActionListener(e -> new MedicineInvoice("1001", "Nguyễn Văn A", "01/01/1990", "0123456789",
                     "Nam", "123 Đường ABC, Quận XYZ, TP HCM", "Bác sĩ XYZ", "Sốt cao",
                     "Nghỉ ngơi nhiều, uống nhiều nước",
                     new String[][]{
-                            {"Paracetamol", "2", "5000"},
-                            {"Vitamin C", "1", "10000"},
-                            {"Amoxicillin", "1", "20000"}
+                            {"1", "Paracetamol", "2", "viên", "1", "2", "1", "5000", "10000", "Uống sau ăn"}
+                    },
+                    new String[][]{}, // No services
+                    new String[][]{} // No supplements
+            ).createDialog(frame));
+
+            // Test Case 2: Only Services
+            JButton serviceOnlyButton = new JButton("Only Services");
+            serviceOnlyButton.addActionListener(e -> new MedicineInvoice("1002", "Trần Thị B", "15/05/1985", "0987654321",
+                    "Nữ", "456 Đường DEF, Quận ABC, TP HCM", "Bác sĩ ABC", "Khám tổng quát",
+                    "Theo dõi định kỳ",
+                    new String[][]{}, // No medicines
+                    new String[][] {
+                        {"1", "Khám tổng quát", "1", "150000", "150000", "Kiểm tra sức khỏe tổng quát"},
+                        {"2", "Xét nghiệm máu", "1", "80000", "80000", "Xét nghiệm công thức máu"}
+                    },
+                    new String[][]{} // No supplements
+            ).createDialog(frame));
+
+            // Test Case 3: Only Supplements
+            JButton supplementOnlyButton = new JButton("Only Supplements");
+            supplementOnlyButton.addActionListener(e -> new MedicineInvoice("1003", "Lê Văn C", "20/12/1992", "0456789123",
+                    "Nam", "789 Đường GHI, Quận DEF, TP HCM", "Bác sĩ DEF", "Tư vấn dinh dưỡng",
+                    "Bổ sung vitamin và khoáng chất",
+                    new String[][]{}, // No medicines
+                    new String[][]{}, // No services
+                    new String[][] {
+                        {"1", "Vitamin D3", "1", "viên", "1 viên/ngày sau ăn sáng", "30", "2000", "60000", "Bổ sung vitamin D"},
+                        {"2", "Omega 3", "2", "viên", "2 viên/ngày sau ăn", "60", "1500", "90000", "Bổ sung dầu cá"}
+                    }
+            ).createDialog(frame));
+
+            // Test Case 4: Medicines + Services (No Supplements)
+            JButton medServiceButton = new JButton("Medicines + Services");
+            medServiceButton.addActionListener(e -> new MedicineInvoice("1004", "Phạm Thị D", "10/03/1988", "0789123456",
+                    "Nữ", "321 Đường JKL, Quận GHI, TP HCM", "Bác sĩ GHI", "Viêm họng",
+                    "Điều trị kháng sinh và theo dõi",
+                    new String[][]{
+                            {"1", "Amoxicillin", "1", "viên", "1", "1", "0", "20000", "20000", "Uống trước ăn 30 phút"}
                     },
                     new String[][] {
-                        {"Khám tổng quát", "1", "150000"},
-                        {"Xét nghiệm máu", "1", "80000"}
+                        {"1", "Khám tai mũi họng", "1", "100000", "100000", "Khám chuyên khoa"}
+                    },
+                    new String[][]{} // No supplements
+            ).createDialog(frame));
+
+            // Test Case 5: All Three Categories
+            JButton allCategoriesButton = new JButton("All Categories");
+            allCategoriesButton.addActionListener(e -> new MedicineInvoice("1005", "Hoàng Văn E", "25/07/1990", "0654321987",
+                    "Nam", "654 Đường MNO, Quận JKL, TP HCM", "Bác sĩ JKL", "Kiểm tra sức khỏe định kỳ",
+                    "Tổng quát + bổ sung dinh dưỡng",
+                    new String[][]{
+                            {"1", "Vitamin C", "1", "viên", "1", "0", "0", "10000", "10000", "Uống buổi sáng"}
+                    },
+                    new String[][] {
+                        {"1", "Khám tổng quát", "1", "150000", "150000", "Kiểm tra sức khỏe tổng quát"}
+                    },
+                    new String[][] {
+                        {"1", "Calcium 500mg", "1", "viên", "1 viên/ngày sau ăn tối", "30", "2500", "75000", "Bổ sung canxi"}
                     }
-            ).createDialog(null));
-            JFrame frame = new JFrame("Main Application");
-            frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-            frame.setSize(400, 300);
-            frame.setLayout(new FlowLayout());
-            frame.add(openDialogButton);
+            ).createDialog(frame));
+
+            // Test Case 6: Empty Invoice (No data)
+            JButton emptyButton = new JButton("Empty Invoice");
+            emptyButton.addActionListener(e -> new MedicineInvoice("1006", "Võ Thị F", "05/11/1995", "0321654987",
+                    "Nữ", "987 Đường PQR, Quận MNO, TP HCM", "Bác sĩ MNO", "Tư vấn y tế",
+                    "Chỉ tư vấn, không kê đơn",
+                    new String[][]{}, // No medicines
+                    new String[][]{}, // No services
+                    new String[][]{} // No supplements
+            ).createDialog(frame));
+
+            frame.add(medicineOnlyButton);
+            frame.add(serviceOnlyButton);
+            frame.add(supplementOnlyButton);
+            frame.add(medServiceButton);
+            frame.add(allCategoriesButton);
+            frame.add(emptyButton);
+
             frame.setVisible(true);
         });
     }
 
     public MedicineInvoice(String id, String patientName, String patientDOB, String patientPhone,
                                String patientGender, String patientAddress, String doctorName, String diagnosis,
-                               String notes, String[][] med, String[][] services) {
+                               String notes, String[][] med, String[][] services, String[][] supplements) {
         this.id = id;
         this.patientName = patientName;
         this.patientDOB = patientDOB;
@@ -100,8 +166,25 @@ public class MedicineInvoice{
         this.date = formattedDate;
         this.med = med;
         this.services = services;
+        this.supplements = supplements;
     }
 
+
+    /**
+     * Shows the invoice directly in JasperViewer without creating a custom dialog
+     */
+    public void showDirectJasperViewer() {
+        try {
+            String pdfPath = "medical_invoice.pdf";
+            generatePdf(pdfPath);
+            // Use the constructor to prevent the application from closing
+            JasperViewer viewer = new JasperViewer(jasperPrint, false);
+            viewer.setVisible(true);
+        } catch (Exception e) {
+            e.printStackTrace();
+            JOptionPane.showMessageDialog(null, "Error generating PDF: " + e.getMessage());
+        }
+    }
 
     public void createDialog(JFrame parent) {
         dialog = new JDialog(parent, "Medicine Invoice", true);
@@ -179,14 +262,22 @@ public class MedicineInvoice{
             }
         });
 
-        // Print PDF Action
+        // Print PDF Action - Show JasperViewer
         printButton.addActionListener(e -> {
             try {
-                File pdfFile = new File(pdfPath);
-                printPdf(pdfFile);
+                if (jasperPrint != null) {
+                    // Close our custom dialog first
+                    dialog.dispose();
+                    
+                    // Use the constructor to prevent the application from closing
+                    JasperViewer viewer = new JasperViewer(jasperPrint, false);
+                    viewer.setVisible(true);
+                } else {
+                    JOptionPane.showMessageDialog(dialog, "Report not generated yet. Please try again.");
+                }
             } catch (Exception ex) {
                 ex.printStackTrace();
-                JOptionPane.showMessageDialog(dialog, "Error printing PDF: " + ex.getMessage());
+                JOptionPane.showMessageDialog(dialog, "Error opening print viewer: " + ex.getMessage());
             }
         });
 
@@ -194,275 +285,140 @@ public class MedicineInvoice{
         dialog.setVisible(true);
     }
 
+    private JasperPrint jasperPrint; // Store JasperPrint for reuse
+
     private void generatePdf(String pdfPath) throws Exception {
-        PdfWriter writer = new PdfWriter(pdfPath);
-        PdfDocument pdfDoc = new PdfDocument(writer);
-        Document document = new Document(pdfDoc); // Default A4 size
-
-        // Set document margins - REDUCED
-        document.setMargins(20, 25, 20, 25); // Smaller margins (top, right, bottom, left)
-
-        String boldFontPath = "src/main/java/BsK/client/ui/assets/font/SVN-Arial Bold.ttf";
-        PdfFont boldFont = PdfFontFactory.createFont(boldFontPath, "Identity-H", true);
-
-        String fontPath = "src/main/java/BsK/client/ui/assets/font/SVN-Arial Regular.ttf";
-        PdfFont font = PdfFontFactory.createFont(fontPath, "Identity-H", true);
-
-        // --- HEADER SECTION ---
-        Table headerTable = new Table(UnitValue.createPercentArray(new float[]{1.5f, 3.5f}))
-                .setWidth(UnitValue.createPercentValue(100))
-                .setBorder(Border.NO_BORDER)
-                .setMarginBottom(5); // Reduced margin bottom
-
         try {
-            String logoPath = "src/main/java/BsK/client/ui/assets/icon/clinic_logo.png";
-            ImageData imageData = ImageDataFactory.create(logoPath);
-            Image logo = new Image(imageData).scaleToFit(60, 60).setMarginRight(15); // Slightly smaller logo & margin
-            headerTable.addCell(new Cell().add(logo).setBorder(Border.NO_BORDER).setVerticalAlignment(com.itextpdf.layout.property.VerticalAlignment.MIDDLE));
-        } catch (Exception e) {
-            headerTable.addCell(new Cell().setBorder(Border.NO_BORDER));
-            System.err.println("Logo image not found or error loading: " + e.getMessage());
-        }
-        
-        Paragraph clinicInfoParagraph = new Paragraph()
-                .add(new Text(LocalStorage.ClinicName + "\n").setFont(boldFont).setFontSize(12)) // Reduced font
-                .add(new Text("Địa chỉ: " + LocalStorage.ClinicAddress + "\n").setFontSize(9)) // Reduced font
-                .add(new Text("Điện thoại: " + LocalStorage.ClinicPhone).setFontSize(9)) // Reduced font
-                .setFont(font);
-        headerTable.addCell(new Cell().add(clinicInfoParagraph)
-                .setTextAlignment(com.itextpdf.layout.property.TextAlignment.LEFT)
-                .setVerticalAlignment(com.itextpdf.layout.property.VerticalAlignment.MIDDLE)
-                .setBorder(Border.NO_BORDER).setPaddingLeft(5)); // Reduced padding
-        
-        document.add(headerTable);
+            // 1. Create data sources for medicines, services, and supplements
+            java.util.List<InvoiceItem> medicines = new ArrayList<>();
+            java.util.List<InvoiceItem> serviceItems = new ArrayList<>();
+            java.util.List<InvoiceItem> supplementItems = new ArrayList<>();
 
-        // --- BARCODE FOR CHECKUP ID ---
-        if (this.id != null && !this.id.isEmpty()) {
-            Barcode128 barcode = new Barcode128(pdfDoc);
-            barcode.setCodeType(Barcode128.CODE128);
-            barcode.setCode(this.id); // Use the checkup ID for the barcode
-            barcode.setBarHeight(10f); // Further reduced barcode height (from 15f)
-            barcode.setX(0.5f); // Further reduce narrow bar width (from 0.6f)
-            barcode.setN(1.5f); 
-            barcode.setFont(null); 
-            
-            Image barcodeImage = new Image(barcode.createFormXObject(ColorConstants.BLACK, ColorConstants.BLACK, pdfDoc));
-            barcodeImage.setWidth(UnitValue.createPercentValue(15)); // Further reduced width (from 20%)
-            barcodeImage.setHorizontalAlignment(com.itextpdf.layout.property.HorizontalAlignment.CENTER);
-            barcodeImage.setMarginTop(1); // Further reduced space above barcode
-            barcodeImage.setMarginBottom(1); // Further reduced space below barcode
-            document.add(barcodeImage);
-
-            Paragraph idText = new Paragraph(this.id)
-                    .setFont(font).setFontSize(5) // Further reduced font size for ID text
-                    .setTextAlignment(com.itextpdf.layout.property.TextAlignment.CENTER)
-                    .setMarginBottom(2); // Further reduced margin for the ID text
-            document.add(idText);
-        }
-
-        // --- INVOICE TITLE ---
-        Paragraph titleParagraph = new Paragraph("TOA THUỐC")
-                .setFontSize(18).setFont(boldFont) // Reduced font size
-                .setTextAlignment(com.itextpdf.layout.property.TextAlignment.CENTER)
-                .setMarginBottom(8); // Reduced margin
-        document.add(titleParagraph);
-
-        // --- PATIENT AND INVOICE DETAILS SECTION ---
-        Table patientDoctorTable = new Table(UnitValue.createPercentArray(new float[]{55, 45})) // Adjusted column widths
-                .setWidth(UnitValue.createPercentValue(100))
-                .setFontSize(9).setFont(font) // Reduced font size
-                .setMarginBottom(8); // Reduced margin
-
-        Cell patientInfoCell = new Cell().setBorder(Border.NO_BORDER).setPadding(3); // Reduced padding
-        Paragraph pName = new Paragraph().add(new Text("Họ và tên: ").setFont(boldFont)).add(patientName);
-        pName.setMultipliedLeading(1.0f);
-        patientInfoCell.add(pName);
-        Paragraph pDOB = new Paragraph().add(new Text("Ngày sinh: ").setFont(boldFont)).add(patientDOB);
-        pDOB.setMultipliedLeading(1.0f);
-        patientInfoCell.add(pDOB);
-        Paragraph pGender = new Paragraph().add(new Text("Giới tính: ").setFont(boldFont)).add(patientGender);
-        pGender.setMultipliedLeading(1.0f);
-        patientInfoCell.add(pGender);
-        Paragraph pPhone = new Paragraph().add(new Text("Số điện thoại: ").setFont(boldFont)).add(patientPhone);
-        pPhone.setMultipliedLeading(1.0f);
-        patientInfoCell.add(pPhone);
-        Paragraph pAddress = new Paragraph().add(new Text("Địa chỉ: ").setFont(boldFont)).add(patientAddress);
-        pAddress.setMultipliedLeading(1.0f);
-        patientInfoCell.add(pAddress);
-        patientDoctorTable.addCell(patientInfoCell);
-
-        Cell doctorInvoiceCell = new Cell().setBorder(Border.NO_BORDER).setPadding(3); // Reduced padding
-        Paragraph pDoctor = new Paragraph().add(new Text("Bác sĩ: ").setFont(boldFont)).add(doctorName);
-        pDoctor.setMultipliedLeading(1.0f);
-        doctorInvoiceCell.add(pDoctor);
-        Paragraph pDate = new Paragraph().add(new Text("Ngày lập: ").setFont(boldFont)).add(date);
-        pDate.setMultipliedLeading(1.0f);
-        doctorInvoiceCell.add(pDate);
-        Paragraph pInvoiceId = new Paragraph().add(new Text("Đơn thuốc số: ").setFont(boldFont)).add(id);
-        pInvoiceId.setMultipliedLeading(1.0f);
-        doctorInvoiceCell.add(pInvoiceId);
-        Paragraph pSpace1 = new Paragraph(" ");
-        pSpace1.setMultipliedLeading(1.0f);
-        doctorInvoiceCell.add(pSpace1); 
-        Paragraph pSpace2 = new Paragraph(" ");
-        pSpace2.setMultipliedLeading(1.0f);
-        doctorInvoiceCell.add(pSpace2); 
-        patientDoctorTable.addCell(doctorInvoiceCell);
-        
-        document.add(patientDoctorTable);
-
-        // --- DIAGNOSIS AND NOTES ---
-        Paragraph diagnosisParagraph = new Paragraph();
-        diagnosisParagraph.add(new Text("Chẩn đoán: ").setFont(boldFont)).add(diagnosis);
-        diagnosisParagraph.setFont(font).setFontSize(9).setMarginBottom(2).setMultipliedLeading(1.0f);
-        document.add(diagnosisParagraph);
-
-        if (notes != null && !notes.trim().isEmpty()) {
-            Paragraph notesParagraph = new Paragraph();
-            notesParagraph.add(new Text("Ghi chú (chung): ").setFont(boldFont)).add(notes);
-            notesParagraph.setFont(font).setFontSize(9).setMarginBottom(5).setMultipliedLeading(1.0f);
-            document.add(notesParagraph);
-        } else {
-            document.add(new Paragraph().setMarginBottom(5)); 
-        }
-
-        // --- MEDICINE TABLE ---
-        Paragraph medicineSectionTitle = new Paragraph("CHI TIẾT THUỐC")
-            .setFont(boldFont).setFontSize(11) // Reduced font size
-            .setTextAlignment(com.itextpdf.layout.property.TextAlignment.CENTER)
-            .setMarginTop(3).setMarginBottom(3); // Reduced margins
-        document.add(medicineSectionTitle);
-        
-        Table medTable = new Table(UnitValue.createPercentArray(new float[]{3.8f, 1.7f, 1.5f, 1.5f, 2.5f})) // Adjusted column widths
-                .setWidth(UnitValue.createPercentValue(100))
-                .setFontSize(8).setFont(font) // Reduced font size for table content
-                .setMarginBottom(5); // Reduced margin
-
-        medTable.addHeaderCell(new Cell().add(new Paragraph("Tên thuốc")).setFont(boldFont).setFontSize(9).setBackgroundColor(com.itextpdf.kernel.colors.ColorConstants.LIGHT_GRAY).setTextAlignment(com.itextpdf.layout.property.TextAlignment.CENTER).setPadding(2));
-        medTable.addHeaderCell(new Cell().add(new Paragraph("Liều dùng")).setFont(boldFont).setFontSize(9).setBackgroundColor(com.itextpdf.kernel.colors.ColorConstants.LIGHT_GRAY).setTextAlignment(com.itextpdf.layout.property.TextAlignment.CENTER).setPadding(2));
-        medTable.addHeaderCell(new Cell().add(new Paragraph("Số lượng")).setFont(boldFont).setFontSize(9).setBackgroundColor(com.itextpdf.kernel.colors.ColorConstants.LIGHT_GRAY).setTextAlignment(com.itextpdf.layout.property.TextAlignment.CENTER).setPadding(2));
-        medTable.addHeaderCell(new Cell().add(new Paragraph("Đơn giá (VNĐ)")).setFont(boldFont).setFontSize(9).setBackgroundColor(com.itextpdf.kernel.colors.ColorConstants.LIGHT_GRAY).setTextAlignment(com.itextpdf.layout.property.TextAlignment.CENTER).setPadding(2));
-        medTable.addHeaderCell(new Cell().add(new Paragraph("Thành tiền (VNĐ)")).setFont(boldFont).setFontSize(9).setBackgroundColor(com.itextpdf.kernel.colors.ColorConstants.LIGHT_GRAY).setTextAlignment(com.itextpdf.layout.property.TextAlignment.CENTER).setPadding(2));
-
-        long medicineTotal = 0;
+            // Convert medicine data to InvoiceItem objects
         if (med != null) {
             for (String[] medicine : med) {
-                if (medicine == null || medicine.length < 10) {
-                    medTable.addCell(new Cell(1, 5).add(new Paragraph("Thông tin thuốc không đầy đủ").setItalic().setFontSize(8)).setPadding(2));
-                    continue;
-                }
-                Paragraph medNameAndNote = new Paragraph(); 
-                medNameAndNote.add(new Text(medicine[1]).setFontSize(8)); 
-                if (medicine[9] != null && !medicine[9].isEmpty()) {
-                     medNameAndNote.add(new Text("\nGhi chú: " + medicine[9]).setFontSize(7).setItalic()); 
-                }
-                medNameAndNote.setMultipliedLeading(1.0f); 
-                medTable.addCell(new Cell().add(medNameAndNote).setPadding(2));
-
-                String dosageInfo = String.format("S: %s, T: %s, C: %s", medicine[4], medicine[5], medicine[6]);
-                medTable.addCell(new Cell().add(new Paragraph(dosageInfo).setFontSize(8)).setTextAlignment(com.itextpdf.layout.property.TextAlignment.CENTER).setPadding(2).setVerticalAlignment(com.itextpdf.layout.property.VerticalAlignment.MIDDLE)); 
-                medTable.addCell(new Cell().add(new Paragraph(medicine[2] + " " + medicine[3]).setFontSize(8)).setTextAlignment(com.itextpdf.layout.property.TextAlignment.CENTER).setPadding(2).setVerticalAlignment(com.itextpdf.layout.property.VerticalAlignment.MIDDLE)); 
-                try {
-                    medTable.addCell(new Cell().add(new Paragraph(vndFormatter.format(Long.parseLong(medicine[7]))).setFontSize(8)).setTextAlignment(com.itextpdf.layout.property.TextAlignment.RIGHT).setPadding(2).setVerticalAlignment(com.itextpdf.layout.property.VerticalAlignment.MIDDLE)); 
-                    medTable.addCell(new Cell().add(new Paragraph(vndFormatter.format(Long.parseLong(medicine[8]))).setFontSize(8)).setTextAlignment(com.itextpdf.layout.property.TextAlignment.RIGHT).setPadding(2).setVerticalAlignment(com.itextpdf.layout.property.VerticalAlignment.MIDDLE)); 
-                    medicineTotal += Long.parseLong(medicine[8]); 
-                } catch (NumberFormatException e) { 
-                    System.err.println("Error parsing medicine price/total: " + medicine[7] + " or " + medicine[8]);
-                    medTable.addCell(new Cell().add(new Paragraph("Lỗi giá")).setFontSize(8).setTextAlignment(com.itextpdf.layout.property.TextAlignment.RIGHT).setPadding(2).setVerticalAlignment(com.itextpdf.layout.property.VerticalAlignment.MIDDLE));
-                    medTable.addCell(new Cell().add(new Paragraph("Lỗi giá")).setFontSize(8).setTextAlignment(com.itextpdf.layout.property.TextAlignment.RIGHT).setPadding(2).setVerticalAlignment(com.itextpdf.layout.property.VerticalAlignment.MIDDLE));
+                    if (medicine != null && medicine.length >= 10) {
+                        try {
+                            String dosageInfo = String.format("S: %s, T: %s, C: %s", 
+                                medicine[4] != null ? medicine[4] : "0", 
+                                medicine[5] != null ? medicine[5] : "0", 
+                                medicine[6] != null ? medicine[6] : "0");
+                            
+                            medicines.add(InvoiceItem.createMedicine(
+                                medicine[1] != null ? medicine[1] : "",  // medName
+                                dosageInfo,  // dosage
+                                medicine[2] != null ? Integer.parseInt(medicine[2]) : 0,  // amount
+                                medicine[7] != null ? Double.parseDouble(medicine[7]) : 0.0,  // unitPrice
+                                medicine[9] != null ? medicine[9] : ""  // medNote
+                            ));
+                        } catch (NumberFormatException e) {
+                            System.err.println("Error parsing medicine data: " + e.getMessage());
+                        }
+                    }
                 }
             }
-        }
-        document.add(medTable);
-        
-        Table medTotalTable = new Table(UnitValue.createPercentArray(new float[]{7.5f, 2.5f}))
-            .setWidth(UnitValue.createPercentValue(100)).setBorder(Border.NO_BORDER).setMarginBottom(3); 
-        medTotalTable.addCell(new Cell().add(new Paragraph("Tổng tiền thuốc:")).setFont(boldFont).setFontSize(9).setTextAlignment(com.itextpdf.layout.property.TextAlignment.RIGHT).setBorder(Border.NO_BORDER).setPadding(1));
-        medTotalTable.addCell(new Cell().add(new Paragraph(vndFormatter.format(medicineTotal) + " VNĐ")).setFont(boldFont).setFontSize(9).setTextAlignment(com.itextpdf.layout.property.TextAlignment.RIGHT).setBorder(Border.NO_BORDER).setPadding(1));
-        document.add(medTotalTable);
 
-        long overallTotal = medicineTotal;
-
-        // --- SERVICES TABLE ---
-        if (services != null && services.length > 0) {
-            Paragraph serviceSectionTitle = new Paragraph("CHI TIẾT DỊCH VỤ")
-                .setFont(boldFont).setFontSize(11) // Reduced font size
-                .setTextAlignment(com.itextpdf.layout.property.TextAlignment.CENTER)
-                .setMarginTop(5).setMarginBottom(3); // Reduced margins
-            document.add(serviceSectionTitle);
-
-            Table serviceTable = new Table(UnitValue.createPercentArray(new float[]{4.5f, 1.5f, 2f, 2.5f})) // Adjusted column widths
-                    .setWidth(UnitValue.createPercentValue(100))
-                    .setFontSize(8).setFont(font) // Reduced font size for table content
-                    .setMarginBottom(5); // Reduced margin
-
-            serviceTable.addHeaderCell(new Cell().add(new Paragraph("Tên dịch vụ")).setFont(boldFont).setFontSize(9).setBackgroundColor(com.itextpdf.kernel.colors.ColorConstants.LIGHT_GRAY).setTextAlignment(com.itextpdf.layout.property.TextAlignment.CENTER).setPadding(2));
-            serviceTable.addHeaderCell(new Cell().add(new Paragraph("Số lượng")).setFont(boldFont).setFontSize(9).setBackgroundColor(com.itextpdf.kernel.colors.ColorConstants.LIGHT_GRAY).setTextAlignment(com.itextpdf.layout.property.TextAlignment.CENTER).setPadding(2));
-            serviceTable.addHeaderCell(new Cell().add(new Paragraph("Đơn giá (VNĐ)")).setFont(boldFont).setFontSize(9).setBackgroundColor(com.itextpdf.kernel.colors.ColorConstants.LIGHT_GRAY).setTextAlignment(com.itextpdf.layout.property.TextAlignment.CENTER).setPadding(2));
-            serviceTable.addHeaderCell(new Cell().add(new Paragraph("Thành tiền (VNĐ)")).setFont(boldFont).setFontSize(9).setBackgroundColor(com.itextpdf.kernel.colors.ColorConstants.LIGHT_GRAY).setTextAlignment(com.itextpdf.layout.property.TextAlignment.CENTER).setPadding(2));
-
-            long serviceTotal = 0;
+            // Convert service data to InvoiceItem objects
+            if (services != null) {
             for (String[] service : services) {
-                if (service == null || service.length < 5) {
-                    serviceTable.addCell(new Cell(1, 4).add(new Paragraph("Thông tin dịch vụ không đầy đủ").setItalic().setFontSize(8)).setPadding(2));
-                    continue;
-                }
-                Paragraph serNameAndNote = new Paragraph(); 
-                serNameAndNote.add(new Text(service[1]).setFontSize(8)); 
-                if (service.length > 5 && service[5] != null && !service[5].isEmpty()) {
-                     serNameAndNote.add(new Text("\nGhi chú: " + service[5]).setFontSize(7).setItalic()); 
-                }
-                serNameAndNote.setMultipliedLeading(1.0f); 
-                serviceTable.addCell(new Cell().add(serNameAndNote).setPadding(2));
-                serviceTable.addCell(new Cell().add(new Paragraph(service[2]).setFontSize(8)).setTextAlignment(com.itextpdf.layout.property.TextAlignment.CENTER).setPadding(2).setVerticalAlignment(com.itextpdf.layout.property.VerticalAlignment.MIDDLE)); 
-                try {
-                    serviceTable.addCell(new Cell().add(new Paragraph(vndFormatter.format(Long.parseLong(service[3]))).setFontSize(8)).setTextAlignment(com.itextpdf.layout.property.TextAlignment.RIGHT).setPadding(2).setVerticalAlignment(com.itextpdf.layout.property.VerticalAlignment.MIDDLE)); 
-                    serviceTable.addCell(new Cell().add(new Paragraph(vndFormatter.format(Long.parseLong(service[4]))).setFontSize(8)).setTextAlignment(com.itextpdf.layout.property.TextAlignment.RIGHT).setPadding(2).setVerticalAlignment(com.itextpdf.layout.property.VerticalAlignment.MIDDLE)); 
-                    serviceTotal += Long.parseLong(service[4]); 
-                } catch (NumberFormatException e) { 
-                    System.err.println("Error parsing service price/total: " + service[3] + " or " + service[4]);
-                    serviceTable.addCell(new Cell().add(new Paragraph("Lỗi giá")).setFontSize(8).setTextAlignment(com.itextpdf.layout.property.TextAlignment.RIGHT).setPadding(2).setVerticalAlignment(com.itextpdf.layout.property.VerticalAlignment.MIDDLE));
-                    serviceTable.addCell(new Cell().add(new Paragraph("Lỗi giá")).setFontSize(8).setTextAlignment(com.itextpdf.layout.property.TextAlignment.RIGHT).setPadding(2).setVerticalAlignment(com.itextpdf.layout.property.VerticalAlignment.MIDDLE));
+                    if (service != null && service.length >= 5) {
+                        try {
+                            serviceItems.add(InvoiceItem.createService(
+                                service[1] != null ? service[1] : "",  // serName
+                                service.length > 5 && service[5] != null ? service[5] : "",  // serNote
+                                service[2] != null ? Integer.parseInt(service[2]) : 0,  // serAmount
+                                service[3] != null ? Double.parseDouble(service[3]) : 0.0  // serUnitPrice
+                            ));
+                        } catch (NumberFormatException e) {
+                            System.err.println("Error parsing service data: " + e.getMessage());
+                        }
+                    }
                 }
             }
-            document.add(serviceTable);
-            overallTotal += serviceTotal;
 
-            Table serTotalTable = new Table(UnitValue.createPercentArray(new float[]{7.5f, 2.5f}))
-                .setWidth(UnitValue.createPercentValue(100)).setBorder(Border.NO_BORDER).setMarginBottom(3); 
-            serTotalTable.addCell(new Cell().add(new Paragraph("Tổng tiền dịch vụ:")).setFont(boldFont).setFontSize(9).setTextAlignment(com.itextpdf.layout.property.TextAlignment.RIGHT).setBorder(Border.NO_BORDER).setPadding(1));
-            serTotalTable.addCell(new Cell().add(new Paragraph(vndFormatter.format(serviceTotal) + " VNĐ")).setFont(boldFont).setFontSize(9).setTextAlignment(com.itextpdf.layout.property.TextAlignment.RIGHT).setBorder(Border.NO_BORDER).setPadding(1));
-            document.add(serTotalTable);
+            // Convert supplement data to InvoiceItem objects
+            if (supplements != null) {
+                for (String[] supplement : supplements) {
+                    if (supplement != null && supplement.length >= 9) {
+                        try {
+                            supplementItems.add(InvoiceItem.createSupplement(
+                                supplement[1] != null ? supplement[1] : "",  // supName
+                                supplement.length > 8 && supplement[8] != null ? supplement[8] : "",  // supNote
+                                supplement[4] != null ? supplement[4] : "",  // supDosage
+                                supplement[5] != null ? Integer.parseInt(supplement[5]) : 0,  // supAmount
+                                supplement[6] != null ? Double.parseDouble(supplement[6]) : 0.0  // supUnitPrice
+                            ));
+                } catch (NumberFormatException e) { 
+                            System.err.println("Error parsing supplement data: " + e.getMessage());
+                        }
+                    }
+                }
+            }
+
+            // Create data sources
+            JRBeanCollectionDataSource medicineDS = new JRBeanCollectionDataSource(medicines);
+            JRBeanCollectionDataSource serviceDS = new JRBeanCollectionDataSource(serviceItems);
+            JRBeanCollectionDataSource supplementDS = new JRBeanCollectionDataSource(supplementItems);
+
+            // 2. Create parameters map
+            java.util.Map<String, Object> parameters = new java.util.HashMap<>();
+            
+            // Data sources
+            parameters.put("medicineDS", medicineDS);
+            parameters.put("serviceDS", serviceDS);
+            parameters.put("supplementDS", supplementDS);
+
+            // Set locale for Vietnamese formatting
+            parameters.put(JRParameter.REPORT_LOCALE, new java.util.Locale("vi", "VN"));
+
+            // Patient information
+            parameters.put("patientName", patientName != null ? patientName : "");
+            parameters.put("patientDOB", patientDOB != null ? patientDOB : "");
+            parameters.put("patientGender", patientGender != null ? patientGender : "");
+            parameters.put("patientAddress", patientAddress != null ? patientAddress : "");
+
+            // Clinic information
+            parameters.put("clinicName", LocalStorage.ClinicName != null ? LocalStorage.ClinicName : "");
+            parameters.put("clinicPhone", LocalStorage.ClinicPhone != null ? LocalStorage.ClinicPhone : "");
+            parameters.put("clinicAddress", LocalStorage.ClinicAddress != null ? LocalStorage.ClinicAddress : "");
+
+            // Doctor and medical information
+            parameters.put("doctorName", doctorName != null ? doctorName : "");
+            parameters.put("checkupDate", date != null ? date : "");
+            parameters.put("patientDiagnos", diagnosis != null ? diagnosis : "");
+            parameters.put("checkupNote", notes != null ? notes : "");
+
+            // Barcode
+            parameters.put("barcodeNumber", id != null ? id : "");
+
+            // Logo image path
+            String logoPath = System.getProperty("user.dir") + "/src/main/java/BsK/client/ui/assets/icon/logo.jpg";
+            parameters.put("logoImage", logoPath);
+
+            // Add conditional parameters to check if data sources have data
+            parameters.put("hasMedicines", medicines != null && !medicines.isEmpty());
+            parameters.put("hasServices", serviceItems != null && !serviceItems.isEmpty());
+            parameters.put("hasSupplements", supplementItems != null && !supplementItems.isEmpty());
+
+            // 3. Load and compile the JRXML template
+            String jrxmlPath = System.getProperty("user.dir") + "/src/main/java/BsK/client/ui/component/CheckUpPage/PrintDialog/print_forms/medserinvoice.jrxml";
+            java.io.InputStream inputStream = new java.io.FileInputStream(new java.io.File(jrxmlPath));
+
+            JasperDesign jasperDesign = JRXmlLoader.load(inputStream);
+            JasperReport jasperReport = JasperCompileManager.compileReport(jasperDesign);
+
+            // 4. Fill the report with data
+            jasperPrint = JasperFillManager.fillReport(jasperReport, parameters, new JREmptyDataSource());
+
+            // 5. Export to PDF
+            JasperExportManager.exportReportToPdfFile(jasperPrint, pdfPath);
+
+            inputStream.close();
+            
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw new Exception("Error generating PDF with JasperReports: " + e.getMessage(), e);
         }
-
-        // --- OVERALL TOTAL ---
-        document.add(new LineSeparator(new com.itextpdf.kernel.pdf.canvas.draw.SolidLine(0.5f)).setMarginTop(5).setMarginBottom(3)); 
-        Table overallTotalTable = new Table(UnitValue.createPercentArray(new float[]{7.5f, 2.5f}))
-            .setWidth(UnitValue.createPercentValue(100)).setBorder(Border.NO_BORDER).setMarginBottom(10); 
-        overallTotalTable.addCell(new Cell().add(new Paragraph("TỔNG CỘNG THANH TOÁN:")).setFont(boldFont).setFontSize(10).setTextAlignment(com.itextpdf.layout.property.TextAlignment.RIGHT).setBorder(Border.NO_BORDER).setPadding(1)); 
-        overallTotalTable.addCell(new Cell().add(new Paragraph(vndFormatter.format(overallTotal) + " VNĐ")).setFont(boldFont).setFontSize(10).setTextAlignment(com.itextpdf.layout.property.TextAlignment.RIGHT).setBorder(Border.NO_BORDER).setPadding(1)); 
-        document.add(overallTotalTable);
-
-        // --- SIGNATURE AREA ---
-        Table signatureTable = new Table(UnitValue.createPercentArray(new float[]{50, 50}))
-            .setWidth(UnitValue.createPercentValue(100))
-            .setBorder(Border.NO_BORDER)
-            .setMarginTop(15); // Reduced margin
-        
-        signatureTable.addCell(new Cell().setBorder(Border.NO_BORDER)); 
-
-        Paragraph signatureParagraph = new Paragraph(); // Initialize paragraph
-        signatureParagraph.add(new Text("Ngày " + date.substring(0,2) + " tháng " + date.substring(3,5) + " năm " + date.substring(6) + "\n").setFontSize(9));
-        signatureParagraph.add(new Text("Bác sĩ điều trị\n\n\n").setFontSize(9)); // Reduced newlines for space
-        signatureParagraph.add(new Text("(Ký, ghi rõ họ tên)").setFontSize(8).setItalic());
-        signatureParagraph.setFont(font)
-            .setTextAlignment(com.itextpdf.layout.property.TextAlignment.CENTER)
-            .setMultipliedLeading(1.0f); // Applied to the Paragraph
-        
-        signatureTable.addCell(new Cell().add(signatureParagraph).setBorder(Border.NO_BORDER));
-        document.add(signatureTable);
-
-        document.close();
     }
 
     private void displayPdfInLabel(String pdfPath, JPanel pdfPanel) throws Exception {

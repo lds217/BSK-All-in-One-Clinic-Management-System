@@ -65,7 +65,14 @@ public class test_print {
             parameters.put("clinicName", " BSK CLINIC");
             parameters.put("clinicPhone", "0123-456-789");
             parameters.put("patientName", "Nguyen Van A");
+            parameters.put("patientDOB", "15/03/1990");
+            parameters.put("patientGender", "Nam");
+            parameters.put("patientAddress", "123 Đường ABC, Phường XYZ, Quận 1, TP.HCM");
             parameters.put("clinicAddress", "123 Main Street, City, Country");
+            parameters.put("doctorName", "BS. Nguyen Van B");
+            parameters.put("checkupDate", "20/12/2024");
+            parameters.put("checkupNote", "Bệnh nhân cần nghỉ ngơi và tái khám sau 1 tuần");
+            parameters.put("patientDiagnos", "Viêm họng cấp tính, sốt nhẹ");
             
             // Add logo image path
             String logoPath = System.getProperty("user.dir") + "/src/main/java/BsK/client/ui/assets/icon/logo.jpg";
