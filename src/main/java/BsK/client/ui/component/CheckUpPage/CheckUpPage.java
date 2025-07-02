@@ -147,7 +147,7 @@ public class CheckUpPage extends JPanel {
     private MedicineDialog medDialog = null;
     private ServiceDialog serDialog = null;
     private AddDialog addDialog = null;
-    private int previousSelectedRow = -1;
+    private String selectedCheckupId = null; // Use checkupId to track selection instead of row index
     private boolean saved = true; // Initially true, changed when patient selected or dialog opened.
     private DefaultComboBoxModel<String> districtModel, wardModel;
     private JComboBox<String> callRoomComboBox;
@@ -1304,10 +1304,22 @@ public class CheckUpPage extends JPanel {
                 if (option == JOptionPane.NO_OPTION) {
                     return;
                 }
+
+                String statusToSave = (String) statusComboBox.getSelectedItem();
+
                 handleSave();
+                
                 callingStatusLabel.setText("Đã lưu thành công!");
                 callingStatusLabel.setBackground(new Color(230, 255, 230));
                 callingStatusLabel.setForeground(new Color(0, 100, 0));
+                updateUpdateQueue();
+
+                // If patient is marked as "ĐÃ KHÁM", clear the selection and details immediately.
+                if ("ĐÃ KHÁM".equals(statusToSave)) {
+                    clearPatientDetails();
+                    // Visually update the queue table to remove the selection highlight.
+                    queueManagementPage.updateQueueTable(); 
+                }
                 break;
             case "medicine":
                 medDialog = new MedicineDialog(mainFrame, this.medicinePrescription);
@@ -1440,6 +1452,7 @@ public class CheckUpPage extends JPanel {
             return;
         }
         Patient selectedPatient = patientQueue.get(selectedRowInQueue);
+        this.selectedCheckupId = selectedPatient.getCheckupId(); // Track selection by ID
 
         // Enable all action buttons when a patient is selected
         for (Component comp : ((JPanel)((JPanel)rightContainer.getComponent(1))).getComponents()) {
@@ -1651,37 +1664,43 @@ public class CheckUpPage extends JPanel {
     }
 
     private void handleGetDistrictResponse(GetDistrictResponse response) {
-        log.info("Received district data");
-        LocalStorage.districts = response.getDistricts();
-        LocalStorage.districtToId = response.getDistrictToId();
-        districtModel.removeAllElements(); 
-        for (String district : LocalStorage.districts) { districtModel.addElement(district); }
-        districtComboBox.setEnabled(true); 
-        if (LocalStorage.districts.length > 0 && !LocalStorage.districts[0].startsWith("Đang tải")) {
-             // No automatic selection, let user choose or handleRowSelection set it
-        }
-        wardModel.removeAllElements(); wardModel.addElement("Phường"); wardComboBox.setEnabled(false); 
+        SwingUtilities.invokeLater(() -> {
+            log.info("Received district data");
+            LocalStorage.districts = response.getDistricts();
+            LocalStorage.districtToId = response.getDistrictToId();
+            districtModel.removeAllElements(); 
+            for (String district : LocalStorage.districts) { districtModel.addElement(district); }
+            districtComboBox.setEnabled(true); 
+            if (LocalStorage.districts.length > 0 && !LocalStorage.districts[0].startsWith("Đang tải")) {
+                // No automatic selection, let user choose or handleRowSelection set it
+            }
+            wardModel.removeAllElements(); wardModel.addElement("Phường"); wardComboBox.setEnabled(false); 
+        });
     }
 
     private void handleGetWardResponse(GetWardResponse response) {
-        log.info("Received ward data");
-        LocalStorage.wards = response.getWards();
-        wardModel.removeAllElements(); 
-        for (String ward : LocalStorage.wards) { wardModel.addElement(ward); }
-        wardComboBox.setEnabled(true); 
-        if (LocalStorage.wards.length > 0 && !LocalStorage.wards[0].startsWith("Đang tải")) {
-            // No automatic selection
-        }
+        SwingUtilities.invokeLater(() -> {
+            log.info("Received ward data");
+            LocalStorage.wards = response.getWards();
+            wardModel.removeAllElements(); 
+            for (String ward : LocalStorage.wards) { wardModel.addElement(ward); }
+            wardComboBox.setEnabled(true); 
+            if (LocalStorage.wards.length > 0 && !LocalStorage.wards[0].startsWith("Đang tải")) {
+                // No automatic selection
+            }
+        });
     }
 
     private void handleGetPatientHistoryResponse(GetPatientHistoryResponse response) {
-        log.info("Received patient history");
-        this.history = response.getHistory();
-        
-        // Access PatientHistory objects if needed
-        List<PatientHistory> patientHistories = response.getPatientHistoryList();
-        
-        historyModel.setDataVector(this.history, new String[]{"Ngày Tháng","Mã khám bệnh", "Triệu chứng", "Chẩn đoán", "Ghi chú"});
+        SwingUtilities.invokeLater(() -> {
+            log.info("Received patient history");
+            this.history = response.getHistory();
+            
+            // Access PatientHistory objects if needed
+            List<PatientHistory> patientHistories = response.getPatientHistoryList();
+            
+            historyModel.setDataVector(this.history, new String[]{"Ngày Tháng","Mã khám bệnh", "Triệu chứng", "Chẩn đoán", "Ghi chú"});
+        });
     }
 
     private  void handleGetDoctorGeneralInfoResponse(GetDoctorGeneralInfoResponse response) {
@@ -1689,72 +1708,78 @@ public class CheckUpPage extends JPanel {
     }
 
     private void handleGetCheckUpQueueUpdateResponse(GetCheckUpQueueUpdateResponse response) {
-        log.info("Received checkup update queue");
-        this.rawQueueForTv = response.getQueue(); 
-        this.patientQueue.clear();
-        if (this.rawQueueForTv != null) {
-            for (String[] patientData : this.rawQueueForTv) {
-                this.patientQueue.add(new Patient(patientData));
+        SwingUtilities.invokeLater(() -> {
+            log.info("Received checkup update queue");
+            this.rawQueueForTv = response.getQueue(); 
+            this.patientQueue.clear();
+            if (this.rawQueueForTv != null) {
+                for (String[] patientData : this.rawQueueForTv) {
+                    this.patientQueue.add(new Patient(patientData));
+                }
             }
-        }
-        if (queueManagementPage != null) {
-            queueManagementPage.updateQueueTable();
-        }
-        if (tvQueueFrame != null && tvQueueFrame.isVisible()) {
-            tvQueueFrame.updateQueueData(this.rawQueueForTv);
-        }
+            if (queueManagementPage != null) {
+                queueManagementPage.updateQueueTable();
+            }
+            if (tvQueueFrame != null && tvQueueFrame.isVisible()) {
+                tvQueueFrame.updateQueueData(this.rawQueueForTv);
+            }
+        });
     }
 
     private void handleGetCheckUpQueueResponse(GetCheckUpQueueResponse response) {
-        log.info("Received checkup queue");
-        this.rawQueueForTv = response.getQueue(); 
-        this.patientQueue.clear();
-        if (this.rawQueueForTv != null) {
-            for (String[] patientData : this.rawQueueForTv) {
-                this.patientQueue.add(new Patient(patientData));
+        SwingUtilities.invokeLater(() -> {
+            log.info("Received checkup queue");
+            this.rawQueueForTv = response.getQueue(); 
+            this.patientQueue.clear();
+            if (this.rawQueueForTv != null) {
+                for (String[] patientData : this.rawQueueForTv) {
+                    this.patientQueue.add(new Patient(patientData));
+                }
             }
-        }
-        if (queueManagementPage != null) {
-            queueManagementPage.updateQueueTable();
-        }
-        if (tvQueueFrame != null && tvQueueFrame.isVisible()) {
-            tvQueueFrame.updateQueueData(this.rawQueueForTv);
-        }
+            if (queueManagementPage != null) {
+                queueManagementPage.updateQueueTable();
+            }
+            if (tvQueueFrame != null && tvQueueFrame.isVisible()) {
+                tvQueueFrame.updateQueueData(this.rawQueueForTv);
+            }
+        });
     }
 
     private void handleCallPatientResponse(CallPatientResponse response) {
-        log.info("Received call patient response: Room {}, Patient ID {}, Status {}", response.getRoomId(), response.getPatientId(), response.getStatus());
-        if (tvQueueFrame != null && tvQueueFrame.isVisible()) {
-            if (response.getStatus() == Status.PROCESSING) {
-                String patientIdToFind = String.valueOf(response.getPatientId());
-                String patientDisplayInfo = patientIdToFind; 
+        SwingUtilities.invokeLater(() -> {
+            log.info("Received call patient response: Room {}, Patient ID {}, Status {}", response.getRoomId(), response.getPatientId(), response.getStatus());
+            if (tvQueueFrame != null && tvQueueFrame.isVisible()) {
+                if (response.getStatus() == Status.PROCESSING) {
+                    String patientIdToFind = String.valueOf(response.getPatientId());
+                    String patientDisplayInfo = patientIdToFind; 
 
-                if (this.patientQueue != null) {
-                    for (Patient patient : this.patientQueue) {
-                        if (patient != null && patientIdToFind.equals(patient.getCheckupId())) {
-                            String ho = patient.getCustomerLastName(); String ten = patient.getCustomerFirstName();
-                            String customerDob = patient.getCustomerDob(); String namSinh = "N/A";
-                            if (customerDob != null && !customerDob.isEmpty()) {
-                                try {
-                                    Date parsedDate;
-                                    if (customerDob.matches("\\d+")) parsedDate = new Date(Long.parseLong(customerDob)); // Timestamp
-                                    else parsedDate = new SimpleDateFormat("dd/MM/yyyy").parse(customerDob); // Date string
-                                    Calendar calendar = Calendar.getInstance(); calendar.setTime(parsedDate);
-                                    namSinh = String.valueOf(calendar.get(Calendar.YEAR));
-                                } catch (ParseException | NumberFormatException e) {
-                                    log.error("Error parsing DoB for TV display: {} for patient ID {}", customerDob, patientIdToFind, e);
+                    if (this.patientQueue != null) {
+                        for (Patient patient : this.patientQueue) {
+                            if (patient != null && patientIdToFind.equals(patient.getCheckupId())) {
+                                String ho = patient.getCustomerLastName(); String ten = patient.getCustomerFirstName();
+                                String customerDob = patient.getCustomerDob(); String namSinh = "N/A";
+                                if (customerDob != null && !customerDob.isEmpty()) {
+                                    try {
+                                        Date parsedDate;
+                                        if (customerDob.matches("\\d+")) parsedDate = new Date(Long.parseLong(customerDob)); // Timestamp
+                                        else parsedDate = new SimpleDateFormat("dd/MM/yyyy").parse(customerDob); // Date string
+                                        Calendar calendar = Calendar.getInstance(); calendar.setTime(parsedDate);
+                                        namSinh = String.valueOf(calendar.get(Calendar.YEAR));
+                                    } catch (ParseException | NumberFormatException e) {
+                                        log.error("Error parsing DoB for TV display: {} for patient ID {}", customerDob, patientIdToFind, e);
+                                    }
                                 }
+                                patientDisplayInfo = ho + " " + ten + " (" + namSinh + ")";
+                                break; 
                             }
-                            patientDisplayInfo = ho + " " + ten + " (" + namSinh + ")";
-                            break; 
                         }
                     }
+                    tvQueueFrame.updateSpecificRoomStatus(response.getRoomId(), String.valueOf(response.getPatientId()), patientDisplayInfo, response.getStatus());
+                } else if (response.getStatus() == Status.EMPTY) {
+                    tvQueueFrame.markRoomAsFree(response.getRoomId());
                 }
-                tvQueueFrame.updateSpecificRoomStatus(response.getRoomId(), String.valueOf(response.getPatientId()), patientDisplayInfo, response.getStatus());
-            } else if (response.getStatus() == Status.EMPTY) {
-                tvQueueFrame.markRoomAsFree(response.getRoomId());
             }
-        }
+        });
     }
 
     private void handleErrorResponse(ErrorResponse response) { 
@@ -2667,8 +2692,10 @@ public class CheckUpPage extends JPanel {
                         SwingUtilities.invokeLater(() -> {
                             int selectedRow = queueTable.getSelectedRow();
                             if (selectedRow != -1) {
+                                String newlySelectedCheckupId = (String) queueTableModel.getValueAt(selectedRow, 0);
+
                                 // Check for unsaved changes before switching
-                                if (previousSelectedRow != -1 && previousSelectedRow != selectedRow && !saved) {
+                                if (selectedCheckupId != null && !selectedCheckupId.equals(newlySelectedCheckupId) && !saved) {
                                     int confirm = JOptionPane.showConfirmDialog(
                                             QueueManagementPage.this,
                                             "Các thay đổi chưa được lưu. Bạn có chắc chắn muốn chuyển sang bệnh nhân khác không?",
@@ -2677,15 +2704,15 @@ public class CheckUpPage extends JPanel {
                                             JOptionPane.WARNING_MESSAGE);
                                     if (confirm == JOptionPane.NO_OPTION) {
                                         // Reselect the previous row visually to avoid confusion
-                                        if (previousSelectedRow < queueTable.getRowCount()) {
-                                            queueTable.setRowSelectionInterval(previousSelectedRow, previousSelectedRow);
+                                        int previousRow = findRowByCheckupId(selectedCheckupId);
+                                        if (previousRow != -1) {
+                                            queueTable.setRowSelectionInterval(previousRow, previousRow);
                                         }
                                         return;
                                     }
                                 }
                                 // Call the parent class's method to handle the selection
                                 CheckUpPage.this.handleRowSelection(selectedRow);
-                                previousSelectedRow = selectedRow; // Update the last selected row
                             }
                         });
                     }
@@ -2700,16 +2727,36 @@ public class CheckUpPage extends JPanel {
             setDefaultCloseOperation(JFrame.HIDE_ON_CLOSE);
         }
 
+        private int findRowByCheckupId(String checkupId) {
+            if (checkupId == null) return -1;
+            for (int i = 0; i < queueTableModel.getRowCount(); i++) {
+                if (checkupId.equals(queueTableModel.getValueAt(i, 0))) {
+                    return i;
+                }
+            }
+            return -1;
+        }
+
         /**
          * Updates the data in the queue table. This should be called when the patient queue changes.
          */
         public void updateQueueTable() {
             SwingUtilities.invokeLater(() -> {
                 String[] columns = {"Mã khám bệnh", "Ngày sinh", "Họ", "Tên", "Bác Sĩ", "Loại khám"};
-                int selectedRow = queueTable.getSelectedRow();
+                String previouslySelectedId = CheckUpPage.this.selectedCheckupId;
+
                 queueTableModel.setDataVector(preprocessPatientDataForTable(patientQueue), columns);
-                if (selectedRow != -1 && selectedRow < queueTable.getRowCount()) {
-                    queueTable.setRowSelectionInterval(selectedRow, selectedRow);
+
+                if (previouslySelectedId != null) {
+                    int rowToSelect = findRowByCheckupId(previouslySelectedId);
+                    if (rowToSelect != -1) {
+                        queueTable.setRowSelectionInterval(rowToSelect, rowToSelect);
+                        queueTable.scrollRectToVisible(queueTable.getCellRect(rowToSelect, 0, true));
+                    } else {
+                        // The previously selected patient is no longer in the queue (e.g., status changed to "ĐÃ KHÁM")
+                        // Clear the details panel to avoid confusion
+                        clearPatientDetails();
+                    }
                 }
             });
         }
@@ -2993,6 +3040,58 @@ public class CheckUpPage extends JPanel {
                 "Lỗi", 
                 JOptionPane.ERROR_MESSAGE);
         }
+    }
+
+    private void clearPatientDetails() {
+        // Reset all fields to default values
+        checkupIdField.setText("");
+        customerLastNameField.setText("");
+        customerFirstNameField.setText("");
+        customerAddressField.setText("");
+        customerPhoneField.setText("");
+        customerIdField.setText("");
+        suggestionField.setText("");
+        diagnosisField.setText("");
+        conclusionField.setText("");
+        setRtfContentFromString("{\\rtf1\\ansi\\ansicpg1252\\deff0\\deflang1033{\\fonttbl{\\f0\\fnil\\fcharset163 Times New Roman;}}\\viewkind4\\uc1\\pard\\f0\\fs32\\par}"); // Clear notes
+
+        if (doctorComboBox.getItemCount() > 0) doctorComboBox.setSelectedIndex(0);
+        statusComboBox.setSelectedIndex(0);
+        genderComboBox.setSelectedIndex(0);
+        if (provinceComboBox.getItemCount() > 0) provinceComboBox.setSelectedIndex(0);
+        // district and ward will be cleared by province selection listener
+        checkupTypeComboBox.setSelectedIndex(0);
+        if (templateComboBox.getItemCount() > 0) templateComboBox.setSelectedIndex(0);
+
+        customerWeightSpinner.setValue(0);
+        customerHeightSpinner.setValue(0);
+
+        datePicker.getModel().setValue(null);
+        dobPicker.getModel().setValue(null);
+
+        medicinePrescription = new String[0][0];
+        servicePrescription = new String[0][0];
+        updatePrescriptionTree();
+
+        historyModel.setRowCount(0); // Clear history table
+
+        // Disable all action buttons
+        for (Component comp : ((JPanel)((JPanel)rightContainer.getComponent(1))).getComponents()) {
+            if (comp instanceof JButton) {
+                comp.setEnabled(false);
+            }
+        }
+
+        // Clear media view
+        if (imageGalleryPanel != null) {
+            imageGalleryPanel.removeAll();
+            imageGalleryPanel.add(new JLabel("Chọn bệnh nhân để xem media."));
+            imageGalleryPanel.revalidate();
+            imageGalleryPanel.repaint();
+        }
+
+        selectedCheckupId = null;
+        saved = true; // No patient loaded, so it's in a "saved" state.
     }
 }
 

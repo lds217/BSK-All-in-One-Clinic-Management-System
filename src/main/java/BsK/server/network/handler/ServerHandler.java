@@ -174,7 +174,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
           ResultSet rs = statement.executeQuery(
                   "select a.checkup_id, a.checkup_date, c.customer_last_name, c.customer_first_name,\n" +
                           "d.doctor_first_name, d.doctor_last_name, a.suggestion, a.diagnosis, a.notes, a.status, a.customer_id, \n" +
-                          "c.customer_number, c.customer_address, c.customer_weight, c.customer_height, c.customer_gender, c.customer_dob, a.checkup_type\n" +
+                          "c.customer_number, c.customer_address, c.customer_weight, c.customer_height, c.customer_gender, c.customer_dob, a.checkup_type, a.conclusion\n" +
                           "from checkup as a\n" +
                           "join customer as c on a.customer_id = c.customer_id\n" +
                           "join Doctor D on a.doctor_id = D.doctor_id\n" +
@@ -183,7 +183,11 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
 
           if (!rs.isBeforeFirst()) {
             System.out.println("No data found in the checkup table.");
-
+            // Also send an empty response to clients so they clear their queues
+            int maxCurId = SessionManager.getMaxSessionId();
+            for (int sessionId = 1; sessionId <= maxCurId; sessionId++) {
+              UserUtil.sendPacket(sessionId, new GetCheckUpQueueUpdateResponse(new String[0][0]));
+            }
           } else {
             ArrayList<String> resultList = new ArrayList<>();
             while (rs.next()) {
@@ -210,18 +214,18 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
               String customerGender = rs.getString("customer_gender");
               String customerDob = rs.getString("customer_dob");
               String checkupType = rs.getString("checkup_type");
+              String conclusion = rs.getString("conclusion");
 
 
               String result = String.join("|", checkupId,
                       checkupDate, customerLastName, customerFirstName,
                       doctorLastName + " " + doctorFirstName, suggestion,
                       diagnosis, notes, status, customerId, customerNumber, customerAddress, customerWeight, customerHeight,
-                      customerGender, customerDob, checkupType
+                      customerGender, customerDob, checkupType, conclusion
               );
 
               resultList.add(result);
 
-              // log.info(result);
             }
 
             String[] resultString = resultList.toArray(new String[0]);
