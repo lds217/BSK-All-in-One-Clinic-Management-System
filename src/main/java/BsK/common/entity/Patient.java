@@ -49,8 +49,8 @@ public class Patient {
 
     // New constructor for a single patient data row
     public Patient(String[] data) {
-        if (data.length < 17) {
-            throw new IllegalArgumentException("Patient data array must contain at least 17 elements.");
+        if (data.length < 18) {
+            throw new IllegalArgumentException("Patient data array must contain at least 18 elements to include a conclusion.");
         }
         this.checkupId = data[0];
         this.checkupDate = data[1];

@@ -342,6 +342,7 @@ public class CheckUpPage extends JPanel {
         openQueueButton.setBorder(BorderFactory.createEmptyBorder(8, 15, 8, 15)); // Reduced vertical padding from 10 to 8
         openQueueButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         openQueueButton.addActionListener(e -> {
+            updateQueue();
             queueManagementPage.setVisible(true);
             queueManagementPage.toFront();
         });
@@ -1104,12 +1105,14 @@ public class CheckUpPage extends JPanel {
                     if (selectedRow >= 0 && selectedRow < history.length) {
                         // Get selected history data
                         String[] selectedHistory = history[selectedRow];
-                        String checkupId = selectedHistory[0]; // Assuming first column is checkup ID
-                        String patientName = customerFirstNameField.getText() + " " + customerLastNameField.getText();
-                        String checkupDate = selectedHistory.length > 1 ? selectedHistory[1] : ""; // Assuming second column is date
-                        
-                        // Open history view dialog
-                        openHistoryViewDialog(checkupId, patientName, checkupDate);
+                        if (selectedHistory.length > 1) {
+                            String checkupId = selectedHistory[1]; // Corrected: Index 1 is the checkup ID
+                            String patientName = customerFirstNameField.getText() + " " + customerLastNameField.getText();
+                            String checkupDate = selectedHistory[0]; // Corrected: Index 0 is the date
+                            
+                            // Open history view dialog
+                            openHistoryViewDialog(checkupId, patientName, checkupDate);
+                        }
                     }
                 }
             }
@@ -1694,12 +1697,21 @@ public class CheckUpPage extends JPanel {
     private void handleGetPatientHistoryResponse(GetPatientHistoryResponse response) {
         SwingUtilities.invokeLater(() -> {
             log.info("Received patient history");
-            this.history = response.getHistory();
+            this.history = response.getHistory(); // Keep original 6-column data for the dialog
             
-            // Access PatientHistory objects if needed
-            List<PatientHistory> patientHistories = response.getPatientHistoryList();
+            // Prepare data specifically for the 5-column table view
+            String[][] tableData = new String[this.history.length][5];
+            for (int i = 0; i < this.history.length; i++) {
+                if (this.history[i] != null && this.history[i].length >= 6) {
+                    tableData[i][0] = this.history[i][0]; // "Ngày Tháng" (Date)
+                    tableData[i][1] = this.history[i][1]; // "Mã khám bệnh" (ID)
+                    tableData[i][2] = this.history[i][2]; // "Triệu chứng" (Suggestion)
+                    tableData[i][3] = this.history[i][3]; // "Chẩn đoán" (Diagnosis)
+                    tableData[i][4] = this.history[i][5]; // "Ghi chú" (Notes) - was incorrectly showing prescription_id
+                }
+            }
             
-            historyModel.setDataVector(this.history, new String[]{"Ngày Tháng","Mã khám bệnh", "Triệu chứng", "Chẩn đoán", "Ghi chú"});
+            historyModel.setDataVector(tableData, new String[]{"Ngày Tháng","Mã khám bệnh", "Triệu chứng", "Chẩn đoán", "Ghi chú"});
         });
     }
 
@@ -2641,12 +2653,13 @@ public class CheckUpPage extends JPanel {
      * A separate window (JFrame) to manage and display the patient queue.
      * It communicates with the main CheckUpPage to handle patient selection.
      */
-    private class QueueManagementPage extends JFrame {
+    private class QueueManagementPage extends JDialog {
         private JTable queueTable;
         private DefaultTableModel queueTableModel;
 
         public QueueManagementPage() {
-            setTitle("Danh sách chờ khám");
+            super(mainFrame, "Danh sách chờ khám", true); // Set as modal dialog
+            
             setIconImage(new ImageIcon("src/main/java/BsK/client/ui/assets/icon/database.png").getImage());
             setSize(800, 600);
             setLayout(new BorderLayout());
@@ -2713,6 +2726,8 @@ public class CheckUpPage extends JPanel {
                                 }
                                 // Call the parent class's method to handle the selection
                                 CheckUpPage.this.handleRowSelection(selectedRow);
+                                // Hide the dialog after selection
+                                QueueManagementPage.this.setVisible(false);
                             }
                         });
                     }
@@ -2724,7 +2739,7 @@ public class CheckUpPage extends JPanel {
 
             add(scrollPane, BorderLayout.CENTER);
             setLocationRelativeTo(mainFrame);
-            setDefaultCloseOperation(JFrame.HIDE_ON_CLOSE);
+            setDefaultCloseOperation(JDialog.HIDE_ON_CLOSE);
         }
 
         private int findRowByCheckupId(String checkupId) {

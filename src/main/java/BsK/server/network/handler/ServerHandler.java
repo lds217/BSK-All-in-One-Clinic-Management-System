@@ -272,49 +272,57 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
       }
 
       if (packet instanceof GetPatientHistoryRequest getPatientHistoryRequest) {
-        log.debug("Received GetPatientHistoryRequest");
-        try {
-            ResultSet rs = statement.executeQuery(
-                    "select Checkup.checkup_date, Checkup.checkup_id, Checkup.suggestion, Checkup.diagnosis, Checkup.prescription_id, Checkup.notes\n" +
-                            "from Customer\n" +
-                            "join Checkup on Customer.customer_id = Checkup.customer_id\n" +
-                            "where Checkup.status = \"DONE\" and Customer.customer_id = " +
-                            getPatientHistoryRequest.getPatientId() +
-                            " order by checkup_date"
-            );
+        log.debug("Received GetPatientHistoryRequest for patientId: {}", getPatientHistoryRequest.getPatientId());
+        
+        String sql = """
+            SELECT
+                C.checkup_date, C.checkup_id, C.suggestion, C.diagnosis, C.prescription_id, C.notes
+            FROM Checkup C
+            WHERE C.status = ? AND C.customer_id = ?
+            ORDER BY C.checkup_date DESC
+        """;
 
-            if (!rs.isBeforeFirst()) {
-                System.out.println("No history data found in the checkup table.");
-                UserUtil.sendPacket(currentUser.getSessionId(), new GetPatientHistoryResponse(new String[0][0]));
-            } else {
-                ArrayList<String> resultList = new ArrayList<>();
-                while (rs.next()) {
-                    String checkupDate = rs.getString("checkup_date");
-                    long checkupDateLong = Long.parseLong(checkupDate);
-                    Timestamp timestamp = new Timestamp(checkupDateLong);
-                    Date date = new Date(timestamp.getTime()); // Needed to recode
-                    SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy");
-                    checkupDate = sdf.format(date);
-                    String checkupId = rs.getString("checkup_id");
-                    String suggestion = rs.getString("suggestion");
-                    String diagnosis = rs.getString("diagnosis");
-                    String prescriptionId = rs.getString("prescription_id");
-                    String notes = rs.getString("notes");
-                    String result = String.join("|", checkupDate, checkupId, suggestion, diagnosis, prescriptionId, notes);
-                    resultList.add(result);
-                    // log.info(result);
+        try (PreparedStatement historyStmt = Server.connection.prepareStatement(sql)) {
+            
+            historyStmt.setString(1, "ĐÃ KHÁM");
+            historyStmt.setInt(2, getPatientHistoryRequest.getPatientId());
+
+            try (ResultSet rs = historyStmt.executeQuery()) {
+                if (!rs.isBeforeFirst()) {
+                    log.info("No history data found for patientId: {}", getPatientHistoryRequest.getPatientId());
+                    UserUtil.sendPacket(currentUser.getSessionId(), new GetPatientHistoryResponse(new String[0][0]));
+                } else {
+                    ArrayList<String[]> resultList = new ArrayList<>();
+                    while (rs.next()) {
+                        String[] historyEntry = new String[6];
+                        
+                        String checkupDateStr = rs.getString("checkup_date");
+                        try {
+                            long checkupDateLong = Long.parseLong(checkupDateStr);
+                            Timestamp timestamp = new Timestamp(checkupDateLong);
+                            Date date = new Date(timestamp.getTime());
+                            SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy");
+                            historyEntry[0] = sdf.format(date);
+                        } catch (Exception e) {
+                            historyEntry[0] = checkupDateStr; // Fallback to raw string if not a timestamp
+                        }
+
+                        historyEntry[1] = rs.getString("checkup_id");
+                        historyEntry[2] = rs.getString("suggestion");
+                        historyEntry[3] = rs.getString("diagnosis");
+                        historyEntry[4] = rs.getString("prescription_id");
+                        historyEntry[5] = rs.getString("notes");
+                        
+                        resultList.add(historyEntry);
+                    }
+
+                    String[][] resultArray = resultList.toArray(new String[0][]);
+                    UserUtil.sendPacket(currentUser.getSessionId(), new GetPatientHistoryResponse(resultArray));
+                    log.info("Sent patient history for patientId: {}", getPatientHistoryRequest.getPatientId());
                 }
-
-                String[] resultString = resultList.toArray(new String[0]);
-                String[][] resultArray = new String[resultString.length][];
-                for (int i = 0; i < resultString.length; i++) {
-                    resultArray[i] = resultString[i].split("\\|");
-                }
-
-                UserUtil.sendPacket(currentUser.getSessionId(), new GetPatientHistoryResponse(resultArray));
             }
-
         } catch (SQLException e) {
+          log.error("Error fetching patient history for patientId: " + getPatientHistoryRequest.getPatientId(), e);
           throw new RuntimeException(e);
         }
       }

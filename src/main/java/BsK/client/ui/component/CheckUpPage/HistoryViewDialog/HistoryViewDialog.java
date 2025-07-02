@@ -23,6 +23,11 @@ import java.util.Date;
 import java.util.List;
 import javax.imageio.ImageIO;
 import lombok.extern.slf4j.Slf4j;
+import BsK.client.network.handler.ClientHandler;
+import BsK.client.network.handler.ResponseListener;
+import BsK.common.packet.req.GetOrderInfoByCheckupReq;
+import BsK.common.packet.res.GetOrderInfoByCheckupRes;
+import BsK.common.util.network.NetworkUtil;
 
 @Slf4j
 public class HistoryViewDialog extends JDialog {
@@ -60,6 +65,7 @@ public class HistoryViewDialog extends JDialog {
     // Current selected image
     private BufferedImage currentSelectedImage;
     private List<File> imageFiles;
+    private ResponseListener<GetOrderInfoByCheckupRes> orderInfoListener;
     
     public HistoryViewDialog(Frame parent, String checkupId, String patientName, String checkupDate) {
         super(parent, "Xem chi tiết lịch sử khám - " + patientName, true);
@@ -68,13 +74,16 @@ public class HistoryViewDialog extends JDialog {
         this.checkupDate = checkupDate;
         this.imageFiles = new ArrayList<>();
         
-        // Initialize sample data for demonstration
+        // Initialize sample data for demonstration (will be overwritten by network response)
         initializeSampleData();
         
         initializeDialog(parent);
         setupUI();
         loadImagesForCheckup();
         updatePrescriptionTree();
+        
+        // Fetch real data from server
+        fetchOrderInformation();
     }
     
     private void initializeSampleData() {
@@ -96,6 +105,39 @@ public class HistoryViewDialog extends JDialog {
         };
     }
     
+    private void fetchOrderInformation() {
+        try {
+            orderInfoListener = new ResponseListener<>() {
+                @Override
+                public void onResponse(GetOrderInfoByCheckupRes response) {
+                    SwingUtilities.invokeLater(() -> {
+                        try {
+                            setMedicinePrescription(response.getMedicinePrescription());
+                            setServicePrescription(response.getServicePrescription());
+                            log.info("Successfully updated history order tree for checkupId: {}", checkupId);
+                        } finally {
+                            // Remove listener after execution to prevent memory leaks
+                            if (orderInfoListener != null) {
+                                ClientHandler.deleteListener(GetOrderInfoByCheckupRes.class, orderInfoListener);
+                                orderInfoListener = null;
+                            }
+                        }
+                    });
+                }
+            };
+
+            ClientHandler.addResponseListener(GetOrderInfoByCheckupRes.class, orderInfoListener);
+            NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetOrderInfoByCheckupReq(this.checkupId));
+            log.info("Sent GetOrderInfoByCheckupReq for checkupId: {}", this.checkupId);
+        } catch (Exception e) {
+            log.error("Error sending GetOrderInfoByCheckupReq for checkupId: {}", this.checkupId, e);
+            if (orderInfoListener != null) {
+                ClientHandler.deleteListener(GetOrderInfoByCheckupRes.class, orderInfoListener);
+                orderInfoListener = null;
+            }
+        }
+    }
+    
     private void initializeDialog(Frame parent) {
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
         setSize(1200, 800);
@@ -115,6 +157,14 @@ public class HistoryViewDialog extends JDialog {
             public void windowDeiconified(WindowEvent e) {
                 if (parent != null && parent.getState() == Frame.ICONIFIED) {
                     parent.setState(Frame.NORMAL);
+                }
+            }
+
+            @Override
+            public void windowClosed(WindowEvent e) {
+                // Clean up listener when dialog is closed, just in case
+                if (orderInfoListener != null) {
+                    ClientHandler.deleteListener(GetOrderInfoByCheckupRes.class, orderInfoListener);
                 }
             }
         });
