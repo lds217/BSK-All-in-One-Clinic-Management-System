@@ -142,7 +142,7 @@ public class Client {
                                                         .addLast(new IdleStateHandler(60 * 30,
                                                                 0, 0, TimeUnit.SECONDS))
                                                         .addLast(new HttpClientCodec())
-                                                        .addLast(new HttpObjectAggregator(8192))
+                                                        .addLast(new HttpObjectAggregator(50 * 1024 * 1024))
                                                         .addLast(
                                                                 new WebSocketClientProtocolHandler(
                                                                         finalUri,
@@ -150,7 +150,7 @@ public class Client {
                                                                         null,
                                                                         true,
                                                                         new DefaultHttpHeaders(),
-                                                                        100000))
+                                                                        50 * 1024 * 1024))
                                                         .addLast("ws", ClientHandler.INSTANCE);
                                             }
                                         });

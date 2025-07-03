@@ -11,6 +11,7 @@ import java.awt.event.MouseEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -22,10 +23,13 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import javax.imageio.ImageIO;
+import javax.swing.text.rtf.RTFEditorKit;
 import lombok.extern.slf4j.Slf4j;
 import BsK.client.network.handler.ClientHandler;
 import BsK.client.network.handler.ResponseListener;
+import BsK.common.packet.req.GetImagesByCheckupIdReq;
 import BsK.common.packet.req.GetOrderInfoByCheckupReq;
+import BsK.common.packet.res.GetImagesByCheckupIdRes;
 import BsK.common.packet.res.GetOrderInfoByCheckupRes;
 import BsK.common.util.network.NetworkUtil;
 
@@ -38,6 +42,7 @@ public class HistoryViewDialog extends JDialog {
     private String checkupDate;
     private String content;
     private String suggestion;
+    private String diagnosis;
     private String conclusion;
     private String[][] medicinePrescription;
     private String[][] servicePrescription;
@@ -46,8 +51,9 @@ public class HistoryViewDialog extends JDialog {
     private JLabel imagePreviewLabel;
     private JPanel imageListPanel;
     private JScrollPane imageListScrollPane;
-    private JTextArea contentArea;
+    private JTextPane contentArea;
     private JTextArea suggestionArea;
+    private JTextArea diagnosisArea;
     private JTextArea conclusionArea;
     private JTree prescriptionTree;
     private DefaultTreeModel prescriptionTreeModel;
@@ -65,76 +71,67 @@ public class HistoryViewDialog extends JDialog {
     // Current selected image
     private BufferedImage currentSelectedImage;
     private List<File> imageFiles;
-    private ResponseListener<GetOrderInfoByCheckupRes> orderInfoListener;
+    private final ResponseListener<GetOrderInfoByCheckupRes> orderInfoListener = this::handleGetOrderInfoResponse;
+    private final ResponseListener<GetImagesByCheckupIdRes> imagesListener = this::handleGetImagesResponse;
     
-    public HistoryViewDialog(Frame parent, String checkupId, String patientName, String checkupDate) {
+    public HistoryViewDialog(Frame parent, String checkupId, String patientName, String checkupDate, String suggestion, String diagnosis, String conclusion, String notes) {
         super(parent, "Xem chi tiết lịch sử khám - " + patientName, true);
         this.checkupId = checkupId;
         this.patientName = patientName;
         this.checkupDate = checkupDate;
         this.imageFiles = new ArrayList<>();
         
-        // Initialize sample data for demonstration (will be overwritten by network response)
-        initializeSampleData();
+        // Set data from parameters
+        this.content = notes; // This is the RTF content
+        this.suggestion = suggestion;
+        this.diagnosis = diagnosis;
+        this.conclusion = conclusion;
         
         initializeDialog(parent);
         setupUI();
-        loadImagesForCheckup();
-        updatePrescriptionTree();
         
+        // Add listeners
+        ClientHandler.addResponseListener(GetOrderInfoByCheckupRes.class, orderInfoListener);
+        ClientHandler.addResponseListener(GetImagesByCheckupIdRes.class, imagesListener);
+
         // Fetch real data from server
         fetchOrderInformation();
-    }
-    
-    private void initializeSampleData() {
-        // Sample data - in real implementation, this would come from database
-        this.content = "Bệnh nhân có triệu chứng đau đầu, sốt nhẹ. Khám tổng quát không có bất thường đáng kể.";
-        this.suggestion = "Nghỉ ngơi đầy đủ, uống nhiều nước, theo dõi thêm 2-3 ngày.";
-        this.conclusion = "Cảm cúm thông thường, không có biến chứng.";
-        
-        // Sample medicine prescription
-        this.medicinePrescription = new String[][] {
-            {"1", "Paracetamol 500mg", "2", "viên", "1", "1", "1", "5000", "30000", "Uống sau ăn"},
-            {"2", "Vitamin C", "1", "lọ", "0", "1", "0", "15000", "15000", "Uống trước ăn"}
-        };
-        
-        // Sample service prescription
-        this.servicePrescription = new String[][] {
-            {"1", "Xét nghiệm máu", "1", "100000", "100000", "Xét nghiệm tổng quát"},
-            {"2", "Siêu âm", "1", "200000", "200000", "Siêu âm bụng"}
-        };
+        fetchCheckupImages();
     }
     
     private void fetchOrderInformation() {
         try {
-            orderInfoListener = new ResponseListener<>() {
-                @Override
-                public void onResponse(GetOrderInfoByCheckupRes response) {
-                    SwingUtilities.invokeLater(() -> {
-                        try {
-                            setMedicinePrescription(response.getMedicinePrescription());
-                            setServicePrescription(response.getServicePrescription());
-                            log.info("Successfully updated history order tree for checkupId: {}", checkupId);
-                        } finally {
-                            // Remove listener after execution to prevent memory leaks
-                            if (orderInfoListener != null) {
-                                ClientHandler.deleteListener(GetOrderInfoByCheckupRes.class, orderInfoListener);
-                                orderInfoListener = null;
-                            }
-                        }
-                    });
-                }
-            };
-
-            ClientHandler.addResponseListener(GetOrderInfoByCheckupRes.class, orderInfoListener);
             NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetOrderInfoByCheckupReq(this.checkupId));
             log.info("Sent GetOrderInfoByCheckupReq for checkupId: {}", this.checkupId);
         } catch (Exception e) {
             log.error("Error sending GetOrderInfoByCheckupReq for checkupId: {}", this.checkupId, e);
-            if (orderInfoListener != null) {
-                ClientHandler.deleteListener(GetOrderInfoByCheckupRes.class, orderInfoListener);
-                orderInfoListener = null;
-            }
+        }
+    }
+    
+    private void fetchCheckupImages() {
+        try {
+            NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetImagesByCheckupIdReq(this.checkupId));
+            log.info("Sent GetImagesByCheckupIdReq for checkupId: {}", this.checkupId);
+        } catch (Exception e) {
+            log.error("Error sending GetImagesByCheckupIdReq for checkupId: {}", this.checkupId, e);
+        }
+    }
+    
+    private void handleGetOrderInfoResponse(GetOrderInfoByCheckupRes response) {
+        SwingUtilities.invokeLater(() -> {
+            setMedicinePrescription(response.getMedicinePrescription());
+            setServicePrescription(response.getServicePrescription());
+            log.info("Successfully updated history order tree for checkupId: {}", checkupId);
+        });
+    }
+
+    private void handleGetImagesResponse(GetImagesByCheckupIdRes response) {
+        log.info("Client received GetImagesByCheckupIdRes for checkupId: {}. Image count: {}", 
+            response.getCheckupId(), response.getImageDatas() != null ? response.getImageDatas().size() : 0);
+        if (checkupId.equals(response.getCheckupId())) {
+            SwingUtilities.invokeLater(() -> {
+                updateImageList(response.getImageNames(), response.getImageDatas());
+            });
         }
     }
     
@@ -162,10 +159,9 @@ public class HistoryViewDialog extends JDialog {
 
             @Override
             public void windowClosed(WindowEvent e) {
-                // Clean up listener when dialog is closed, just in case
-                if (orderInfoListener != null) {
-                    ClientHandler.deleteListener(GetOrderInfoByCheckupRes.class, orderInfoListener);
-                }
+                // Clean up listeners when dialog is closed
+                ClientHandler.deleteListener(GetOrderInfoByCheckupRes.class, orderInfoListener);
+                ClientHandler.deleteListener(GetImagesByCheckupIdRes.class, imagesListener);
             }
         });
     }
@@ -376,18 +372,17 @@ public class HistoryViewDialog extends JDialog {
         tabbedPane.setFont(new Font("Arial", Font.BOLD, 12));
         
         // Content tab
-        contentArea = new JTextArea(content);
+        contentArea = new JTextPane();
         contentArea.setEditable(false);
-        contentArea.setLineWrap(true);
-        contentArea.setWrapStyleWord(true);
         contentArea.setFont(new Font("Arial", Font.PLAIN, 12));
         contentArea.setBackground(new Color(248, 249, 250));
         contentArea.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        setRtfContent(contentArea, this.content);
         JScrollPane contentScroll = new JScrollPane(contentArea);
         tabbedPane.addTab("Nội dung khám", contentScroll);
         
         // Suggestion tab
-        suggestionArea = new JTextArea(suggestion);
+        suggestionArea = new JTextArea(getDisplayableString(this.suggestion));
         suggestionArea.setEditable(false);
         suggestionArea.setLineWrap(true);
         suggestionArea.setWrapStyleWord(true);
@@ -397,8 +392,19 @@ public class HistoryViewDialog extends JDialog {
         JScrollPane suggestionScroll = new JScrollPane(suggestionArea);
         tabbedPane.addTab("Đề nghị", suggestionScroll);
         
+        // Diagnosis tab
+        diagnosisArea = new JTextArea(getDisplayableString(this.diagnosis));
+        diagnosisArea.setEditable(false);
+        diagnosisArea.setLineWrap(true);
+        diagnosisArea.setWrapStyleWord(true);
+        diagnosisArea.setFont(new Font("Arial", Font.PLAIN, 12));
+        diagnosisArea.setBackground(new Color(248, 249, 250));
+        diagnosisArea.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        JScrollPane diagnosisScroll = new JScrollPane(diagnosisArea);
+        tabbedPane.addTab("Chẩn đoán", diagnosisScroll);
+        
         // Conclusion tab
-        conclusionArea = new JTextArea(conclusion);
+        conclusionArea = new JTextArea(getDisplayableString(this.conclusion));
         conclusionArea.setEditable(false);
         conclusionArea.setLineWrap(true);
         conclusionArea.setWrapStyleWord(true);
@@ -468,32 +474,42 @@ public class HistoryViewDialog extends JDialog {
         return panel;
     }
     
-    private void loadImagesForCheckup() {
+    private void updateImageList(List<String> imageNames, List<byte[]> imageDatas) {
         SwingUtilities.invokeLater(() -> {
-            imageFiles.clear();
             imageListPanel.removeAll();
             
-            // Load images from checkup media directory
-            Path mediaPath = Paths.get(CHECKUP_MEDIA_BASE_DIR, checkupId);
-            
-            if (Files.exists(mediaPath) && Files.isDirectory(mediaPath)) {
-                try {
-                    Files.list(mediaPath)
-                         .filter(path -> isImageFile(path.toString()))
-                         .forEach(path -> {
-                             File imageFile = path.toFile();
-                             imageFiles.add(imageFile);
-                             
-                             // Create thumbnail button
-                             JButton thumbnailButton = createThumbnailButton(imageFile);
-                             imageListPanel.add(thumbnailButton);
-                         });
-                } catch (IOException e) {
-                    log.error("Error loading images for checkup {}", checkupId, e);
+            if (imageNames != null && !imageNames.isEmpty()) {
+                log.info("Populating image list with {} images for checkupId: {}", imageNames.size(), checkupId);
+                for (int i = 0; i < imageNames.size(); i++) {
+                    byte[] imageData = imageDatas.get(i);
+                    String imageName = imageNames.get(i);
+                    try {
+                        ByteArrayInputStream bais = new ByteArrayInputStream(imageData);
+                        BufferedImage image = ImageIO.read(bais);
+                        if (image != null) {
+                            JButton thumbnailButton = createThumbnailButton(image, imageName);
+                            imageListPanel.add(thumbnailButton);
+                        } else {
+                            log.warn("Failed to decode image data for '{}'. ImageIO.read returned null. Data length: {} bytes.", imageName, imageData.length);
+                        }
+                    } catch (IOException e) {
+                        log.error("Error decoding image data for {}", imageName, e);
+                    }
                 }
-            }
-            
-            if (imageFiles.isEmpty()) {
+                // Display the first image automatically
+                if (!imageDatas.isEmpty()) {
+                    try {
+                        ByteArrayInputStream bais = new ByteArrayInputStream(imageDatas.get(0));
+                        BufferedImage firstImage = ImageIO.read(bais);
+                        if (firstImage != null) {
+                             displayFullImage(firstImage, imageNames.get(0));
+                        }
+                    } catch (IOException e) {
+                        log.error("Error decoding first image", e);
+                    }
+                }
+            } else {
+                log.info("No images found for checkupId: {}. Displaying 'No images' label.", checkupId);
                 JLabel noImagesLabel = new JLabel("Không có hình ảnh nào");
                 noImagesLabel.setFont(new Font("Arial", Font.ITALIC, 12));
                 noImagesLabel.setForeground(Color.GRAY);
@@ -505,26 +521,22 @@ public class HistoryViewDialog extends JDialog {
         });
     }
     
-    private JButton createThumbnailButton(File imageFile) {
+    private JButton createThumbnailButton(BufferedImage image, String imageName) {
         JButton button = new JButton();
         button.setPreferredSize(new Dimension(THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT));
         button.setBorder(BorderFactory.createRaisedBevelBorder());
         button.setFocusPainted(false);
         button.setCursor(new Cursor(Cursor.HAND_CURSOR));
         
-        try {
-            BufferedImage originalImage = ImageIO.read(imageFile);
-            if (originalImage != null) {
-                Image scaledImage = originalImage.getScaledInstance(
-                    THUMBNAIL_WIDTH - 4, THUMBNAIL_HEIGHT - 4, Image.SCALE_SMOOTH);
-                button.setIcon(new ImageIcon(scaledImage));
-                
-                // Add click listener to show full image
-                button.addActionListener(e -> displayFullImage(originalImage, imageFile.getName()));
-            }
-        } catch (IOException e) {
-            log.error("Error creating thumbnail for image {}", imageFile.getName(), e);
-            button.setText("Error");
+        if (image != null) {
+            Image scaledImage = image.getScaledInstance(
+                THUMBNAIL_WIDTH - 4, THUMBNAIL_HEIGHT - 4, Image.SCALE_SMOOTH);
+            button.setIcon(new ImageIcon(scaledImage));
+            
+            // Add click listener to show full image
+            button.addActionListener(e -> displayFullImage(image, imageName));
+        } else {
+             button.setText("Error");
         }
         
         // Add hover effects
@@ -545,23 +557,25 @@ public class HistoryViewDialog extends JDialog {
     
     private void displayFullImage(BufferedImage image, String imageName) {
         currentSelectedImage = image;
-        
-        // Calculate the best fit for the preview area
-        Dimension previewSize = imagePreviewLabel.getSize();
-        if (previewSize.width <= 0 || previewSize.height <= 0) {
-            previewSize = new Dimension(400, 300); // Default size
-        }
-        
+
+        // Calculate the best fit for the preview area.
+        // Use the container's size (the JScrollPane's viewport) instead of the label's own size
+        // to avoid a feedback loop where the scaled image size influences the next scaling operation.
+        Container previewContainer = imagePreviewLabel.getParent();
+        Dimension previewSize = (previewContainer != null && previewContainer.getWidth() > 0)
+            ? previewContainer.getSize()
+            : new Dimension(400, 300); // Fallback size
+
         double scaleX = (double) previewSize.width / image.getWidth();
         double scaleY = (double) previewSize.height / image.getHeight();
         double scale = Math.min(scaleX, scaleY);
-        
+
         int scaledWidth = (int) (image.getWidth() * scale);
         int scaledHeight = (int) (image.getHeight() * scale);
-        
+
         Image scaledImage = image.getScaledInstance(scaledWidth, scaledHeight, Image.SCALE_SMOOTH);
         ImageIcon icon = new ImageIcon(scaledImage);
-        
+
         imagePreviewLabel.setText(""); // Clear text
         imagePreviewLabel.setIcon(icon);
         imagePreviewLabel.setToolTipText("Hình ảnh: " + imageName + " (" + image.getWidth() + "x" + image.getHeight() + ")");
@@ -670,21 +684,28 @@ public class HistoryViewDialog extends JDialog {
     public void setContent(String content) {
         this.content = content;
         if (contentArea != null) {
-            contentArea.setText(content);
+            setRtfContent(contentArea, content);
         }
     }
     
     public void setSuggestion(String suggestion) {
         this.suggestion = suggestion;
         if (suggestionArea != null) {
-            suggestionArea.setText(suggestion);
+            suggestionArea.setText(getDisplayableString(suggestion));
+        }
+    }
+    
+    public void setDiagnosis(String diagnosis) {
+        this.diagnosis = diagnosis;
+        if (diagnosisArea != null) {
+            diagnosisArea.setText(getDisplayableString(diagnosis));
         }
     }
     
     public void setConclusion(String conclusion) {
         this.conclusion = conclusion;
         if (conclusionArea != null) {
-            conclusionArea.setText(conclusion);
+            conclusionArea.setText(getDisplayableString(conclusion));
         }
     }
     
@@ -696,5 +717,30 @@ public class HistoryViewDialog extends JDialog {
     public void setServicePrescription(String[][] servicePrescription) {
         this.servicePrescription = servicePrescription;
         updatePrescriptionTree();
+    }
+    
+    private void setRtfContent(JTextPane textPane, String rtfContent) {
+        textPane.setContentType("text/rtf");
+        // Check for null, empty, or placeholder RTF content
+        if (rtfContent == null || rtfContent.isBlank() || rtfContent.contains("\\cf0 null\\par")) {
+            rtfContent = "{\\rtf1\\ansi\\deff0 {\\fonttbl{\\f0 Arial;}}\\fs24\\i\\cf1 Không có thông tin.\\par}"; // Italic "No information"
+        }
+        try {
+            // The RTF data from the database might be encoded in a specific way.
+            // Using a stream helps handle character encoding correctly.
+            textPane.getEditorKit().read(new java.io.ByteArrayInputStream(rtfContent.getBytes()), textPane.getDocument(), 0);
+        } catch (Exception e) {
+            log.error("Failed to set RTF content for checkupId {}", checkupId, e);
+            // Fallback to plain text if RTF parsing fails
+            textPane.setContentType("text/plain");
+            textPane.setText("Không thể hiển thị nội dung chi tiết (lỗi định dạng).");
+        }
+    }
+    
+    private String getDisplayableString(String input) {
+        if (input == null || input.isBlank() || "null".equalsIgnoreCase(input.trim())) {
+            return "Không có thông tin";
+        }
+        return input;
     }
 } 

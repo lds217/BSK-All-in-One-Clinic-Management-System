@@ -11,6 +11,7 @@ import BsK.server.Server;
 import BsK.server.ServerDashboard;
 import BsK.server.network.manager.SessionManager;
 import BsK.server.network.util.UserUtil;
+import BsK.server.network.entity.User;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
@@ -33,6 +34,7 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -48,6 +50,7 @@ import static BsK.server.Server.statement;
 public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFrame> {
 
   private static final String IMAGE_DB_PATH = "img_db";
+  private static final String CHECKUP_MEDIA_BASE_DIR = "src/main/resources/image/checkup_media";
 
   @Override
   protected void channelRead0(ChannelHandlerContext ctx, TextWebSocketFrame frame) {
@@ -276,7 +279,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         
         String sql = """
             SELECT
-                C.checkup_date, C.checkup_id, C.suggestion, C.diagnosis, C.prescription_id, C.notes
+                C.checkup_date, C.checkup_id, C.suggestion, C.diagnosis, C.prescription_id, C.notes, C.checkup_type, C.conclusion
             FROM Checkup C
             WHERE C.status = ? AND C.customer_id = ?
             ORDER BY C.checkup_date DESC
@@ -294,7 +297,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                 } else {
                     ArrayList<String[]> resultList = new ArrayList<>();
                     while (rs.next()) {
-                        String[] historyEntry = new String[6];
+                        String[] historyEntry = new String[8];
                         
                         String checkupDateStr = rs.getString("checkup_date");
                         try {
@@ -312,13 +315,15 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                         historyEntry[3] = rs.getString("diagnosis");
                         historyEntry[4] = rs.getString("prescription_id");
                         historyEntry[5] = rs.getString("notes");
-                        
+                        historyEntry[6] = rs.getString("checkup_type");
+                        historyEntry[7] = rs.getString("conclusion");
+
                         resultList.add(historyEntry);
                     }
 
                     String[][] resultArray = resultList.toArray(new String[0][]);
                     UserUtil.sendPacket(currentUser.getSessionId(), new GetPatientHistoryResponse(resultArray));
-                    log.info("Sent patient history for patientId: {}", getPatientHistoryRequest.getPatientId());
+                    log.info("Sent patient history for patientId: {} the content: {}", getPatientHistoryRequest.getPatientId(), resultArray);
                 }
             }
         } catch (SQLException e) {
@@ -1148,12 +1153,12 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         }
       }
 
-      if (packet instanceof UploadCheckupImageRequest request) {
-        log.info("Received UploadCheckupImageRequest for checkupId: {}", request.getCheckupId());
+      if (packet instanceof UploadCheckupImageRequest uploadCheckupImageRequest) {
+        log.info("Received UploadCheckupImageRequest for checkupId: {}", uploadCheckupImageRequest.getCheckupId());
 
-        String checkupId = request.getCheckupId();
-        String fileName = request.getFileName();
-        byte[] imageData = request.getImageData();
+        String checkupId = uploadCheckupImageRequest.getCheckupId();
+        String fileName = uploadCheckupImageRequest.getFileName();
+        byte[] imageData = uploadCheckupImageRequest.getImageData();
 
         if (checkupId == null || checkupId.trim().isEmpty()) {
             UserUtil.sendPacket(currentUser.getSessionId(), new UploadCheckupImageResponse(false, "CheckupID is null or empty. Cannot save image.", fileName));
@@ -1184,6 +1189,43 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
             UserUtil.sendPacket(currentUser.getSessionId(), new UploadCheckupImageResponse(false, "Server failed to save image: " + e.getMessage(), fileName));
         }
       }
+
+      if (packet instanceof GetImagesByCheckupIdReq getImagesByCheckupIdReq) {
+        String checkupId = getImagesByCheckupIdReq.getCheckupId();
+        log.info("Received GetImagesByCheckupIdReq for checkupId: {}", checkupId);
+
+        List<String> imageNames = new ArrayList<>();
+        List<byte[]> imageDatas = new ArrayList<>();
+
+        Path checkupDir = Paths.get(IMAGE_DB_PATH, checkupId);
+        if (Files.exists(checkupDir) && Files.isDirectory(checkupDir)) {
+            try {
+                List<Path> imagePaths = Files.list(checkupDir)
+                    .filter(path -> {
+                        String filename = path.toString().toLowerCase();
+                        return filename.endsWith(".jpg") || filename.endsWith(".jpeg") || filename.endsWith(".png") || filename.endsWith(".gif") || filename.endsWith(".bmp");
+                    })
+                    .collect(Collectors.toList());
+
+                for (Path imagePath : imagePaths) {
+                    try {
+                        imageDatas.add(Files.readAllBytes(imagePath));
+                        imageNames.add(imagePath.getFileName().toString());
+                    } catch (IOException e) {
+                        log.error("Failed to read image file: {}", imagePath, e);
+                    }
+                }
+            } catch (IOException e) {
+                log.error("Failed to list images for checkupId: {}", checkupId, e);
+            }
+        } else {
+            log.warn("Image directory not found for checkupId: {}", checkupId);
+        }
+
+        UserUtil.sendPacket(currentUser.getSessionId(), new GetImagesByCheckupIdRes(checkupId, imageNames, imageDatas));
+        log.info("Sent {} images for checkupId: {}", imageDatas.size(), checkupId);
+      }
+      
     }
   }
 

@@ -60,16 +60,12 @@ public class ClientHandler extends SimpleChannelInboundHandler<TextWebSocketFram
 
     if (packet != null) {
       // Handle HandshakeCompleteResponse to initialize ctx and frame
-      if (packet instanceof HandshakeCompleteResponse handshakeResponse) {
+      if (packet instanceof HandshakeCompleteResponse) {
         log.info("Handshake complete");
         ClientHandler.ctx = ctx;
         ClientHandler.frame = frame;
-
-        // If
-
         UIHandler.INSTANCE.showUI();
-        // When the handshake is complete, the UI is shown
-        return; // No further processing needed for handshake response
+        return; 
       }
 
       if (packet instanceof ClinicInfoResponse clinicInfoResponse) {
@@ -93,12 +89,7 @@ public class ClientHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         return;
       }
 
-      listeners.forEach((key, value) -> {
-        log.debug("Key: {}", key.getName());
-
-      });
-
-      // Process other packets
+      // Dispatch to registered listeners
       List<ResponseListener<?>> responseListeners = listeners.get(packet.getClass());
       if (responseListeners != null && !responseListeners.isEmpty()) {
         for (ResponseListener<?> listener : new ArrayList<>(responseListeners)) {

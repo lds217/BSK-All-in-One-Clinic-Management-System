@@ -1100,18 +1100,24 @@ public class CheckUpPage extends JPanel {
         historyTable.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
-                if (e.getClickCount() == 1) {
+                if (e.getClickCount() == 1) { // Single click is enough
                     int selectedRow = historyTable.getSelectedRow();
-                    if (selectedRow >= 0 && selectedRow < history.length) {
-                        // Get selected history data
+                    // Check if the row index is valid for our data array
+                    if (selectedRow >= 0 && history != null && selectedRow < history.length) {
                         String[] selectedHistory = history[selectedRow];
-                        if (selectedHistory.length > 1) {
-                            String checkupId = selectedHistory[1]; // Corrected: Index 1 is the checkup ID
+                        // Ensure the selected record has enough data fields
+                        if (selectedHistory != null && selectedHistory.length >= 8) {
+                            String checkupId = selectedHistory[1];
                             String patientName = customerFirstNameField.getText() + " " + customerLastNameField.getText();
-                            String checkupDate = selectedHistory[0]; // Corrected: Index 0 is the date
+                            String checkupDate = selectedHistory[0];
+                            String suggestion = selectedHistory[2];
+                            String diagnosis = selectedHistory[3];
+                            String notes = selectedHistory[5];
+                            String conclusion = selectedHistory[7];
                             
-                            // Open history view dialog
-                            openHistoryViewDialog(checkupId, patientName, checkupDate);
+                            openHistoryViewDialog(checkupId, patientName, checkupDate, suggestion, diagnosis, conclusion, notes);
+                        } else {
+                            log.warn("Selected history record has incomplete data. Length: {}", (selectedHistory != null ? selectedHistory.length : "null"));
                         }
                     }
                 }
@@ -1703,15 +1709,16 @@ public class CheckUpPage extends JPanel {
             String[][] tableData = new String[this.history.length][5];
             for (int i = 0; i < this.history.length; i++) {
                 if (this.history[i] != null && this.history[i].length >= 6) {
-                    tableData[i][0] = this.history[i][0]; // "Ngày Tháng" (Date)
-                    tableData[i][1] = this.history[i][1]; // "Mã khám bệnh" (ID)
-                    tableData[i][2] = this.history[i][2]; // "Triệu chứng" (Suggestion)
-                    tableData[i][3] = this.history[i][3]; // "Chẩn đoán" (Diagnosis)
-                    tableData[i][4] = this.history[i][5]; // "Ghi chú" (Notes) - was incorrectly showing prescription_id
+                    // 0: checkup_date, 1: checkup_id, 2: suggestion, 3: diagnosis, 4: prescription_id, 5: notes, 6: checkup_type, 7: conclusion
+                    // display 0, 1, 6, 7
+                    tableData[i][0] = this.history[i][0];
+                    tableData[i][1] = this.history[i][1];
+                    tableData[i][2] = this.history[i][6];
+                    tableData[i][3] = this.history[i][7];
                 }
             }
             
-            historyModel.setDataVector(tableData, new String[]{"Ngày Tháng","Mã khám bệnh", "Triệu chứng", "Chẩn đoán", "Ghi chú"});
+            historyModel.setDataVector(tableData, new String[]{"Ngày Tháng","Mã khám bệnh", "Loại khám", "Kết luận"});
         });
     }
 
@@ -2579,6 +2586,15 @@ public class CheckUpPage extends JPanel {
                         JLayeredPane layeredPane = new JLayeredPane();
                         layeredPane.setPreferredSize(new Dimension(THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT));
                         layeredPane.setBorder(BorderFactory.createLineBorder(Color.GRAY));
+                        layeredPane.setCursor(new Cursor(Cursor.HAND_CURSOR)); // Set the hand cursor
+
+                        // Add the click listener directly to the image label
+                        imageLabel.addMouseListener(new MouseAdapter() {
+                            @Override
+                            public void mouseClicked(MouseEvent e) {
+                                showFullImageDialog(imageFile);
+                            }
+                        });
 
                         // The label will fill the entire pane
                         imageLabel.setBounds(0, 0, THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT);
@@ -2620,6 +2636,50 @@ public class CheckUpPage extends JPanel {
         }
         imageGalleryPanel.revalidate();
         imageGalleryPanel.repaint();
+    }
+
+    private void showFullImageDialog(File imageFile) {
+        try {
+            BufferedImage fullImage = ImageIO.read(imageFile);
+            if (fullImage == null) {
+                JOptionPane.showMessageDialog(this, "Không thể tải hình ảnh.", "Lỗi", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+    
+            // Create a dialog to show the image
+            JDialog imageDialog = new JDialog(mainFrame, "Xem ảnh - " + imageFile.getName(), true);
+            imageDialog.setLayout(new BorderLayout());
+            
+            // Scale image to fit screen dimensions
+            Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
+            int maxWidth = (int) (screenSize.width * 0.9);
+            int maxHeight = (int) (screenSize.height * 0.9);
+    
+            int imgWidth = fullImage.getWidth();
+            int imgHeight = fullImage.getHeight();
+            
+            double scale = Math.min(1.0, Math.min((double) maxWidth / imgWidth, (double) maxHeight / imgHeight));
+            
+            int scaledWidth = (int) (imgWidth * scale);
+            int scaledHeight = (int) (imgHeight * scale);
+            
+            Image scaledImage = fullImage.getScaledInstance(scaledWidth, scaledHeight, Image.SCALE_SMOOTH);
+            JLabel imageLabel = new JLabel(new ImageIcon(scaledImage));
+            
+            // Add label to a scroll pane in case it's still large
+            JScrollPane scrollPane = new JScrollPane(imageLabel);
+            scrollPane.setBorder(BorderFactory.createEmptyBorder());
+            imageDialog.add(scrollPane, BorderLayout.CENTER);
+            
+            // Set dialog size and position
+            imageDialog.setSize(scaledWidth + 20, scaledHeight + 45); // Add padding for borders and title bar
+            imageDialog.setLocationRelativeTo(this);
+            imageDialog.setVisible(true);
+            
+        } catch (IOException e) {
+            log.error("Error opening full image view for {}", imageFile.getAbsolutePath(), e);
+            JOptionPane.showMessageDialog(this, "Lỗi khi mở ảnh: " + e.getMessage(), "Lỗi", JOptionPane.ERROR_MESSAGE);
+        }
     }
 
     private void ensureMediaDirectoryExists(String checkupId) {
@@ -3044,9 +3104,10 @@ public class CheckUpPage extends JPanel {
     /**
      * Opens the history view dialog for the selected checkup
      */
-    private void openHistoryViewDialog(String checkupId, String patientName, String checkupDate) {
+    private void openHistoryViewDialog(String checkupId, String patientName, String checkupDate, String suggestion, String diagnosis, String conclusion, String notes) {
         try {
-            HistoryViewDialog historyDialog = new HistoryViewDialog(mainFrame, checkupId, patientName, checkupDate);
+            // Pass all the necessary details to the dialog
+            HistoryViewDialog historyDialog = new HistoryViewDialog(mainFrame, checkupId, patientName, checkupDate, suggestion, diagnosis, conclusion, notes);
             historyDialog.setVisible(true);
         } catch (Exception e) {
             log.error("Error opening history view dialog", e);
@@ -3058,55 +3119,57 @@ public class CheckUpPage extends JPanel {
     }
 
     private void clearPatientDetails() {
-        // Reset all fields to default values
-        checkupIdField.setText("");
-        customerLastNameField.setText("");
-        customerFirstNameField.setText("");
-        customerAddressField.setText("");
-        customerPhoneField.setText("");
-        customerIdField.setText("");
-        suggestionField.setText("");
-        diagnosisField.setText("");
-        conclusionField.setText("");
-        setRtfContentFromString("{\\rtf1\\ansi\\ansicpg1252\\deff0\\deflang1033{\\fonttbl{\\f0\\fnil\\fcharset163 Times New Roman;}}\\viewkind4\\uc1\\pard\\f0\\fs32\\par}"); // Clear notes
+        if (SwingUtilities.isEventDispatchThread()) {
+            // Reset all fields to default values
+            checkupIdField.setText("");
+            customerLastNameField.setText("");
+            customerFirstNameField.setText("");
+            customerAddressField.setText("");
+            customerPhoneField.setText("");
+            customerIdField.setText("");
+            suggestionField.setText("");
+            diagnosisField.setText("");
+            conclusionField.setText("");
+            setRtfContentFromString("{\\rtf1\\ansi\\ansicpg1252\\deff0\\deflang1033{\\fonttbl{\\f0\\fnil\\fcharset163 Times New Roman;}}\\viewkind4\\uc1\\pard\\f0\\fs32\\par}"); // Clear notes
 
-        if (doctorComboBox.getItemCount() > 0) doctorComboBox.setSelectedIndex(0);
-        statusComboBox.setSelectedIndex(0);
-        genderComboBox.setSelectedIndex(0);
-        if (provinceComboBox.getItemCount() > 0) provinceComboBox.setSelectedIndex(0);
-        // district and ward will be cleared by province selection listener
-        checkupTypeComboBox.setSelectedIndex(0);
-        if (templateComboBox.getItemCount() > 0) templateComboBox.setSelectedIndex(0);
+            if (doctorComboBox.getItemCount() > 0) doctorComboBox.setSelectedIndex(0);
+            statusComboBox.setSelectedIndex(0);
+            genderComboBox.setSelectedIndex(0);
+            if (provinceComboBox.getItemCount() > 0) provinceComboBox.setSelectedIndex(0);
+            // district and ward will be cleared by province selection listener
+            checkupTypeComboBox.setSelectedIndex(0);
+            if (templateComboBox.getItemCount() > 0) templateComboBox.setSelectedIndex(0);
 
-        customerWeightSpinner.setValue(0);
-        customerHeightSpinner.setValue(0);
+            customerWeightSpinner.setValue(0);
+            customerHeightSpinner.setValue(0);
 
-        datePicker.getModel().setValue(null);
-        dobPicker.getModel().setValue(null);
+            datePicker.getModel().setValue(null);
+            dobPicker.getModel().setValue(null);
 
-        medicinePrescription = new String[0][0];
-        servicePrescription = new String[0][0];
-        updatePrescriptionTree();
+            medicinePrescription = new String[0][0];
+            servicePrescription = new String[0][0];
+            updatePrescriptionTree();
 
-        historyModel.setRowCount(0); // Clear history table
+            historyModel.setRowCount(0); // Clear history table
 
-        // Disable all action buttons
-        for (Component comp : ((JPanel)((JPanel)rightContainer.getComponent(1))).getComponents()) {
-            if (comp instanceof JButton) {
-                comp.setEnabled(false);
+            // Disable all action buttons
+            for (Component comp : ((JPanel)((JPanel)rightContainer.getComponent(1))).getComponents()) {
+                if (comp instanceof JButton) {
+                    comp.setEnabled(false);
+                }
             }
-        }
 
-        // Clear media view
-        if (imageGalleryPanel != null) {
-            imageGalleryPanel.removeAll();
-            imageGalleryPanel.add(new JLabel("Chọn bệnh nhân để xem media."));
-            imageGalleryPanel.revalidate();
-            imageGalleryPanel.repaint();
-        }
+            // Clear media view
+            if (imageGalleryPanel != null) {
+                imageGalleryPanel.removeAll();
+                imageGalleryPanel.add(new JLabel("Chọn bệnh nhân để xem media."));
+                imageGalleryPanel.revalidate();
+                imageGalleryPanel.repaint();
+            }
 
-        selectedCheckupId = null;
-        saved = true; // No patient loaded, so it's in a "saved" state.
+            selectedCheckupId = null;
+            saved = true; // No patient loaded, so it's in a "saved" state.
+        }
     }
 }
 

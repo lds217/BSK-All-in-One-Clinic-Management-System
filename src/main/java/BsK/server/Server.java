@@ -134,8 +134,8 @@ public class Server {
                               .addLast(new IdleStateHandler(60 * 30, 0, 0, TimeUnit.SECONDS))
                               .addLast(new HttpServerCodec())
                               .addLast(new ChunkedWriteHandler())
-                              .addLast(new HttpObjectAggregator(8192))
-                              .addLast("ws", new WebSocketServerProtocolHandler("/", null, true, 1048576))
+                              .addLast(new HttpObjectAggregator(50 * 1024 * 1024))
+                              .addLast(new WebSocketServerProtocolHandler("/", null, true, 50 * 1024 * 1024))
                               .addLast(new ServerHandler());
                         }
                       });
