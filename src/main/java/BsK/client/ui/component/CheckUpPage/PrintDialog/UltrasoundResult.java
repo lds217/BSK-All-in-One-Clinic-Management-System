@@ -26,6 +26,17 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.rendering.PDFRenderer;
 
+// --- JasperReports Imports ---
+import net.sf.jasperreports.engine.JREmptyDataSource;
+import net.sf.jasperreports.engine.JasperCompileManager;
+import net.sf.jasperreports.engine.JasperFillManager;
+import net.sf.jasperreports.engine.JasperPrint;
+import net.sf.jasperreports.engine.JasperReport;
+import net.sf.jasperreports.engine.design.JasperDesign;
+import net.sf.jasperreports.engine.xml.JRXmlLoader;
+import net.sf.jasperreports.view.JasperViewer;
+// --- End JasperReports Imports ---
+
 import javax.imageio.ImageIO;
 import javax.swing.*;
 import javax.swing.text.rtf.RTFEditorKit;
@@ -39,6 +50,10 @@ import java.awt.print.PrinterException;
 import java.awt.print.PrinterJob;
 import java.io.*;
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.Locale;
+import net.sf.jasperreports.engine.JRParameter;
 
 @Slf4j
 public class UltrasoundResult {
@@ -77,6 +92,65 @@ public class UltrasoundResult {
         this.selectedImages = selectedImages;
         this.printType = printType;
         this.templateTitle = templateTitle;
+    }
+
+    public void showDirectJasperViewer() {
+        try {
+            Map<String, Object> parameters = new HashMap<>();
+
+            // Set locale for date/number formatting
+            parameters.put(JRParameter.REPORT_LOCALE, new Locale("vi", "VN"));
+            
+            // Populate all the string parameters
+            parameters.put("clinicName", LocalStorage.ClinicName != null ? LocalStorage.ClinicName : "Phòng khám BSK");
+            parameters.put("clinicAddress", LocalStorage.ClinicAddress != null ? LocalStorage.ClinicAddress : "Địa chỉ phòng khám");
+            parameters.put("clinicPhone", LocalStorage.ClinicPhone != null ? LocalStorage.ClinicPhone : "SĐT phòng khám");
+            parameters.put("patientName", this.patientName);
+            parameters.put("patientDOB", this.patientDOB);
+            parameters.put("patientGender", this.patientGender);
+            parameters.put("patientAddress", this.patientAddress);
+            parameters.put("doctorName", this.doctorName);
+            parameters.put("checkupDate", this.checkupDate);
+            parameters.put("barcodeNumber", this.checkupId);
+
+            // RTF and plain text content
+            parameters.put("checkupNote", this.rtfContent);
+            parameters.put("checkupConclusion", this.conclusion);
+            parameters.put("checkupSuggestion", this.suggestion);
+            parameters.put("reCheckupDate", "Tái khám theo lịch hẹn"); // Placeholder, adjust as needed
+
+            // Handle images
+            int numberOfImages = this.selectedImages.size();
+            parameters.put("numberImage", numberOfImages);
+            
+            String projectDir = System.getProperty("user.dir");
+            parameters.put("logoImage", projectDir + "/src/main/java/BsK/client/ui/assets/icon/logo.jpg");
+
+            for (int i = 0; i < 6; i++) {
+                if (i < numberOfImages) {
+                    parameters.put("image" + (i + 1), this.selectedImages.get(i).getAbsolutePath());
+                } else {
+                    parameters.put("image" + (i + 1), null); // Pass null for unused image slots
+                }
+            }
+
+            // Load and compile the report
+            String jrxmlPath = projectDir + "/src/main/java/BsK/client/ui/component/CheckUpPage/PrintDialog/print_forms/ultrasoundresult.jrxml";
+            InputStream inputStream = new FileInputStream(new File(jrxmlPath));
+
+            JasperDesign jasperDesign = JRXmlLoader.load(inputStream);
+            JasperReport jasperReport = JasperCompileManager.compileReport(jasperDesign);
+
+            // Fill the report
+            JasperPrint jasperPrint = JasperFillManager.fillReport(jasperReport, parameters, new JREmptyDataSource());
+
+            // View the report
+            JasperViewer.viewReport(jasperPrint, false);
+
+        } catch (Exception e) {
+            log.error("Error generating or showing JasperReport for Ultrasound", e);
+            JOptionPane.showMessageDialog(null, "Lỗi khi tạo báo cáo siêu âm: " + e.getMessage(), "Lỗi JasperReport", JOptionPane.ERROR_MESSAGE);
+        }
     }
 
     public void createDialog(JFrame parent) {

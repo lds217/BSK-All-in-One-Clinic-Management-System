@@ -1373,7 +1373,7 @@ public class CheckUpPage extends JPanel {
                     return;
                 }
 
-                UltrasoundResult ultrasoundDialog = new UltrasoundResult(
+                UltrasoundResult ultrasoundResult = new UltrasoundResult(
                         checkupIdField.getText(),
                         customerLastNameField.getText() + " " + customerFirstNameField.getText(),
                         dobPicker.getJFormattedTextField().getText(),
@@ -1381,14 +1381,14 @@ public class CheckUpPage extends JPanel {
                         customerAddressField.getText() + ", " + (wardComboBox.getSelectedItem() != null ? wardComboBox.getSelectedItem().toString() : "") + ", " + (districtComboBox.getSelectedItem() != null ? districtComboBox.getSelectedItem().toString() : "") + ", " + (provinceComboBox.getSelectedItem() != null ? provinceComboBox.getSelectedItem().toString() : ""),
                         (String) doctorComboBox.getSelectedItem(),
                         datePicker.getJFormattedTextField().getText(),
-                        getRtfContentAsString(),
+                        TextUtils.scaleRtfFontSize(getRtfContentAsString()),
                         conclusionField.getText(),
                         suggestionField.getText(),
                         selectedImagesForPrint,
                         printType,
                         templateTitle
                 );
-                ultrasoundDialog.createDialog(mainFrame);
+                ultrasoundResult.showDirectJasperViewer();
                 break;
         }
     }
