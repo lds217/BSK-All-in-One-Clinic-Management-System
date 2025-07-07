@@ -57,6 +57,11 @@ public class test_print {
             parameters.put("serviceDS", serviceDS);
             parameters.put("supplementDS", supplementDS);
             
+            // Add boolean flags to control table visibility based on data presence
+            parameters.put("hasMedicines", !medicines.isEmpty());
+            parameters.put("hasServices", !services.isEmpty());
+            parameters.put("hasSupplements", !supplements.isEmpty());
+
             // Set locale to Vietnamese for number formatting
             parameters.put(JRParameter.REPORT_LOCALE, new Locale("vi", "VN"));
 

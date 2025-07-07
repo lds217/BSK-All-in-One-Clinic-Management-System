@@ -35,6 +35,7 @@ import net.sf.jasperreports.engine.JasperReport;
 import net.sf.jasperreports.engine.design.JasperDesign;
 import net.sf.jasperreports.engine.xml.JRXmlLoader;
 import net.sf.jasperreports.view.JasperViewer;
+import net.sf.jasperreports.engine.JasperPrintManager;
 // --- End JasperReports Imports ---
 
 import javax.imageio.ImageIO;
@@ -54,6 +55,9 @@ import java.util.Map;
 import java.util.HashMap;
 import java.util.Locale;
 import net.sf.jasperreports.engine.JRParameter;
+import net.sf.jasperreports.engine.JRException;
+import java.util.ArrayList;
+import org.slf4j.LoggerFactory;
 
 @Slf4j
 public class UltrasoundResult {
@@ -79,23 +83,51 @@ public class UltrasoundResult {
                             String patientAddress, String doctorName, String checkupDate,
                             String rtfContent, String conclusion, String suggestion,
                             List<File> selectedImages, String printType, String templateTitle) {
-        this.checkupId = checkupId;
-        this.patientName = patientName;
-        this.patientDOB = patientDOB;
-        this.patientGender = patientGender;
-        this.patientAddress = patientAddress;
-        this.doctorName = doctorName;
-        this.checkupDate = checkupDate;
-        this.rtfContent = rtfContent;
-        this.conclusion = conclusion;
-        this.suggestion = suggestion;
-        this.selectedImages = selectedImages;
-        this.printType = printType;
-        this.templateTitle = templateTitle;
+
+        // Defensive null checks to prevent JasperReports from crashing on null parameters
+        this.checkupId = checkupId != null ? checkupId : "";
+        this.patientName = patientName != null ? patientName : "";
+        this.patientDOB = patientDOB != null ? patientDOB : "";
+        this.patientGender = patientGender != null ? patientGender : "";
+        this.patientAddress = patientAddress != null ? patientAddress : "";
+        this.doctorName = doctorName != null ? doctorName : "";
+        this.checkupDate = checkupDate != null ? checkupDate : "";
+        this.rtfContent = rtfContent != null ? rtfContent : "";
+        this.conclusion = conclusion != null ? conclusion : "";
+        this.suggestion = suggestion != null ? suggestion : "";
+        this.selectedImages = selectedImages != null ? selectedImages : new ArrayList<>();
+        this.printType = printType != null ? printType : "";
+        this.templateTitle = templateTitle != null ? templateTitle : "";
     }
 
     public void showDirectJasperViewer() {
         try {
+            JasperPrint jasperPrint = createJasperPrint();
+            if (jasperPrint != null) {
+                JasperViewer.viewReport(jasperPrint, false);
+            }
+        } catch (Exception e) {
+            log.error("Error displaying JasperViewer for Ultrasound Result", e);
+            JOptionPane.showMessageDialog(null, "Không thể hiển thị bản xem trước: " + e.getMessage(), "Lỗi Jasper", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    public void printDirectly() {
+        try {
+            JasperPrint jasperPrint = createJasperPrint();
+            if (jasperPrint != null) {
+                // The 'false' argument means no print dialog will be shown.
+                JasperPrintManager.printReport(jasperPrint, false);
+            }
+        } catch (Exception e) {
+            log.error("Error printing report directly for Ultrasound Result", e);
+            JOptionPane.showMessageDialog(null, "Không thể in trực tiếp: " + e.getMessage(), "Lỗi In", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    public JasperPrint createJasperPrint() throws JRException, IOException {
+        String jrxmlPath = System.getProperty("user.dir") + "/src/main/java/BsK/client/ui/component/CheckUpPage/PrintDialog/print_forms/ultrasoundresult.jrxml";
+        try (InputStream inputStream = new FileInputStream(new File(jrxmlPath))) {
             Map<String, Object> parameters = new HashMap<>();
 
             // Set locale for date/number formatting
@@ -135,21 +167,13 @@ public class UltrasoundResult {
             }
 
             // Load and compile the report
-            String jrxmlPath = projectDir + "/src/main/java/BsK/client/ui/component/CheckUpPage/PrintDialog/print_forms/ultrasoundresult.jrxml";
-            InputStream inputStream = new FileInputStream(new File(jrxmlPath));
-
             JasperDesign jasperDesign = JRXmlLoader.load(inputStream);
             JasperReport jasperReport = JasperCompileManager.compileReport(jasperDesign);
 
             // Fill the report
             JasperPrint jasperPrint = JasperFillManager.fillReport(jasperReport, parameters, new JREmptyDataSource());
 
-            // View the report
-            JasperViewer.viewReport(jasperPrint, false);
-
-        } catch (Exception e) {
-            log.error("Error generating or showing JasperReport for Ultrasound", e);
-            JOptionPane.showMessageDialog(null, "Lỗi khi tạo báo cáo siêu âm: " + e.getMessage(), "Lỗi JasperReport", JOptionPane.ERROR_MESSAGE);
+            return jasperPrint;
         }
     }
 
@@ -637,6 +661,4 @@ public class UltrasoundResult {
         signatureTable.addCell(new Cell().add(signParagraph).setBorder(Border.NO_BORDER));
         return signatureTable;
     }
-
-
 } 

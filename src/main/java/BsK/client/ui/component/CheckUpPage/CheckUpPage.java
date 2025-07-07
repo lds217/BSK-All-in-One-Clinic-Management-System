@@ -104,6 +104,13 @@ import java.io.ByteArrayInputStream;
 import java.io.OutputStream;
 import java.io.InputStream;
 
+// --- JasperReports Imports ---
+import net.sf.jasperreports.engine.JasperPrint;
+import net.sf.jasperreports.engine.JasperPrintManager;
+import net.sf.jasperreports.engine.JRException;
+import net.sf.jasperreports.view.JasperViewer;
+// --- End JasperReports Imports ---
+
 // Add new imports
 import BsK.common.entity.PatientHistory;
 import BsK.common.packet.req.GetPatientHistoryRequest;
@@ -155,6 +162,9 @@ public class CheckUpPage extends JPanel {
     private JLabel callingStatusLabel;
     private JPanel rightContainer; // Add this field
     private List<Template> allTemplates;
+    private JButton openQueueButton;
+    private JButton addPatientButton;
+    private JButton[] actionButtons;
 
     private QueueViewPage tvQueueFrame;
     private QueueManagementPage queueManagementPage; // The new queue window
@@ -335,7 +345,7 @@ public class CheckUpPage extends JPanel {
         controlPanel.setBorder(BorderFactory.createEmptyBorder(3, 5, 3, 5)); // Reduced top/bottom from 5 to 3
         controlPanel.setBackground(Color.WHITE);
 
-        JButton openQueueButton = new JButton("Danh sách chờ");
+        openQueueButton = new JButton("<html>Danh sách chờ <font color='red'><b>(F1)</b></font></html>");
         openQueueButton.setBackground(new Color(255, 152, 0)); // Amber
         openQueueButton.setForeground(Color.WHITE);
         openQueueButton.setFocusPainted(false);
@@ -363,7 +373,7 @@ public class CheckUpPage extends JPanel {
             tvQueueFrame.setVisible(true);
         });
 
-        JButton addPatientButton = new JButton("  THÊM BN  ");
+        addPatientButton = new JButton("<html>THÊM BN <font color='red'><b>(F2)</b></font></html>");
         addPatientButton.setBackground(new Color(63, 81, 181));
         addPatientButton.setForeground(Color.WHITE);
         addPatientButton.setFocusPainted(false);
@@ -914,17 +924,18 @@ public class CheckUpPage extends JPanel {
         underlineButton.setFocusPainted(false);
         underlineButton.setToolTipText("Gạch chân (Ctrl+U)");
 
-        // Font size buttons
-        String[] sizes = {"12", "14", "16", "18", "20"};
-        JComboBox<String> sizeComboBox = new JComboBox<>(sizes);
-        sizeComboBox.setSelectedItem("16");
-        sizeComboBox.setFont(new Font("Arial", Font.PLAIN, 14));
-        sizeComboBox.setToolTipText("Cỡ chữ");
-        sizeComboBox.addActionListener(e -> {
-            String size = (String) sizeComboBox.getSelectedItem();
-            if (size != null) {
+        // Font family selector
+        String[] fontFamilies = {"Arial", "Times New Roman", "Verdana", "Courier New", "Tahoma", "Calibri"};
+        JComboBox<String> fontFamilyComboBox = new JComboBox<>(fontFamilies);
+        fontFamilyComboBox.setSelectedItem("Times New Roman"); // Match default font of notesField
+        fontFamilyComboBox.setFont(new Font("Arial", Font.PLAIN, 14));
+        fontFamilyComboBox.setToolTipText("Phông chữ");
+        fontFamilyComboBox.setPreferredSize(new Dimension(140, 25));
+        fontFamilyComboBox.addActionListener(e -> {
+            String fontFamily = (String) fontFamilyComboBox.getSelectedItem();
+            if (fontFamily != null) {
                 MutableAttributeSet attr = new SimpleAttributeSet();
-                StyleConstants.setFontSize(attr, Integer.parseInt(size));
+                StyleConstants.setFontFamily(attr, fontFamily);
                 notesField.getStyledDocument().setCharacterAttributes(
                     notesField.getSelectionStart(),
                     notesField.getSelectionEnd() - notesField.getSelectionStart(),
@@ -932,16 +943,21 @@ public class CheckUpPage extends JPanel {
             }
         });
 
-        // Add buttons to toolbar with separators and styling
-        notesToolbar.add(Box.createHorizontalStrut(5));
-        notesToolbar.add(sizeComboBox);
-        notesToolbar.addSeparator(new Dimension(10, 0));
-        notesToolbar.add(boldButton);
-        notesToolbar.addSeparator(new Dimension(5, 0));
-        notesToolbar.add(italicButton);
-        notesToolbar.addSeparator(new Dimension(5, 0));
-        notesToolbar.add(underlineButton);
-        notesToolbar.addSeparator(new Dimension(5, 0));
+        // Font size spinner
+        SpinnerModel sizeModel = new SpinnerNumberModel(20, 8, 72, 2); // Default 20, min 8, max 72, step 2
+        JSpinner sizeSpinner = new JSpinner(sizeModel);
+        sizeSpinner.setFont(new Font("Arial", Font.PLAIN, 14));
+        sizeSpinner.setToolTipText("Cỡ chữ (Cỡ chữ JasperReport = giá trị / 2)");
+        sizeSpinner.setPreferredSize(new Dimension(60, 25));
+        sizeSpinner.addChangeListener(e -> {
+            int size = (int) sizeSpinner.getValue();
+            MutableAttributeSet attr = new SimpleAttributeSet();
+            StyleConstants.setFontSize(attr, size);
+            notesField.getStyledDocument().setCharacterAttributes(
+                notesField.getSelectionStart(),
+                notesField.getSelectionEnd() - notesField.getSelectionStart(),
+                attr, false);
+        });
 
         // Color chooser button
         JButton colorButton = new JButton("Màu");
@@ -956,8 +972,20 @@ public class CheckUpPage extends JPanel {
                 notesField.setCharacterAttributes(attr, false);
             }
         });
-        notesToolbar.add(colorButton);
 
+        // Add buttons to toolbar with separators and styling
+        notesToolbar.add(Box.createHorizontalStrut(5));
+        notesToolbar.add(fontFamilyComboBox);
+        notesToolbar.addSeparator(new Dimension(5, 0));
+        notesToolbar.add(sizeSpinner);
+        notesToolbar.addSeparator(new Dimension(10, 0));
+        notesToolbar.add(boldButton);
+        notesToolbar.addSeparator(new Dimension(5, 0));
+        notesToolbar.add(italicButton);
+        notesToolbar.addSeparator(new Dimension(5, 0));
+        notesToolbar.add(underlineButton);
+        notesToolbar.addSeparator(new Dimension(10, 0));
+        notesToolbar.add(colorButton);
         notesToolbar.add(Box.createHorizontalStrut(5));
 
         // Style the toolbar buttons
@@ -1196,21 +1224,22 @@ public class CheckUpPage extends JPanel {
         rightContainer.add(newRightSplitPane, BorderLayout.CENTER);
 
         // Create a more modern action panel
-        JPanel iconPanel = new JPanel(new GridLayout(1, 5, 10, 0)); // 5 buttons, 10px horizontal gap
+        JPanel iconPanel = new JPanel(new GridLayout(2, 3, 10, 10)); // 2x3 grid with 10px gaps
         iconPanel.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10)); // Reduced top/bottom from 10 to 5
         iconPanel.setBackground(Color.WHITE);
 
         // Define button properties
         Object[][] buttonData = {
-            {"save", "Lưu", new Color(63, 81, 181)},
             {"medicine", "Thêm thuốc", new Color(0, 150, 136)},
             {"service", "Thêm DV", new Color(255, 152, 0)},
-            {"printer", "In toa", new Color(156, 39, 176)},
-            {"ultrasound", "In kết quả", new Color(0, 172, 193)}
+            {"printer", "<html><center>In toa thuốc<br><font color='red'>(F7)</font></center></html>", new Color(156, 39, 176)},
+            {"save", "<html><center>Lưu<br><font color='red'>(F8)</font></center></html>", new Color(63, 81, 181)},
+            {"loupe", "<html><center>Lưu & Xem KQ<br><font color='red'>(F9)</font></center></html>", new Color(0, 172, 193)},
+            {"ultrasound", "<html><center>Lưu & In KQ<br><font color='red'>(F10)</font></center></html>", new Color(21, 101, 192)}
         };
 
         // Create array to store action buttons for later access
-        JButton[] actionButtons = new JButton[buttonData.length];
+        actionButtons = new JButton[buttonData.length];
 
         for (int i = 0; i < buttonData.length; i++) {
             String name = (String) buttonData[i][0];
@@ -1243,6 +1272,7 @@ public class CheckUpPage extends JPanel {
 
         // In the constructor, after creating notesField:
         setupNotesPasteHandler();
+        setupShortcuts();
     }
 
     private JButton createActionButton(String iconName, String text, Color bgColor) {
@@ -1315,20 +1345,8 @@ public class CheckUpPage extends JPanel {
                 }
 
                 String statusToSave = (String) statusComboBox.getSelectedItem();
-
                 handleSave();
-                
-                callingStatusLabel.setText("Đã lưu thành công!");
-                callingStatusLabel.setBackground(new Color(230, 255, 230));
-                callingStatusLabel.setForeground(new Color(0, 100, 0));
-                updateUpdateQueue();
-
-                // If patient is marked as "ĐÃ KHÁM", clear the selection and details immediately.
-                if ("ĐÃ KHÁM".equals(statusToSave)) {
-                    clearPatientDetails();
-                    // Visually update the queue table to remove the selection highlight.
-                    queueManagementPage.updateQueueTable(); 
-                }
+                afterSaveActions(statusToSave, "Đã lưu thành công!");
                 break;
             case "medicine":
                 medDialog = new MedicineDialog(mainFrame, this.medicinePrescription);
@@ -1359,7 +1377,8 @@ public class CheckUpPage extends JPanel {
                         ); 
                 medicineInvoice.showDirectJasperViewer(); // Use the direct JasperViewer method
                 break;
-            case "ultrasound":
+            case "ultrasound": // This case now handles "Lưu & In"
+                // Step 1: Validate conditions first.
                 if (selectedImagesForPrint.isEmpty()) {
                     JOptionPane.showMessageDialog(this,
                             "Vui lòng chọn ít nhất một hình ảnh để in kết quả.",
@@ -1373,7 +1392,8 @@ public class CheckUpPage extends JPanel {
                     return;
                 }
 
-                UltrasoundResult ultrasoundResult = new UltrasoundResult(
+                // Step 2: Attempt to create the report object BEFORE saving anything.
+                UltrasoundResult ultrasoundResultPrint = new UltrasoundResult(
                         checkupIdField.getText(),
                         customerLastNameField.getText() + " " + customerFirstNameField.getText(),
                         dobPicker.getJFormattedTextField().getText(),
@@ -1388,11 +1408,110 @@ public class CheckUpPage extends JPanel {
                         printType,
                         templateTitle
                 );
-                ultrasoundResult.showDirectJasperViewer();
+                
+                JasperPrint jasperPrintToPrint;
+                try {
+                    jasperPrintToPrint = ultrasoundResultPrint.createJasperPrint();
+                    if (jasperPrintToPrint == null) {
+                        throw new Exception("Báo cáo được tạo là null.");
+                    }
+                } catch (Exception ex) {
+                    log.error("Failed to create JasperPrint for printing", ex);
+                    JOptionPane.showMessageDialog(this, "Không thể tạo báo cáo để in: " + ex.getMessage(), "Lỗi Báo Cáo", JOptionPane.ERROR_MESSAGE);
+                    return; // HALT if report creation fails.
+                }
+
+                // Step 3: If report creation is successful, commit by saving and printing.
+                if ("ĐANG KHÁM".equals(statusComboBox.getSelectedItem())) {
+                    statusComboBox.setSelectedItem("ĐÃ KHÁM");
+                }
+                String statusToSavePrint = (String) statusComboBox.getSelectedItem();
+                handleSave();
+                afterSaveActions(statusToSavePrint, "Đã lưu. Đang gửi lệnh in...");
+
+                // Step 4: Finally, print using the pre-made object.
+                try {
+                    JasperPrintManager.printReport(jasperPrintToPrint, false);
+                } catch (JRException e) {
+                    log.error("Error printing report directly", e);
+                    JOptionPane.showMessageDialog(this, "Không thể in trực tiếp: " + e.getMessage(), "Lỗi In", JOptionPane.ERROR_MESSAGE);
+                }
+                break;
+            case "loupe": // This case now handles "Lưu & Xem"
+                // Step 1: Validate conditions first.
+                if (selectedImagesForPrint.isEmpty()) {
+                    JOptionPane.showMessageDialog(this,
+                            "Vui lòng chọn ít nhất một hình ảnh để xem kết quả.",
+                            "Chưa chọn ảnh", JOptionPane.WARNING_MESSAGE);
+                    return;
+                }
+                 if (photoNum != 0 && selectedImagesForPrint.size() > photoNum) {
+                    JOptionPane.showMessageDialog(this,
+                            "Số lượng ảnh đã chọn (" + selectedImagesForPrint.size() + ") nhiều hơn số lượng cho phép trong mẫu (" + photoNum + ").",
+                            "Quá nhiều ảnh", JOptionPane.WARNING_MESSAGE);
+                    return;
+                }
+
+                // Step 2: Attempt to create the report object BEFORE saving anything.
+                UltrasoundResult ultrasoundResultView = new UltrasoundResult(
+                        checkupIdField.getText(),
+                        customerLastNameField.getText() + " " + customerFirstNameField.getText(),
+                        dobPicker.getJFormattedTextField().getText(),
+                        (String) genderComboBox.getSelectedItem(),
+                        customerAddressField.getText() + ", " + (wardComboBox.getSelectedItem() != null ? wardComboBox.getSelectedItem().toString() : "") + ", " + (districtComboBox.getSelectedItem() != null ? districtComboBox.getSelectedItem().toString() : "") + ", " + (provinceComboBox.getSelectedItem() != null ? provinceComboBox.getSelectedItem().toString() : ""),
+                        (String) doctorComboBox.getSelectedItem(),
+                        datePicker.getJFormattedTextField().getText(),
+                        TextUtils.scaleRtfFontSize(getRtfContentAsString()),
+                        conclusionField.getText(),
+                        suggestionField.getText(),
+                        selectedImagesForPrint,
+                        printType,
+                        templateTitle
+                );
+
+                JasperPrint jasperPrintToView;
+                try {
+                    jasperPrintToView = ultrasoundResultView.createJasperPrint();
+                    if (jasperPrintToView == null) {
+                        throw new Exception("Báo cáo được tạo là null.");
+                    }
+                } catch (Exception ex) {
+                    log.error("Failed to create JasperPrint for viewing", ex);
+                    JOptionPane.showMessageDialog(this, "Không thể tạo báo cáo xem trước: " + ex.getMessage(), "Lỗi Báo Cáo", JOptionPane.ERROR_MESSAGE);
+                    return; // HALT if report creation fails.
+                }
+
+                // Step 3: If report creation is successful, commit by saving and showing the view.
+                // NO automatic status change for "Lưu & Xem"
+                String statusToSaveView = (String) statusComboBox.getSelectedItem();
+                handleSave();
+                afterSaveActions(statusToSaveView, "Đã lưu. Đang tạo bản xem trước...");
+
+                // Step 4: Finally, show the viewer with the pre-made object.
+                JasperViewer.viewReport(jasperPrintToView, false);
                 break;
         }
     }
     
+    /**
+     * Helper method to perform common actions after any save operation.
+     * @param statusToSave The patient status that was saved.
+     * @param message The message to display in the status label.
+     */
+    private void afterSaveActions(String statusToSave, String message) {
+        callingStatusLabel.setText(message);
+        callingStatusLabel.setBackground(new Color(230, 255, 230));
+        callingStatusLabel.setForeground(new Color(0, 100, 0));
+        updateUpdateQueue();
+
+        // If patient is marked as "ĐÃ KHÁM", clear the selection and details immediately.
+        if ("ĐÃ KHÁM".equals(statusToSave)) {
+            clearPatientDetails();
+            // Visually update the queue table to remove the selection highlight.
+            queueManagementPage.updateQueueTable();
+        }
+    }
+
     private void updatePrescriptionTree() {
         rootPrescriptionNode.removeAllChildren();
         double totalMedicineCost = 0;
@@ -1978,12 +2097,12 @@ public class CheckUpPage extends JPanel {
         JPanel buttonPanel = new JPanel(new GridLayout(1, 2, 5, 5));
         buttonPanel.setOpaque(false);
         
-        takePictureButton = new JButton("Chụp ảnh");
+        takePictureButton = new JButton("<html>Chụp ảnh <font color='red'><b>(F5)</b></font></html>");
         takePictureButton.setIcon(new ImageIcon("src/main/java/BsK/client/ui/assets/icon/camera.png"));
         takePictureButton.addActionListener(e -> handleTakePicture());
         takePictureButton.setEnabled(false);
         
-        recordVideoButton = new JButton("Quay video");
+        recordVideoButton = new JButton("<html>Quay video <font color='red'><b>(F6)</b></font></html>");
         recordVideoButton.setIcon(new ImageIcon("src/main/java/BsK/client/ui/assets/icon/video-camera.png"));
         recordVideoButton.addActionListener(e -> handleRecordVideo());
         recordVideoButton.setEnabled(false);
@@ -2441,7 +2560,7 @@ public class CheckUpPage extends JPanel {
                     recordingThread.setPriority(Thread.MAX_PRIORITY);
 
                     isRecording = true;
-                    recordVideoButton.setText("Dừng");
+                    recordVideoButton.setText("<html>Dừng <font color='red'><b>(F6)</b></font></html>");
                     recordVideoButton.setBackground(Color.RED);
                     recordingTimeLabel.setVisible(true);
                     recordingTimeLabel.setForeground(Color.RED);
@@ -2493,7 +2612,7 @@ public class CheckUpPage extends JPanel {
             frameConverter = null;
         }
 
-        recordVideoButton.setText("Quay video");
+        recordVideoButton.setText("<html>Quay video <font color='red'><b>(F6)</b></font></html>");
         recordVideoButton.setBackground(null);
         recordingTimeLabel.setVisible(false);
         recordingTimer.stop();
@@ -3170,6 +3289,105 @@ public class CheckUpPage extends JPanel {
             selectedCheckupId = null;
             saved = true; // No patient loaded, so it's in a "saved" state.
         }
+    }
+
+    /**
+     * Sets up keyboard shortcuts for the entire page.
+     */
+    private void setupShortcuts() {
+        InputMap inputMap = this.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW);
+        ActionMap actionMap = this.getActionMap();
+
+        // F1: Open Queue
+        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_F1, 0), "openQueue");
+        actionMap.put("openQueue", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (openQueueButton != null && openQueueButton.isEnabled()) {
+                    openQueueButton.doClick();
+                }
+            }
+        });
+
+        // F2: Add New Patient
+        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_F2, 0), "addPatient");
+        actionMap.put("addPatient", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (addPatientButton != null && addPatientButton.isEnabled()) {
+                    addPatientButton.doClick();
+                }
+            }
+        });
+
+        // F5: Take Picture
+        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_F5, 0), "takePicture");
+        actionMap.put("takePicture", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (takePictureButton != null && takePictureButton.isEnabled()) {
+                    takePictureButton.doClick();
+                }
+            }
+        });
+
+        // F6: Record Video
+        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_F6, 0), "recordVideo");
+        actionMap.put("recordVideo", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (recordVideoButton != null && recordVideoButton.isEnabled()) {
+                    recordVideoButton.doClick();
+                }
+            }
+        });
+
+        // F7: Print Invoice
+        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_F7, 0), "printInvoice");
+        actionMap.put("printInvoice", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (actionButtons[2] != null && actionButtons[2].isEnabled()) {
+                    handleActionPanelClick("printer");
+                }
+            }
+        });
+
+        // F8: Save
+        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_F8, 0), "saveAction");
+        actionMap.put("saveAction", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (actionButtons[3] != null && actionButtons[3].isEnabled()) {
+                    // Bypass confirmation dialog for shortcut
+                    String statusToSave = (String) statusComboBox.getSelectedItem();
+                    handleSave();
+                    afterSaveActions(statusToSave, "Đã lưu thành công (F8)");
+                }
+            }
+        });
+
+        // F9: Save and View
+        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_F9, 0), "saveAndView");
+        actionMap.put("saveAndView", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (actionButtons[4] != null && actionButtons[4].isEnabled()) {
+                    handleActionPanelClick("loupe");
+                }
+            }
+        });
+
+        // F10: Save and Print
+        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_F10, 0), "saveAndPrint");
+        actionMap.put("saveAndPrint", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (actionButtons[5] != null && actionButtons[5].isEnabled()) {
+                    handleActionPanelClick("ultrasound");
+                }
+            }
+        });
     }
 }
 

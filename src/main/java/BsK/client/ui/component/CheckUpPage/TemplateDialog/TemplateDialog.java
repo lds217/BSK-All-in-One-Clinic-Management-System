@@ -31,6 +31,9 @@ import BsK.client.network.handler.ClientHandler;
 import BsK.client.network.handler.ResponseListener;
 import java.io.StringReader;
 import java.util.List;
+import javax.swing.SpinnerModel;
+import javax.swing.SpinnerNumberModel;
+import javax.swing.JColorChooser;
 
 @Slf4j
 public class TemplateDialog extends JDialog {
@@ -348,18 +351,18 @@ public class TemplateDialog extends JDialog {
         contentToolbar.setBorder(BorderFactory.createEmptyBorder(3, 3, 3, 3));
         contentToolbar.setBackground(new Color(245, 245, 245));
 
-        // Font size combobox
-        String[] sizes = {"12", "14", "16", "18", "20", "24"};
-        JComboBox<String> sizeComboBox = new JComboBox<>(sizes);
-        sizeComboBox.setSelectedItem("16");
-        sizeComboBox.setFont(new Font("Arial", Font.PLAIN, 12));
-        sizeComboBox.setToolTipText("Cỡ chữ");
-        sizeComboBox.setPreferredSize(new Dimension(60, 25));
-        sizeComboBox.addActionListener(e -> {
-            String size = (String) sizeComboBox.getSelectedItem();
-            if (size != null) {
+        // Font family selector
+        String[] fontFamilies = {"Arial", "Times New Roman", "Verdana", "Courier New", "Tahoma", "Calibri"};
+        JComboBox<String> fontFamilyComboBox = new JComboBox<>(fontFamilies);
+        fontFamilyComboBox.setSelectedItem("Times New Roman");
+        fontFamilyComboBox.setFont(new Font("Arial", Font.PLAIN, 12));
+        fontFamilyComboBox.setToolTipText("Phông chữ");
+        fontFamilyComboBox.setPreferredSize(new Dimension(120, 25));
+        fontFamilyComboBox.addActionListener(e -> {
+            String fontFamily = (String) fontFamilyComboBox.getSelectedItem();
+            if (fontFamily != null) {
                 MutableAttributeSet attr = new SimpleAttributeSet();
-                StyleConstants.setFontSize(attr, Integer.parseInt(size));
+                StyleConstants.setFontFamily(attr, fontFamily);
                 contentRTFField.getStyledDocument().setCharacterAttributes(
                     contentRTFField.getSelectionStart(),
                     contentRTFField.getSelectionEnd() - contentRTFField.getSelectionStart(),
@@ -367,6 +370,22 @@ public class TemplateDialog extends JDialog {
             }
         });
 
+        // Font size spinner
+        SpinnerModel sizeModel = new SpinnerNumberModel(20, 8, 72, 2); // Default 20, min 8, max 72, step 2
+        JSpinner sizeSpinner = new JSpinner(sizeModel);
+        sizeSpinner.setFont(new Font("Arial", Font.PLAIN, 12));
+        sizeSpinner.setToolTipText("Cỡ chữ (Cỡ chữ JasperReport = giá trị / 2)");
+        sizeSpinner.setPreferredSize(new Dimension(60, 25));
+        sizeSpinner.addChangeListener(e -> {
+            int size = (int) sizeSpinner.getValue();
+            MutableAttributeSet attr = new SimpleAttributeSet();
+            StyleConstants.setFontSize(attr, size);
+            contentRTFField.getStyledDocument().setCharacterAttributes(
+                contentRTFField.getSelectionStart(),
+                contentRTFField.getSelectionEnd() - contentRTFField.getSelectionStart(),
+                attr, false);
+        });
+        
         // Style buttons
         JButton boldButton = new JButton(new StyledEditorKit.BoldAction());
         boldButton.setText("B");
@@ -406,7 +425,9 @@ public class TemplateDialog extends JDialog {
 
         // Add components to toolbar with spacing
         contentToolbar.add(Box.createHorizontalStrut(3));
-        contentToolbar.add(sizeComboBox);
+        contentToolbar.add(fontFamilyComboBox);
+        contentToolbar.addSeparator(new Dimension(5, 0));
+        contentToolbar.add(sizeSpinner);
         contentToolbar.addSeparator(new Dimension(8, 0));
         contentToolbar.add(boldButton);
         contentToolbar.addSeparator(new Dimension(3, 0));
