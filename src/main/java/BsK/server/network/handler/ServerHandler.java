@@ -110,7 +110,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
           ResultSet rs = statement.executeQuery(
                   "select a.checkup_id, a.checkup_date, c.customer_last_name, c.customer_first_name,\n" +
                           "d.doctor_first_name, d.doctor_last_name, a.suggestion, a.diagnosis, a.notes, a.status, a.customer_id, \n" +
-                          "c.customer_number, c.customer_address, c.customer_weight, c.customer_height, c.customer_gender, c.customer_dob, a.checkup_type, a.conclusion\n" +
+                          "c.customer_number, c.customer_address, c.customer_weight, c.customer_height, c.customer_gender, c.customer_dob, a.checkup_type, a.conclusion, a.reCheckupDate\n" +
                           "from checkup as a\n" +
                           "join customer as c on a.customer_id = c.customer_id\n" +
                           "join Doctor D on a.doctor_id = D.doctor_id\n" +
@@ -147,12 +147,12 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
               String customerDob = rs.getString("customer_dob");
               String checkupType = rs.getString("checkup_type");
               String conclusion = rs.getString("conclusion");
-
+              String reCheckupDate = rs.getString("reCheckupDate");
               String result = String.join("|", checkupId,
                       checkupDate, customerLastName, customerFirstName,
                       doctorLastName + " " + doctorFirstName, suggestion,
                       diagnosis, notes, status, customerId, customerNumber, customerAddress, customerWeight, customerHeight,
-                      customerGender, customerDob, checkupType, conclusion
+                      customerGender, customerDob, checkupType, conclusion, reCheckupDate
               );
 
               resultList.add(result);
@@ -177,7 +177,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
           ResultSet rs = statement.executeQuery(
                   "select a.checkup_id, a.checkup_date, c.customer_last_name, c.customer_first_name,\n" +
                           "d.doctor_first_name, d.doctor_last_name, a.suggestion, a.diagnosis, a.notes, a.status, a.customer_id, \n" +
-                          "c.customer_number, c.customer_address, c.customer_weight, c.customer_height, c.customer_gender, c.customer_dob, a.checkup_type, a.conclusion\n" +
+                          "c.customer_number, c.customer_address, c.customer_weight, c.customer_height, c.customer_gender, c.customer_dob, a.checkup_type, a.conclusion, a.reCheckupDate\n" +
                           "from checkup as a\n" +
                           "join customer as c on a.customer_id = c.customer_id\n" +
                           "join Doctor D on a.doctor_id = D.doctor_id\n" +
@@ -218,13 +218,13 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
               String customerDob = rs.getString("customer_dob");
               String checkupType = rs.getString("checkup_type");
               String conclusion = rs.getString("conclusion");
-
+              String reCheckupDate = rs.getString("reCheckupDate");
 
               String result = String.join("|", checkupId,
                       checkupDate, customerLastName, customerFirstName,
                       doctorLastName + " " + doctorFirstName, suggestion,
                       diagnosis, notes, status, customerId, customerNumber, customerAddress, customerWeight, customerHeight,
-                      customerGender, customerDob, checkupType, conclusion
+                      customerGender, customerDob, checkupType, conclusion, reCheckupDate
               );
 
               resultList.add(result);
@@ -279,10 +279,19 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         
         String sql = """
             SELECT
-                C.checkup_date, C.checkup_id, C.suggestion, C.diagnosis, C.prescription_id, C.notes, C.checkup_type, C.conclusion
-            FROM Checkup C
-            WHERE C.status = ? AND C.customer_id = ?
-            ORDER BY C.checkup_date DESC
+                C.checkup_date,
+                C.checkup_id,
+                C.suggestion,
+                C.diagnosis,
+                C.prescription_id,
+                C.notes,
+                C.checkup_type,
+                C.conclusion,
+                C.reCheckupDate,
+                D.doctor_last_name,
+                D.doctor_first_name
+            FROM Checkup C JOIN Doctor D ON C.doctor_id = D.doctor_id  WHERE C.status = ? AND C.customer_id = ?
+            ORDER BY C.checkup_date DESC;
         """;
 
         try (PreparedStatement historyStmt = Server.connection.prepareStatement(sql)) {
@@ -297,7 +306,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                 } else {
                     ArrayList<String[]> resultList = new ArrayList<>();
                     while (rs.next()) {
-                        String[] historyEntry = new String[8];
+                        String[] historyEntry = new String[11]; // Corrected size from 9 to 11
                         
                         String checkupDateStr = rs.getString("checkup_date");
                         try {
@@ -317,7 +326,9 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                         historyEntry[5] = rs.getString("notes");
                         historyEntry[6] = rs.getString("checkup_type");
                         historyEntry[7] = rs.getString("conclusion");
-
+                        historyEntry[8] = rs.getString("reCheckupDate");   
+                        historyEntry[9] = rs.getString("doctor_last_name");
+                        historyEntry[10] = rs.getString("doctor_first_name");
                         resultList.add(historyEntry);
                     }
 
@@ -755,8 +766,8 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
           String checkupSql = """
             INSERT INTO Checkup (
                 checkup_id, customer_id, doctor_id, checkup_date,
-                suggestion, diagnosis, prescription_id, notes, status, checkup_type, conclusion
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                suggestion, diagnosis, prescription_id, notes, status, checkup_type, conclusion, reCheckupDate
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(checkup_id) DO UPDATE SET
                 suggestion = excluded.suggestion,
                 diagnosis = excluded.diagnosis,
@@ -764,7 +775,8 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                 notes = excluded.notes,
                 status = excluded.status,
                 checkup_type = excluded.checkup_type,
-                conclusion = excluded.conclusion
+                conclusion = excluded.conclusion,
+                reCheckupDate = excluded.reCheckupDate
             """;
           
           PreparedStatement checkupStmt = conn.prepareStatement(checkupSql);
@@ -779,6 +791,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
           checkupStmt.setString(9, saveCheckupRequest.getStatus());
           checkupStmt.setString(10, saveCheckupRequest.getCheckupType());
           checkupStmt.setString(11, saveCheckupRequest.getConclusion());
+          checkupStmt.setString(12, saveCheckupRequest.getReCheckupDate());
           checkupStmt.executeUpdate();
           log.info("Prescription ID generated or edited: {}", prescriptionId);
           log.info("Checkup saved successfully");

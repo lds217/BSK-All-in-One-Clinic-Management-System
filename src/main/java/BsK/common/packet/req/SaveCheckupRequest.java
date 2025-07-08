@@ -27,6 +27,7 @@ public class SaveCheckupRequest implements Packet {
     private String status;
     private String checkupType;
     private String conclusion;  
+    private String reCheckupDate;
     private String[][] medicinePrescription; // Structure: [med_id, name, quantity, unit, dose_morning, dose_noon, dose_evening, unit_price, total_price, notes]
     private String[][] servicePrescription;  // Structure: [ser_id, name, quantity, unit_price, total_price, notes]
 } 

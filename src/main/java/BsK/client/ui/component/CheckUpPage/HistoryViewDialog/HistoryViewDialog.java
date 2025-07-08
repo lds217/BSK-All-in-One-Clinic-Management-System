@@ -44,6 +44,8 @@ public class HistoryViewDialog extends JDialog {
     private String suggestion;
     private String diagnosis;
     private String conclusion;
+    private String reCheckupDate;
+    private String doctorName;
     private String[][] medicinePrescription;
     private String[][] servicePrescription;
     
@@ -74,7 +76,7 @@ public class HistoryViewDialog extends JDialog {
     private final ResponseListener<GetOrderInfoByCheckupRes> orderInfoListener = this::handleGetOrderInfoResponse;
     private final ResponseListener<GetImagesByCheckupIdRes> imagesListener = this::handleGetImagesResponse;
     
-    public HistoryViewDialog(Frame parent, String checkupId, String patientName, String checkupDate, String suggestion, String diagnosis, String conclusion, String notes) {
+    public HistoryViewDialog(Frame parent, String checkupId, String patientName, String checkupDate, String suggestion, String diagnosis, String conclusion, String notes, String reCheckupDate, String doctorName) {
         super(parent, "Xem chi tiết lịch sử khám - " + patientName, true);
         this.checkupId = checkupId;
         this.patientName = patientName;
@@ -86,7 +88,8 @@ public class HistoryViewDialog extends JDialog {
         this.suggestion = suggestion;
         this.diagnosis = diagnosis;
         this.conclusion = conclusion;
-        
+        this.reCheckupDate = reCheckupDate;
+        this.doctorName = doctorName;
         initializeDialog(parent);
         setupUI();
         
@@ -239,6 +242,28 @@ public class HistoryViewDialog extends JDialog {
         checkupIdLabel.setFont(new Font("Arial", Font.PLAIN, 12));
         patientInfoPanel.add(checkupIdLabel, gbc);
         
+        gbc.gridy = 4;
+        gbc.gridx = 0;
+        JLabel doctorLabel = new JLabel("Bác sĩ khám:");
+        doctorLabel.setFont(new Font("Arial", Font.BOLD, 12));
+        patientInfoPanel.add(doctorLabel, gbc);
+
+        gbc.gridx = 1;
+        JLabel doctorNameLabel = new JLabel(getDisplayableString(this.doctorName));
+        doctorNameLabel.setFont(new Font("Arial", Font.PLAIN, 12));
+        patientInfoPanel.add(doctorNameLabel, gbc);
+
+        gbc.gridy = 5;
+        gbc.gridx = 0;
+        JLabel recheckupDateLabel = new JLabel("Ngày tái khám:");
+        recheckupDateLabel.setFont(new Font("Arial", Font.BOLD, 12));
+        patientInfoPanel.add(recheckupDateLabel, gbc);
+
+        gbc.gridx = 1;
+        JLabel recheckupValueLabel = new JLabel(getDisplayableString(this.reCheckupDate));
+        recheckupValueLabel.setFont(new Font("Arial", Font.PLAIN, 12));
+        patientInfoPanel.add(recheckupValueLabel, gbc);
+
         headerPanel.add(patientInfoPanel, BorderLayout.WEST);
         
         // Right side - Close button

@@ -25,6 +25,7 @@ public class Patient {
     private String customerDob;
     private String checkupType;
     private String conclusion;
+    private String reCheckupDate;
 
     public Patient(String[][] array) {
         this.checkupId = array[0][0];
@@ -45,12 +46,13 @@ public class Patient {
         this.customerDob = array[0][15];
         this.checkupType = array[0][16];
         this.conclusion = array[0][17];
+        this.reCheckupDate = array[0][18];
     }
 
     // New constructor for a single patient data row
     public Patient(String[] data) {
-        if (data.length < 18) {
-            throw new IllegalArgumentException("Patient data array must contain at least 18 elements to include a conclusion.");
+        if (data.length < 19) {
+            throw new IllegalArgumentException("Patient data array must contain at least 19 elements to include a conclusion.");
         }
         this.checkupId = data[0];
         this.checkupDate = data[1];
@@ -70,5 +72,6 @@ public class Patient {
         this.customerDob = data[15];
         this.checkupType = data[16];
         this.conclusion = data[17];
+        this.reCheckupDate = data[18];
     }
 }

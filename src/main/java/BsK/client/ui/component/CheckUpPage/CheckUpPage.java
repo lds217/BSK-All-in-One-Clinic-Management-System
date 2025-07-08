@@ -147,7 +147,7 @@ public class CheckUpPage extends JPanel {
     private JTextPane notesField;
     private JComboBox<String> doctorComboBox, statusComboBox, genderComboBox, provinceComboBox, districtComboBox, wardComboBox, checkupTypeComboBox, templateComboBox;
     private JSpinner customerWeightSpinner, customerHeightSpinner;
-    private JDatePickerImpl datePicker, dobPicker;
+    private JDatePickerImpl datePicker, dobPicker, recheckupDatePicker;
     private String[][] medicinePrescription = new String[0][0]; // Initialize to empty
     private String[][] servicePrescription = new String[0][0]; // Initialize to empty
     private String[] doctorOptions;
@@ -1021,13 +1021,35 @@ public class CheckUpPage extends JPanel {
             new Font("Arial", Font.BOLD, 14),
             new Color(50, 50, 50)
         ));
-        suggestionField = new JTextArea(10, 20); // Increased rows from 4 to 10
+        suggestionField = new JTextArea(5, 20); // Adjusted rows for better layout
         suggestionField.setFont(fieldFont);
         suggestionField.setLineWrap(true);
         suggestionField.setWrapStyleWord(true);
         JScrollPane suggestionScrollPane = new JScrollPane(suggestionField);
         suggestionScrollPane.setPreferredSize(new Dimension(0, 200)); // Set fixed height
         suggestionPanel.add(suggestionScrollPane, BorderLayout.CENTER);
+        suggestionPanel.setMinimumSize(new Dimension(200, 200));
+        suggestionPanel.setPreferredSize(new Dimension(250, 200));
+
+        // Add Re-checkup date picker
+        JPanel recheckupPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 2));
+        recheckupPanel.setBackground(Color.WHITE);
+        JLabel recheckupLabel = new JLabel("Tái khám:");
+        recheckupLabel.setFont(labelFont);
+        recheckupPanel.add(recheckupLabel);
+        
+        UtilDateModel recheckupModel = new UtilDateModel();
+        Properties recheckupProps = new Properties();
+        recheckupProps.put("text.today", "Hôm nay");
+        recheckupProps.put("text.month", "Tháng");
+        recheckupProps.put("text.year", "Năm");
+        JDatePanelImpl recheckupDatePanel = new JDatePanelImpl(recheckupModel, recheckupProps);
+        recheckupDatePicker = new JDatePickerImpl(recheckupDatePanel, new DateLabelFormatter());
+        recheckupDatePicker.getJFormattedTextField().setFont(fieldFont);
+        recheckupDatePicker.setPreferredSize(new Dimension(140, 30)); // Make it a bit smaller
+        recheckupPanel.add(recheckupDatePicker);
+        suggestionPanel.add(recheckupPanel, BorderLayout.SOUTH);
+
         suggestionPanel.setMinimumSize(new Dimension(200, 200));
         suggestionPanel.setPreferredSize(new Dimension(250, 200));
 
@@ -1134,7 +1156,7 @@ public class CheckUpPage extends JPanel {
                     if (selectedRow >= 0 && history != null && selectedRow < history.length) {
                         String[] selectedHistory = history[selectedRow];
                         // Ensure the selected record has enough data fields
-                        if (selectedHistory != null && selectedHistory.length >= 8) {
+                        if (selectedHistory != null && selectedHistory.length >= 11) {
                             String checkupId = selectedHistory[1];
                             String patientName = customerFirstNameField.getText() + " " + customerLastNameField.getText();
                             String checkupDate = selectedHistory[0];
@@ -1142,8 +1164,10 @@ public class CheckUpPage extends JPanel {
                             String diagnosis = selectedHistory[3];
                             String notes = selectedHistory[5];
                             String conclusion = selectedHistory[7];
-                            
-                            openHistoryViewDialog(checkupId, patientName, checkupDate, suggestion, diagnosis, conclusion, notes);
+                            String reCheckupDate = selectedHistory[8];
+                            String doctorName = selectedHistory[9] + " " + selectedHistory[10];
+                             
+                            openHistoryViewDialog(checkupId, patientName, checkupDate, suggestion, diagnosis, conclusion, notes, reCheckupDate, doctorName);
                         } else {
                             log.warn("Selected history record has incomplete data. Length: {}", (selectedHistory != null ? selectedHistory.length : "null"));
                         }
@@ -1404,6 +1428,7 @@ public class CheckUpPage extends JPanel {
                         TextUtils.scaleRtfFontSize(getRtfContentAsString()),
                         conclusionField.getText(),
                         suggestionField.getText(),
+                        recheckupDatePicker.getJFormattedTextField().getText(),
                         selectedImagesForPrint,
                         printType,
                         templateTitle
@@ -1464,6 +1489,7 @@ public class CheckUpPage extends JPanel {
                         TextUtils.scaleRtfFontSize(getRtfContentAsString()),
                         conclusionField.getText(),
                         suggestionField.getText(),
+                        recheckupDatePicker.getJFormattedTextField().getText(),
                         selectedImagesForPrint,
                         printType,
                         templateTitle
@@ -1511,7 +1537,7 @@ public class CheckUpPage extends JPanel {
             queueManagementPage.updateQueueTable();
         }
     }
-
+    
     private void updatePrescriptionTree() {
         rootPrescriptionNode.removeAllChildren();
         double totalMedicineCost = 0;
@@ -1676,7 +1702,8 @@ public class CheckUpPage extends JPanel {
         suggestionField.setText(selectedPatient.getSuggestion()); // De nghi
         diagnosisField.setText(selectedPatient.getDiagnosis()); // Chuan doan
         conclusionField.setText(selectedPatient.getConclusion()); // Ket luan
-        
+        recheckupDatePicker.getJFormattedTextField().setText(selectedPatient.getReCheckupDate()); // Ngày khám lại
+
         // Handle RTF notes content
         String notes = selectedPatient.getNotes();
         if (notes != null && !notes.isEmpty()) {
@@ -1793,35 +1820,35 @@ public class CheckUpPage extends JPanel {
 
     private void handleGetDistrictResponse(GetDistrictResponse response) {
         SwingUtilities.invokeLater(() -> {
-            log.info("Received district data");
-            LocalStorage.districts = response.getDistricts();
-            LocalStorage.districtToId = response.getDistrictToId();
-            districtModel.removeAllElements(); 
-            for (String district : LocalStorage.districts) { districtModel.addElement(district); }
-            districtComboBox.setEnabled(true); 
-            if (LocalStorage.districts.length > 0 && !LocalStorage.districts[0].startsWith("Đang tải")) {
-                // No automatic selection, let user choose or handleRowSelection set it
-            }
-            wardModel.removeAllElements(); wardModel.addElement("Phường"); wardComboBox.setEnabled(false); 
+        log.info("Received district data");
+        LocalStorage.districts = response.getDistricts();
+        LocalStorage.districtToId = response.getDistrictToId();
+        districtModel.removeAllElements(); 
+        for (String district : LocalStorage.districts) { districtModel.addElement(district); }
+        districtComboBox.setEnabled(true); 
+        if (LocalStorage.districts.length > 0 && !LocalStorage.districts[0].startsWith("Đang tải")) {
+             // No automatic selection, let user choose or handleRowSelection set it
+        }
+        wardModel.removeAllElements(); wardModel.addElement("Phường"); wardComboBox.setEnabled(false); 
         });
     }
 
     private void handleGetWardResponse(GetWardResponse response) {
         SwingUtilities.invokeLater(() -> {
-            log.info("Received ward data");
-            LocalStorage.wards = response.getWards();
-            wardModel.removeAllElements(); 
-            for (String ward : LocalStorage.wards) { wardModel.addElement(ward); }
-            wardComboBox.setEnabled(true); 
-            if (LocalStorage.wards.length > 0 && !LocalStorage.wards[0].startsWith("Đang tải")) {
-                // No automatic selection
-            }
+        log.info("Received ward data");
+        LocalStorage.wards = response.getWards();
+        wardModel.removeAllElements(); 
+        for (String ward : LocalStorage.wards) { wardModel.addElement(ward); }
+        wardComboBox.setEnabled(true); 
+        if (LocalStorage.wards.length > 0 && !LocalStorage.wards[0].startsWith("Đang tải")) {
+            // No automatic selection
+        }
         });
     }
 
     private void handleGetPatientHistoryResponse(GetPatientHistoryResponse response) {
         SwingUtilities.invokeLater(() -> {
-            log.info("Received patient history");
+        log.info("Received patient history");
             this.history = response.getHistory(); // Keep original 6-column data for the dialog
             
             // Prepare data specifically for the 5-column table view
@@ -1847,76 +1874,76 @@ public class CheckUpPage extends JPanel {
 
     private void handleGetCheckUpQueueUpdateResponse(GetCheckUpQueueUpdateResponse response) {
         SwingUtilities.invokeLater(() -> {
-            log.info("Received checkup update queue");
-            this.rawQueueForTv = response.getQueue(); 
-            this.patientQueue.clear();
-            if (this.rawQueueForTv != null) {
-                for (String[] patientData : this.rawQueueForTv) {
-                    this.patientQueue.add(new Patient(patientData));
-                }
+        log.info("Received checkup update queue");
+        this.rawQueueForTv = response.getQueue(); 
+        this.patientQueue.clear();
+        if (this.rawQueueForTv != null) {
+            for (String[] patientData : this.rawQueueForTv) {
+                this.patientQueue.add(new Patient(patientData));
             }
-            if (queueManagementPage != null) {
-                queueManagementPage.updateQueueTable();
-            }
-            if (tvQueueFrame != null && tvQueueFrame.isVisible()) {
-                tvQueueFrame.updateQueueData(this.rawQueueForTv);
-            }
+        }
+        if (queueManagementPage != null) {
+            queueManagementPage.updateQueueTable();
+        }
+        if (tvQueueFrame != null && tvQueueFrame.isVisible()) {
+            tvQueueFrame.updateQueueData(this.rawQueueForTv);
+        }
         });
     }
 
     private void handleGetCheckUpQueueResponse(GetCheckUpQueueResponse response) {
         SwingUtilities.invokeLater(() -> {
-            log.info("Received checkup queue");
-            this.rawQueueForTv = response.getQueue(); 
-            this.patientQueue.clear();
-            if (this.rawQueueForTv != null) {
-                for (String[] patientData : this.rawQueueForTv) {
-                    this.patientQueue.add(new Patient(patientData));
-                }
+        log.info("Received checkup queue");
+        this.rawQueueForTv = response.getQueue(); 
+        this.patientQueue.clear();
+        if (this.rawQueueForTv != null) {
+            for (String[] patientData : this.rawQueueForTv) {
+                this.patientQueue.add(new Patient(patientData));
             }
-            if (queueManagementPage != null) {
-                queueManagementPage.updateQueueTable();
-            }
-            if (tvQueueFrame != null && tvQueueFrame.isVisible()) {
-                tvQueueFrame.updateQueueData(this.rawQueueForTv);
-            }
+        }
+        if (queueManagementPage != null) {
+            queueManagementPage.updateQueueTable();
+        }
+        if (tvQueueFrame != null && tvQueueFrame.isVisible()) {
+            tvQueueFrame.updateQueueData(this.rawQueueForTv);
+        }
         });
     }
 
     private void handleCallPatientResponse(CallPatientResponse response) {
         SwingUtilities.invokeLater(() -> {
-            log.info("Received call patient response: Room {}, Patient ID {}, Status {}", response.getRoomId(), response.getPatientId(), response.getStatus());
-            if (tvQueueFrame != null && tvQueueFrame.isVisible()) {
-                if (response.getStatus() == Status.PROCESSING) {
-                    String patientIdToFind = String.valueOf(response.getPatientId());
-                    String patientDisplayInfo = patientIdToFind; 
+        log.info("Received call patient response: Room {}, Patient ID {}, Status {}", response.getRoomId(), response.getPatientId(), response.getStatus());
+        if (tvQueueFrame != null && tvQueueFrame.isVisible()) {
+            if (response.getStatus() == Status.PROCESSING) {
+                String patientIdToFind = String.valueOf(response.getPatientId());
+                String patientDisplayInfo = patientIdToFind; 
 
-                    if (this.patientQueue != null) {
-                        for (Patient patient : this.patientQueue) {
-                            if (patient != null && patientIdToFind.equals(patient.getCheckupId())) {
-                                String ho = patient.getCustomerLastName(); String ten = patient.getCustomerFirstName();
-                                String customerDob = patient.getCustomerDob(); String namSinh = "N/A";
-                                if (customerDob != null && !customerDob.isEmpty()) {
-                                    try {
-                                        Date parsedDate;
-                                        if (customerDob.matches("\\d+")) parsedDate = new Date(Long.parseLong(customerDob)); // Timestamp
-                                        else parsedDate = new SimpleDateFormat("dd/MM/yyyy").parse(customerDob); // Date string
-                                        Calendar calendar = Calendar.getInstance(); calendar.setTime(parsedDate);
-                                        namSinh = String.valueOf(calendar.get(Calendar.YEAR));
-                                    } catch (ParseException | NumberFormatException e) {
-                                        log.error("Error parsing DoB for TV display: {} for patient ID {}", customerDob, patientIdToFind, e);
-                                    }
+                if (this.patientQueue != null) {
+                    for (Patient patient : this.patientQueue) {
+                        if (patient != null && patientIdToFind.equals(patient.getCheckupId())) {
+                            String ho = patient.getCustomerLastName(); String ten = patient.getCustomerFirstName();
+                            String customerDob = patient.getCustomerDob(); String namSinh = "N/A";
+                            if (customerDob != null && !customerDob.isEmpty()) {
+                                try {
+                                    Date parsedDate;
+                                    if (customerDob.matches("\\d+")) parsedDate = new Date(Long.parseLong(customerDob)); // Timestamp
+                                    else parsedDate = new SimpleDateFormat("dd/MM/yyyy").parse(customerDob); // Date string
+                                    Calendar calendar = Calendar.getInstance(); calendar.setTime(parsedDate);
+                                    namSinh = String.valueOf(calendar.get(Calendar.YEAR));
+                                } catch (ParseException | NumberFormatException e) {
+                                    log.error("Error parsing DoB for TV display: {} for patient ID {}", customerDob, patientIdToFind, e);
                                 }
-                                patientDisplayInfo = ho + " " + ten + " (" + namSinh + ")";
-                                break; 
                             }
+                            patientDisplayInfo = ho + " " + ten + " (" + namSinh + ")";
+                            break; 
                         }
                     }
-                    tvQueueFrame.updateSpecificRoomStatus(response.getRoomId(), String.valueOf(response.getPatientId()), patientDisplayInfo, response.getStatus());
-                } else if (response.getStatus() == Status.EMPTY) {
-                    tvQueueFrame.markRoomAsFree(response.getRoomId());
                 }
+                tvQueueFrame.updateSpecificRoomStatus(response.getRoomId(), String.valueOf(response.getPatientId()), patientDisplayInfo, response.getStatus());
+            } else if (response.getStatus() == Status.EMPTY) {
+                tvQueueFrame.markRoomAsFree(response.getRoomId());
             }
+        }
         });
     }
 
@@ -3117,6 +3144,7 @@ public class CheckUpPage extends JPanel {
         String conclusion = conclusionField.getText();
         String status = (String) statusComboBox.getSelectedItem();
         String checkupType = (String) checkupTypeComboBox.getSelectedItem();
+        String reCheckupDate = recheckupDatePicker.getJFormattedTextField().getText();
 
         // Log all fields that will be sent to backend
         log.info("=== SaveCheckupRequest Data ===");
@@ -3140,6 +3168,7 @@ public class CheckUpPage extends JPanel {
         log.info("checkupType: {}", checkupType);
         log.info("medicinePrescription: {}", (Object) medicinePrescription);
         log.info("servicePrescription: {}", (Object) servicePrescription);
+        log.info("reCheckupDate: {}", reCheckupDate);
         log.info("=== End SaveCheckupRequest Data ===");
 
        
@@ -3162,6 +3191,7 @@ public class CheckUpPage extends JPanel {
             status,
             checkupType,
             conclusion, // Ket luan
+            reCheckupDate,
             medicinePrescription,
             servicePrescription
         );
@@ -3223,10 +3253,10 @@ public class CheckUpPage extends JPanel {
     /**
      * Opens the history view dialog for the selected checkup
      */
-    private void openHistoryViewDialog(String checkupId, String patientName, String checkupDate, String suggestion, String diagnosis, String conclusion, String notes) {
+    private void openHistoryViewDialog(String checkupId, String patientName, String checkupDate, String suggestion, String diagnosis, String conclusion, String notes, String reCheckupDate, String doctorName) {
         try {
             // Pass all the necessary details to the dialog
-            HistoryViewDialog historyDialog = new HistoryViewDialog(mainFrame, checkupId, patientName, checkupDate, suggestion, diagnosis, conclusion, notes);
+            HistoryViewDialog historyDialog = new HistoryViewDialog(mainFrame, checkupId, patientName, checkupDate, suggestion, diagnosis, conclusion, notes, reCheckupDate, doctorName);
             historyDialog.setVisible(true);
         } catch (Exception e) {
             log.error("Error opening history view dialog", e);
@@ -3264,6 +3294,7 @@ public class CheckUpPage extends JPanel {
 
             datePicker.getModel().setValue(null);
             dobPicker.getModel().setValue(null);
+            recheckupDatePicker.getModel().setValue(null);
 
             medicinePrescription = new String[0][0];
             servicePrescription = new String[0][0];

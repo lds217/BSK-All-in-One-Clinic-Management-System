@@ -141,13 +141,11 @@
 					<expression><![CDATA[$P{checkupConclusion}]]></expression>
 				</element>
 				<element kind="component" uuid="cb28d811-1328-45dc-9461-cfbb88b7eeae" x="-63" y="13" width="60" height="40">
-					<printWhenExpression><![CDATA[$P{barcodeNumber} != null && !$P{barcodeNumber}.isEmpty()]]></printWhenExpression>
 					<component kind="barcode4j:Code128">
 						<codeExpression><![CDATA[$P{barcodeNumber}]]></codeExpression>
 					</component>
 				</element>
 				<element kind="staticText" uuid="6a7d5f66-d7cc-481f-9fff-8ece0789b3b4" x="-63" y="2" width="61" height="17" fontName="Times New Roman" fontSize="10.0" bold="false" hTextAlign="Center">
-					<printWhenExpression><![CDATA[$P{barcodeNumber} != null && !$P{barcodeNumber}.isEmpty()]]></printWhenExpression>
 					<text><![CDATA[Mã khám bệnh]]></text>
 				</element>
 				<element kind="textField" uuid="d63165c2-19e2-43ad-8a3f-004e00bffdfe" x="0" y="450" width="230" height="55" fontName="Times New Roman" fontSize="10.0">
@@ -236,7 +234,7 @@
 				<element kind="frame" uuid="dfa0c283-dbfc-40de-97e0-d1d04db85c96" x="0" y="0" width="400" height="344">
 					<printWhenExpression><![CDATA[$P{numberImage}.intValue() == 1]]></printWhenExpression>
 					<property name="com.jaspersoft.studio.unit.y" value="px"/>
-					<element kind="image" uuid="a7cef70f-1dbe-4d6f-a007-7543bbc2b9b8" x="51" y="30" width="300" height="289">
+					<element kind="image" uuid="a7cef70f-1dbe-4d6f-a007-7543bbc2b9b8" x="29" y="4" width="342" height="335">
 						<expression><![CDATA[$P{image1}]]></expression>
 					</element>
 				</element>

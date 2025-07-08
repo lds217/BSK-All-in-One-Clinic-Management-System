@@ -73,6 +73,7 @@ public class UltrasoundResult {
     private final String rtfContent;
     private final String conclusion;
     private final String suggestion;
+    private final String recheckupDate;
     private final List<File> selectedImages;
     private final String printType; // "ngang" or "dọc"
     private final String templateTitle;
@@ -82,7 +83,8 @@ public class UltrasoundResult {
     public UltrasoundResult(String checkupId, String patientName, String patientDOB, String patientGender,
                             String patientAddress, String doctorName, String checkupDate,
                             String rtfContent, String conclusion, String suggestion,
-                            List<File> selectedImages, String printType, String templateTitle) {
+                            String recheckupDate, List<File> selectedImages, 
+                            String printType, String templateTitle) {
 
         // Defensive null checks to prevent JasperReports from crashing on null parameters
         this.checkupId = checkupId != null ? checkupId : "";
@@ -95,6 +97,7 @@ public class UltrasoundResult {
         this.rtfContent = rtfContent != null ? rtfContent : "";
         this.conclusion = conclusion != null ? conclusion : "";
         this.suggestion = suggestion != null ? suggestion : "";
+        this.recheckupDate = recheckupDate != null ? recheckupDate : "";
         this.selectedImages = selectedImages != null ? selectedImages : new ArrayList<>();
         this.printType = printType != null ? printType : "";
         this.templateTitle = templateTitle != null ? templateTitle : "";
@@ -149,7 +152,7 @@ public class UltrasoundResult {
             parameters.put("checkupNote", this.rtfContent);
             parameters.put("checkupConclusion", this.conclusion);
             parameters.put("checkupSuggestion", this.suggestion);
-            parameters.put("reCheckupDate", "Tái khám theo lịch hẹn"); // Placeholder, adjust as needed
+            parameters.put("reCheckupDate", this.recheckupDate);
 
             // Handle images
             int numberOfImages = this.selectedImages.size();
