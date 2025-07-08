@@ -195,76 +195,89 @@ public class HistoryViewDialog extends JDialog {
         ));
         headerPanel.setBackground(new Color(248, 249, 250));
         
-        // Left side - Patient info
+        // Patient Info Panel
         JPanel patientInfoPanel = new JPanel(new GridBagLayout());
         patientInfoPanel.setOpaque(false);
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.anchor = GridBagConstraints.WEST;
-        gbc.insets = new Insets(2, 0, 2, 20);
-        
+        gbc.insets = new Insets(5, 5, 5, 20); // Add spacing between components
+
         JLabel titleLabel = new JLabel("THÔNG TIN KHÁM BỆNH");
-        titleLabel.setFont(new Font("Arial", Font.BOLD, 18));
+        titleLabel.setFont(new Font("Arial", Font.BOLD, 20)); // Increased title font
         titleLabel.setForeground(new Color(63, 81, 181));
-        gbc.gridx = 0; gbc.gridy = 0; gbc.gridwidth = 2;
+        gbc.gridx = 0;
+        gbc.gridy = 0;
+        gbc.gridwidth = 4; // Span across all columns
+        gbc.weightx = 1.0;
+        gbc.insets = new Insets(2, 0, 10, 20); // More bottom margin for title
         patientInfoPanel.add(titleLabel, gbc);
-        
+
+        // Reset constraints
         gbc.gridwidth = 1;
+        gbc.weightx = 0;
+        gbc.insets = new Insets(4, 5, 4, 15);
+
+        // Define fonts for reuse
+        Font labelFont = new Font("Arial", Font.BOLD, 14);
+        Font valueFont = new Font("Arial", Font.PLAIN, 14);
+
+        // --- ROW 1 ---
         gbc.gridy = 1;
         gbc.gridx = 0;
         JLabel patientLabel = new JLabel("Bệnh nhân:");
-        patientLabel.setFont(new Font("Arial", Font.BOLD, 12));
+        patientLabel.setFont(labelFont);
         patientInfoPanel.add(patientLabel, gbc);
-        
+
         gbc.gridx = 1;
         JLabel patientNameLabel = new JLabel(patientName);
-        patientNameLabel.setFont(new Font("Arial", Font.PLAIN, 12));
+        patientNameLabel.setFont(valueFont);
         patientInfoPanel.add(patientNameLabel, gbc);
-        
+
+        gbc.gridx = 2;
+        JLabel doctorLabel = new JLabel("Bác sĩ khám:");
+        doctorLabel.setFont(labelFont);
+        patientInfoPanel.add(doctorLabel, gbc);
+
+        gbc.gridx = 3;
+        JLabel doctorNameLabel = new JLabel(getDisplayableString(this.doctorName));
+        doctorNameLabel.setFont(valueFont);
+        patientInfoPanel.add(doctorNameLabel, gbc);
+
+        // --- ROW 2 ---
         gbc.gridy = 2;
         gbc.gridx = 0;
         JLabel dateLabel = new JLabel("Ngày khám:");
-        dateLabel.setFont(new Font("Arial", Font.BOLD, 12));
+        dateLabel.setFont(labelFont);
         patientInfoPanel.add(dateLabel, gbc);
-        
+
         gbc.gridx = 1;
         JLabel checkupDateLabel = new JLabel(formatDate(checkupDate));
-        checkupDateLabel.setFont(new Font("Arial", Font.PLAIN, 12));
+        checkupDateLabel.setFont(valueFont);
         patientInfoPanel.add(checkupDateLabel, gbc);
-        
+
+        gbc.gridx = 2;
+        JLabel recheckupDateLabel = new JLabel("Ngày tái khám:");
+        recheckupDateLabel.setFont(labelFont);
+        patientInfoPanel.add(recheckupDateLabel, gbc);
+
+        gbc.gridx = 3;
+        JLabel recheckupValueLabel = new JLabel(getDisplayableString(this.reCheckupDate));
+        recheckupValueLabel.setFont(valueFont);
+        patientInfoPanel.add(recheckupValueLabel, gbc);
+
+        // --- ROW 3 ---
         gbc.gridy = 3;
         gbc.gridx = 0;
         JLabel idLabel = new JLabel("Mã khám:");
-        idLabel.setFont(new Font("Arial", Font.BOLD, 12));
+        idLabel.setFont(labelFont);
         patientInfoPanel.add(idLabel, gbc);
-        
+
         gbc.gridx = 1;
         JLabel checkupIdLabel = new JLabel(checkupId);
-        checkupIdLabel.setFont(new Font("Arial", Font.PLAIN, 12));
+        checkupIdLabel.setFont(valueFont);
         patientInfoPanel.add(checkupIdLabel, gbc);
         
-        gbc.gridy = 4;
-        gbc.gridx = 0;
-        JLabel doctorLabel = new JLabel("Bác sĩ khám:");
-        doctorLabel.setFont(new Font("Arial", Font.BOLD, 12));
-        patientInfoPanel.add(doctorLabel, gbc);
-
-        gbc.gridx = 1;
-        JLabel doctorNameLabel = new JLabel(getDisplayableString(this.doctorName));
-        doctorNameLabel.setFont(new Font("Arial", Font.PLAIN, 12));
-        patientInfoPanel.add(doctorNameLabel, gbc);
-
-        gbc.gridy = 5;
-        gbc.gridx = 0;
-        JLabel recheckupDateLabel = new JLabel("Ngày tái khám:");
-        recheckupDateLabel.setFont(new Font("Arial", Font.BOLD, 12));
-        patientInfoPanel.add(recheckupDateLabel, gbc);
-
-        gbc.gridx = 1;
-        JLabel recheckupValueLabel = new JLabel(getDisplayableString(this.reCheckupDate));
-        recheckupValueLabel.setFont(new Font("Arial", Font.PLAIN, 12));
-        patientInfoPanel.add(recheckupValueLabel, gbc);
-
-        headerPanel.add(patientInfoPanel, BorderLayout.WEST);
+        headerPanel.add(patientInfoPanel, BorderLayout.CENTER);
         
         // Right side - Close button
         JButton closeButton = new JButton("Đóng");
