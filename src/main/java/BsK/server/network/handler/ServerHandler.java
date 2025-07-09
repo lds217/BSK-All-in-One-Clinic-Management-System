@@ -110,7 +110,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
           ResultSet rs = statement.executeQuery(
                   "select a.checkup_id, a.checkup_date, c.customer_last_name, c.customer_first_name,\n" +
                           "d.doctor_first_name, d.doctor_last_name, a.suggestion, a.diagnosis, a.notes, a.status, a.customer_id, \n" +
-                          "c.customer_number, c.customer_address, c.customer_weight, c.customer_height, c.customer_gender, c.customer_dob, a.checkup_type, a.conclusion, a.reCheckupDate\n" +
+                          "c.customer_number, c.customer_address, c.customer_weight, c.customer_height, c.customer_gender, c.customer_dob, a.checkup_type, a.conclusion, a.reCheckupDate, c.cccd_ddcn\n" +
                           "from checkup as a\n" +
                           "join customer as c on a.customer_id = c.customer_id\n" +
                           "join Doctor D on a.doctor_id = D.doctor_id\n" +
@@ -148,11 +148,12 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
               String checkupType = rs.getString("checkup_type");
               String conclusion = rs.getString("conclusion");
               String reCheckupDate = rs.getString("reCheckupDate");
+              String cccdDdcn = rs.getString("cccd_ddcn");
               String result = String.join("|", checkupId,
                       checkupDate, customerLastName, customerFirstName,
                       doctorLastName + " " + doctorFirstName, suggestion,
                       diagnosis, notes, status, customerId, customerNumber, customerAddress, customerWeight, customerHeight,
-                      customerGender, customerDob, checkupType, conclusion, reCheckupDate
+                      customerGender, customerDob, checkupType, conclusion, reCheckupDate, cccdDdcn
               );
 
               resultList.add(result);
@@ -177,7 +178,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
           ResultSet rs = statement.executeQuery(
                   "select a.checkup_id, a.checkup_date, c.customer_last_name, c.customer_first_name,\n" +
                           "d.doctor_first_name, d.doctor_last_name, a.suggestion, a.diagnosis, a.notes, a.status, a.customer_id, \n" +
-                          "c.customer_number, c.customer_address, c.customer_weight, c.customer_height, c.customer_gender, c.customer_dob, a.checkup_type, a.conclusion, a.reCheckupDate\n" +
+                          "c.customer_number, c.customer_address, c.customer_weight, c.customer_height, c.customer_gender, c.customer_dob, a.checkup_type, a.conclusion, a.reCheckupDate, c.cccd_ddcn\n" +
                           "from checkup as a\n" +
                           "join customer as c on a.customer_id = c.customer_id\n" +
                           "join Doctor D on a.doctor_id = D.doctor_id\n" +
@@ -219,12 +220,13 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
               String checkupType = rs.getString("checkup_type");
               String conclusion = rs.getString("conclusion");
               String reCheckupDate = rs.getString("reCheckupDate");
+              String cccdDdcn = rs.getString("cccd_ddcn");
 
               String result = String.join("|", checkupId,
                       checkupDate, customerLastName, customerFirstName,
                       doctorLastName + " " + doctorFirstName, suggestion,
                       diagnosis, notes, status, customerId, customerNumber, customerAddress, customerWeight, customerHeight,
-                      customerGender, customerDob, checkupType, conclusion, reCheckupDate
+                      customerGender, customerDob, checkupType, conclusion, reCheckupDate, cccdDdcn
               );
 
               resultList.add(result);
@@ -446,7 +448,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         try {
           ResultSet rs = statement.executeQuery(
                   "SELECT customer_id, customer_last_name, customer_first_name, customer_dob, customer_number, " +
-                          "customer_address, customer_address, customer_gender\n" +
+                          "customer_address, customer_address, customer_gender, cccd_ddcn\n" +
                           "FROM Customer\n" +
                           "ORDER BY customer_id DESC\n" +
                           "LIMIT 20;");
@@ -463,9 +465,10 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
               String customerNumber = rs.getString("customer_number");
               String customerAddress = rs.getString("customer_address");
               String customerGender = rs.getString("customer_gender");
+              String cccdDdcn = rs.getString("cccd_ddcn");
 
               String result = String.join("|", customerId, customerLastName + " " + customerFirstName,
-                      year, customerNumber, customerAddress, customerGender, customerDob);
+                      year, customerNumber, customerAddress, customerGender, customerDob, cccdDdcn);
               resultList.add(result);
             }
 
@@ -594,7 +597,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
           Server.connection.setAutoCommit(false);
           
           PreparedStatement preparedStatement = Server.connection.prepareStatement(
-                  "INSERT INTO Customer (customer_last_name, customer_first_name, customer_dob, customer_number, customer_address, customer_gender) VALUES (?, ?, ?, ?, ?, ?)",
+                  "INSERT INTO Customer (customer_last_name, customer_first_name, customer_dob, customer_number, customer_address, customer_gender, cccd_ddcn) VALUES (?, ?, ?, ?, ?, ?, ?)",
                   PreparedStatement.RETURN_GENERATED_KEYS // Use this instead of separate query
           );
           preparedStatement.setString(1, addPatientRequest.getPatientLastName());
@@ -603,6 +606,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
           preparedStatement.setString(4, addPatientRequest.getPatientPhone());
           preparedStatement.setString(5, addPatientRequest.getPatientAddress());
           preparedStatement.setString(6, addPatientRequest.getPatientGender());
+          preparedStatement.setString(7, addPatientRequest.getPatientCccdDdcn());
           preparedStatement.executeUpdate();
 
           // Get the generated key safely
@@ -722,8 +726,8 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
             INSERT INTO Customer (
                 customer_id, customer_first_name, customer_last_name, customer_dob,
                 customer_gender, customer_address, customer_number,
-                customer_weight, customer_height
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                customer_weight, customer_height, cccd_ddcn
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(customer_id) DO UPDATE SET
                 customer_first_name = excluded.customer_first_name,
                 customer_last_name = excluded.customer_last_name,
@@ -732,7 +736,8 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                 customer_address = excluded.customer_address,
                 customer_number = excluded.customer_number,
                 customer_weight = excluded.customer_weight,
-                customer_height = excluded.customer_height
+                customer_height = excluded.customer_height,
+                cccd_ddcn = excluded.cccd_ddcn
             """;
           
           PreparedStatement customerStmt = conn.prepareStatement(customerSql);
@@ -745,6 +750,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
           customerStmt.setString(7, saveCheckupRequest.getCustomerNumber());
           customerStmt.setString(8, saveCheckupRequest.getCustomerWeight());
           customerStmt.setString(9, saveCheckupRequest.getCustomerHeight());
+          customerStmt.setString(10, saveCheckupRequest.getCustomerCccdDdcn());
           customerStmt.executeUpdate();
           log.info("Customer saved successfully");
           // 2. Generate prescription_id if we have medicine prescriptions

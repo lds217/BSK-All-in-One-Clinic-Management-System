@@ -35,6 +35,7 @@ public class AddDialog extends JDialog {
     private JTextField patientYearField;
     private JTextField patientIdField;
     private JTextField patientPhoneField;
+    private JTextField cccdField;
     private JComboBox patientGenderField;
     private JComboBox wardComboBox, districtComboBox, provinceComboBox;
     private JTextField customerAddressField;
@@ -172,10 +173,17 @@ public class AddDialog extends JDialog {
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
 
         // Set size of the dialog
-        setSize(1000, 400);
+        setSize(1200, 700);
         // Put in the middle of parent window
         setLocationRelativeTo(parent);
         setResizable(true);
+        
+        // UI Fonts and Dimensions
+        Font labelFont = new Font("Arial", Font.BOLD, 15);
+        Font textFont = new Font("Arial", Font.PLAIN, 15);
+        Font titleFont = new Font("Arial", Font.BOLD, 16);
+        Dimension textFieldSize = new Dimension(100, 30);
+        Dimension comboBoxSize = new Dimension(100, 30);
         
         // Ensure modal behavior and proper parent relationship
         setModalityType(Dialog.ModalityType.APPLICATION_MODAL);
@@ -215,8 +223,8 @@ public class AddDialog extends JDialog {
         };
 
         patientTable = new JTable(patientTableModel);
-        patientTable.setFont(new Font("Serif", Font.PLAIN, 14));
-        patientTable.setRowHeight(30);
+        patientTable.setFont(textFont);
+        patientTable.setRowHeight(35);
         patientTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         JScrollPane scrollPane = new JScrollPane(patientTable);
 
@@ -250,7 +258,7 @@ public class AddDialog extends JDialog {
         patientInfoPanel.setBorder(BorderFactory.createTitledBorder(
                 BorderFactory.createEtchedBorder(), "Thông tin bệnh nhân",
                 javax.swing.border.TitledBorder.LEADING, javax.swing.border.TitledBorder.TOP,
-                new Font("Arial", Font.BOLD, 14), new Color(50, 50, 50)
+                titleFont, new Color(50, 50, 50)
         ));
         mainGbc.gridx = 0;
         mainGbc.gridy = 0;
@@ -262,7 +270,7 @@ public class AddDialog extends JDialog {
         addressInfoPanel.setBorder(BorderFactory.createTitledBorder(
                 BorderFactory.createEtchedBorder(), "Địa chỉ",
                 javax.swing.border.TitledBorder.LEADING, javax.swing.border.TitledBorder.TOP,
-                new Font("Arial", Font.BOLD, 14), new Color(50, 50, 50)
+                titleFont, new Color(50, 50, 50)
         ));
         mainGbc.gridy = 1;
         inputPanel.add(addressInfoPanel, mainGbc);
@@ -272,7 +280,7 @@ public class AddDialog extends JDialog {
         checkupInfoPanel.setBorder(BorderFactory.createTitledBorder(
                 BorderFactory.createEtchedBorder(), "Thông tin đăng ký khám",
                 javax.swing.border.TitledBorder.LEADING, javax.swing.border.TitledBorder.TOP,
-                new Font("Arial", Font.BOLD, 14), new Color(50, 50, 50)
+                titleFont, new Color(50, 50, 50)
         ));
         mainGbc.gridy = 2;
         inputPanel.add(checkupInfoPanel, mainGbc);
@@ -294,20 +302,25 @@ public class AddDialog extends JDialog {
         gbc.gridy = 0;
         gbc.gridx = 0;
         gbc.gridwidth = 1;
-        patientInfoPanel.add(new JLabel("Họ và tên:"), gbc);
+        JLabel nameLabel = new JLabel("Họ và tên:");
+        nameLabel.setFont(labelFont);
+        patientInfoPanel.add(nameLabel, gbc);
 
         gbc.gridx = 1;
         gbc.weightx = 1.0; // Allow patient name field to expand
         patientNameField = new JTextField(15);
+        patientNameField.setFont(textFont);
+        patientNameField.setPreferredSize(textFieldSize);
         patientInfoPanel.add(patientNameField, gbc);
         gbc.weightx = 0.0; // Reset
 
         gbc.gridx = 2;
         gbc.gridwidth = 1;
         ImageIcon originalIcon = new ImageIcon("src/main/java/BsK/client/ui/assets/icon/add.png");
-        Image scaledImage = originalIcon.getImage().getScaledInstance(20, 20, Image.SCALE_SMOOTH);
+        Image scaledImage = originalIcon.getImage().getScaledInstance(24, 24, Image.SCALE_SMOOTH);
         ImageIcon addIcon = new ImageIcon(scaledImage);
         JButton addButton = new JButton(addIcon);
+        addButton.setPreferredSize(new Dimension(40, 30));
         addButton.setToolTipText("Thêm bệnh nhân mới (nếu không tìm thấy)");
         patientInfoPanel.add(addButton, gbc);
 
@@ -315,7 +328,9 @@ public class AddDialog extends JDialog {
         gbc.gridy++;
         gbc.gridx = 0;
         gbc.gridwidth = 1;
-        patientInfoPanel.add(new JLabel("Ngày sinh:"), gbc);
+        JLabel dobLabel = new JLabel("Ngày sinh:");
+        dobLabel.setFont(labelFont);
+        patientInfoPanel.add(dobLabel, gbc);
 
         gbc.gridx = 1;
         UtilDateModel model = new UtilDateModel();
@@ -325,32 +340,61 @@ public class AddDialog extends JDialog {
         p.put("text.year", "Năm");
         JDatePanelImpl datePanel = new JDatePanelImpl(model, p);
         dobPicker = new JDatePickerImpl(datePanel, new DateLabelFormatter());
+        dobPicker.getJFormattedTextField().setFont(textFont);
         dobPicker.setPreferredSize(new Dimension(150, 30));
         patientInfoPanel.add(dobPicker, gbc);
 
         gbc.gridx = 2;
-        patientInfoPanel.add(new JLabel("Giới tính:"), gbc);
+        JLabel genderLabel = new JLabel("Giới tính:");
+        genderLabel.setFont(labelFont);
+        patientInfoPanel.add(genderLabel, gbc);
 
         gbc.gridx = 3;
         patientGenderField = new JComboBox<>(new String[]{"Nam", "Nữ"});
+        patientGenderField.setFont(textFont);
+        patientGenderField.setPreferredSize(comboBoxSize);
         patientInfoPanel.add(patientGenderField, gbc);
 
         // Phone (Row 2, Col 0-1) & Patient ID (Row 2, Col 2-3)
         gbc.gridy++;
         gbc.gridx = 0;
-        patientInfoPanel.add(new JLabel("Số điện thoại:"), gbc);
+        JLabel phoneLabel = new JLabel("Số điện thoại:");
+        phoneLabel.setFont(labelFont);
+        patientInfoPanel.add(phoneLabel, gbc);
 
         gbc.gridx = 1;
         patientPhoneField = new JTextField(10);
+        patientPhoneField.setFont(textFont);
+        patientPhoneField.setPreferredSize(textFieldSize);
         patientInfoPanel.add(patientPhoneField, gbc);
 
         gbc.gridx = 2;
-        patientInfoPanel.add(new JLabel("Mã BN:"), gbc);
+        JLabel patientIdLabel = new JLabel("Mã BN:");
+        patientIdLabel.setFont(labelFont);
+        patientInfoPanel.add(patientIdLabel, gbc);
 
         gbc.gridx = 3;
         patientIdField = new JTextField(5);
+        patientIdField.setFont(textFont);
+        patientIdField.setPreferredSize(textFieldSize);
         patientIdField.setEditable(false);
         patientInfoPanel.add(patientIdField, gbc);
+
+        // CCCD (Row 3, Col 0-1)
+        gbc.gridy++;
+        gbc.gridx = 0;
+        gbc.gridwidth = 1;
+        JLabel cccdLabel = new JLabel("CCCD/DDCN:");
+        cccdLabel.setFont(labelFont);
+        patientInfoPanel.add(cccdLabel, gbc);
+
+        gbc.gridx = 1;
+        gbc.gridwidth = 3; // Span across remaining columns
+        cccdField = new JTextField(15);
+        cccdField.setFont(textFont);
+        cccdField.setPreferredSize(textFieldSize);
+        patientInfoPanel.add(cccdField, gbc);
+        gbc.gridwidth = 1; // Reset
 
         // Add event listener to the addButton (moved here as it's part of this panel now)
         addButton.addActionListener(e -> {
@@ -366,6 +410,7 @@ public class AddDialog extends JDialog {
             String district = (String) districtComboBox.getSelectedItem();
             String ward = (String) wardComboBox.getSelectedItem();
             String address = String.join(", ", customerAddress, ward, district, province);
+            String cccd = cccdField.getText();
 
             //split name into first name and last name
             String[] nameParts = patientName.split(" ");
@@ -392,7 +437,7 @@ public class AddDialog extends JDialog {
                 Date date = dateFormat.parse(dateText);
                 long timestamp = date.getTime(); // This converts the Date to milliseconds since epoch (long)
                 NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new AddPatientRequest(firstName, lastNameStr, timestamp,
-                        patientPhone, address, patientGender));
+                        patientPhone, address, patientGender, cccd));
             } catch (ParseException pe) {
                 pe.printStackTrace();
                 JOptionPane.showMessageDialog(null, "Invalid date format: " + dateText);
@@ -405,25 +450,33 @@ public class AddDialog extends JDialog {
         gbc.gridx = 0;
         gbc.gridwidth = 1;
         gbc.weightx = 0.0; // Label doesn't expand
-        checkupInfoPanel.add(new JLabel("Bác sĩ khám:"), gbc);
+        JLabel doctorLabel = new JLabel("Bác sĩ khám:");
+        doctorLabel.setFont(labelFont);
+        checkupInfoPanel.add(doctorLabel, gbc);
 
         gbc.gridx = 1;
         gbc.gridwidth = 1; // Doctor ComboBox takes 1 column
         gbc.weightx = 0.5; // Doctor ComboBox takes some horizontal space
         doctorComboBox = new JComboBox<>(LocalStorage.doctorsName != null ? LocalStorage.doctorsName : new String[]{"Đang tải..."});
+        doctorComboBox.setFont(textFont);
+        doctorComboBox.setPreferredSize(comboBoxSize);
         checkupInfoPanel.add(doctorComboBox, gbc);
 
         // Checkup Type on the same row
         gbc.gridx = 2;
         gbc.gridwidth = 1;
         gbc.weightx = 0.0; // Label doesn't expand
-        checkupInfoPanel.add(new JLabel("Loại khám:"), gbc);
+        JLabel checkupTypeLabel = new JLabel("Loại khám:");
+        checkupTypeLabel.setFont(labelFont);
+        checkupInfoPanel.add(checkupTypeLabel, gbc);
 
         gbc.gridx = 3;
         gbc.gridwidth = 1; // Checkup Type ComboBox takes 1 column
         gbc.weightx = 0.5; // Checkup Type ComboBox takes some horizontal space
-        String[] checkupTypeOptions = {"BENH", "THAI", "KHAC"};
+        String[] checkupTypeOptions = {"BỆNH", "THAI", "KHÁC"};
         checkupTypeComboBox = new JComboBox<>(checkupTypeOptions);
+        checkupTypeComboBox.setFont(textFont);
+        checkupTypeComboBox.setPreferredSize(comboBoxSize);
         checkupInfoPanel.add(checkupTypeComboBox, gbc);
         gbc.weightx = 0.0; // Reset weightx
 
@@ -433,13 +486,17 @@ public class AddDialog extends JDialog {
         gbc.gridy = 0; 
         gbc.gridx = 0;
         gbc.gridwidth = 1;
-        gbc.weightx = 0.0; 
-        addressInfoPanel.add(new JLabel("Địa chỉ cụ thể:"), gbc); // Changed label slightly for clarity
+        gbc.weightx = 0.0;
+        JLabel addressLabel = new JLabel("Địa chỉ cụ thể:");
+        addressLabel.setFont(labelFont);
+        addressInfoPanel.add(addressLabel, gbc); // Changed label slightly for clarity
 
         gbc.gridx = 1;
         gbc.gridwidth = 3; 
         gbc.weightx = 1.0; 
         customerAddressField = new JTextField(20);
+        customerAddressField.setFont(textFont);
+        customerAddressField.setPreferredSize(textFieldSize);
         addressInfoPanel.add(customerAddressField, gbc);
         gbc.weightx = 0.0; 
 
@@ -449,17 +506,23 @@ public class AddDialog extends JDialog {
         gbc.gridwidth = 1; // Each combo box takes 1 logical column in this setup
         gbc.weightx = 0.33; // Distribute space among the three combo boxes
         provinceComboBox = new JComboBox<>(LocalStorage.provinces != null ? LocalStorage.provinces : new String[]{"Tỉnh/TP"});
+        provinceComboBox.setFont(textFont);
+        provinceComboBox.setPreferredSize(comboBoxSize);
         addressInfoPanel.add(provinceComboBox, gbc);
 
         gbc.gridx = 1;
         districtModel = new DefaultComboBoxModel<>(new String[]{"Quận/Huyện"});
         districtComboBox = new JComboBox<>(districtModel);
+        districtComboBox.setFont(textFont);
+        districtComboBox.setPreferredSize(comboBoxSize);
         districtComboBox.setEnabled(false);
         addressInfoPanel.add(districtComboBox, gbc);
 
         gbc.gridx = 2;
         wardModel = new DefaultComboBoxModel<>(new String[]{"Phường/Xã"});
         wardComboBox = new JComboBox<>(wardModel);
+        wardComboBox.setFont(textFont);
+        wardComboBox.setPreferredSize(comboBoxSize);
         wardComboBox.setEnabled(false);
         addressInfoPanel.add(wardComboBox, gbc);
         gbc.weightx = 0.0; // Reset weightx for any subsequent components in this panel
@@ -548,18 +611,20 @@ public class AddDialog extends JDialog {
         inputScrollPane.setBorder(BorderFactory.createEmptyBorder()); // Remove scroll pane's own border
 
         JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, inputScrollPane, scrollPane);
-        splitPane.setResizeWeight(0.6); // Keep or adjust as needed
+        splitPane.setResizeWeight(0.5); // Keep or adjust as needed
         add(splitPane, BorderLayout.CENTER);
 
 
         JPanel ButtonPanel = new JPanel();
         JButton closeButton = new JButton("Close");
+        closeButton.setFont(labelFont);
         closeButton.addActionListener(e -> {
             setVisible(false);
         });
         ButtonPanel.add(closeButton);
 
         saveButton = new JButton("Add to Checkup");
+        saveButton.setFont(labelFont);
         saveButton.addActionListener(e -> {
             int patientId = Integer.parseInt(patientIdField.getText());
             int doctorId = doctorComboBox.getSelectedIndex()+ 1;
@@ -585,10 +650,12 @@ public class AddDialog extends JDialog {
         String patientAddress = patientTable.getValueAt(selectedRow, 4).toString();
         String patientGender = patientData[selectedRow][5];
         String patientDob = patientData[selectedRow][6];
+        String patientCccd = patientData[selectedRow][7];
         patientIdField.setText(patientId);
         patientNameField.setText(patientName);
         patientPhoneField.setText(patientPhone);
         patientGenderField.setSelectedItem(patientGender);
+        cccdField.setText(patientCccd);
 
         // Extract province, district, ward from the address
         String[] addressParts = patientAddress.split(", ");

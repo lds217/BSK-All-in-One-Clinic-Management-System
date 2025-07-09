@@ -26,6 +26,8 @@ public class Patient {
     private String checkupType;
     private String conclusion;
     private String reCheckupDate;
+    private String cccdDdcn;
+    
 
     public Patient(String[][] array) {
         this.checkupId = array[0][0];
@@ -47,6 +49,9 @@ public class Patient {
         this.checkupType = array[0][16];
         this.conclusion = array[0][17];
         this.reCheckupDate = array[0][18];
+        if (array[0].length > 19) {
+            this.cccdDdcn = array[0][19];
+        }
     }
 
     // New constructor for a single patient data row
@@ -73,5 +78,8 @@ public class Patient {
         this.checkupType = data[16];
         this.conclusion = data[17];
         this.reCheckupDate = data[18];
+        if (data.length > 19) {
+            this.cccdDdcn = data[19];
+        }
     }
 }

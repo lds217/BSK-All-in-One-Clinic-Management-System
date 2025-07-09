@@ -15,4 +15,5 @@ public class AddPatientRequest implements Packet {
     String patientPhone;
     String patientAddress;
     String patientGender;
+    String patientCccdDdcn;
 }

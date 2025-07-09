@@ -142,11 +142,11 @@ public class CheckUpPage extends JPanel {
     private final ResponseListener<GetOrderInfoByCheckupRes> orderInfoByCheckupListener = this::handleGetOrderInfoByCheckupResponse;
     private final ResponseListener<GetAllTemplatesRes> getAllTemplatesListener = this::handleGetAllTemplatesResponse;
     private final ResponseListener<UploadCheckupImageResponse> uploadImageResponseListener = this::handleUploadImageResponse;
-    private JTextField checkupIdField, customerLastNameField, customerFirstNameField,customerAddressField, customerPhoneField, customerIdField;
+    private JTextField checkupIdField, customerLastNameField, customerFirstNameField,customerAddressField, customerPhoneField, customerIdField, customerCccdDdcnField;
     private JTextArea suggestionField, diagnosisField, conclusionField; // Changed symptomsField to suggestionField
     private JTextPane notesField;
     private JComboBox<String> doctorComboBox, statusComboBox, genderComboBox, provinceComboBox, districtComboBox, wardComboBox, checkupTypeComboBox, templateComboBox;
-    private JSpinner customerWeightSpinner, customerHeightSpinner;
+    private JSpinner customerWeightSpinner, customerHeightSpinner, patientHeartRateSpinner, bloodPressureSystolicSpinner, bloodPressureDiastolicSpinner;
     private JDatePickerImpl datePicker, dobPicker, recheckupDatePicker;
     private String[][] medicinePrescription = new String[0][0]; // Initialize to empty
     private String[][] servicePrescription = new String[0][0]; // Initialize to empty
@@ -504,8 +504,20 @@ public class CheckUpPage extends JPanel {
         gbcPatient.fill = GridBagConstraints.HORIZONTAL;
         gbcPatient.anchor = GridBagConstraints.WEST;
 
-        // Row 1: Name
+        // Row 0: CCCD/DDCN
         gbcPatient.gridx = 0; gbcPatient.gridy = 0; gbcPatient.weightx = 0.1;
+        JLabel cccdLabel = new JLabel("CCCD/DDCN", SwingConstants.RIGHT);
+        cccdLabel.setFont(labelFont);
+        patientInfoInnerPanel.add(cccdLabel, gbcPatient);
+
+        gbcPatient.gridx = 1; gbcPatient.weightx = 0.4; gbcPatient.gridwidth = 3;
+        customerCccdDdcnField = new JTextField(15);
+        customerCccdDdcnField.setFont(fieldFont);
+        patientInfoInnerPanel.add(customerCccdDdcnField, gbcPatient);
+        gbcPatient.gridwidth = 1; // Reset gridwidth
+
+        // Row 1: Name
+        gbcPatient.gridx = 0; gbcPatient.gridy = 1; gbcPatient.weightx = 0.1;
         JLabel hoLabel = new JLabel("Họ", SwingConstants.RIGHT);
         hoLabel.setFont(labelFont);
         patientInfoInnerPanel.add(hoLabel, gbcPatient);
@@ -526,7 +538,7 @@ public class CheckUpPage extends JPanel {
         patientInfoInnerPanel.add(customerFirstNameField, gbcPatient);
 
         // Row 2: ID and Phone
-        gbcPatient.gridx = 0; gbcPatient.gridy = 1; gbcPatient.weightx = 0.1;
+        gbcPatient.gridx = 0; gbcPatient.gridy = 2; gbcPatient.weightx = 0.1;
         JLabel idLabel = new JLabel("Mã BN", SwingConstants.RIGHT);
         idLabel.setFont(labelFont);
         patientInfoInnerPanel.add(idLabel, gbcPatient);
@@ -553,7 +565,7 @@ public class CheckUpPage extends JPanel {
         patientInfoInnerPanel.add(customerPhoneField, gbcPatient);
 
         // Row 3: Gender and DOB
-        gbcPatient.gridx = 0; gbcPatient.gridy = 2;
+        gbcPatient.gridx = 0; gbcPatient.gridy = 3;
         JLabel genderLabel = new JLabel("Giới tính", SwingConstants.RIGHT);
         genderLabel.setFont(labelFont);
         patientInfoInnerPanel.add(genderLabel, gbcPatient);
@@ -581,7 +593,7 @@ public class CheckUpPage extends JPanel {
         patientInfoInnerPanel.add(dobPicker, gbcPatient);
 
         // Row 4: Weight and Height
-        gbcPatient.gridx = 0; gbcPatient.gridy = 3;
+        gbcPatient.gridx = 0; gbcPatient.gridy = 4;
         JLabel weightLabel = new JLabel("Cân nặng (kg)", SwingConstants.RIGHT);
         weightLabel.setFont(labelFont);
         patientInfoInnerPanel.add(weightLabel, gbcPatient);
@@ -611,8 +623,58 @@ public class CheckUpPage extends JPanel {
         }
         patientInfoInnerPanel.add(customerHeightSpinner, gbcPatient);
 
-        // Row 5: Address (full width)
-        gbcPatient.gridx = 0; gbcPatient.gridy = 4;
+        // Row 5: Heart Rate and Blood Pressure
+        gbcPatient.gridy++;
+        gbcPatient.gridx = 0;
+        JLabel heartRateLabel = new JLabel("Nhịp tim (l/p)", SwingConstants.RIGHT);
+        heartRateLabel.setFont(labelFont);
+        patientInfoInnerPanel.add(heartRateLabel, gbcPatient);
+
+        gbcPatient.gridx = 1;
+        SpinnerModel heartRateModel = new SpinnerNumberModel(80, 30, 250, 1);
+        patientHeartRateSpinner = new JSpinner(heartRateModel);
+        patientHeartRateSpinner.setFont(fieldFont);
+        JComponent heartRateEditor = patientHeartRateSpinner.getEditor();
+        if (heartRateEditor instanceof JSpinner.DefaultEditor) {
+            ((JSpinner.DefaultEditor)heartRateEditor).getTextField().setFont(fieldFont);
+        }
+        patientInfoInnerPanel.add(patientHeartRateSpinner, gbcPatient);
+
+        gbcPatient.gridx = 2;
+        JLabel bloodPressureLabel = new JLabel("Huyết áp (mmHg)", SwingConstants.RIGHT);
+        bloodPressureLabel.setFont(labelFont);
+        patientInfoInnerPanel.add(bloodPressureLabel, gbcPatient);
+
+        gbcPatient.gridx = 3;
+        JPanel bloodPressurePanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        bloodPressurePanel.setOpaque(false);
+
+        SpinnerModel systolicModel = new SpinnerNumberModel(120, 50, 300, 1);
+        bloodPressureSystolicSpinner = new JSpinner(systolicModel);
+        bloodPressureSystolicSpinner.setFont(fieldFont);
+        JComponent systolicEditor = bloodPressureSystolicSpinner.getEditor();
+        if (systolicEditor instanceof JSpinner.DefaultEditor) {
+            ((JSpinner.DefaultEditor)systolicEditor).getTextField().setFont(fieldFont);
+        }
+
+        SpinnerModel diastolicModel = new SpinnerNumberModel(80, 30, 200, 1);
+        bloodPressureDiastolicSpinner = new JSpinner(diastolicModel);
+        bloodPressureDiastolicSpinner.setFont(fieldFont);
+        JComponent diastolicEditor = bloodPressureDiastolicSpinner.getEditor();
+        if (diastolicEditor instanceof JSpinner.DefaultEditor) {
+            ((JSpinner.DefaultEditor)diastolicEditor).getTextField().setFont(fieldFont);
+        }
+
+        JLabel slashLabel = new JLabel(" / ");
+        slashLabel.setFont(fieldFont);
+
+        bloodPressurePanel.add(bloodPressureSystolicSpinner);
+        bloodPressurePanel.add(slashLabel);
+        bloodPressurePanel.add(bloodPressureDiastolicSpinner);
+        patientInfoInnerPanel.add(bloodPressurePanel, gbcPatient);
+
+        // Row 6: Address (full width)
+        gbcPatient.gridx = 0; gbcPatient.gridy = 6;
         JLabel addressLabel = new JLabel("Địa chỉ", SwingConstants.RIGHT);
         addressLabel.setFont(labelFont);
         patientInfoInnerPanel.add(addressLabel, gbcPatient);
@@ -622,9 +684,9 @@ public class CheckUpPage extends JPanel {
         customerAddressField.setFont(fieldFont);
         patientInfoInnerPanel.add(customerAddressField, gbcPatient);
 
-        // Row 6: Location dropdowns
+        // Row 7: Location dropdowns
         gbcPatient.gridwidth = 1; // Reset gridwidth
-        gbcPatient.gridx = 1; gbcPatient.gridy = 5;
+        gbcPatient.gridx = 1; gbcPatient.gridy = 7;
         provinceComboBox = new JComboBox<>(LocalStorage.provinces);
         provinceComboBox.setFont(fieldFont);
         patientInfoInnerPanel.add(provinceComboBox, gbcPatient);
@@ -690,7 +752,7 @@ public class CheckUpPage extends JPanel {
         roomControlPanel.add(freeRoomButton, gbcRoom);
 
         // Add room control panel to the bottom of patient info panel
-        gbcPatient.gridx = 0; gbcPatient.gridy = 6; gbcPatient.gridwidth = 4;
+        gbcPatient.gridx = 0; gbcPatient.gridy = 8; gbcPatient.gridwidth = 4;
         patientInfoInnerPanel.add(roomControlPanel, gbcPatient);
 
         // Add back the event listeners
@@ -1732,6 +1794,7 @@ public class CheckUpPage extends JPanel {
         try { customerHeightSpinner.setValue(Double.parseDouble(selectedPatient.getCustomerHeight())); } catch (NumberFormatException e) {log.warn("Invalid height: {}", selectedPatient.getCustomerHeight()); customerHeightSpinner.setValue(0.0);}
         genderComboBox.setSelectedItem(selectedPatient.getCustomerGender());
         checkupTypeComboBox.setSelectedItem(selectedPatient.getCheckupType());
+        customerCccdDdcnField.setText(selectedPatient.getCccdDdcn() != null ? selectedPatient.getCccdDdcn() : "");
 
         NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetPatientHistoryRequest(Integer.parseInt(selectedPatient.getCustomerId())));
         NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetOrderInfoByCheckupReq(selectedPatient.getCheckupId()));
@@ -3145,6 +3208,7 @@ public class CheckUpPage extends JPanel {
         String status = (String) statusComboBox.getSelectedItem();
         String checkupType = (String) checkupTypeComboBox.getSelectedItem();
         String reCheckupDate = recheckupDatePicker.getJFormattedTextField().getText();
+        String customerCccdDdcn = customerCccdDdcnField.getText();
 
         // Log all fields that will be sent to backend
         log.info("=== SaveCheckupRequest Data ===");
@@ -3169,6 +3233,7 @@ public class CheckUpPage extends JPanel {
         log.info("medicinePrescription: {}", (Object) medicinePrescription);
         log.info("servicePrescription: {}", (Object) servicePrescription);
         log.info("reCheckupDate: {}", reCheckupDate);
+        log.info("customerCccdDdcn: {}", customerCccdDdcn);
         log.info("=== End SaveCheckupRequest Data ===");
 
        
@@ -3192,6 +3257,7 @@ public class CheckUpPage extends JPanel {
             checkupType,
             conclusion, // Ket luan
             reCheckupDate,
+            customerCccdDdcn,
             medicinePrescription,
             servicePrescription
         );
@@ -3280,6 +3346,7 @@ public class CheckUpPage extends JPanel {
             diagnosisField.setText("");
             conclusionField.setText("");
             setRtfContentFromString("{\\rtf1\\ansi\\ansicpg1252\\deff0\\deflang1033{\\fonttbl{\\f0\\fnil\\fcharset163 Times New Roman;}}\\viewkind4\\uc1\\pard\\f0\\fs32\\par}"); // Clear notes
+            customerCccdDdcnField.setText("");
 
             if (doctorComboBox.getItemCount() > 0) doctorComboBox.setSelectedIndex(0);
             statusComboBox.setSelectedIndex(0);
@@ -3291,6 +3358,9 @@ public class CheckUpPage extends JPanel {
 
             customerWeightSpinner.setValue(0);
             customerHeightSpinner.setValue(0);
+            patientHeartRateSpinner.setValue(80);
+            bloodPressureSystolicSpinner.setValue(120);
+            bloodPressureDiastolicSpinner.setValue(80);
 
             datePicker.getModel().setValue(null);
             dobPicker.getModel().setValue(null);
