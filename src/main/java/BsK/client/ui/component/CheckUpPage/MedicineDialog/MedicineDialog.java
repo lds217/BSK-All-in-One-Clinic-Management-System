@@ -27,6 +27,9 @@ import java.awt.event.WindowEvent;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.awt.event.ActionEvent;
+import javax.swing.AbstractAction;
+import javax.swing.KeyStroke;
 
 @Slf4j
 public class MedicineDialog extends JDialog {
@@ -42,15 +45,20 @@ public class MedicineDialog extends JDialog {
     private JTextArea noteField;
     private DefaultTableModel tableModel, selectedTableModel;
     private String[] medcineColumns = {"ID", "Tên thuốc", "Công ty", "Mô tả", "Tồn kho", "ĐVT", "Giá"};
+    private String[] suggestionColumns = {"Tên thuốc", "Tồn kho", "ĐVT", "Giá"};
     private String[][] medicineData;
     private final ResponseListener<GetMedInfoResponse> getMedInfoResponseListener = this::getMedInfoHandler;
     private TableColumnModel columnModel;
     private HashMap<String, Boolean> selectedMedicine = new HashMap<>();
-    private JTable medicineTable;
-    private JTable selectedTable;
+    private JTable chosenMedicineTable;
+    private JTable suggestionTable;
+    private DefaultTableModel suggestionTableModel;
+    private JPopupMenu suggestionPopup;
     private boolean isProgrammaticallySettingMedicineNameField = false;
+    private boolean isSelectionLocked = false;
 
     private List<Medicine> medicines = new ArrayList<>();
+    private List<Medicine> filteredMedicines = new ArrayList<>();
     private String[][] medicinePrescription;
     private String[][] originalPrescription; // Store original data for comparison
     private static final Logger logger = LoggerFactory.getLogger(MedicineDialog.class);
@@ -66,18 +74,7 @@ public class MedicineDialog extends JDialog {
         // Get Medicine objects from the response
         medicines = response.getMedicines();
         
-        // Set the data vector with the raw string arrays for backward compatibility
-        tableModel.setDataVector(medicineData, medcineColumns);
-
-        // resize column width
-        columnModel = medicineTable.getColumnModel();
-        columnModel.getColumn(0).setPreferredWidth(20); // ID
-        columnModel.getColumn(1).setPreferredWidth(150); // Name
-        columnModel.getColumn(2).setPreferredWidth(100); // Company
-        columnModel.getColumn(3).setPreferredWidth(200); // Description
-        columnModel.getColumn(4).setPreferredWidth(40); // Stock
-        columnModel.getColumn(5).setPreferredWidth(40); // Unit
-        columnModel.getColumn(6).setPreferredWidth(50); // Price
+        // We don't need to populate a main table anymore, just have the data ready.
     }
 
     private void sendGetMedInfoRequest() {
@@ -106,9 +103,15 @@ public class MedicineDialog extends JDialog {
 
     private void init(final Frame parent) {
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
-        setSize(1100, 600);
+        setSize(1200, 700);
         setLocationRelativeTo(parent);
         setResizable(true);
+        
+        // UI Fonts and Dimensions
+        Font labelFont = new Font("Arial", Font.BOLD, 15);
+        Font textFont = new Font("Arial", Font.PLAIN, 15);
+        Font titleFont = new Font("Arial", Font.BOLD, 16);
+        Dimension textFieldSize = new Dimension(100, 30);
         
         // Ensure modal behavior and proper parent relationship
         setModalityType(Dialog.ModalityType.APPLICATION_MODAL);
@@ -149,7 +152,7 @@ public class MedicineDialog extends JDialog {
         medicineInfoPanel.setBorder(BorderFactory.createTitledBorder(
                 BorderFactory.createEtchedBorder(), "Thông tin thuốc",
                 javax.swing.border.TitledBorder.LEADING, javax.swing.border.TitledBorder.TOP,
-                new Font("Arial", Font.BOLD, 14), new Color(50, 50, 50)
+                titleFont, new Color(50, 50, 50)
         ));
         mainGbc.gridx = 0;
         mainGbc.gridy = 0;
@@ -159,7 +162,7 @@ public class MedicineDialog extends JDialog {
         quantityPricePanel.setBorder(BorderFactory.createTitledBorder(
                 BorderFactory.createEtchedBorder(), "Số lượng & Giá",
                 javax.swing.border.TitledBorder.LEADING, javax.swing.border.TitledBorder.TOP,
-                new Font("Arial", Font.BOLD, 14), new Color(50, 50, 50)
+                titleFont, new Color(50, 50, 50)
         ));
         mainGbc.gridy = 1;
         mainInputPanel.add(quantityPricePanel, mainGbc);
@@ -168,7 +171,7 @@ public class MedicineDialog extends JDialog {
         dosagePanel.setBorder(BorderFactory.createTitledBorder(
                 BorderFactory.createEtchedBorder(), "Liều dùng",
                 javax.swing.border.TitledBorder.LEADING, javax.swing.border.TitledBorder.TOP,
-                new Font("Arial", Font.BOLD, 14), new Color(50, 50, 50)
+                titleFont, new Color(50, 50, 50)
         ));
         mainGbc.gridy = 2;
         mainInputPanel.add(dosagePanel, mainGbc);
@@ -177,13 +180,15 @@ public class MedicineDialog extends JDialog {
         notePanel.setBorder(BorderFactory.createTitledBorder(
                 BorderFactory.createEtchedBorder(), "Ghi chú",
                 javax.swing.border.TitledBorder.LEADING, javax.swing.border.TitledBorder.TOP,
-                new Font("Arial", Font.BOLD, 14), new Color(50, 50, 50)
+                titleFont, new Color(50, 50, 50)
         ));
         mainGbc.gridy = 3;
         mainInputPanel.add(notePanel, mainGbc);
 
         JPanel addMedicineButtonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
-        JButton addMedicineButton = new JButton("Thêm thuốc");
+        JButton addMedicineButton = new JButton("<html>Thêm thuốc <font color='red'>(F1)</font></html>");
+        addMedicineButton.setFont(labelFont);
+        addMedicineButton.setPreferredSize(new Dimension(200, 40));
         addMedicineButtonPanel.add(addMedicineButton);
         mainGbc.gridy = 4;
         mainInputPanel.add(addMedicineButtonPanel, mainGbc);
@@ -201,21 +206,29 @@ public class MedicineDialog extends JDialog {
 
         gbc.gridy = 0;
         gbc.gridx = 0;
-        medicineInfoPanel.add(new JLabel("Tên thuốc:"), gbc);
+        JLabel nameLabel = new JLabel("Tên thuốc:");
+        nameLabel.setFont(labelFont);
+        medicineInfoPanel.add(nameLabel, gbc);
 
         gbc.gridx = 1;
         gbc.weightx = 1.0;
         medicineNameField = new JTextField(20);
+        medicineNameField.setFont(textFont);
+        medicineNameField.setPreferredSize(textFieldSize);
         medicineInfoPanel.add(medicineNameField, gbc);
         gbc.weightx = 0.0;
 
         gbc.gridy++;
         gbc.gridx = 0;
-        medicineInfoPanel.add(new JLabel("Công ty:"), gbc);
+        JLabel companyLabel = new JLabel("Công ty:");
+        companyLabel.setFont(labelFont);
+        medicineInfoPanel.add(companyLabel, gbc);
 
         gbc.gridx = 1;
         gbc.weightx = 1.0;
         medicineCompanyField = new JTextField(20);
+        medicineCompanyField.setFont(textFont);
+        medicineCompanyField.setPreferredSize(textFieldSize);
         medicineCompanyField.setEditable(false);
         medicineInfoPanel.add(medicineCompanyField, gbc);
         gbc.weightx = 0.0;
@@ -223,12 +236,15 @@ public class MedicineDialog extends JDialog {
         gbc.gridy++;
         gbc.gridx = 0;
         gbc.anchor = GridBagConstraints.NORTHWEST;
-        medicineInfoPanel.add(new JLabel("Mô tả:"), gbc);
+        JLabel descriptionLabel = new JLabel("Mô tả:");
+        descriptionLabel.setFont(labelFont);
+        medicineInfoPanel.add(descriptionLabel, gbc);
         gbc.anchor = GridBagConstraints.WEST;
 
         gbc.gridx = 1;
         gbc.weightx = 1.0;
         medicineDescriptionField = new JTextArea(3, 20);
+        medicineDescriptionField.setFont(textFont);
         medicineDescriptionField.setLineWrap(true);
         medicineDescriptionField.setWrapStyleWord(true);
         medicineDescriptionField.setEditable(false);
@@ -239,55 +255,74 @@ public class MedicineDialog extends JDialog {
 
         gbc.gridy = 0;
         gbc.gridx = 0;
-        quantityPricePanel.add(new JLabel("Số lượng:"), gbc);
+        JLabel quantityLabel = new JLabel("Số lượng:");
+        quantityLabel.setFont(labelFont);
+        quantityPricePanel.add(quantityLabel, gbc);
 
         gbc.gridx = 1;
         gbc.weightx = 0.5;
         quantitySpinner = new JSpinner(new SpinnerNumberModel(1, 1, 100, 1));
-        quantitySpinner.setPreferredSize(new Dimension(80, 25));
+        quantitySpinner.setFont(textFont);
+        quantitySpinner.setPreferredSize(new Dimension(80, 30));
         quantityPricePanel.add(quantitySpinner, gbc);
 
         gbc.gridx = 2;
         gbc.weightx = 0.0;
-        quantityPricePanel.add(new JLabel("Còn lại:"), gbc);
+        JLabel quantityLeftLabel = new JLabel("Còn lại:");
+        quantityLeftLabel.setFont(labelFont);
+        quantityPricePanel.add(quantityLeftLabel, gbc);
 
         gbc.gridx = 3;
         gbc.weightx = 0.5;
         quantityLeftField = new JTextField(5);
+        quantityLeftField.setFont(textFont);
+        quantityLeftField.setPreferredSize(textFieldSize);
         quantityLeftField.setEditable(false);
         quantityPricePanel.add(quantityLeftField, gbc);
         gbc.weightx = 0.0;
 
         gbc.gridy++;
         gbc.gridx = 0;
-        quantityPricePanel.add(new JLabel("ĐVT:"), gbc);
+        JLabel unitLabel = new JLabel("ĐVT:");
+        unitLabel.setFont(labelFont);
+        quantityPricePanel.add(unitLabel, gbc);
 
         gbc.gridx = 1;
         gbc.weightx = 0.5;
         String[] units = {"Viên", "Vỉ", "Hộp", "Chai", "Tuýp", "Gói"};
         UnitComboBox = new JComboBox<>(units);
+        UnitComboBox.setFont(textFont);
+        UnitComboBox.setPreferredSize(textFieldSize);
         UnitComboBox.setEnabled(false);
         quantityPricePanel.add(UnitComboBox, gbc);
 
         gbc.gridx = 2;
         gbc.weightx = 0.0;
-        quantityPricePanel.add(new JLabel("Giá (VNĐ):"), gbc);
+        JLabel priceLabel = new JLabel("Giá (VNĐ):");
+        priceLabel.setFont(labelFont);
+        quantityPricePanel.add(priceLabel, gbc);
 
         gbc.gridx = 3;
         gbc.weightx = 0.5;
         priceField = new JTextField(10);
+        priceField.setFont(textFont);
+        priceField.setPreferredSize(textFieldSize);
         priceField.setEditable(false);
         quantityPricePanel.add(priceField, gbc);
         gbc.weightx = 0.0;
 
         gbc.gridy++;
         gbc.gridx = 0;
-        quantityPricePanel.add(new JLabel("Thành tiền (VNĐ):"), gbc);
+        JLabel totalLabel = new JLabel("Thành tiền (VNĐ):");
+        totalLabel.setFont(labelFont);
+        quantityPricePanel.add(totalLabel, gbc);
 
         gbc.gridx = 1;
         gbc.gridwidth = 3;
         gbc.weightx = 1.0;
         totalField = new JTextField(10);
+        totalField.setFont(textFont);
+        totalField.setPreferredSize(textFieldSize);
         totalField.setEditable(false);
         quantityPricePanel.add(totalField, gbc);
         gbc.gridwidth = 1;
@@ -297,33 +332,44 @@ public class MedicineDialog extends JDialog {
         gbc.gridy = 0;
         gbc.gridx = 0;
         gbc.weightx = 0.0;
-        dosagePanel.add(new JLabel("Sáng:"), gbc);
+        JLabel morningLabel = new JLabel("Sáng:");
+        morningLabel.setFont(labelFont);
+        dosagePanel.add(morningLabel, gbc);
         gbc.gridx = 1;
         gbc.weightx = 0.3;
         morningSpinner = new JSpinner(new SpinnerNumberModel(0, 0, 10, 1));
-        morningSpinner.setPreferredSize(new Dimension(60,25));
+        morningSpinner.setFont(textFont);
+        morningSpinner.setPreferredSize(new Dimension(60,30));
         dosagePanel.add(morningSpinner, gbc);
         gbc.gridx = 2;
         gbc.weightx = 0.0;
-        dosagePanel.add(new JLabel("Trưa:"), gbc);
+        JLabel noonLabel = new JLabel("Trưa:");
+        noonLabel.setFont(labelFont);
+        dosagePanel.add(noonLabel, gbc);
         gbc.gridx = 3;
         gbc.weightx = 0.3;
         noonSpinner = new JSpinner(new SpinnerNumberModel(0, 0, 10, 1));
-        noonSpinner.setPreferredSize(new Dimension(60,25));
+        noonSpinner.setFont(textFont);
+        noonSpinner.setPreferredSize(new Dimension(60,30));
         dosagePanel.add(noonSpinner, gbc);
         gbc.gridx = 4;
         gbc.weightx = 0.0;
-        dosagePanel.add(new JLabel("Chiều:"), gbc);
+        JLabel eveningLabel = new JLabel("Chiều:");
+        eveningLabel.setFont(labelFont);
+        dosagePanel.add(eveningLabel, gbc);
         gbc.gridx = 5;
         gbc.weightx = 0.3;
         eveningSpinner = new JSpinner(new SpinnerNumberModel(0, 0, 10, 1));
-        eveningSpinner.setPreferredSize(new Dimension(60,25));
+        eveningSpinner.setFont(textFont);
+        eveningSpinner.setPreferredSize(new Dimension(60,30));
         dosagePanel.add(eveningSpinner, gbc);
         gbc.weightx = 0.0;
 
         gbc.gridy = 0;
         gbc.gridx = 0;
-        notePanel.add(new JLabel("Ghi chú:"), gbc);
+        JLabel noteLabel = new JLabel("Ghi chú:");
+        noteLabel.setFont(labelFont);
+        notePanel.add(noteLabel, gbc);
         gbc.anchor = GridBagConstraints.WEST;
 
         gbc.gridx = 1;
@@ -331,6 +377,7 @@ public class MedicineDialog extends JDialog {
         gbc.fill = GridBagConstraints.BOTH;
         gbc.weighty = 1.0;
         noteField = new JTextArea(3, 20);
+        noteField.setFont(textFont);
         noteField.setLineWrap(true);
         noteField.setWrapStyleWord(true);
         JScrollPane noteScrollPane = new JScrollPane(noteField);
@@ -340,19 +387,24 @@ public class MedicineDialog extends JDialog {
         gbc.weightx = 0.0;
         gbc.weighty = 0.0;
 
-        tableModel = new DefaultTableModel(medicineData, medcineColumns) {
+        suggestionTableModel = new DefaultTableModel(new String[0][0], suggestionColumns) {
             @Override
             public boolean isCellEditable(int row, int column) {
                 return false;
             }
         };
-        medicineTable = new JTable(tableModel);
-        medicineTable.setFont(new Font("Arial", Font.PLAIN, 14));
-        medicineTable.setRowHeight(25);
-        medicineTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        medicineTable.setAutoCreateRowSorter(true);
-        JScrollPane medicineTableScrollPane = new JScrollPane(medicineTable);
-        medicineTableScrollPane.setPreferredSize(new Dimension(600, 250));
+        suggestionTable = new JTable(suggestionTableModel);
+        suggestionTable.setFont(new Font("Arial", Font.PLAIN, 15));
+        suggestionTable.setRowHeight(30);
+        suggestionTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        suggestionTable.setAutoCreateRowSorter(false); // We filter manually
+        JScrollPane suggestionScrollPane = new JScrollPane(suggestionTable);
+
+        suggestionPopup = new JPopupMenu();
+        suggestionPopup.setLayout(new BorderLayout());
+        suggestionPopup.add(suggestionScrollPane, BorderLayout.CENTER);
+        suggestionPopup.setFocusable(false);
+
 
         String[] selectedColumnNames = {"ID", "Tên thuốc", "SL", "ĐVT", "Sáng", "Trưa", "Chiều", "Đơn giá", "Thành tiền", "Ghi chú"};
         selectedTableModel = new DefaultTableModel(new String[][]{}, selectedColumnNames) {
@@ -361,107 +413,134 @@ public class MedicineDialog extends JDialog {
                 return column == 2 || column == 4 || column == 5 || column == 6 || column == 9;
             }
         };
-        selectedTable = new JTable(selectedTableModel);
-        selectedTable.setFont(new Font("Arial", Font.PLAIN, 14));
-        selectedTable.setRowHeight(25);
-        JScrollPane selectedTableScrollPane = new JScrollPane(selectedTable);
+        chosenMedicineTable = new JTable(selectedTableModel);
+        chosenMedicineTable.setFont(new Font("Arial", Font.PLAIN, 15));
+        chosenMedicineTable.setRowHeight(30);
+        JScrollPane selectedTableScrollPane = new JScrollPane(chosenMedicineTable);
         selectedTableScrollPane.setPreferredSize(new Dimension(600, 150));
 
         JPanel removeButtonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         JButton removeMedicineButton = new JButton("Xóa thuốc đã chọn");
+        removeMedicineButton.setFont(labelFont);
         removeButtonPanel.add(removeMedicineButton);
 
-        // Create titled panels for right side sections
-        JPanel availableMedicinesPanel = new JPanel(new BorderLayout());
-        availableMedicinesPanel.setBorder(BorderFactory.createTitledBorder(
-                BorderFactory.createEtchedBorder(), "Thuốc trong kho",
-                javax.swing.border.TitledBorder.LEADING, javax.swing.border.TitledBorder.TOP,
-                new Font("Arial", Font.BOLD, 14), new Color(63, 81, 181)
-        ));
-        availableMedicinesPanel.add(medicineTableScrollPane, BorderLayout.CENTER);
-        
         JPanel chosenMedicinesPanel = new JPanel(new BorderLayout());
         chosenMedicinesPanel.setBorder(BorderFactory.createTitledBorder(
                 BorderFactory.createEtchedBorder(), "Thuốc đã chọn",
                 javax.swing.border.TitledBorder.LEADING, javax.swing.border.TitledBorder.TOP,
-                new Font("Arial", Font.BOLD, 14), new Color(220, 20, 60)
+                titleFont, new Color(220, 20, 60)
         ));
         chosenMedicinesPanel.setBackground(new Color(255, 240, 240)); // Light red background
         selectedTableScrollPane.setBackground(new Color(255, 240, 240)); // Light red background
         chosenMedicinesPanel.add(selectedTableScrollPane, BorderLayout.CENTER);
         chosenMedicinesPanel.add(removeButtonPanel, BorderLayout.SOUTH);
 
-        JPanel rightPanel = new JPanel(new BorderLayout(0, 5));
-        rightPanel.add(availableMedicinesPanel, BorderLayout.CENTER);
-        rightPanel.add(chosenMedicinesPanel, BorderLayout.SOUTH);
-
         JScrollPane mainInputScrollPane = new JScrollPane(mainInputPanel);
         mainInputScrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
         mainInputScrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
         mainInputScrollPane.setBorder(BorderFactory.createEmptyBorder());
 
-        JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, mainInputScrollPane, rightPanel);
-        splitPane.setResizeWeight(0.45);
+        JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, mainInputScrollPane, chosenMedicinesPanel);
+        splitPane.setResizeWeight(0.35);
         add(splitPane, BorderLayout.CENTER);
 
         JPanel bottomButtonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         JButton okButton = new JButton("Lưu");
+        okButton.setFont(labelFont);
         JButton cancelButton = new JButton("Hủy");
+        cancelButton.setFont(labelFont);
         bottomButtonPanel.add(okButton);
         bottomButtonPanel.add(cancelButton);
         add(bottomButtonPanel, BorderLayout.SOUTH);
 
+        // F1 Key binding for adding medicine
+        Action addAction = new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                addSelectedMedicine();
+            }
+        };
+        getRootPane().getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke("F1"), "addMedicineAction");
+        getRootPane().getActionMap().put("addMedicineAction", addAction);
+
         medicineNameField.getDocument().addDocumentListener(new DocumentListener() {
             public void changedUpdate(DocumentEvent e) { 
                 if (!isProgrammaticallySettingMedicineNameField) {
-                    SwingUtilities.invokeLater(() -> filterMedicineTable()); 
+                    isSelectionLocked = false;
+                    SwingUtilities.invokeLater(() -> showOrUpdateSuggestions()); 
                 }
             }
             public void removeUpdate(DocumentEvent e) { 
                 if (!isProgrammaticallySettingMedicineNameField) {
-                    SwingUtilities.invokeLater(() -> filterMedicineTable()); 
+                    isSelectionLocked = false;
+                    SwingUtilities.invokeLater(() -> showOrUpdateSuggestions()); 
                 }
             }
             public void insertUpdate(DocumentEvent e) { 
                 if (!isProgrammaticallySettingMedicineNameField) {
-                    SwingUtilities.invokeLater(() -> filterMedicineTable()); 
+                    isSelectionLocked = false;
+                    SwingUtilities.invokeLater(() -> showOrUpdateSuggestions()); 
                 }
             }
         });
 
-        medicineTable.addMouseListener(new MouseAdapter() {
+        suggestionTable.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
-                if (e.getClickCount() == 1) {
-                    SwingUtilities.invokeLater(() -> {
-                        int selectedRow = medicineTable.getSelectedRow();
-                        if (selectedRow != -1) {
-                            handleMedicineTableRowSelection(selectedRow);
-                        }
-                    });
-                }
+                SwingUtilities.invokeLater(() -> {
+                    int selectedRow = suggestionTable.getSelectedRow();
+                    if (selectedRow == -1) return;
+
+                    handleMedicineTableRowSelection(selectedRow); // Populate fields on any click
+
+                    if (e.getClickCount() == 2) {
+                        addSelectedMedicine();
+                        suggestionPopup.setVisible(false);
+                    }
+                });
             }
         });
+
         medicineNameField.addKeyListener(new KeyAdapter() {
             @Override
             public void keyPressed(KeyEvent e) {
-                if (e.getKeyCode() == KeyEvent.VK_ENTER) {
-                    if (medicineTable.getSelectedRow() != -1) addSelectedMedicine();
-                } else if (e.getKeyCode() == KeyEvent.VK_DOWN) {
-                    if (medicineTable.getRowCount() > 0) {
-                        int selectedRow = medicineTable.getSelectedRow();
-                        selectedRow = (selectedRow < medicineTable.getRowCount() - 1) ? selectedRow + 1 : 0;
-                        medicineTable.setRowSelectionInterval(selectedRow, selectedRow);
-                        medicineTable.scrollRectToVisible(medicineTable.getCellRect(selectedRow, 0, true));
-                        handleMedicineTableRowSelection(selectedRow);
+                if (suggestionPopup.isVisible()) {
+                    int selectedRow = suggestionTable.getSelectedRow();
+                    int rowCount = suggestionTable.getRowCount();
+
+                    switch (e.getKeyCode()) {
+                        case KeyEvent.VK_DOWN:
+                            if (rowCount > 0) {
+                                selectedRow = (selectedRow + 1) % rowCount;
+                                suggestionTable.setRowSelectionInterval(selectedRow, selectedRow);
+                                suggestionTable.scrollRectToVisible(suggestionTable.getCellRect(selectedRow, 0, true));
+                            }
+                            e.consume();
+                            break;
+                        case KeyEvent.VK_UP:
+                            if (rowCount > 0) {
+                                selectedRow = (selectedRow - 1 + rowCount) % rowCount;
+                                suggestionTable.setRowSelectionInterval(selectedRow, selectedRow);
+                                suggestionTable.scrollRectToVisible(suggestionTable.getCellRect(selectedRow, 0, true));
+                            }
+                            e.consume();
+                            break;
+                        case KeyEvent.VK_ENTER:
+                            if (selectedRow != -1) {
+                                handleMedicineTableRowSelection(suggestionTable.getSelectedRow());
+                                suggestionPopup.setVisible(false);
+                                quantitySpinner.requestFocusInWindow();
+                            }
+                            e.consume();
+                            break;
+                        case KeyEvent.VK_ESCAPE:
+                            suggestionPopup.setVisible(false);
+                            e.consume();
+                            break;
                     }
-                } else if (e.getKeyCode() == KeyEvent.VK_UP) {
-                    if (medicineTable.getRowCount() > 0) {
-                        int selectedRow = medicineTable.getSelectedRow();
-                        selectedRow = (selectedRow > 0) ? selectedRow - 1 : medicineTable.getRowCount() - 1;
-                        medicineTable.setRowSelectionInterval(selectedRow, selectedRow);
-                        medicineTable.scrollRectToVisible(medicineTable.getCellRect(selectedRow, 0, true));
-                        handleMedicineTableRowSelection(selectedRow);
+                } else {
+                     if (e.getKeyCode() == KeyEvent.VK_ENTER) {
+                        handleExactMatch();
                     }
                 }
             }
@@ -472,6 +551,19 @@ public class MedicineDialog extends JDialog {
 
         addMedicineButton.addActionListener(e -> addSelectedMedicine());
         removeMedicineButton.addActionListener(e -> removeSelectedMedicine());
+
+        noteField.addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyPressed(KeyEvent e) {
+                if (e.getKeyCode() == KeyEvent.VK_TAB && e.getModifiersEx() == 0) {
+                    e.consume();
+                    addSelectedMedicine();
+                } else if (e.getKeyCode() == KeyEvent.VK_TAB && e.isShiftDown()) {
+                    e.consume();
+                    eveningSpinner.requestFocusInWindow();
+                }
+            }
+        });
 
         okButton.addActionListener(e -> {
             collectPrescriptionData();
@@ -513,72 +605,146 @@ public class MedicineDialog extends JDialog {
         });
     }
 
-    private void filterMedicineTable() {
+    private void showOrUpdateSuggestions() {
+        if (isSelectionLocked) {
+            return;
+        }
         String filterText = medicineNameField.getText().trim();
-        if (medicineData == null) return;
+        if (medicines == null || medicines.isEmpty()) {
+            return;
+        }
+
         if (filterText.isEmpty()) {
-            tableModel.setDataVector(medicineData, medcineColumns);
-            resizeMedicineTableColumns();
-                    medicineTable.clearSelection();
-        } else {
-            List<String[]> filteredData = new ArrayList<>();
-            List<Medicine> filteredMedicines = new ArrayList<>();
-            String lowerCaseFilterText = TextUtils.removeAccents(filterText.toLowerCase());
-            
-            for (Medicine med : medicines) {
-                if (TextUtils.removeAccents(med.getName().toLowerCase()).contains(lowerCaseFilterText)) {
-                    filteredMedicines.add(med);
-                    filteredData.add(med.toStringArray());
-                }
-            }
-            
-            tableModel.setDataVector(filteredData.toArray(new String[0][0]), medcineColumns);
-            resizeMedicineTableColumns();
-            if (!filteredData.isEmpty()) {
-                medicineTable.setRowSelectionInterval(0,0);
-                handleMedicineTableRowSelection(0);
-            } else {
-                clearInputFields();
+            suggestionPopup.setVisible(false);
+            return;
+        }
+
+        filteredMedicines.clear();
+        List<String[]> filteredDisplayData = new ArrayList<>();
+        String lowerCaseFilterText = TextUtils.removeAccents(filterText.toLowerCase());
+
+        for (Medicine med : medicines) {
+            if (TextUtils.removeAccents(med.getName().toLowerCase()).contains(lowerCaseFilterText)) {
+                filteredMedicines.add(med);
+                filteredDisplayData.add(new String[]{
+                        med.getName(),
+                        med.getQuantity(),
+                        med.getUnit(),
+                        med.getSellingPrice()
+                });
             }
         }
-    }
-    private void resizeMedicineTableColumns() {
-        columnModel = medicineTable.getColumnModel();
-        columnModel.getColumn(0).setPreferredWidth(20);
-        columnModel.getColumn(1).setPreferredWidth(150);
-        columnModel.getColumn(2).setPreferredWidth(100);
-        columnModel.getColumn(3).setPreferredWidth(200);
-        columnModel.getColumn(4).setPreferredWidth(40);
-        columnModel.getColumn(5).setPreferredWidth(40);
-        columnModel.getColumn(6).setPreferredWidth(50);
+
+        suggestionTableModel.setDataVector(filteredDisplayData.toArray(new String[0][0]), suggestionColumns);
+        resizeSuggestionTableColumns();
+
+        if (!filteredDisplayData.isEmpty()) {
+            suggestionTable.setRowSelectionInterval(0, 0);
+            
+            // Set preferred size for the popup's scroll pane
+            JScrollPane scrollPane = (JScrollPane) suggestionPopup.getComponent(0);
+            int headerHeight = suggestionTable.getTableHeader().getPreferredSize().height;
+            int rowsHeight = suggestionTable.getRowCount() * suggestionTable.getRowHeight();
+            int height = Math.min(rowsHeight, 200) + headerHeight;
+            int width = medicineNameField.getWidth();
+            scrollPane.setPreferredSize(new Dimension(width, height));
+            
+            suggestionPopup.pack();
+            suggestionPopup.show(medicineNameField, 0, medicineNameField.getHeight());
+            medicineNameField.requestFocusInWindow();
+        } else {
+            suggestionPopup.setVisible(false);
+            // clearInputFields(); // Don't clear fields if the user is typing
+        }
     }
 
+    private void resizeSuggestionTableColumns() {
+        columnModel = suggestionTable.getColumnModel();
+        columnModel.getColumn(0).setPreferredWidth(200); // Tên thuốc
+        columnModel.getColumn(1).setPreferredWidth(50);  // Tồn kho
+        columnModel.getColumn(2).setPreferredWidth(50);  // ĐVT
+        columnModel.getColumn(3).setPreferredWidth(80);  // Giá
+    }
+    
     private void handleMedicineTableRowSelection(int viewRow) {
-        if (viewRow < 0 || viewRow >= medicineTable.getRowCount()) {
+        if (viewRow < 0 || viewRow >= filteredMedicines.size()) {
             clearInputFields();
             return;
         }
-        int modelRow = medicineTable.convertRowIndexToModel(viewRow);
+        Medicine selectedMedicine = filteredMedicines.get(viewRow);
+        populateFieldsFromMedicine(selectedMedicine);
+    }
+
+    private void handleExactMatch() {
+        String searchName = medicineNameField.getText().trim();
+        if (searchName.isEmpty()) {
+            return;
+        }
+
+        Medicine foundMedicine = null;
+        String normalizedSearchName = TextUtils.removeAccents(searchName.toLowerCase());
+
+        for (Medicine med : medicines) {
+            if (TextUtils.removeAccents(med.getName().toLowerCase()).equals(normalizedSearchName)) {
+                foundMedicine = med;
+                break;
+            }
+        }
+
+        if (foundMedicine != null) {
+            populateFieldsFromMedicine(foundMedicine);
+            quantitySpinner.requestFocusInWindow();
+        }
+    }
+
+    private void populateFieldsFromMedicine(Medicine medicine) {
+        if (medicine == null) {
+            clearInputFields();
+            return;
+        }
 
         isProgrammaticallySettingMedicineNameField = true;
-        medicineNameField.setText(tableModel.getValueAt(modelRow, 1).toString());
+        medicineNameField.setText(medicine.getName());
         isProgrammaticallySettingMedicineNameField = false;
 
-        medicineCompanyField.setText(tableModel.getValueAt(modelRow, 2).toString());
-        medicineDescriptionField.setText(tableModel.getValueAt(modelRow, 3).toString());
-        quantityLeftField.setText(tableModel.getValueAt(modelRow, 4).toString());
-        UnitComboBox.setSelectedItem(tableModel.getValueAt(modelRow, 5).toString());
-        priceField.setText(tableModel.getValueAt(modelRow, 6).toString());
-        
+        medicineCompanyField.setText(medicine.getCompany());
+        medicineDescriptionField.setText(medicine.getDescription());
+        quantityLeftField.setText(medicine.getQuantity());
+        UnitComboBox.setSelectedItem(medicine.getUnit());
+        priceField.setText(medicine.getSellingPrice());
+
         quantitySpinner.setValue(1);
-        morningSpinner.setValue(0);
-        noonSpinner.setValue(0);
-        eveningSpinner.setValue(0);
-        noteField.setText("");
+
+        String preferenceNote = medicine.getPreferenceNote();
+        if (preferenceNote != null && !preferenceNote.trim().isEmpty()) {
+            String[] parts = preferenceNote.split(",", 4);
+            try {
+                morningSpinner.setValue(parts.length > 0 ? Integer.parseInt(parts[0].trim()) : 0);
+                noonSpinner.setValue(parts.length > 1 ? Integer.parseInt(parts[1].trim()) : 0);
+                eveningSpinner.setValue(parts.length > 2 ? Integer.parseInt(parts[2].trim()) : 0);
+                noteField.setText(parts.length > 3 ? parts[3].trim() : "");
+            } catch (NumberFormatException e) {
+                logger.error("Could not parse preference note: {}", preferenceNote, e);
+                // Reset to default values in case of parsing error
+                morningSpinner.setValue(0);
+                noonSpinner.setValue(0);
+                eveningSpinner.setValue(0);
+                noteField.setText("");
+            }
+        } else {
+            // No preference note, set default values
+            morningSpinner.setValue(0);
+            noonSpinner.setValue(0);
+            eveningSpinner.setValue(0);
+            noteField.setText("");
+        }
+        
         updateTotalField();
+        isSelectionLocked = true;
     }
 
     private void clearInputFields() {
+        // Don't clear the name field as the user is typing in it
         medicineCompanyField.setText("");
         medicineDescriptionField.setText("");
         quantityLeftField.setText("");
@@ -605,33 +771,37 @@ public class MedicineDialog extends JDialog {
     }
 
     private void addSelectedMedicine() {
-        int selectedRowInMedicineTable = medicineTable.getSelectedRow();
-        if (selectedRowInMedicineTable == -1 && medicineNameField.getText().isEmpty()) {
-            JOptionPane.showMessageDialog(this, "Vui lòng chọn một thuốc từ danh sách hoặc tìm kiếm.", "Chưa chọn thuốc", JOptionPane.WARNING_MESSAGE);
+        int selectedRowInSuggestionTable = suggestionTable.getSelectedRow();
+        
+        String medicineId, name, unit, currentPrice;
+        String searchName = medicineNameField.getText().trim();
+
+        if (searchName.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Vui lòng chọn một thuốc.", "Chưa chọn thuốc", JOptionPane.WARNING_MESSAGE);
             return;
         }
 
-        String medicineId, name, unit, currentPrice;
-
-        if (selectedRowInMedicineTable != -1) {
-            int modelRow = medicineTable.convertRowIndexToModel(selectedRowInMedicineTable);
-            medicineId = tableModel.getValueAt(modelRow, 0).toString();
-            name = tableModel.getValueAt(modelRow, 1).toString();
-            unit = tableModel.getValueAt(modelRow, 5).toString();
-            currentPrice = tableModel.getValueAt(modelRow, 6).toString();
+        // Prioritize selection from the popup table if it's open and has a selection
+        if (suggestionPopup.isVisible() && selectedRowInSuggestionTable != -1) {
+            Medicine selectedMedicine = filteredMedicines.get(suggestionTable.convertRowIndexToModel(selectedRowInSuggestionTable));
+            medicineId = selectedMedicine.getId();
+            name = selectedMedicine.getName();
+            unit = selectedMedicine.getUnit();
+            currentPrice = selectedMedicine.getSellingPrice();
         } else {
-            String searchName = medicineNameField.getText().trim();
+            // Otherwise, try to find an exact match from the text field
             Medicine foundMedicine = null;
-            
+            String normalizedSearchName = TextUtils.removeAccents(searchName.toLowerCase());
+
             for (Medicine med : medicines) {
-                if (TextUtils.removeAccents(med.getName().toLowerCase()).equals(TextUtils.removeAccents(searchName.toLowerCase()))) {
+                if (TextUtils.removeAccents(med.getName().toLowerCase()).equals(normalizedSearchName)) {
                     foundMedicine = med;
                     break;
                 }
             }
             
             if (foundMedicine == null) {
-                JOptionPane.showMessageDialog(this, "Không tìm thấy ID cho thuốc: " + searchName + ". Vui lòng chọn từ bảng.", "Lỗi", JOptionPane.ERROR_MESSAGE);
+                JOptionPane.showMessageDialog(this, "Không tìm thấy thuốc khớp với: '" + searchName + "'. Vui lòng chọn từ danh sách gợi ý.", "Lỗi", JOptionPane.ERROR_MESSAGE);
                 return;
             }
             medicineId = foundMedicine.getId();
@@ -652,10 +822,17 @@ public class MedicineDialog extends JDialog {
                     return;
                 }
         selectedTableModel.addRow(new Object[]{medicineId, name, quantity, unit, morningVal, noonVal, eveningVal, currentPrice, totalAmount, note});
+        
+        // Clear fields for next entry
+        isProgrammaticallySettingMedicineNameField = true;
+        medicineNameField.setText("");
+        isProgrammaticallySettingMedicineNameField = false;
+        clearInputFields();
+        medicineNameField.requestFocusInWindow();
     }
 
     private void removeSelectedMedicine() {
-            int selectedRow = selectedTable.getSelectedRow();
+            int selectedRow = chosenMedicineTable.getSelectedRow();
             if (selectedRow != -1) {
                 selectedTableModel.removeRow(selectedRow);
         } else {

@@ -18,14 +18,15 @@ public class Medicine {
     private String quantity;
     private String unit;
     private String sellingPrice;
+    private String preferenceNote;
 
     /**
      * Constructor to create Medicine from array data
      * @param data Array of medicine data from backend
      */
     public Medicine(String[] data) {
-        if (data.length < 7) {
-            throw new IllegalArgumentException("Medicine data array must contain at least 7 elements");
+        if (data.length < 8) {
+            throw new IllegalArgumentException("Medicine data array must contain at least 8 elements");
         }
         this.id = data[0];
         this.name = data[1];
@@ -34,6 +35,7 @@ public class Medicine {
         this.quantity = data[4];
         this.unit = data[5];
         this.sellingPrice = data[6];
+        this.preferenceNote = data[7];
     }
 
     /**
@@ -41,6 +43,6 @@ public class Medicine {
      * @return String array representation of Medicine
      */
     public String[] toStringArray() {
-        return new String[]{id, name, company, description, quantity, unit, sellingPrice};
+        return new String[]{id, name, company, description, quantity, unit, sellingPrice, preferenceNote};
     }
 } 
