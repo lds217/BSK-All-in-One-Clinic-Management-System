@@ -1,5 +1,9 @@
 package BsK.client.ui.component.CheckUpPage;
 
+
+// TO DO add backend logic to heart beat and blood pressure and weight height
+
+
 import BsK.client.LocalStorage;
 import BsK.client.network.handler.ClientHandler;
 import BsK.client.network.handler.ResponseListener;
