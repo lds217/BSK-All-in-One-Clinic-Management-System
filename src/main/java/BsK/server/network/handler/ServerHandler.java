@@ -110,7 +110,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
           ResultSet rs = statement.executeQuery(
                   "select a.checkup_id, a.checkup_date, c.customer_last_name, c.customer_first_name,\n" +
                           "d.doctor_first_name, d.doctor_last_name, a.suggestion, a.diagnosis, a.notes, a.status, a.customer_id, \n" +
-                          "c.customer_number, c.customer_address, c.customer_weight, c.customer_height, c.customer_gender, c.customer_dob, a.checkup_type, a.conclusion, a.reCheckupDate, c.cccd_ddcn\n" +
+                          "c.customer_number, c.customer_address, a.customer_weight, a.customer_height, c.customer_gender, c.customer_dob, a.checkup_type, a.conclusion, a.reCheckupDate, c.cccd_ddcn\n" +
                           "from checkup as a\n" +
                           "join customer as c on a.customer_id = c.customer_id\n" +
                           "join Doctor D on a.doctor_id = D.doctor_id\n" +
@@ -178,7 +178,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
           ResultSet rs = statement.executeQuery(
                   "select a.checkup_id, a.checkup_date, c.customer_last_name, c.customer_first_name,\n" +
                           "d.doctor_first_name, d.doctor_last_name, a.suggestion, a.diagnosis, a.notes, a.status, a.customer_id, \n" +
-                          "c.customer_number, c.customer_address, c.customer_weight, c.customer_height, c.customer_gender, c.customer_dob, a.checkup_type, a.conclusion, a.reCheckupDate, c.cccd_ddcn\n" +
+                          "c.customer_number, c.customer_address, a.customer_weight, a.customer_height, c.customer_gender, c.customer_dob, a.checkup_type, a.conclusion, a.reCheckupDate, c.cccd_ddcn\n" +
                           "from checkup as a\n" +
                           "join customer as c on a.customer_id = c.customer_id\n" +
                           "join Doctor D on a.doctor_id = D.doctor_id\n" +
@@ -725,9 +725,8 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
           String customerSql = """
             INSERT INTO Customer (
                 customer_id, customer_first_name, customer_last_name, customer_dob,
-                customer_gender, customer_address, customer_number,
-                customer_weight, customer_height, cccd_ddcn
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                customer_gender, customer_address, customer_number, cccd_ddcn
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(customer_id) DO UPDATE SET
                 customer_first_name = excluded.customer_first_name,
                 customer_last_name = excluded.customer_last_name,
@@ -735,8 +734,6 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                 customer_gender = excluded.customer_gender,
                 customer_address = excluded.customer_address,
                 customer_number = excluded.customer_number,
-                customer_weight = excluded.customer_weight,
-                customer_height = excluded.customer_height,
                 cccd_ddcn = excluded.cccd_ddcn
             """;
           
@@ -748,9 +745,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
           customerStmt.setString(5, saveCheckupRequest.getCustomerGender());
           customerStmt.setString(6, saveCheckupRequest.getCustomerAddress());
           customerStmt.setString(7, saveCheckupRequest.getCustomerNumber());
-          customerStmt.setDouble(8, saveCheckupRequest.getCustomerWeight());
-          customerStmt.setDouble(9, saveCheckupRequest.getCustomerHeight());
-          customerStmt.setString(10, saveCheckupRequest.getCustomerCccdDdcn());
+          customerStmt.setString(8, saveCheckupRequest.getCustomerCccdDdcn());
           customerStmt.executeUpdate();
           log.info("Customer saved successfully");
           // 2. Generate prescription_id if we have medicine prescriptions
@@ -773,8 +768,8 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
           String checkupSql = """
             INSERT INTO Checkup (
                 checkup_id, customer_id, doctor_id, checkup_date,
-                suggestion, diagnosis, prescription_id, notes, status, checkup_type, conclusion, reCheckupDate
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                suggestion, diagnosis, prescription_id, notes, status, checkup_type, conclusion, reCheckupDate, customer_weight, customer_height
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(checkup_id) DO UPDATE SET
                 suggestion = excluded.suggestion,
                 diagnosis = excluded.diagnosis,
@@ -783,7 +778,9 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                 status = excluded.status,
                 checkup_type = excluded.checkup_type,
                 conclusion = excluded.conclusion,
-                reCheckupDate = excluded.reCheckupDate
+                reCheckupDate = excluded.reCheckupDate,
+                customer_weight = excluded.customer_weight,
+                customer_height = excluded.customer_height
             """;
           
           PreparedStatement checkupStmt = conn.prepareStatement(checkupSql);
@@ -799,6 +796,8 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
           checkupStmt.setString(10, saveCheckupRequest.getCheckupType());
           checkupStmt.setString(11, saveCheckupRequest.getConclusion());
           checkupStmt.setLong(12, saveCheckupRequest.getReCheckupDate());
+          checkupStmt.setDouble(13, saveCheckupRequest.getCustomerWeight());
+          checkupStmt.setDouble(14, saveCheckupRequest.getCustomerHeight());
           checkupStmt.executeUpdate();
           log.info("Prescription ID generated or edited: {}", prescriptionId);
           log.info("Checkup saved successfully");
