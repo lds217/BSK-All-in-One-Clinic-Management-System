@@ -741,15 +741,15 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
             """;
           
           PreparedStatement customerStmt = conn.prepareStatement(customerSql);
-          customerStmt.setString(1, saveCheckupRequest.getCustomerId());
+          customerStmt.setInt(1, saveCheckupRequest.getCustomerId());
           customerStmt.setString(2, saveCheckupRequest.getCustomerFirstName());
           customerStmt.setString(3, saveCheckupRequest.getCustomerLastName());
-          customerStmt.setString(4, saveCheckupRequest.getCustomerDob());
+          customerStmt.setLong(4, saveCheckupRequest.getCustomerDob());
           customerStmt.setString(5, saveCheckupRequest.getCustomerGender());
           customerStmt.setString(6, saveCheckupRequest.getCustomerAddress());
           customerStmt.setString(7, saveCheckupRequest.getCustomerNumber());
-          customerStmt.setString(8, saveCheckupRequest.getCustomerWeight());
-          customerStmt.setString(9, saveCheckupRequest.getCustomerHeight());
+          customerStmt.setDouble(8, saveCheckupRequest.getCustomerWeight());
+          customerStmt.setDouble(9, saveCheckupRequest.getCustomerHeight());
           customerStmt.setString(10, saveCheckupRequest.getCustomerCccdDdcn());
           customerStmt.executeUpdate();
           log.info("Customer saved successfully");
@@ -787,10 +787,10 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
             """;
           
           PreparedStatement checkupStmt = conn.prepareStatement(checkupSql);
-          checkupStmt.setString(1, saveCheckupRequest.getCheckupId());
-          checkupStmt.setString(2, saveCheckupRequest.getCustomerId());
-          checkupStmt.setString(3, saveCheckupRequest.getDoctorId());
-          checkupStmt.setString(4, saveCheckupRequest.getCheckupDate());
+          checkupStmt.setInt(1, saveCheckupRequest.getCheckupId());
+          checkupStmt.setInt(2, saveCheckupRequest.getCustomerId());
+          checkupStmt.setInt(3, saveCheckupRequest.getDoctorId());
+          checkupStmt.setLong(4, saveCheckupRequest.getCheckupDate());
           checkupStmt.setString(5, saveCheckupRequest.getSuggestions());
           checkupStmt.setString(6, saveCheckupRequest.getDiagnosis());
           checkupStmt.setString(7, prescriptionId);
@@ -798,7 +798,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
           checkupStmt.setString(9, saveCheckupRequest.getStatus());
           checkupStmt.setString(10, saveCheckupRequest.getCheckupType());
           checkupStmt.setString(11, saveCheckupRequest.getConclusion());
-          checkupStmt.setString(12, saveCheckupRequest.getReCheckupDate());
+          checkupStmt.setLong(12, saveCheckupRequest.getReCheckupDate());
           checkupStmt.executeUpdate();
           log.info("Prescription ID generated or edited: {}", prescriptionId);
           log.info("Checkup saved successfully");
@@ -806,11 +806,11 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
           // 4. Handle Medicine Prescriptions
           // First, delete all existing items for this checkup to handle edits/removals
           try (PreparedStatement deleteOrderItemsStmt = conn.prepareStatement("DELETE FROM OrderItem WHERE checkup_id = ?")) {
-              deleteOrderItemsStmt.setString(1, saveCheckupRequest.getCheckupId());
+              deleteOrderItemsStmt.setInt(1, saveCheckupRequest.getCheckupId());
               deleteOrderItemsStmt.executeUpdate();
           }
           try (PreparedStatement deleteMedicineOrderStmt = conn.prepareStatement("DELETE FROM MedicineOrder WHERE checkup_id = ?")) {
-              deleteMedicineOrderStmt.setString(1, saveCheckupRequest.getCheckupId());
+              deleteMedicineOrderStmt.setInt(1, saveCheckupRequest.getCheckupId());
               deleteMedicineOrderStmt.executeUpdate();
           }
           log.info("Cleared previous medicine prescription for checkup_id: {}", saveCheckupRequest.getCheckupId());
@@ -850,8 +850,8 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
             
             PreparedStatement medicineOrderStmt = conn.prepareStatement(medicineOrderSql);
             medicineOrderStmt.setString(1, prescriptionId);
-            medicineOrderStmt.setString(2, saveCheckupRequest.getCheckupId());
-            medicineOrderStmt.setString(3, saveCheckupRequest.getCustomerId());
+            medicineOrderStmt.setInt(2, saveCheckupRequest.getCheckupId());
+            medicineOrderStmt.setInt(3, saveCheckupRequest.getCustomerId());
             medicineOrderStmt.setDouble(4, totalMedicineAmount);
             medicineOrderStmt.setString(5, ""); // payment_method
             medicineOrderStmt.setString(6, "Pending"); // status
@@ -891,7 +891,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                 orderItemStmt.setString(5, ""); // duration - could be calculated or added to request
                 orderItemStmt.setString(6, medicine[7]); // unit_price
                 orderItemStmt.setString(7, medicine[8]); // total_price
-                orderItemStmt.setString(8, saveCheckupRequest.getCheckupId());
+                orderItemStmt.setInt(8, saveCheckupRequest.getCheckupId());
                 orderItemStmt.setString(9, medicine[9]); // notes
                 orderItemStmt.addBatch();
               }
@@ -903,7 +903,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
           // 5. Handle Service Prescriptions
           // First, delete all existing services for this checkup
           try (PreparedStatement deleteServiceStmt = conn.prepareStatement("DELETE FROM CheckupService WHERE checkup_id = ?")) {
-              deleteServiceStmt.setString(1, saveCheckupRequest.getCheckupId());
+              deleteServiceStmt.setInt(1, saveCheckupRequest.getCheckupId());
               deleteServiceStmt.executeUpdate();
           }
           log.info("Cleared previous service prescription for checkup_id: {}", saveCheckupRequest.getCheckupId());
@@ -926,7 +926,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
             
             for (String[] service : saveCheckupRequest.getServicePrescription()) {
               if (service.length >= 6) {
-                serviceStmt.setString(1, saveCheckupRequest.getCheckupId());
+                serviceStmt.setInt(1, saveCheckupRequest.getCheckupId());
                 serviceStmt.setString(2, service[0]); // service_id
                 serviceStmt.setString(3, service[2]); // quantity
                 serviceStmt.setString(4, service[4]); // total_cost

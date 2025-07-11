@@ -128,6 +128,7 @@ import BsK.common.packet.res.AddPatientResponse;
 import BsK.common.packet.res.RegisterSuccessResponse;
 import BsK.common.packet.res.SaveCheckupRes;
 import BsK.common.packet.res.UploadCheckupImageResponse;
+import BsK.common.util.date.DateUtils;
 
 @Slf4j
 public class CheckUpPage extends JPanel {
@@ -250,29 +251,13 @@ public class CheckUpPage extends JPanel {
             return new String[][]{};
         }
         String[][] tableData = new String[patients.size()][8];
-        SimpleDateFormat displayFormat = new SimpleDateFormat("dd/MM/yyyy");
         
         for (int i = 0; i < patients.size(); i++) {
             Patient p = patients.get(i);
             tableData[i][0] = p.getCheckupId();
             
-            // Convert DOB to display format
-            String dobStr = p.getCustomerDob();
-            try {
-                if (dobStr != null && !dobStr.trim().isEmpty()) {
-                    if (dobStr.matches("\\d+")) { // If it's a timestamp
-                        Date dobDate = new Date(Long.parseLong(dobStr));
-                        tableData[i][1] = displayFormat.format(dobDate);
-                    } else { // If it's already in date format
-                        tableData[i][1] = dobStr;
-                    }
-                } else {
-                    tableData[i][1] = "";
-                }
-            } catch (NumberFormatException e) {
-                log.warn("Invalid DOB format for patient {}: {}", p.getCheckupId(), dobStr);
-                tableData[i][1] = dobStr; // Use original string if parsing fails
-            }
+            // Convert DOB to display format using utility function
+            tableData[i][1] = DateUtils.convertToDisplayFormat(p.getCustomerDob());
             
             tableData[i][2] = p.getCustomerLastName();
             tableData[i][3] = p.getCustomerFirstName();
@@ -1725,40 +1710,27 @@ public class CheckUpPage extends JPanel {
         serDialog = null;
         updatePrescriptionTree(); 
 
-        SimpleDateFormat dateFormat = new SimpleDateFormat("dd/MM/yyyy");
-        try {
-            Date parsedDate; String dateStr = selectedPatient.getCheckupDate();
-            if (dateStr != null && dateStr.matches("\\d+")) { // Check if string is all digits (timestamp)
-                 parsedDate = new Date(Long.parseLong(dateStr));
-            } else if (dateStr != null && !dateStr.trim().isEmpty()) { // Attempt to parse as dd/MM/yyyy
-                 parsedDate = dateFormat.parse(dateStr);
-            } else {
-                log.error("Invalid date format for checkup date: {}", selectedPatient.getCheckupDate());
-                return;
-            }
-            Calendar calendar = Calendar.getInstance(); calendar.setTime(parsedDate);
+        // Set checkup date using utility function
+        Date checkupDate = DateUtils.convertToDate(selectedPatient.getCheckupDate());
+        if (checkupDate != null) {
+            Calendar calendar = Calendar.getInstance();
+            calendar.setTime(checkupDate);
             datePicker.getModel().setDate(calendar.get(Calendar.YEAR), calendar.get(Calendar.MONTH), calendar.get(Calendar.DAY_OF_MONTH));
             datePicker.getModel().setSelected(true);
-        } catch (ParseException | NumberFormatException exception) {
-            log.error("Invalid date format for checkup date: {}", selectedPatient.getCheckupDate(), exception);
+        } else {
+            log.error("Invalid date format for checkup date: {}", selectedPatient.getCheckupDate());
             JOptionPane.showMessageDialog(null, "Định dạng ngày hoặc dấu thời gian không hợp lệ: " + selectedPatient.getCheckupDate(), "Lỗi định dạng ngày", JOptionPane.ERROR_MESSAGE);
         }
 
-        try {
-            Date parsedDate; String dobStr = selectedPatient.getCustomerDob();
-            if (dobStr != null && dobStr.matches("\\d+")) { // Timestamp
-                parsedDate = new Date(Long.parseLong(dobStr));
-            } else if (dobStr != null && !dobStr.trim().isEmpty()){ // Date string
-                parsedDate = new SimpleDateFormat("dd/MM/yyyy").parse(dobStr);
-            } else {
-                log.error("Invalid date format for DOB: {}", selectedPatient.getCustomerDob());
-                return;
-            }
-            Calendar calendar = Calendar.getInstance(); calendar.setTime(parsedDate);
+        // Set DOB using utility function
+        Date dobDate = DateUtils.convertToDate(selectedPatient.getCustomerDob());
+        if (dobDate != null) {
+            Calendar calendar = Calendar.getInstance();
+            calendar.setTime(dobDate);
             dobPicker.getModel().setDate(calendar.get(Calendar.YEAR), calendar.get(Calendar.MONTH), calendar.get(Calendar.DAY_OF_MONTH));
             dobPicker.getModel().setSelected(true);
-        } catch (ParseException | NumberFormatException exception) {
-             log.error("Invalid date format for DOB: {}", selectedPatient.getCustomerDob(), exception);
+        } else {
+            log.error("Invalid date format for DOB: {}", selectedPatient.getCustomerDob());
             JOptionPane.showMessageDialog(null, "Định dạng ngày không hợp lệ cho ngày sinh: " + selectedPatient.getCustomerDob(), "Lỗi định dạng ngày", JOptionPane.ERROR_MESSAGE);
         }
 
@@ -1991,14 +1963,18 @@ public class CheckUpPage extends JPanel {
                             String ho = patient.getCustomerLastName(); String ten = patient.getCustomerFirstName();
                             String customerDob = patient.getCustomerDob(); String namSinh = "N/A";
                             if (customerDob != null && !customerDob.isEmpty()) {
-                                try {
-                                    Date parsedDate;
-                                    if (customerDob.matches("\\d+")) parsedDate = new Date(Long.parseLong(customerDob)); // Timestamp
-                                    else parsedDate = new SimpleDateFormat("dd/MM/yyyy").parse(customerDob); // Date string
-                                    Calendar calendar = Calendar.getInstance(); calendar.setTime(parsedDate);
-                                    namSinh = String.valueOf(calendar.get(Calendar.YEAR));
-                                } catch (ParseException | NumberFormatException e) {
-                                    log.error("Error parsing DoB for TV display: {} for patient ID {}", customerDob, patientIdToFind, e);
+                                // Extract year from DOB for display
+                                int year = DateUtils.extractYearFromTimestamp(customerDob);
+                                if (year != -1) {
+                                    namSinh = String.valueOf(year);
+                                } else {
+                                    // Try to parse as date string and extract year
+                                    Date dobDate = DateUtils.convertToDate(customerDob);
+                                    if (dobDate != null) {
+                                        Calendar calendar = Calendar.getInstance();
+                                        calendar.setTime(dobDate);
+                                        namSinh = String.valueOf(calendar.get(Calendar.YEAR));
+                                    }
                                 }
                             }
                             patientDisplayInfo = ho + " " + ten + " (" + namSinh + ")";
@@ -3240,27 +3216,30 @@ public class CheckUpPage extends JPanel {
         log.info("customerCccdDdcn: {}", customerCccdDdcn);
         log.info("=== End SaveCheckupRequest Data ===");
 
-       
+        
+        Long customerDobLong = DateUtils.convertToDate(customerDob).getTime();
+        Long reCheckupDateLong = DateUtils.convertToDate(reCheckupDate).getTime();
+        Long checkupDateLong = DateUtils.convertToDate(checkupDate).getTime();
         SaveCheckupRequest request = new SaveCheckupRequest(
-            checkupId,
-            checkupDate,
-            customerId,
-            customerLastName,
+            Integer.parseInt(checkupId),
+            Integer.parseInt(customerId),
+            Integer.parseInt(doctorId),
+            checkupDateLong,
+            suggestions,
+            diagnosis,
+            rtfContent,
+            status,
+            checkupType,
+            conclusion,
+            reCheckupDateLong,
             customerFirstName,
-            customerDob,
+            customerLastName,
+            customerDobLong,
             customerGender,
             fullAddress,
             customerNumber,
-            customerWeight,
-            customerHeight,
-            doctorId,
-            suggestions, // De nghi
-            diagnosis, // Chuan doan
-            rtfContent, // Send RTF content as notes
-            status,
-            checkupType,
-            conclusion, // Ket luan
-            reCheckupDate,
+            Double.parseDouble(customerWeight),
+            Double.parseDouble(customerHeight),
             customerCccdDdcn,
             medicinePrescription,
             servicePrescription

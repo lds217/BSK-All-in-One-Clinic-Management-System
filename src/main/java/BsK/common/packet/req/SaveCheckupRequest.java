@@ -8,10 +8,10 @@ import lombok.EqualsAndHashCode;
 @Data
 @AllArgsConstructor
 public class SaveCheckupRequest implements Packet {
-    String checkupId;
-    String customerId;
-    String doctorId;
-    String checkupDate;
+    Integer checkupId;
+    Integer customerId;
+    Integer doctorId;
+    Long checkupDate;
 
     // Checkup Details
     String suggestions;
@@ -20,17 +20,17 @@ public class SaveCheckupRequest implements Packet {
     String status;
     String checkupType;
     String conclusion;
-    String reCheckupDate;
+    Long reCheckupDate;
 
     // Patient Details
     String customerFirstName;
     String customerLastName;
-    String customerDob;
+    Long customerDob;
     String customerGender;
     String customerAddress;
     String customerNumber;
-    String customerWeight;
-    String customerHeight;
+    Double customerWeight;
+    Double customerHeight;
     String customerCccdDdcn;
 
     // Prescriptions
