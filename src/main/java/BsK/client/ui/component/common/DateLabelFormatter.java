@@ -14,8 +14,42 @@ public class DateLabelFormatter extends JFormattedTextField.AbstractFormatter {
     private String datePattern = "dd/MM/yyyy";
     private SimpleDateFormat dateFormatter = new SimpleDateFormat(datePattern, Locale.ENGLISH);
 
+    public DateLabelFormatter() {
+        // Enable lenient parsing to be more flexible with user input
+        dateFormatter.setLenient(false);
+    }
+
     @Override
     public Object stringToValue(String text) throws ParseException {
+        if (text == null || text.trim().isEmpty()) {
+            return null;
+        }
+        
+        // Clean up the input text
+        text = text.trim();
+        
+        // Handle different input formats that users might type
+        if (text.matches("\\d{1,2}/\\d{1,2}/\\d{4}")) {
+            // Standard format: dd/mm/yyyy or d/m/yyyy
+            return dateFormatter.parseObject(text);
+        } else if (text.matches("\\d{1,2}-\\d{1,2}-\\d{4}")) {
+            // Handle dash format: dd-mm-yyyy
+            text = text.replace("-", "/");
+            return dateFormatter.parseObject(text);
+        } else if (text.matches("\\d{1,2}\\.\\d{1,2}\\.\\d{4}")) {
+            // Handle dot format: dd.mm.yyyy
+            text = text.replace(".", "/");
+            return dateFormatter.parseObject(text);
+        } else if (text.matches("\\d{8}")) {
+            // Handle compact format: ddmmyyyy
+            String day = text.substring(0, 2);
+            String month = text.substring(2, 4);
+            String year = text.substring(4, 8);
+            text = day + "/" + month + "/" + year;
+            return dateFormatter.parseObject(text);
+        }
+        
+        // If none of the formats match, try default parsing
         return dateFormatter.parseObject(text);
     }
 

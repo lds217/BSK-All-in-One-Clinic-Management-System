@@ -172,6 +172,18 @@ public class ServiceDialog extends JDialog {
         mainGbc.weighty = 1.0;
         mainInputPanel.add(new JPanel(), mainGbc);
 
+        // Add Escape key listener to close dialog
+        JRootPane rootPane = this.getRootPane();
+        InputMap inputMap = rootPane.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW);
+        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), "ESCAPE");
+        ActionMap actionMap = rootPane.getActionMap();
+        actionMap.put("ESCAPE", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                dispose();
+            }
+        });
+
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.fill = GridBagConstraints.HORIZONTAL;
         gbc.anchor = GridBagConstraints.WEST;
@@ -352,6 +364,14 @@ public class ServiceDialog extends JDialog {
         getRootPane().getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke("F1"), "addServiceAction");
         getRootPane().getActionMap().put("addServiceAction", addAction);
 
+        serviceNameField.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                isSelectionLocked = false;
+                showOrUpdateSuggestions();
+            }
+        });
+
         serviceNameField.getDocument().addDocumentListener(new DocumentListener() {
             public void changedUpdate(DocumentEvent e) { 
                 if (!isProgrammaticallySettingNameField) {
@@ -496,7 +516,7 @@ public class ServiceDialog extends JDialog {
             return;
         }
 
-        if (filterText.isEmpty()) {
+        if (filterText.isEmpty() && !serviceNameField.isFocusOwner()) {
             suggestionPopup.setVisible(false);
             return;
         }
@@ -506,7 +526,7 @@ public class ServiceDialog extends JDialog {
         String lowerCaseFilterText = TextUtils.removeAccents(filterText.toLowerCase());
 
         for (Service service : services) {
-            if (TextUtils.removeAccents(service.getName().toLowerCase()).contains(lowerCaseFilterText)) {
+            if (filterText.isEmpty() || TextUtils.removeAccents(service.getName().toLowerCase()).contains(lowerCaseFilterText)) {
                 filteredServices.add(service);
                 filteredDisplayData.add(service.toStringArray());
             }
@@ -531,7 +551,6 @@ public class ServiceDialog extends JDialog {
             serviceNameField.requestFocusInWindow();
         } else {
             suggestionPopup.setVisible(false);
-            clearInputFields();
         }
     }
 

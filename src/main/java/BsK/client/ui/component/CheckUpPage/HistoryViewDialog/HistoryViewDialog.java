@@ -185,6 +185,18 @@ public class HistoryViewDialog extends JDialog {
         mainPanel.add(centerPanel, BorderLayout.CENTER);
         
         add(mainPanel, BorderLayout.CENTER);
+
+        // Add Escape key listener to close dialog
+        JRootPane rootPane = this.getRootPane();
+        InputMap inputMap = rootPane.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW);
+        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), "ESCAPE");
+        ActionMap actionMap = rootPane.getActionMap();
+        actionMap.put("ESCAPE", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                dispose();
+            }
+        });
     }
     
     private JPanel createHeaderPanel() {

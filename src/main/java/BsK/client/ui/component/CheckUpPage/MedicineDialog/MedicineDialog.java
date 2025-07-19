@@ -197,6 +197,18 @@ public class MedicineDialog extends JDialog {
         mainGbc.weighty = 1.0;
         mainInputPanel.add(new JPanel(), mainGbc);
 
+        // Add Escape key listener to close dialog
+        JRootPane rootPane = this.getRootPane();
+        InputMap inputMap = rootPane.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW);
+        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), "ESCAPE");
+        ActionMap actionMap = rootPane.getActionMap();
+        actionMap.put("ESCAPE", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                dispose();
+            }
+        });
+
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.fill = GridBagConstraints.HORIZONTAL;
         gbc.anchor = GridBagConstraints.WEST;
@@ -463,6 +475,14 @@ public class MedicineDialog extends JDialog {
         getRootPane().getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke("F1"), "addMedicineAction");
         getRootPane().getActionMap().put("addMedicineAction", addAction);
 
+        medicineNameField.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                isSelectionLocked = false;
+                showOrUpdateSuggestions();
+            }
+        });
+
         medicineNameField.getDocument().addDocumentListener(new DocumentListener() {
             public void changedUpdate(DocumentEvent e) { 
                 if (!isProgrammaticallySettingMedicineNameField) {
@@ -614,7 +634,7 @@ public class MedicineDialog extends JDialog {
             return;
         }
 
-        if (filterText.isEmpty()) {
+        if (filterText.isEmpty() && !medicineNameField.isFocusOwner()) {
             suggestionPopup.setVisible(false);
             return;
         }
@@ -624,7 +644,7 @@ public class MedicineDialog extends JDialog {
         String lowerCaseFilterText = TextUtils.removeAccents(filterText.toLowerCase());
 
         for (Medicine med : medicines) {
-            if (TextUtils.removeAccents(med.getName().toLowerCase()).contains(lowerCaseFilterText)) {
+            if (filterText.isEmpty() || TextUtils.removeAccents(med.getName().toLowerCase()).contains(lowerCaseFilterText)) {
                 filteredMedicines.add(med);
                 filteredDisplayData.add(new String[]{
                         med.getName(),

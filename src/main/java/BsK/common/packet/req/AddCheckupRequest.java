@@ -12,4 +12,5 @@ public class AddCheckupRequest implements Packet {
     int doctorId;
     int processedById;
     String checkupType;
+    String status;
 }

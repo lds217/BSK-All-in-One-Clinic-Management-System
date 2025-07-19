@@ -32,6 +32,8 @@ public class SaveCheckupRequest implements Packet {
     Double customerWeight;
     Double customerHeight;
     String customerCccdDdcn;
+    Integer heartBeat;
+    String bloodPressure; // format as string 0/0
 
     // Prescriptions
     String[][] medicinePrescription;

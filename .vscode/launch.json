@@ -3,6 +3,13 @@
     "configurations": [
         {
             "type": "java",
+            "name": "DateUtils",
+            "request": "launch",
+            "mainClass": "BsK.common.util.date.DateUtils",
+            "projectName": "ldS_BsK"
+        },
+        {
+            "type": "java",
             "name": "test_ultrasound_print",
             "request": "launch",
             "mainClass": "BsK.client.ui.component.CheckUpPage.PrintDialog.print_forms.test_ultrasound_print",

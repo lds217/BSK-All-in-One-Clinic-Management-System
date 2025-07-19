@@ -37,6 +37,12 @@ import javax.swing.*;
 import javax.swing.border.TitledBorder;
 import javax.swing.border.Border;
 import javax.swing.table.DefaultTableModel;
+import javax.swing.RowSorter;
+import javax.swing.SortOrder;
+import javax.swing.table.TableRowSorter;
+import java.util.Comparator;
+import java.text.SimpleDateFormat;
+import java.text.ParseException;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeModel;
 import java.awt.*;
@@ -45,6 +51,9 @@ import java.awt.event.ActionListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.KeyEvent;
+import java.awt.event.KeyAdapter;
+import java.awt.event.FocusAdapter;
+import java.awt.event.FocusEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.awt.datatransfer.*;
@@ -129,6 +138,9 @@ import BsK.common.packet.res.RegisterSuccessResponse;
 import BsK.common.packet.res.SaveCheckupRes;
 import BsK.common.packet.res.UploadCheckupImageResponse;
 import BsK.common.util.date.DateUtils;
+import java.awt.event.FocusAdapter;
+import java.awt.event.FocusEvent;
+import javax.swing.text.JTextComponent;
 
 @Slf4j
 public class CheckUpPage extends JPanel {
@@ -250,19 +262,22 @@ public class CheckUpPage extends JPanel {
         if (patients == null) {
             return new String[][]{};
         }
-        String[][] tableData = new String[patients.size()][8];
+        String[][] tableData = new String[patients.size()][7];
         
         for (int i = 0; i < patients.size(); i++) {
             Patient p = patients.get(i);
             tableData[i][0] = p.getCheckupId();
             
-            // Convert DOB to display format using utility function
-            tableData[i][1] = DateUtils.convertToDisplayFormat(p.getCustomerDob());
+            // Convert checkup date to display format using utility function
+            tableData[i][1] = DateUtils.convertToDisplayFormat(p.getCheckupDate());
             
-            tableData[i][2] = p.getCustomerLastName();
-            tableData[i][3] = p.getCustomerFirstName();
-            tableData[i][4] = p.getDoctorName();
-            tableData[i][5] = p.getCheckupType();
+            // Convert DOB to display format using utility function
+            tableData[i][2] = DateUtils.convertToDisplayFormat(p.getCustomerDob());
+            
+            tableData[i][3] = p.getCustomerLastName();
+            tableData[i][4] = p.getCustomerFirstName();
+            tableData[i][5] = p.getDoctorName();
+            tableData[i][6] = p.getCheckupType();
         }
         return tableData;
     }
@@ -502,6 +517,7 @@ public class CheckUpPage extends JPanel {
         gbcPatient.gridx = 1; gbcPatient.weightx = 0.4; gbcPatient.gridwidth = 3;
         customerCccdDdcnField = new JTextField(15);
         customerCccdDdcnField.setFont(fieldFont);
+        addSelectAllOnFocus(customerCccdDdcnField);
         patientInfoInnerPanel.add(customerCccdDdcnField, gbcPatient);
         gbcPatient.gridwidth = 1; // Reset gridwidth
 
@@ -514,6 +530,7 @@ public class CheckUpPage extends JPanel {
         gbcPatient.gridx = 1; gbcPatient.weightx = 0.4;
         customerLastNameField = new JTextField(20);
         customerLastNameField.setFont(fieldFont);
+        addSelectAllOnFocus(customerLastNameField);
         patientInfoInnerPanel.add(customerLastNameField, gbcPatient);
 
         gbcPatient.gridx = 2; gbcPatient.weightx = 0.1;
@@ -524,6 +541,7 @@ public class CheckUpPage extends JPanel {
         gbcPatient.gridx = 3; gbcPatient.weightx = 0.4;
         customerFirstNameField = new JTextField(15);
         customerFirstNameField.setFont(fieldFont);
+        addSelectAllOnFocus(customerFirstNameField);
         patientInfoInnerPanel.add(customerFirstNameField, gbcPatient);
 
         // Row 2: ID and Phone
@@ -551,6 +569,7 @@ public class CheckUpPage extends JPanel {
         gbcPatient.gridx = 3; gbcPatient.weightx = 0.4;
         customerPhoneField = new JTextField(15);
         customerPhoneField.setFont(fieldFont);
+        addSelectAllOnFocus(customerPhoneField);
         patientInfoInnerPanel.add(customerPhoneField, gbcPatient);
 
         // Row 3: Gender and DOB
@@ -573,12 +592,14 @@ public class CheckUpPage extends JPanel {
         gbcPatient.gridx = 3;
         UtilDateModel dobModel = new UtilDateModel();
         Properties dobProperties = new Properties();
-        dobProperties.put("text.today", "Hôm nay");
         dobProperties.put("text.month", "Tháng");
         dobProperties.put("text.year", "Năm");
+        // Remove "text.today" since these dates shouldn't default to today
         JDatePanelImpl dobPanel = new JDatePanelImpl(dobModel, dobProperties);
         dobPicker = new JDatePickerImpl(dobPanel, new DateLabelFormatter());
         dobPicker.getJFormattedTextField().setFont(fieldFont);
+        dobPicker.getJFormattedTextField().setToolTipText("Nhập ngày theo định dạng dd/mm/yyyy");
+        setupDateFieldForDirectInput(dobPicker);
         patientInfoInnerPanel.add(dobPicker, gbcPatient);
 
         // Row 4: Weight and Height
@@ -593,7 +614,9 @@ public class CheckUpPage extends JPanel {
         customerWeightSpinner.setFont(fieldFont);
         JComponent weightEditor = customerWeightSpinner.getEditor();
         if (weightEditor instanceof JSpinner.DefaultEditor) {
-            ((JSpinner.DefaultEditor)weightEditor).getTextField().setFont(fieldFont);
+            JFormattedTextField tf = ((JSpinner.DefaultEditor) weightEditor).getTextField();
+            tf.setFont(fieldFont);
+            addSelectAllOnFocus(tf);
         }
         patientInfoInnerPanel.add(customerWeightSpinner, gbcPatient);
 
@@ -608,7 +631,9 @@ public class CheckUpPage extends JPanel {
         customerHeightSpinner.setFont(fieldFont);
         JComponent heightEditor = customerHeightSpinner.getEditor();
         if (heightEditor instanceof JSpinner.DefaultEditor) {
-            ((JSpinner.DefaultEditor)heightEditor).getTextField().setFont(fieldFont);
+            JFormattedTextField tf = ((JSpinner.DefaultEditor) heightEditor).getTextField();
+            tf.setFont(fieldFont);
+            addSelectAllOnFocus(tf);
         }
         patientInfoInnerPanel.add(customerHeightSpinner, gbcPatient);
 
@@ -620,12 +645,14 @@ public class CheckUpPage extends JPanel {
         patientInfoInnerPanel.add(heartRateLabel, gbcPatient);
 
         gbcPatient.gridx = 1;
-        SpinnerModel heartRateModel = new SpinnerNumberModel(80, 30, 250, 1);
+        SpinnerModel heartRateModel = new SpinnerNumberModel(80, 0, 250, 1);
         patientHeartRateSpinner = new JSpinner(heartRateModel);
         patientHeartRateSpinner.setFont(fieldFont);
         JComponent heartRateEditor = patientHeartRateSpinner.getEditor();
         if (heartRateEditor instanceof JSpinner.DefaultEditor) {
-            ((JSpinner.DefaultEditor)heartRateEditor).getTextField().setFont(fieldFont);
+            JFormattedTextField tf = ((JSpinner.DefaultEditor) heartRateEditor).getTextField();
+            tf.setFont(fieldFont);
+            addSelectAllOnFocus(tf);
         }
         patientInfoInnerPanel.add(patientHeartRateSpinner, gbcPatient);
 
@@ -638,20 +665,24 @@ public class CheckUpPage extends JPanel {
         JPanel bloodPressurePanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
         bloodPressurePanel.setOpaque(false);
 
-        SpinnerModel systolicModel = new SpinnerNumberModel(120, 50, 300, 1);
+        SpinnerModel systolicModel = new SpinnerNumberModel(120, 0, 300, 1);
         bloodPressureSystolicSpinner = new JSpinner(systolicModel);
         bloodPressureSystolicSpinner.setFont(fieldFont);
         JComponent systolicEditor = bloodPressureSystolicSpinner.getEditor();
         if (systolicEditor instanceof JSpinner.DefaultEditor) {
-            ((JSpinner.DefaultEditor)systolicEditor).getTextField().setFont(fieldFont);
+            JFormattedTextField tf = ((JSpinner.DefaultEditor) systolicEditor).getTextField();
+            tf.setFont(fieldFont);
+            addSelectAllOnFocus(tf);
         }
 
-        SpinnerModel diastolicModel = new SpinnerNumberModel(80, 30, 200, 1);
+        SpinnerModel diastolicModel = new SpinnerNumberModel(80, 0, 200, 1);
         bloodPressureDiastolicSpinner = new JSpinner(diastolicModel);
         bloodPressureDiastolicSpinner.setFont(fieldFont);
         JComponent diastolicEditor = bloodPressureDiastolicSpinner.getEditor();
         if (diastolicEditor instanceof JSpinner.DefaultEditor) {
-            ((JSpinner.DefaultEditor)diastolicEditor).getTextField().setFont(fieldFont);
+            JFormattedTextField tf = ((JSpinner.DefaultEditor) diastolicEditor).getTextField();
+            tf.setFont(fieldFont);
+            addSelectAllOnFocus(tf);
         }
 
         JLabel slashLabel = new JLabel(" / ");
@@ -671,6 +702,7 @@ public class CheckUpPage extends JPanel {
         gbcPatient.gridx = 1; gbcPatient.gridwidth = 3;
         customerAddressField = new JTextField(40);
         customerAddressField.setFont(fieldFont);
+        addSelectAllOnFocus(customerAddressField);
         patientInfoInnerPanel.add(customerAddressField, gbcPatient);
 
         // Row 7: Location dropdowns
@@ -802,13 +834,15 @@ public class CheckUpPage extends JPanel {
         // Initialize datePicker
         UtilDateModel dateModel = new UtilDateModel();
         Properties p = new Properties();
-        p.put("text.today", "Hôm nay");
         p.put("text.month", "Tháng");
         p.put("text.year", "Năm");
+        // Remove "text.today" since these dates shouldn't default to today
         JDatePanelImpl datePanel = new JDatePanelImpl(dateModel, p);
         datePicker = new JDatePickerImpl(datePanel, new DateLabelFormatter());
         datePicker.setPreferredSize(new Dimension(120, 30));
         datePicker.getJFormattedTextField().setFont(fieldFont);
+        datePicker.getJFormattedTextField().setToolTipText("Nhập ngày theo định dạng dd/mm/yyyy");
+        setupDateFieldForDirectInput(datePicker);
 
         gbcTop.gridx = 0; gbcTop.gridy = 0;
         JLabel doctorLabel = new JLabel("Bác Sĩ");
@@ -908,6 +942,7 @@ public class CheckUpPage extends JPanel {
 
         notesField = new JTextPane();
         notesField.setContentType("text/rtf");
+        addSelectAllOnFocus(notesField);
         
         // Set default font and size
         notesField.setFont(new Font("Times New Roman", Font.PLAIN, 16));
@@ -1076,6 +1111,7 @@ public class CheckUpPage extends JPanel {
         suggestionField.setFont(fieldFont);
         suggestionField.setLineWrap(true);
         suggestionField.setWrapStyleWord(true);
+        addSelectAllOnFocus(suggestionField);
         JScrollPane suggestionScrollPane = new JScrollPane(suggestionField);
         suggestionScrollPane.setPreferredSize(new Dimension(0, 200)); // Set fixed height
         suggestionPanel.add(suggestionScrollPane, BorderLayout.CENTER);
@@ -1091,12 +1127,14 @@ public class CheckUpPage extends JPanel {
         
         UtilDateModel recheckupModel = new UtilDateModel();
         Properties recheckupProps = new Properties();
-        recheckupProps.put("text.today", "Hôm nay");
         recheckupProps.put("text.month", "Tháng");
         recheckupProps.put("text.year", "Năm");
+        // Remove "text.today" since these dates shouldn't default to today
         JDatePanelImpl recheckupDatePanel = new JDatePanelImpl(recheckupModel, recheckupProps);
         recheckupDatePicker = new JDatePickerImpl(recheckupDatePanel, new DateLabelFormatter());
         recheckupDatePicker.getJFormattedTextField().setFont(fieldFont);
+        recheckupDatePicker.getJFormattedTextField().setToolTipText("Nhập ngày theo định dạng dd/mm/yyyy");
+        setupDateFieldForDirectInput(recheckupDatePicker);
         recheckupDatePicker.setPreferredSize(new Dimension(140, 30)); // Make it a bit smaller
         recheckupPanel.add(recheckupDatePicker);
         suggestionPanel.add(recheckupPanel, BorderLayout.SOUTH);
@@ -1117,6 +1155,7 @@ public class CheckUpPage extends JPanel {
         diagnosisField.setFont(fieldFont);
         diagnosisField.setLineWrap(true);
         diagnosisField.setWrapStyleWord(true);
+        addSelectAllOnFocus(diagnosisField);
         diagnosisPanel.add(new JScrollPane(diagnosisField), BorderLayout.CENTER);
 
         // Conclusion Panel
@@ -1132,6 +1171,7 @@ public class CheckUpPage extends JPanel {
         conclusionField.setFont(fieldFont);
         conclusionField.setLineWrap(true);
         conclusionField.setWrapStyleWord(true);
+        addSelectAllOnFocus(conclusionField);
         conclusionPanel.add(new JScrollPane(conclusionField), BorderLayout.CENTER);
 
         rightPanel.add(suggestionPanel);
@@ -1348,6 +1388,82 @@ public class CheckUpPage extends JPanel {
         // In the constructor, after creating notesField:
         setupNotesPasteHandler();
         setupShortcuts();
+    }
+
+    private void addSelectAllOnFocus(JTextComponent textComponent) {
+        textComponent.addFocusListener(new FocusAdapter() {
+            @Override
+            public void focusGained(FocusEvent e) {
+                SwingUtilities.invokeLater(textComponent::selectAll);
+            }
+        });
+    }
+
+    private void setupDateFieldForDirectInput(JDatePickerImpl datePicker) {
+        JFormattedTextField textField = datePicker.getJFormattedTextField();
+        
+        // Make sure the field is editable
+        textField.setEditable(true);
+        
+        // Improve focus behavior for better tab navigation
+        textField.addFocusListener(new FocusAdapter() {
+            @Override
+            public void focusGained(FocusEvent e) {
+                SwingUtilities.invokeLater(() -> {
+                    if (textField.getText().isEmpty()) {
+                        textField.setForeground(Color.BLACK);
+                    }
+                    textField.selectAll();
+                });
+            }
+
+            @Override
+            public void focusLost(FocusEvent e) {
+                if (textField.getText().isEmpty()) {
+                    textField.setForeground(Color.GRAY);
+                }
+            }
+        });
+
+        // Add key listener for better input handling
+        textField.addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyPressed(KeyEvent e) {
+                // Allow tab navigation
+                if (e.getKeyCode() == KeyEvent.VK_TAB) {
+                    textField.transferFocus();
+                }
+            }
+        });
+    }
+
+    /**
+     * Creates a date comparator for table sorting that properly handles dd/MM/yyyy format dates
+     * @return Comparator for date strings in dd/MM/yyyy format
+     */
+    private Comparator<String> createDateComparator() {
+        return new Comparator<String>() {
+            private final SimpleDateFormat dateFormat = new SimpleDateFormat("dd/MM/yyyy");
+            
+            @Override
+            public int compare(String date1, String date2) {
+                try {
+                    if (date1 == null || date1.trim().isEmpty()) {
+                        return date2 == null || date2.trim().isEmpty() ? 0 : 1;
+                    }
+                    if (date2 == null || date2.trim().isEmpty()) {
+                        return -1;
+                    }
+                    
+                    Date d1 = dateFormat.parse(date1.trim());
+                    Date d2 = dateFormat.parse(date2.trim());
+                    return d1.compareTo(d2);
+                } catch (ParseException e) {
+                    // If parsing fails, fall back to string comparison
+                    return date1.compareTo(date2);
+                }
+            }
+        };
     }
 
     private JButton createActionButton(String iconName, String text, Color bgColor) {
@@ -1740,7 +1856,7 @@ public class CheckUpPage extends JPanel {
         suggestionField.setText(selectedPatient.getSuggestion()); // De nghi
         diagnosisField.setText(selectedPatient.getDiagnosis()); // Chuan doan
         conclusionField.setText(selectedPatient.getConclusion()); // Ket luan
-        recheckupDatePicker.getJFormattedTextField().setText(selectedPatient.getReCheckupDate()); // Ngày khám lại
+        recheckupDatePicker.getJFormattedTextField().setText(DateUtils.convertToDisplayFormat(selectedPatient.getReCheckupDate())); // Ngày khám lại
 
         // Handle RTF notes content
         String notes = selectedPatient.getNotes();
@@ -1768,6 +1884,34 @@ public class CheckUpPage extends JPanel {
         customerPhoneField.setText(selectedPatient.getCustomerNumber());
         try { customerWeightSpinner.setValue(Double.parseDouble(selectedPatient.getCustomerWeight())); } catch (NumberFormatException e) {log.warn("Invalid weight: {}", selectedPatient.getCustomerWeight()); customerWeightSpinner.setValue(0.0);}
         try { customerHeightSpinner.setValue(Double.parseDouble(selectedPatient.getCustomerHeight())); } catch (NumberFormatException e) {log.warn("Invalid height: {}", selectedPatient.getCustomerHeight()); customerHeightSpinner.setValue(0.0);}
+        try { patientHeartRateSpinner.setValue(Integer.parseInt(selectedPatient.getHeartBeat())); } catch (NumberFormatException e) {log.warn("Invalid heart beat: {}", selectedPatient.getHeartBeat()); patientHeartRateSpinner.setValue(0);}
+        //blood pressure is format as string 0/0 so we will need to split it first
+        String bloodPressure = selectedPatient.getBloodPressure();
+        if (bloodPressure != null && bloodPressure.contains("/")) {
+            String[] bloodPressureParts = bloodPressure.split("/");
+            if (bloodPressureParts.length == 2) {
+                try {
+                    bloodPressureSystolicSpinner.setValue(Integer.parseInt(bloodPressureParts[0]));
+                } catch (NumberFormatException e) {
+                    log.warn("Invalid systolic blood pressure: {}", bloodPressureParts[0]);
+                    bloodPressureSystolicSpinner.setValue(0);
+                }
+                try {
+                    bloodPressureDiastolicSpinner.setValue(Integer.parseInt(bloodPressureParts[1]));
+                } catch (NumberFormatException e) {
+                    log.warn("Invalid diastolic blood pressure: {}", bloodPressureParts[1]);
+                    bloodPressureDiastolicSpinner.setValue(0);
+                }
+            } else {
+                 log.warn("Invalid blood pressure format: {}", bloodPressure);
+                 bloodPressureSystolicSpinner.setValue(0);
+                 bloodPressureDiastolicSpinner.setValue(0);
+            }
+        } else {
+            log.warn("Blood pressure data is missing or in wrong format: {}", bloodPressure);
+            bloodPressureSystolicSpinner.setValue(0);
+            bloodPressureDiastolicSpinner.setValue(0);
+        }
         genderComboBox.setSelectedItem(selectedPatient.getCustomerGender());
         checkupTypeComboBox.setSelectedItem(selectedPatient.getCheckupType());
         customerCccdDdcnField.setText(selectedPatient.getCccdDdcn() != null ? selectedPatient.getCccdDdcn() : "");
@@ -2860,6 +3004,18 @@ public class CheckUpPage extends JPanel {
             scrollPane.setBorder(BorderFactory.createEmptyBorder());
             imageDialog.add(scrollPane, BorderLayout.CENTER);
             
+            // Add Escape key listener to close dialog
+            JRootPane rootPane = imageDialog.getRootPane();
+            InputMap inputMap = rootPane.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW);
+            inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), "ESCAPE");
+            ActionMap actionMap = rootPane.getActionMap();
+            actionMap.put("ESCAPE", new AbstractAction() {
+                @Override
+                public void actionPerformed(ActionEvent e) {
+                    imageDialog.dispose();
+                }
+            });
+            
             // Set dialog size and position
             imageDialog.setSize(scaledWidth + 20, scaledHeight + 45); // Add padding for borders and title bar
             imageDialog.setLocationRelativeTo(this);
@@ -2905,12 +3061,15 @@ public class CheckUpPage extends JPanel {
     private class QueueManagementPage extends JDialog {
         private JTable queueTable;
         private DefaultTableModel queueTableModel;
+        private JComboBox<String> checkupTypeFilter;
+        private JTextField patientNameFilter;
+        private List<Patient> filteredPatients;
 
         public QueueManagementPage() {
             super(mainFrame, "Danh sách chờ khám", true); // Set as modal dialog
             
             setIconImage(new ImageIcon("src/main/java/BsK/client/ui/assets/icon/database.png").getImage());
-            setSize(800, 600);
+            setSize(1000, 700); // Increased size to accommodate filters and new column
             setLayout(new BorderLayout());
             
             // Add window listener to handle minimize/restore events with parent
@@ -2931,22 +3090,46 @@ public class CheckUpPage extends JPanel {
                 
                 @Override
                 public void windowClosing(WindowEvent e) {
+                    // Reset patient name filter when closing dialog
+                    patientNameFilter.setText("");
+                    applyFilters();
                     // Hide instead of closing to maintain state
                     setVisible(false);
                 }
             });
 
-            String[] columns = {"Mã khám bệnh", "Ngày sinh", "Họ", "Tên", "Bác Sĩ", "Loại khám"};
-            queueTableModel = new DefaultTableModel(preprocessPatientDataForTable(patientQueue), columns) {
+            // Initialize filtered patients list
+            filteredPatients = new ArrayList<>(patientQueue);
+
+            // Create filter panel
+            JPanel filterPanel = createFilterPanel();
+            add(filterPanel, BorderLayout.NORTH);
+
+            String[] columns = {"Mã khám bệnh", "Ngày khám", "Ngày sinh", "Họ", "Tên", "Bác Sĩ", "Loại khám"};
+            queueTableModel = new DefaultTableModel(preprocessPatientDataForTable(filteredPatients), columns) {
                 @Override
                 public boolean isCellEditable(int row, int column) { return false; }
             };
             queueTable = new JTable(queueTableModel);
-            queueTable.setPreferredScrollableViewportSize(new Dimension(750, 400));
-            queueTable.getTableHeader().setFont(new Font("Arial", Font.BOLD, 14));
-            queueTable.setFont(new Font("Arial", Font.PLAIN, 12));
-            queueTable.setRowHeight(25);
+            queueTable.setPreferredScrollableViewportSize(new Dimension(850, 400)); // Increased width for new column
+            queueTable.getTableHeader().setFont(new Font("Arial", Font.BOLD, 18));
+            queueTable.setFont(new Font("Arial", Font.PLAIN, 16));
+            queueTable.setRowHeight(35);
             queueTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+            
+            // Create custom row sorter with date comparator for proper date sorting
+            TableRowSorter<DefaultTableModel> sorter = new TableRowSorter<>(queueTableModel);
+            
+            // Set up date comparator for column 1 (Ngày khám) and column 2 (Ngày sinh)
+            sorter.setComparator(1, createDateComparator()); // Checkup Date
+            sorter.setComparator(2, createDateComparator()); // Date of Birth
+            
+            queueTable.setRowSorter(sorter);
+            
+            // Sort by "Ngày khám" column in ascending order (earliest dates first)
+            List<RowSorter.SortKey> sortKeys = new ArrayList<>();
+            sortKeys.add(new RowSorter.SortKey(1, SortOrder.ASCENDING));
+            sorter.setSortKeys(sortKeys);
             queueTable.addMouseListener(new MouseAdapter() {
                 @Override
                 public void mouseClicked(MouseEvent e) {
@@ -2974,7 +3157,10 @@ public class CheckUpPage extends JPanel {
                                     }
                                 }
                                 // Call the parent class's method to handle the selection
-                                CheckUpPage.this.handleRowSelection(selectedRow);
+                                CheckUpPage.this.handleRowSelection(getSelectedRow());
+                                // Reset patient name filter when closing dialog after selection
+                                patientNameFilter.setText("");
+                                applyFilters();
                                 // Hide the dialog after selection
                                 QueueManagementPage.this.setVisible(false);
                             }
@@ -2989,6 +3175,171 @@ public class CheckUpPage extends JPanel {
             add(scrollPane, BorderLayout.CENTER);
             setLocationRelativeTo(mainFrame);
             setDefaultCloseOperation(JDialog.HIDE_ON_CLOSE);
+            
+            // Add key bindings for Enter key to select patient
+            queueTable.getInputMap(JComponent.WHEN_FOCUSED).put(KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0), "selectPatient");
+            queueTable.getActionMap().put("selectPatient", new AbstractAction() {
+                @Override
+                public void actionPerformed(ActionEvent e) {
+                    int selectedRow = queueTable.getSelectedRow();
+                    if (selectedRow != -1) {
+                        // Simulate the mouse click logic
+                        SwingUtilities.invokeLater(() -> {
+                            String newlySelectedCheckupId = (String) queueTableModel.getValueAt(selectedRow, 0);
+
+                            // Check for unsaved changes before switching
+                            if (selectedCheckupId != null && !selectedCheckupId.equals(newlySelectedCheckupId) && !saved) {
+                                int confirm = JOptionPane.showConfirmDialog(
+                                        QueueManagementPage.this,
+                                        "Các thay đổi chưa được lưu. Bạn có chắc chắn muốn chuyển sang bệnh nhân khác không?",
+                                        "Xác nhận chuyển bệnh nhân",
+                                        JOptionPane.YES_NO_OPTION,
+                                        JOptionPane.WARNING_MESSAGE);
+                                if (confirm == JOptionPane.NO_OPTION) {
+                                    return;
+                                }
+                            }
+                            // Call the parent class's method to handle the selection
+                            CheckUpPage.this.handleRowSelection(getSelectedRow());
+                            // Reset patient name filter when closing dialog after selection
+                            patientNameFilter.setText("");
+                            applyFilters();
+                            // Hide the dialog after selection
+                            QueueManagementPage.this.setVisible(false);
+                        });
+                    }
+                }
+            });
+
+            // Add Escape key listener to close dialog
+            JRootPane rootPane = this.getRootPane();
+            InputMap inputMap = rootPane.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW);
+            inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), "ESCAPE");
+            ActionMap actionMap = rootPane.getActionMap();
+            actionMap.put("ESCAPE", new AbstractAction() {
+                @Override
+                public void actionPerformed(ActionEvent e) {
+                    // Same logic as windowClosing event to ensure filters are cleared
+                    patientNameFilter.setText("");
+                    applyFilters();
+                    setVisible(false);
+                }
+            });
+        }
+
+        private JPanel createFilterPanel() {
+            JPanel filterPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 10));
+            filterPanel.setBorder(BorderFactory.createTitledBorder(
+                BorderFactory.createEtchedBorder(),
+                "Bộ lọc",
+                TitledBorder.LEADING, TitledBorder.TOP,
+                new Font("Arial", Font.BOLD, 16),
+                new Color(63, 81, 181)
+            ));
+            filterPanel.setBackground(Color.WHITE);
+
+            // Checkup Type Filter
+            JLabel checkupTypeLabel = new JLabel("Loại khám:");
+            checkupTypeLabel.setFont(new Font("Arial", Font.BOLD, 14));
+            filterPanel.add(checkupTypeLabel);
+
+            checkupTypeFilter = new JComboBox<>(new String[]{"Tất cả", "BỆNH", "THAI", "KHÁC"});
+            checkupTypeFilter.setFont(new Font("Arial", Font.PLAIN, 14));
+            checkupTypeFilter.setPreferredSize(new Dimension(120, 30));
+            checkupTypeFilter.addActionListener(e -> applyFilters());
+            filterPanel.add(checkupTypeFilter);
+
+            // Separator
+            filterPanel.add(Box.createHorizontalStrut(20));
+
+            // Patient Name Filter
+            JLabel nameLabel = new JLabel("Tên bệnh nhân:");
+            nameLabel.setFont(new Font("Arial", Font.BOLD, 14));
+            filterPanel.add(nameLabel);
+
+            patientNameFilter = new JTextField(15);
+            patientNameFilter.setFont(new Font("Arial", Font.PLAIN, 14));
+            patientNameFilter.setPreferredSize(new Dimension(200, 30));
+            patientNameFilter.addKeyListener(new java.awt.event.KeyAdapter() {
+                @Override
+                public void keyReleased(java.awt.event.KeyEvent evt) {
+                    applyFilters();
+                }
+            });
+            filterPanel.add(patientNameFilter);
+
+            // Clear Filter Button
+            filterPanel.add(Box.createHorizontalStrut(20));
+            JButton clearButton = new JButton("Xóa bộ lọc");
+            clearButton.setFont(new Font("Arial", Font.BOLD, 14));
+            clearButton.setBackground(new Color(255, 152, 0));
+            clearButton.setForeground(Color.WHITE);
+            clearButton.setFocusPainted(false);
+            clearButton.addActionListener(e -> clearFilters());
+            filterPanel.add(clearButton);
+
+            return filterPanel;
+        }
+
+        private void applyFilters() {
+            String selectedCheckupType = (String) checkupTypeFilter.getSelectedItem();
+            String nameFilter = patientNameFilter.getText().trim();
+
+            filteredPatients = patientQueue.stream()
+                .filter(patient -> {
+                    // Filter by checkup type
+                    if (!"Tất cả".equals(selectedCheckupType)) {
+                        if (!selectedCheckupType.equals(patient.getCheckupType())) {
+                            return false;
+                        }
+                    }
+
+                    // Filter by patient first name (using remove accents)
+                    if (!nameFilter.isEmpty()) {
+                        String patientFirstName = patient.getCustomerFirstName();
+                        if (patientFirstName == null) {
+                            return false;
+                        }
+                        String normalizedPatientName = TextUtils.removeAccents(patientFirstName.toLowerCase());
+                        String normalizedFilter = TextUtils.removeAccents(nameFilter.toLowerCase());
+                        if (!normalizedPatientName.contains(normalizedFilter)) {
+                            return false;
+                        }
+                    }
+
+                    return true;
+                })
+                .collect(Collectors.toList());
+
+            // Update table with filtered data
+            String[] columns = {"Mã khám bệnh", "Ngày khám", "Ngày sinh", "Họ", "Tên", "Bác Sĩ", "Loại khám"};
+            queueTableModel.setDataVector(preprocessPatientDataForTable(filteredPatients), columns);
+            
+            // Recreate row sorter with date comparator after data update
+            TableRowSorter<DefaultTableModel> sorter = new TableRowSorter<>(queueTableModel);
+            
+            // Set up date comparator for column 1 (Ngày khám) and column 2 (Ngày sinh)
+            sorter.setComparator(1, createDateComparator()); // Checkup Date
+            sorter.setComparator(2, createDateComparator()); // Date of Birth
+            
+            queueTable.setRowSorter(sorter);
+            
+            // Apply sorting by checkup date
+            List<RowSorter.SortKey> sortKeys = new ArrayList<>();
+            sortKeys.add(new RowSorter.SortKey(1, SortOrder.ASCENDING));
+            sorter.setSortKeys(sortKeys);
+            
+            // Auto-select first row after applying filters
+            if (queueTable.getRowCount() > 0) {
+                queueTable.setRowSelectionInterval(0, 0);
+                queueTable.requestFocusInWindow(); // Ensure table gets focus
+            }
+        }
+
+        private void clearFilters() {
+            checkupTypeFilter.setSelectedIndex(0); // "Tất cả"
+            patientNameFilter.setText("");
+            applyFilters();
         }
 
         private int findRowByCheckupId(String checkupId) {
@@ -3006,10 +3357,11 @@ public class CheckUpPage extends JPanel {
          */
         public void updateQueueTable() {
             SwingUtilities.invokeLater(() -> {
-                String[] columns = {"Mã khám bệnh", "Ngày sinh", "Họ", "Tên", "Bác Sĩ", "Loại khám"};
                 String previouslySelectedId = CheckUpPage.this.selectedCheckupId;
 
-                queueTableModel.setDataVector(preprocessPatientDataForTable(patientQueue), columns);
+                // Update filtered patients list and apply current filters
+                filteredPatients = new ArrayList<>(patientQueue);
+                applyFilters(); // This will update the table with filtered data and apply sorting
 
                 if (previouslySelectedId != null) {
                     int rowToSelect = findRowByCheckupId(previouslySelectedId);
@@ -3020,17 +3372,44 @@ public class CheckUpPage extends JPanel {
                         // The previously selected patient is no longer in the queue (e.g., status changed to "ĐÃ KHÁM")
                         // Clear the details panel to avoid confusion
                         clearPatientDetails();
+                        // Auto-select first row if available
+                        if (queueTable.getRowCount() > 0) {
+                            queueTable.setRowSelectionInterval(0, 0);
+                        }
+                    }
+                } else {
+                    // No previously selected patient, auto-select first row if available
+                    if (queueTable.getRowCount() > 0) {
+                        queueTable.setRowSelectionInterval(0, 0);
                     }
                 }
+                
+                // Ensure table gets focus for keyboard navigation
+                queueTable.requestFocusInWindow();
             });
         }
 
         /**
          * Gets the currently selected row from the queue table.
-         * @return the selected row index, or -1 if no row is selected.
+         * @return the selected row index in the original patient queue, or -1 if no row is selected.
          */
         public int getSelectedRow() {
-            return queueTable.getSelectedRow();
+            int selectedRowInTable = queueTable.getSelectedRow();
+            if (selectedRowInTable == -1 || selectedRowInTable >= filteredPatients.size()) {
+                return -1;
+            }
+            
+            // Get the patient from the filtered list
+            Patient selectedPatient = filteredPatients.get(selectedRowInTable);
+            
+            // Find the corresponding index in the original patient queue
+            for (int i = 0; i < patientQueue.size(); i++) {
+                if (patientQueue.get(i).getCheckupId().equals(selectedPatient.getCheckupId())) {
+                    return i;
+                }
+            }
+            
+            return -1;
         }
     }
 
@@ -3214,12 +3593,15 @@ public class CheckUpPage extends JPanel {
         log.info("servicePrescription: {}", (Object) servicePrescription);
         log.info("reCheckupDate: {}", reCheckupDate);
         log.info("customerCccdDdcn: {}", customerCccdDdcn);
+        log.info("heartBeat: {}", patientHeartRateSpinner.getValue());
+        log.info("bloodPressure: {}", bloodPressureSystolicSpinner.getValue() + "/" + bloodPressureDiastolicSpinner.getValue());
         log.info("=== End SaveCheckupRequest Data ===");
 
-        
+        String bloodPressure = bloodPressureSystolicSpinner.getValue() + "/" + bloodPressureDiastolicSpinner.getValue();
         Long customerDobLong = DateUtils.convertToDate(customerDob).getTime();
         Long reCheckupDateLong = DateUtils.convertToDate(reCheckupDate).getTime();
         Long checkupDateLong = DateUtils.convertToDate(checkupDate).getTime();
+        Integer heartBeat = (Integer) patientHeartRateSpinner.getValue();
         SaveCheckupRequest request = new SaveCheckupRequest(
             Integer.parseInt(checkupId),
             Integer.parseInt(customerId),
@@ -3241,6 +3623,8 @@ public class CheckUpPage extends JPanel {
             Double.parseDouble(customerWeight),
             Double.parseDouble(customerHeight),
             customerCccdDdcn,
+            heartBeat,
+            bloodPressure,
             medicinePrescription,
             servicePrescription
         );

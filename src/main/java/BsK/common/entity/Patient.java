@@ -27,6 +27,8 @@ public class Patient {
     private String conclusion;
     private String reCheckupDate;
     private String cccdDdcn;
+    private String heartBeat;
+    private String bloodPressure;
     
 
     public Patient(String[][] array) {
@@ -49,15 +51,15 @@ public class Patient {
         this.checkupType = array[0][16];
         this.conclusion = array[0][17];
         this.reCheckupDate = array[0][18];
-        if (array[0].length > 19) {
-            this.cccdDdcn = array[0][19];
-        }
+        this.cccdDdcn = array[0][19];
+        this.heartBeat = array[0][20];
+        this.bloodPressure = array[0][21];
     }
 
     // New constructor for a single patient data row
     public Patient(String[] data) {
-        if (data.length < 19) {
-            throw new IllegalArgumentException("Patient data array must contain at least 19 elements to include a conclusion.");
+        if (data.length < 22) {
+            throw new IllegalArgumentException("Patient data array must contain at least 22 elements to include a conclusion.");
         }
         this.checkupId = data[0];
         this.checkupDate = data[1];
@@ -78,8 +80,8 @@ public class Patient {
         this.checkupType = data[16];
         this.conclusion = data[17];
         this.reCheckupDate = data[18];
-        if (data.length > 19) {
-            this.cccdDdcn = data[19];
-        }
+        this.cccdDdcn = data[19];
+        this.heartBeat = data[20];
+        this.bloodPressure = data[21];
     }
 }

@@ -110,7 +110,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
           ResultSet rs = statement.executeQuery(
                   "select a.checkup_id, a.checkup_date, c.customer_last_name, c.customer_first_name,\n" +
                           "d.doctor_first_name, d.doctor_last_name, a.suggestion, a.diagnosis, a.notes, a.status, a.customer_id, \n" +
-                          "c.customer_number, c.customer_address, a.customer_weight, a.customer_height, c.customer_gender, c.customer_dob, a.checkup_type, a.conclusion, a.reCheckupDate, c.cccd_ddcn\n" +
+                          "c.customer_number, c.customer_address, a.customer_weight, a.customer_height, c.customer_gender, c.customer_dob, a.checkup_type, a.conclusion, a.reCheckupDate, c.cccd_ddcn, a.heart_beat, a.blood_pressure\n" +
                           "from checkup as a\n" +
                           "join customer as c on a.customer_id = c.customer_id\n" +
                           "join Doctor D on a.doctor_id = D.doctor_id\n" +
@@ -149,11 +149,13 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
               String conclusion = rs.getString("conclusion");
               String reCheckupDate = rs.getString("reCheckupDate");
               String cccdDdcn = rs.getString("cccd_ddcn");
+              String heartBeat = rs.getString("heart_beat");
+              String bloodPressure = rs.getString("blood_pressure");
               String result = String.join("|", checkupId,
                       checkupDate, customerLastName, customerFirstName,
                       doctorLastName + " " + doctorFirstName, suggestion,
                       diagnosis, notes, status, customerId, customerNumber, customerAddress, customerWeight, customerHeight,
-                      customerGender, customerDob, checkupType, conclusion, reCheckupDate, cccdDdcn
+                      customerGender, customerDob, checkupType, conclusion, reCheckupDate, cccdDdcn, heartBeat, bloodPressure
               );
 
               resultList.add(result);
@@ -178,7 +180,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
           ResultSet rs = statement.executeQuery(
                   "select a.checkup_id, a.checkup_date, c.customer_last_name, c.customer_first_name,\n" +
                           "d.doctor_first_name, d.doctor_last_name, a.suggestion, a.diagnosis, a.notes, a.status, a.customer_id, \n" +
-                          "c.customer_number, c.customer_address, a.customer_weight, a.customer_height, c.customer_gender, c.customer_dob, a.checkup_type, a.conclusion, a.reCheckupDate, c.cccd_ddcn\n" +
+                          "c.customer_number, c.customer_address, a.customer_weight, a.customer_height, c.customer_gender, c.customer_dob, a.checkup_type, a.conclusion, a.reCheckupDate, c.cccd_ddcn, a.heart_beat, a.blood_pressure\n" +
                           "from checkup as a\n" +
                           "join customer as c on a.customer_id = c.customer_id\n" +
                           "join Doctor D on a.doctor_id = D.doctor_id\n" +
@@ -221,12 +223,13 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
               String conclusion = rs.getString("conclusion");
               String reCheckupDate = rs.getString("reCheckupDate");
               String cccdDdcn = rs.getString("cccd_ddcn");
-
+              String heartBeat = rs.getString("heart_beat");
+              String bloodPressure = rs.getString("blood_pressure");
               String result = String.join("|", checkupId,
                       checkupDate, customerLastName, customerFirstName,
                       doctorLastName + " " + doctorFirstName, suggestion,
                       diagnosis, notes, status, customerId, customerNumber, customerAddress, customerWeight, customerHeight,
-                      customerGender, customerDob, checkupType, conclusion, reCheckupDate, cccdDdcn
+                      customerGender, customerDob, checkupType, conclusion, reCheckupDate, cccdDdcn, heartBeat, bloodPressure
               );
 
               resultList.add(result);
@@ -654,10 +657,11 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
 
           // First query: Insert Checkup
           PreparedStatement checkupStmt = Server.connection.prepareStatement(
-                  "INSERT INTO Checkup (customer_id, doctor_id, checkup_type) VALUES (?, ?, ?)");
+                  "INSERT INTO Checkup (customer_id, doctor_id, checkup_type, status) VALUES (?, ?, ?, ?)");
           checkupStmt.setInt(1, addCheckupRequest.getCustomerId());
           checkupStmt.setInt(2, addCheckupRequest.getDoctorId());
           checkupStmt.setString(3, addCheckupRequest.getCheckupType());
+          checkupStmt.setString(4, addCheckupRequest.getStatus());
           checkupStmt.executeUpdate();
 
           // Second query: Insert MedicineOrder
@@ -768,8 +772,8 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
           String checkupSql = """
             INSERT INTO Checkup (
                 checkup_id, customer_id, doctor_id, checkup_date,
-                suggestion, diagnosis, prescription_id, notes, status, checkup_type, conclusion, reCheckupDate, customer_weight, customer_height
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                suggestion, diagnosis, prescription_id, notes, status, checkup_type, conclusion, reCheckupDate, customer_weight, customer_height, heart_beat, blood_pressure
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(checkup_id) DO UPDATE SET
                 suggestion = excluded.suggestion,
                 diagnosis = excluded.diagnosis,
@@ -780,7 +784,9 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                 conclusion = excluded.conclusion,
                 reCheckupDate = excluded.reCheckupDate,
                 customer_weight = excluded.customer_weight,
-                customer_height = excluded.customer_height
+                customer_height = excluded.customer_height,
+                heart_beat = excluded.heart_beat,
+                blood_pressure = excluded.blood_pressure
             """;
           
           PreparedStatement checkupStmt = conn.prepareStatement(checkupSql);
@@ -798,6 +804,8 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
           checkupStmt.setLong(12, saveCheckupRequest.getReCheckupDate());
           checkupStmt.setDouble(13, saveCheckupRequest.getCustomerWeight());
           checkupStmt.setDouble(14, saveCheckupRequest.getCustomerHeight());
+          checkupStmt.setInt(15, saveCheckupRequest.getHeartBeat());
+          checkupStmt.setString(16, saveCheckupRequest.getBloodPressure());
           checkupStmt.executeUpdate();
           log.info("Prescription ID generated or edited: {}", prescriptionId);
           log.info("Checkup saved successfully");

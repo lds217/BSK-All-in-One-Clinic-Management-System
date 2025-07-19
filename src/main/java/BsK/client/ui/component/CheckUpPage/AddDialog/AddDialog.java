@@ -335,12 +335,14 @@ public class AddDialog extends JDialog {
         gbc.gridx = 1;
         UtilDateModel model = new UtilDateModel();
         Properties p = new Properties();
-        p.put("text.today", "Hôm nay");
         p.put("text.month", "Tháng");
         p.put("text.year", "Năm");
+        // Remove "text.today" since DOB shouldn't default to today
         JDatePanelImpl datePanel = new JDatePanelImpl(model, p);
         dobPicker = new JDatePickerImpl(datePanel, new DateLabelFormatter());
         dobPicker.getJFormattedTextField().setFont(textFont);
+        dobPicker.getJFormattedTextField().setToolTipText("Nhập ngày theo định dạng dd/mm/yyyy");
+        setupDateFieldForDirectInput(dobPicker);
         dobPicker.setPreferredSize(new Dimension(150, 30));
         patientInfoPanel.add(dobPicker, gbc);
 
@@ -629,13 +631,25 @@ public class AddDialog extends JDialog {
             int patientId = Integer.parseInt(patientIdField.getText());
             int doctorId = doctorComboBox.getSelectedIndex()+ 1;
             String selectedCheckupType = (String) checkupTypeComboBox.getSelectedItem();
-            NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new AddCheckupRequest(patientId, doctorId, LocalStorage.userId, selectedCheckupType));
+            NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new AddCheckupRequest(patientId, doctorId, LocalStorage.userId,"ĐANG KHÁM", selectedCheckupType));
 
         });
         saveButton.setEnabled(false);
         ButtonPanel.add(saveButton);
 
         add(ButtonPanel, BorderLayout.SOUTH);
+
+        // Add Escape key listener to close dialog
+        JRootPane rootPane = this.getRootPane();
+        InputMap inputMap = rootPane.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW);
+        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), "ESCAPE");
+        ActionMap actionMap = rootPane.getActionMap();
+        actionMap.put("ESCAPE", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                dispose();
+            }
+        });
     }
 
     private void handleRowSelection(int selectedRow) {
@@ -736,6 +750,44 @@ public class AddDialog extends JDialog {
         wardModel = new DefaultComboBoxModel<>(LocalStorage.wards);
         wardComboBox.setModel(wardModel);
         wardComboBox.setEnabled(true); // Enable ward combo box
+    }
+
+    private void setupDateFieldForDirectInput(JDatePickerImpl datePicker) {
+        JFormattedTextField textField = datePicker.getJFormattedTextField();
+        
+        // Make sure the field is editable
+        textField.setEditable(true);
+        
+        // Improve focus behavior for better tab navigation
+        textField.addFocusListener(new FocusAdapter() {
+            @Override
+            public void focusGained(FocusEvent e) {
+                SwingUtilities.invokeLater(() -> {
+                    if (textField.getText().isEmpty()) {
+                        textField.setForeground(Color.BLACK);
+                    }
+                    textField.selectAll();
+                });
+            }
+
+            @Override
+            public void focusLost(FocusEvent e) {
+                if (textField.getText().isEmpty()) {
+                    textField.setForeground(Color.GRAY);
+                }
+            }
+        });
+
+        // Add key listener for better input handling
+        textField.addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyPressed(KeyEvent e) {
+                // Allow tab navigation
+                if (e.getKeyCode() == KeyEvent.VK_TAB) {
+                    textField.transferFocus();
+                }
+            }
+        });
     }
 
 

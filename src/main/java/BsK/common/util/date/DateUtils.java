@@ -77,6 +77,7 @@ public class DateUtils {
             } else {
                 // Try to parse as dd/MM/yyyy format
                 return DISPLAY_FORMAT.parse(dateInput);
+                
             }
         } catch (NumberFormatException | ParseException e) {
             System.err.println("Invalid date format: " + dateInput);
@@ -112,6 +113,7 @@ public class DateUtils {
         System.out.println("Display format: " + convertToDisplayFormat(validTimestamp));
         System.out.println("Display format: " + convertToDisplayFormat("15/06/2023"));
         System.out.println("Date object: " + convertToDate(validTimestamp));
-        System.out.println("Date object: " + convertToDate("15/06/2023"));
+        System.out.println("Date object: " + convertToDate("15-06-2023"));
+
     }
 }
