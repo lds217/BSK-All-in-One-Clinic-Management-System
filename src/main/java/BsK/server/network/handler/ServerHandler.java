@@ -294,7 +294,11 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                 C.conclusion,
                 C.reCheckupDate,
                 D.doctor_last_name,
-                D.doctor_first_name
+                D.doctor_first_name,
+                C.customer_height,
+                C.customer_weight,
+                C.heart_beat,
+                C.blood_pressure
             FROM Checkup C JOIN Doctor D ON C.doctor_id = D.doctor_id  WHERE C.status = ? AND C.customer_id = ?
             ORDER BY C.checkup_date DESC;
         """;
@@ -311,7 +315,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                 } else {
                     ArrayList<String[]> resultList = new ArrayList<>();
                     while (rs.next()) {
-                        String[] historyEntry = new String[11]; // Corrected size from 9 to 11
+                        String[] historyEntry = new String[15];
                         
                         String checkupDateStr = rs.getString("checkup_date");
                         try {
@@ -334,6 +338,10 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                         historyEntry[8] = rs.getString("reCheckupDate");   
                         historyEntry[9] = rs.getString("doctor_last_name");
                         historyEntry[10] = rs.getString("doctor_first_name");
+                        historyEntry[11] = rs.getString("customer_height");
+                        historyEntry[12] = rs.getString("customer_weight");
+                        historyEntry[13] = rs.getString("heart_beat");
+                        historyEntry[14] = rs.getString("blood_pressure");
                         resultList.add(historyEntry);
                     }
 

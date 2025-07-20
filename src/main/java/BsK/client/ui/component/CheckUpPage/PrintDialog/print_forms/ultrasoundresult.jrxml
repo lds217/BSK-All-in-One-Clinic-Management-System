@@ -36,10 +36,14 @@
 	<parameter name="image1" class="java.lang.String"/>
 	<parameter name="image2" class="java.lang.String"/>
 	<parameter name="image3" class="java.lang.String"/>
+	<parameter name="checkupHeight" class="java.lang.String"/>
 	<parameter name="image4" class="java.lang.String"/>
 	<parameter name="image5" class="java.lang.String"/>
 	<parameter name="numberImage" class="java.lang.Integer"/>
 	<parameter name="image6" class="java.lang.String"/>
+	<parameter name="checkupBloodPressure" class="java.lang.String"/>
+	<parameter name="checkupHeartBeat" class="java.lang.String"/>
+	<parameter name="checkupWeight" class="java.lang.String"/>
 	<query language="sql"><![CDATA[]]></query>
 	<background splitType="Stretch"/>
 	<title splitType="Stretch"/>
@@ -111,11 +115,35 @@
 				<element kind="textField" uuid="5ae67e13-7a79-437f-bfb8-c720d896720d" x="60" y="124" width="340" height="26" fontName="Times New Roman" fontSize="10.0">
 					<expression><![CDATA[$P{patientDiagnos}]]></expression>
 				</element>
-				<element kind="staticText" uuid="b1fa845a-48da-4e45-82b8-8b9d972650f6" x="0" y="146" width="100" height="30" forecolor="#FF0905" fontName="Times New Roman" fontSize="15.0" bold="true">
+				<element kind="staticText" uuid="b1fa845a-48da-4e45-82b8-8b9d972650f6" x="0" y="184" width="100" height="30" forecolor="#FF0905" fontName="Times New Roman" fontSize="15.0" bold="true">
 					<text><![CDATA[II.Nội dung]]></text>
 				</element>
-				<element kind="textField" uuid="6d652a25-b701-45bd-91ba-750842650004" x="0" y="164" width="400" height="376" markup="rtf" fontName="Times New Roman" fontSize="10.0">
+				<element kind="textField" uuid="6d652a25-b701-45bd-91ba-750842650004" x="0" y="200" width="400" height="340" markup="rtf" fontName="Times New Roman" fontSize="10.0">
 					<expression><![CDATA[$P{checkupNote}]]></expression>
+				</element>
+				<element kind="staticText" uuid="8f720f6a-0257-4556-b3bc-3b81ad4f8099" x="1" y="150" width="59" height="16" fontName="Times New Roman" fontSize="10.0" bold="true" hTextAlign="Left">
+					<text><![CDATA[Chiều cao:]]></text>
+				</element>
+				<element kind="staticText" uuid="a57e7a9d-4ac7-4219-b268-cd08ce943327" x="100" y="150" width="59" height="16" fontName="Times New Roman" fontSize="10.0" bold="true" hTextAlign="Left">
+					<text><![CDATA[Cân nặng:]]></text>
+				</element>
+				<element kind="staticText" uuid="2b9cfd9d-ec8f-4036-9c96-039fd7855e24" x="200" y="150" width="59" height="16" fontName="Times New Roman" fontSize="10.0" bold="true" hTextAlign="Left">
+					<text><![CDATA[Nhịp tim:]]></text>
+				</element>
+				<element kind="staticText" uuid="c1356370-11ce-4b68-97d6-ce6e18e306c5" x="290" y="150" width="59" height="16" fontName="Times New Roman" fontSize="10.0" bold="true" hTextAlign="Left">
+					<text><![CDATA[Huyết áp:]]></text>
+				</element>
+				<element kind="textField" uuid="3e1069a6-daea-45c2-b21f-935b49baba45" x="50" y="150" width="50" height="16" fontName="Times New Roman" fontSize="10.0">
+					<expression><![CDATA[$P{checkupHeight} +" cm"]]></expression>
+				</element>
+				<element kind="textField" uuid="fb080012-3196-4535-bcd2-e87274c66fa5" x="150" y="150" width="50" height="16" fontName="Times New Roman" fontSize="10.0">
+					<expression><![CDATA[$P{checkupWeight} + " kg"]]></expression>
+				</element>
+				<element kind="textField" uuid="e4185ffe-8712-41e3-a9ff-2be6569dff15" x="243" y="150" width="47" height="16" fontName="Times New Roman" fontSize="10.0">
+					<expression><![CDATA[$P{checkupHeartBeat} + " bpm"]]></expression>
+				</element>
+				<element kind="textField" uuid="6b0b21be-2ca3-4594-bbe9-34868e13eb1e" x="335" y="150" width="63" height="16" fontName="Times New Roman" fontSize="10.0">
+					<expression><![CDATA[$P{checkupBloodPressure} +" mmHg"]]></expression>
 				</element>
 			</element>
 			<element kind="frame" uuid="a72ffc70-007e-43af-a566-b34e6e07b312" x="400" y="0" width="400" height="540">

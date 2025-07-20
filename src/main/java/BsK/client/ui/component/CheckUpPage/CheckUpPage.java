@@ -1230,7 +1230,7 @@ public class CheckUpPage extends JPanel {
                         new Font("Arial", Font.BOLD, 16), new Color(63, 81, 181)
                 )
         ));
-        String historyColumns[] = {"Ngày Tháng","Mã khám bệnh", "Triệu chứng", "Chẩn đoán", "Ghi chú"};
+        String historyColumns[] = {"Ngày khám", "Loại khám", "Kết luận", "Cao (cm)", "Nặng (kg)", "Nhịp tim", "Huyết áp"};
         historyModel = new DefaultTableModel(this.history, historyColumns) {
             @Override public boolean isCellEditable(int row, int column) { return false; }
         };
@@ -1246,8 +1246,8 @@ public class CheckUpPage extends JPanel {
                     // Check if the row index is valid for our data array
                     if (selectedRow >= 0 && history != null && selectedRow < history.length) {
                         String[] selectedHistory = history[selectedRow];
-                        // Ensure the selected record has enough data fields
-                        if (selectedHistory != null && selectedHistory.length >= 11) {
+                        // Ensure the selected record has enough data fields (now need 15 for vitals)
+                        if (selectedHistory != null && selectedHistory.length >= 15) {
                             String checkupId = selectedHistory[1];
                             String patientName = customerFirstNameField.getText() + " " + customerLastNameField.getText();
                             String checkupDate = selectedHistory[0];
@@ -1257,8 +1257,12 @@ public class CheckUpPage extends JPanel {
                             String conclusion = selectedHistory[7];
                             String reCheckupDate = selectedHistory[8];
                             String doctorName = selectedHistory[9] + " " + selectedHistory[10];
-                             
-                            openHistoryViewDialog(checkupId, patientName, checkupDate, suggestion, diagnosis, conclusion, notes, reCheckupDate, doctorName);
+                            String customerHeight = selectedHistory[11]; // customer_height
+                            String customerWeight = selectedHistory[12]; // customer_weight
+                            String heartRate = selectedHistory[13]; // heart_beat
+                            String bloodPressure = selectedHistory[14]; // blood_pressure
+
+                            openHistoryViewDialog(checkupId, patientName, checkupDate, suggestion, diagnosis, conclusion, notes, reCheckupDate, doctorName, customerHeight, customerWeight, heartRate, bloodPressure);
                         } else {
                             log.warn("Selected history record has incomplete data. Length: {}", (selectedHistory != null ? selectedHistory.length : "null"));
                         }
@@ -1598,7 +1602,11 @@ public class CheckUpPage extends JPanel {
                         recheckupDatePicker.getJFormattedTextField().getText(),
                         selectedImagesForPrint,
                         printType,
-                        templateTitle
+                        templateTitle,
+                        customerHeightSpinner.getValue().toString(),
+                        customerWeightSpinner.getValue().toString(),
+                        patientHeartRateSpinner.getValue().toString(),
+                        bloodPressureSystolicSpinner.getValue() + "/" + bloodPressureDiastolicSpinner.getValue()
                 );
                 
                 JasperPrint jasperPrintToPrint;
@@ -1659,7 +1667,11 @@ public class CheckUpPage extends JPanel {
                         recheckupDatePicker.getJFormattedTextField().getText(),
                         selectedImagesForPrint,
                         printType,
-                        templateTitle
+                        templateTitle,
+                        customerHeightSpinner.getValue().toString(),
+                        customerWeightSpinner.getValue().toString(),
+                        patientHeartRateSpinner.getValue().toString(),
+                        bloodPressureSystolicSpinner.getValue() + "/" + bloodPressureDiastolicSpinner.getValue()
                 );
 
                 JasperPrint jasperPrintToView;
@@ -2031,23 +2043,33 @@ public class CheckUpPage extends JPanel {
 
     private void handleGetPatientHistoryResponse(GetPatientHistoryResponse response) {
         SwingUtilities.invokeLater(() -> {
-        log.info("Received patient history");
-            this.history = response.getHistory(); // Keep original 6-column data for the dialog
-            
-            // Prepare data specifically for the 5-column table view
-            String[][] tableData = new String[this.history.length][5];
-            for (int i = 0; i < this.history.length; i++) {
-                if (this.history[i] != null && this.history[i].length >= 6) {
-                    // 0: checkup_date, 1: checkup_id, 2: suggestion, 3: diagnosis, 4: prescription_id, 5: notes, 6: checkup_type, 7: conclusion
-                    // display 0, 1, 6, 7
-                    tableData[i][0] = this.history[i][0];
-                    tableData[i][1] = this.history[i][1];
-                    tableData[i][2] = this.history[i][6];
-                    tableData[i][3] = this.history[i][7];
+            log.info("Received patient history");
+            this.history = response.getHistory(); // Keep original data for the dialog
+
+            if (this.history != null && this.history.length > 0) {
+                // Prepare data specifically for the 7-column table view
+                String[] historyColumns = {"Ngày khám", "Loại khám", "Kết luận", "Cao (cm)", "Nặng (kg)", "Nhịp tim", "Huyết áp"};
+                String[][] tableData = new String[this.history.length][7];
+
+                for (int i = 0; i < this.history.length; i++) {
+                    if (this.history[i] != null && this.history[i].length >= 15) {
+                        // 0: checkup_date, 1: checkup_id, 2: suggestion, 3: diagnosis, 4: prescription_id, 5: notes, 6: checkup_type, 
+                        // 7: conclusion, 8: reCheckupDate, 9: doctor_last_name, 10: doctor_first_name, 11: customer_height, 12: customer_weight, 
+                        // 13: heart_beat, 14: blood_pressure
+                        tableData[i][0] = this.history[i][0];  // Ngày khám
+                        tableData[i][1] = this.history[i][6];  // Loại khám
+                        tableData[i][2] = this.history[i][7];  // Kết luận
+                        tableData[i][3] = this.history[i][11]; // Cao (cm)
+                        tableData[i][4] = this.history[i][12]; // Nặng (kg)
+                        tableData[i][5] = this.history[i][13]; // Nhịp tim
+                        tableData[i][6] = this.history[i][14]; // Huyết áp
+                    }
                 }
+                historyModel.setDataVector(tableData, historyColumns);
+            } else {
+                // Clear the table if there is no history
+                historyModel.setRowCount(0);
             }
-            
-            historyModel.setDataVector(tableData, new String[]{"Ngày Tháng","Mã khám bệnh", "Loại khám", "Kết luận"});
         });
     }
 
@@ -3686,10 +3708,10 @@ public class CheckUpPage extends JPanel {
     /**
      * Opens the history view dialog for the selected checkup
      */
-    private void openHistoryViewDialog(String checkupId, String patientName, String checkupDate, String suggestion, String diagnosis, String conclusion, String notes, String reCheckupDate, String doctorName) {
+    private void openHistoryViewDialog(String checkupId, String patientName, String checkupDate, String suggestion, String diagnosis, String conclusion, String notes, String reCheckupDate, String doctorName, String customerHeight, String customerWeight, String heartRate, String bloodPressure) {
         try {
-            // Pass all the necessary details to the dialog
-            HistoryViewDialog historyDialog = new HistoryViewDialog(mainFrame, checkupId, patientName, checkupDate, suggestion, diagnosis, conclusion, notes, reCheckupDate, doctorName);
+            // Pass all the necessary details to the dialog including vitals
+            HistoryViewDialog historyDialog = new HistoryViewDialog(mainFrame, checkupId, patientName, checkupDate, suggestion, diagnosis, conclusion, notes, reCheckupDate, doctorName, customerHeight, customerWeight, heartRate, bloodPressure);
             historyDialog.setVisible(true);
         } catch (Exception e) {
             log.error("Error opening history view dialog", e);

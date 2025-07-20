@@ -10,6 +10,8 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.awt.event.ActionEvent;
+import java.awt.event.KeyEvent;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.File;
@@ -49,6 +51,12 @@ public class HistoryViewDialog extends JDialog {
     private String[][] medicinePrescription;
     private String[][] servicePrescription;
     
+    // Vitals data
+    private String customerHeight;
+    private String customerWeight;
+    private String heartRate;
+    private String bloodPressure;
+    
     // UI Components
     private JLabel imagePreviewLabel;
     private JPanel imageListPanel;
@@ -76,7 +84,7 @@ public class HistoryViewDialog extends JDialog {
     private final ResponseListener<GetOrderInfoByCheckupRes> orderInfoListener = this::handleGetOrderInfoResponse;
     private final ResponseListener<GetImagesByCheckupIdRes> imagesListener = this::handleGetImagesResponse;
     
-    public HistoryViewDialog(Frame parent, String checkupId, String patientName, String checkupDate, String suggestion, String diagnosis, String conclusion, String notes, String reCheckupDate, String doctorName) {
+    public HistoryViewDialog(Frame parent, String checkupId, String patientName, String checkupDate, String suggestion, String diagnosis, String conclusion, String notes, String reCheckupDate, String doctorName, String customerHeight, String customerWeight, String heartRate, String bloodPressure) {
         super(parent, "Xem chi tiết lịch sử khám - " + patientName, true);
         this.checkupId = checkupId;
         this.patientName = patientName;
@@ -90,6 +98,10 @@ public class HistoryViewDialog extends JDialog {
         this.conclusion = conclusion;
         this.reCheckupDate = reCheckupDate;
         this.doctorName = doctorName;
+        this.customerHeight = customerHeight;
+        this.customerWeight = customerWeight;
+        this.heartRate = heartRate;
+        this.bloodPressure = bloodPressure;
         initializeDialog(parent);
         setupUI();
         
@@ -288,6 +300,50 @@ public class HistoryViewDialog extends JDialog {
         JLabel checkupIdLabel = new JLabel(checkupId);
         checkupIdLabel.setFont(valueFont);
         patientInfoPanel.add(checkupIdLabel, gbc);
+
+        // --- ROW 4 - Vitals Information ---
+        gbc.gridy = 4;
+        gbc.gridx = 0;
+        JLabel heightLabel = new JLabel("Chiều cao:");
+        heightLabel.setFont(labelFont);
+        patientInfoPanel.add(heightLabel, gbc);
+
+        gbc.gridx = 1;
+        JLabel heightValueLabel = new JLabel(getDisplayableString(this.customerHeight) + " cm");
+        heightValueLabel.setFont(valueFont);
+        patientInfoPanel.add(heightValueLabel, gbc);
+
+        gbc.gridx = 2;
+        JLabel weightLabel = new JLabel("Cân nặng:");
+        weightLabel.setFont(labelFont);
+        patientInfoPanel.add(weightLabel, gbc);
+
+        gbc.gridx = 3;
+        JLabel weightValueLabel = new JLabel(getDisplayableString(this.customerWeight) + " kg");
+        weightValueLabel.setFont(valueFont);
+        patientInfoPanel.add(weightValueLabel, gbc);
+
+        // --- ROW 5 - Heart Rate and Blood Pressure ---
+        gbc.gridy = 5;
+        gbc.gridx = 0;
+        JLabel heartRateLabel = new JLabel("Nhịp tim:");
+        heartRateLabel.setFont(labelFont);
+        patientInfoPanel.add(heartRateLabel, gbc);
+
+        gbc.gridx = 1;
+        JLabel heartRateValueLabel = new JLabel(getDisplayableString(this.heartRate) + " bpm");
+        heartRateValueLabel.setFont(valueFont);
+        patientInfoPanel.add(heartRateValueLabel, gbc);
+
+        gbc.gridx = 2;
+        JLabel bloodPressureLabel = new JLabel("Huyết áp:");
+        bloodPressureLabel.setFont(labelFont);
+        patientInfoPanel.add(bloodPressureLabel, gbc);
+
+        gbc.gridx = 3;
+        JLabel bloodPressureValueLabel = new JLabel(getDisplayableString(this.bloodPressure) + " mmHg");
+        bloodPressureValueLabel.setFont(valueFont);
+        patientInfoPanel.add(bloodPressureValueLabel, gbc);
         
         headerPanel.add(patientInfoPanel, BorderLayout.CENTER);
         

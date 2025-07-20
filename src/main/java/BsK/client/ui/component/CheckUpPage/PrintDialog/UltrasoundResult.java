@@ -77,6 +77,12 @@ public class UltrasoundResult {
     private final List<File> selectedImages;
     private final String printType; // "ngang" or "dọc"
     private final String templateTitle;
+    
+    // Vitals data
+    private final String customerHeight;
+    private final String customerWeight;
+    private final String heartRate;
+    private final String bloodPressure;
 
     private static final String PDF_PATH = "ultrasound_result.pdf";
 
@@ -84,7 +90,8 @@ public class UltrasoundResult {
                             String patientAddress, String doctorName, String checkupDate,
                             String rtfContent, String conclusion, String suggestion,
                             String recheckupDate, List<File> selectedImages, 
-                            String printType, String templateTitle) {
+                            String printType, String templateTitle, String customerHeight, 
+                            String customerWeight, String heartRate, String bloodPressure) {
 
         // Defensive null checks to prevent JasperReports from crashing on null parameters
         this.checkupId = checkupId != null ? checkupId : "";
@@ -101,6 +108,10 @@ public class UltrasoundResult {
         this.selectedImages = selectedImages != null ? selectedImages : new ArrayList<>();
         this.printType = printType != null ? printType : "";
         this.templateTitle = templateTitle != null ? templateTitle : "";
+        this.customerHeight = customerHeight != null ? customerHeight : "";
+        this.customerWeight = customerWeight != null ? customerWeight : "";
+        this.heartRate = heartRate != null ? heartRate : "";
+        this.bloodPressure = bloodPressure != null ? bloodPressure : "";
     }
 
     public void showDirectJasperViewer() {
@@ -153,6 +164,12 @@ public class UltrasoundResult {
             parameters.put("checkupConclusion", this.conclusion);
             parameters.put("checkupSuggestion", this.suggestion);
             parameters.put("reCheckupDate", this.recheckupDate);
+            
+            // Vitals data
+            parameters.put("checkupHeight", this.customerHeight);
+            parameters.put("checkupWeight", this.customerWeight);
+            parameters.put("checkupHeartBeat", this.heartRate);
+            parameters.put("checkupBloodPressure", this.bloodPressure);
 
             // Handle images
             int numberOfImages = this.selectedImages.size();
