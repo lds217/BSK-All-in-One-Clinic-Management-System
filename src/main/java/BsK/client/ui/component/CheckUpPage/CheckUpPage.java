@@ -1905,7 +1905,11 @@ public class CheckUpPage extends JPanel {
         suggestionField.setText(selectedPatient.getSuggestion()); // De nghi
         diagnosisField.setText(selectedPatient.getDiagnosis()); // Chuan doan
         conclusionField.setText(selectedPatient.getConclusion()); // Ket luan
-        recheckupDatePicker.getJFormattedTextField().setText(DateUtils.convertToDisplayFormat(selectedPatient.getReCheckupDate())); // Ngày khám lại
+        if (selectedPatient.getReCheckupDate() != null) {
+            recheckupDatePicker.getJFormattedTextField().setText(DateUtils.convertToDisplayFormat(selectedPatient.getReCheckupDate()));
+        } else {
+            recheckupDatePicker.getJFormattedTextField().setText("");
+        }
 
         // Handle RTF notes content
         String notes = selectedPatient.getNotes();

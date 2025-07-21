@@ -3,6 +3,20 @@
     "configurations": [
         {
             "type": "java",
+            "name": "GoogleDriveOAuthTest",
+            "request": "launch",
+            "mainClass": "BsK.server.test.GoogleDriveOAuthTest",
+            "projectName": "ldS_BsK"
+        },
+        {
+            "type": "java",
+            "name": "GoogleDriveTest",
+            "request": "launch",
+            "mainClass": "BsK.server.test.GoogleDriveTest",
+            "projectName": "ldS_BsK"
+        },
+        {
+            "type": "java",
             "name": "DateUtils",
             "request": "launch",
             "mainClass": "BsK.common.util.date.DateUtils",

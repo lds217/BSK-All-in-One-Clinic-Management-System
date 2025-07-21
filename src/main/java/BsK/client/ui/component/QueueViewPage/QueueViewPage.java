@@ -1,6 +1,7 @@
 package BsK.client.ui.component.QueueViewPage;
 
 import BsK.client.LocalStorage;
+import BsK.common.util.date.DateUtils;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -288,26 +289,32 @@ public class QueueViewPage extends JFrame {
         SimpleDateFormat inputDateFormat = new SimpleDateFormat("dd/MM/yyyy");
 
         for (String[] row : fullQueueData) {
-            if (row.length > 3) { 
+            if (row.length > 15) { // Changed from > 3 to > 15 to ensure we have DOB data
                 String maKhamBenh = row[0];
                 String ho = row[2];
                 String ten = row[3];
                 String hoVaTen = ho + " " + ten;
-                String dateStr = row[1]; 
+                String customerDob = row[15]; // Use customer DOB instead of checkup date
                 String namSinh = "N/A"; 
 
-                try {
-                    Date parsedDate;
-                    if (dateStr.matches("\\d+")) { 
-                        parsedDate = new Date(Long.parseLong(dateStr));
-                    } else { 
-                        parsedDate = inputDateFormat.parse(dateStr);
+                if (customerDob != null && !customerDob.isEmpty()) {
+                    // Extract year from DOB using DateUtils for consistency
+                    int year = DateUtils.extractYearFromTimestamp(customerDob);
+                    if (year != -1) {
+                        namSinh = String.valueOf(year);
+                    } else {
+                        // Fallback: try to parse as date string and extract year
+                        try {
+                            Date dobDate = DateUtils.convertToDate(customerDob);
+                            if (dobDate != null) {
+                                Calendar calendar = Calendar.getInstance();
+                                calendar.setTime(dobDate);
+                                namSinh = String.valueOf(calendar.get(Calendar.YEAR));
+                            }
+                        } catch (Exception e) {
+                            System.err.println("Lỗi phân tích ngày sinh cho năm trên màn hình chờ TV: " + customerDob + " - " + e.getMessage());
+                        }
                     }
-                    Calendar calendar = Calendar.getInstance();
-                    calendar.setTime(parsedDate);
-                    namSinh = String.valueOf(calendar.get(Calendar.YEAR));
-                } catch (ParseException | NumberFormatException e) {
-                    System.err.println("Lỗi phân tích ngày cho năm trên màn hình chờ TV: " + dateStr + " - " + e.getMessage());
                 }
                 tvDataList.add(new Object[]{maKhamBenh, hoVaTen, namSinh});
             }

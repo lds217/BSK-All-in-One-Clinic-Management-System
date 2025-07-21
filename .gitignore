@@ -127,6 +127,8 @@ buildNumber.properties
 .mvn/timing.properties
 # https://github.com/takari/maven-wrapper#usage-without-binary-jar
 .mvn/wrapper/maven-wrapper.jar
+# ignore all json
+*.json
 
 # User-generated content
 img_db/
@@ -149,3 +151,11 @@ src/main/resources/image/checkup_media/34/VID_34_20250604_120241.mp4
 src/main/resources/image/checkup_media/8/IMG_8_20250604_112523.png
 src/main/resources/image/checkup_media/8/IMG_8_20250604_112526.png
 src/main/resources/image/checkup_media/8/VID_8_20250604_115008.mp4
+src/main/resources/client_secret_1063629801433-01ubsp30l0sabhbk28q2esh9c3bhjgka.apps.googleusercontent.com.json
+GOOGLE_DRIVE_SETUP.md
+src/main/resources/google-drive-service-account.json
+
+tokens/StoredCredential
+src/main/resources/database/BSK.db
+src/main/resources/database/BSK.db
+src/main/resources/database/BSK.db
