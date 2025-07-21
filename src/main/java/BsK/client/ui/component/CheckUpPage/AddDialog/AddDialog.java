@@ -53,6 +53,8 @@ public class AddDialog extends JDialog {
     JButton saveButton;
     private DefaultComboBoxModel<String> districtModel, wardModel;
     private JDatePickerImpl dobPicker;
+    private JButton addPatientButton;
+    private JButton clearButton;
 
     private void handleAddCheckupResponse(AddCheckupResponse response) {
         log.info("Received AddCheckupResponse");
@@ -143,6 +145,7 @@ public class AddDialog extends JDialog {
             patientTableModel.setDataVector(patientData, patientColumns);
             patientTable.clearSelection(); // Clear selection when text is empty
             saveButton.setEnabled(false); // Disable save button
+            addPatientButton.setEnabled(true); // Enable add patient button when no patient is selected
         } else {
             java.util.List<String[]> filteredData = new java.util.ArrayList<>();
             String lowerCaseFilterText = TextUtils.removeAccents(filterText.toLowerCase());
@@ -298,7 +301,7 @@ public class AddDialog extends JDialog {
         gbc.weighty = 0.0;
 
         // Populate Patient Info Panel
-        // Patient Name (Row 0, Col 0-1) & Add Button (Row 0, Col 2)
+        // Patient Name (Row 0, Col 0-1) - now spans more columns since we removed the plus button
         gbc.gridy = 0;
         gbc.gridx = 0;
         gbc.gridwidth = 1;
@@ -307,22 +310,14 @@ public class AddDialog extends JDialog {
         patientInfoPanel.add(nameLabel, gbc);
 
         gbc.gridx = 1;
+        gbc.gridwidth = 3; // Span across remaining columns since we removed the plus button
         gbc.weightx = 1.0; // Allow patient name field to expand
         patientNameField = new JTextField(15);
         patientNameField.setFont(textFont);
         patientNameField.setPreferredSize(textFieldSize);
         patientInfoPanel.add(patientNameField, gbc);
         gbc.weightx = 0.0; // Reset
-
-        gbc.gridx = 2;
-        gbc.gridwidth = 1;
-        ImageIcon originalIcon = new ImageIcon("src/main/java/BsK/client/ui/assets/icon/add.png");
-        Image scaledImage = originalIcon.getImage().getScaledInstance(24, 24, Image.SCALE_SMOOTH);
-        ImageIcon addIcon = new ImageIcon(scaledImage);
-        JButton addButton = new JButton(addIcon);
-        addButton.setPreferredSize(new Dimension(40, 30));
-        addButton.setToolTipText("Thêm bệnh nhân mới (nếu không tìm thấy)");
-        patientInfoPanel.add(addButton, gbc);
+        gbc.gridwidth = 1; // Reset
 
         // DOB (Row 1, Col 0-1) & Gender (Row 1, Col 2-3)
         gbc.gridy++;
@@ -398,55 +393,6 @@ public class AddDialog extends JDialog {
         patientInfoPanel.add(cccdField, gbc);
         gbc.gridwidth = 1; // Reset
 
-        // Add event listener to the addButton (moved here as it's part of this panel now)
-        addButton.addActionListener(e -> {
-            if (!patientIdField.getText().isEmpty()) {
-                JOptionPane.showMessageDialog(this, "Bạn đã chọn bệnh nhân rồi");
-                return;
-            }
-            String patientName = patientNameField.getText();
-            String patientPhone = patientPhoneField.getText();
-            String patientGender = (String) patientGenderField.getSelectedItem();
-            String customerAddress = customerAddressField.getText();
-            String province = (String) provinceComboBox.getSelectedItem();
-            String district = (String) districtComboBox.getSelectedItem();
-            String ward = (String) wardComboBox.getSelectedItem();
-            String address = String.join(", ", customerAddress, ward, district, province);
-            String cccd = cccdField.getText();
-
-            //split name into first name and last name
-            String[] nameParts = patientName.split(" ");
-            String firstName = nameParts[nameParts.length - 1];
-            StringBuilder lastName = new StringBuilder();
-            for (int i = 0; i < nameParts.length - 1; i++) {
-                lastName.append(nameParts[i]);
-                if (i < nameParts.length - 2) {
-                    lastName.append(" ");
-                }
-            }
-
-            String lastNameStr = lastName.toString();
-            // check if dobPicker is not null
-            if (patientName.isEmpty()  || patientPhone.isEmpty() || customerAddress.isEmpty() || dobPicker.getJFormattedTextField().getText().isEmpty()) {
-                JOptionPane.showMessageDialog(this, "Please fill in all fields");
-                return;
-            }
-
-            String dateText = dobPicker.getJFormattedTextField().getText();
-
-            SimpleDateFormat dateFormat = new SimpleDateFormat("dd/MM/yyyy");
-            try {
-                Date date = dateFormat.parse(dateText);
-                long timestamp = date.getTime(); // This converts the Date to milliseconds since epoch (long)
-                NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new AddPatientRequest(firstName, lastNameStr, timestamp,
-                        patientPhone, address, patientGender, cccd));
-            } catch (ParseException pe) {
-                pe.printStackTrace();
-                JOptionPane.showMessageDialog(null, "Invalid date format: " + dateText);
-            }
-
-        });
-
         // Populate Checkup Info Panel
         gbc.gridy = 0; // Reset gridy for the new panel
         gbc.gridx = 0;
@@ -481,6 +427,25 @@ public class AddDialog extends JDialog {
         checkupTypeComboBox.setPreferredSize(comboBoxSize);
         checkupInfoPanel.add(checkupTypeComboBox, gbc);
         gbc.weightx = 0.0; // Reset weightx
+
+        // Add new buttons row (Row 1)
+        gbc.gridy++;
+        gbc.gridx = 0;
+        gbc.gridwidth = 2;
+        gbc.weightx = 0.5;
+        addPatientButton = new JButton("Thêm bệnh nhân mới");
+        addPatientButton.setFont(textFont);
+        addPatientButton.setEnabled(true); // Initially enabled since no patient is selected
+        checkupInfoPanel.add(addPatientButton, gbc);
+
+        gbc.gridx = 2;
+        gbc.gridwidth = 2;
+        gbc.weightx = 0.5;
+        clearButton = new JButton("Clear");
+        clearButton.setFont(textFont);
+        checkupInfoPanel.add(clearButton, gbc);
+        gbc.weightx = 0.0; // Reset weightx
+        gbc.gridwidth = 1; // Reset gridwidth
 
 
         // Populate Address Info Panel
@@ -631,7 +596,7 @@ public class AddDialog extends JDialog {
             int patientId = Integer.parseInt(patientIdField.getText());
             int doctorId = doctorComboBox.getSelectedIndex()+ 1;
             String selectedCheckupType = (String) checkupTypeComboBox.getSelectedItem();
-            NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new AddCheckupRequest(patientId, doctorId, LocalStorage.userId,"ĐANG KHÁM", selectedCheckupType));
+            NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new AddCheckupRequest(patientId, doctorId, LocalStorage.userId, selectedCheckupType, "ĐANG KHÁM"));
 
         });
         saveButton.setEnabled(false);
@@ -648,6 +613,89 @@ public class AddDialog extends JDialog {
             @Override
             public void actionPerformed(ActionEvent e) {
                 dispose();
+            }
+        });
+
+        // Add event listeners for the new buttons
+        addPatientButton.addActionListener(e -> {
+            if (!patientIdField.getText().isEmpty()) {
+                JOptionPane.showMessageDialog(this, "Bạn đã chọn bệnh nhân rồi");
+                return;
+            }
+            String patientName = patientNameField.getText();
+            String patientPhone = patientPhoneField.getText();
+            String patientGender = (String) patientGenderField.getSelectedItem();
+            String customerAddress = customerAddressField.getText();
+            String province = (String) provinceComboBox.getSelectedItem();
+            String district = (String) districtComboBox.getSelectedItem();
+            String ward = (String) wardComboBox.getSelectedItem();
+            String address = String.join(", ", customerAddress, ward, district, province);
+            String cccd = cccdField.getText();
+
+            //split name into first name and last name
+            String[] nameParts = patientName.split(" ");
+            String firstName = nameParts[nameParts.length - 1];
+            StringBuilder lastName = new StringBuilder();
+            for (int i = 0; i < nameParts.length - 1; i++) {
+                lastName.append(nameParts[i]);
+                if (i < nameParts.length - 2) {
+                    lastName.append(" ");
+                }
+            }
+
+            String lastNameStr = lastName.toString();
+            // check if dobPicker is not null
+            if (patientName.isEmpty()  || patientPhone.isEmpty() || customerAddress.isEmpty() || dobPicker.getJFormattedTextField().getText().isEmpty()) {
+                JOptionPane.showMessageDialog(this, "Please fill in all fields");
+                return;
+            }
+
+            String dateText = dobPicker.getJFormattedTextField().getText();
+
+            SimpleDateFormat dateFormat = new SimpleDateFormat("dd/MM/yyyy");
+            try {
+                Date date = dateFormat.parse(dateText);
+                long timestamp = date.getTime(); // This converts the Date to milliseconds since epoch (long)
+                NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new AddPatientRequest(firstName, lastNameStr, timestamp,
+                        patientPhone, address, patientGender, cccd));
+            } catch (ParseException pe) {
+                pe.printStackTrace();
+                JOptionPane.showMessageDialog(null, "Invalid date format: " + dateText);
+            }
+        });
+
+        clearButton.addActionListener(e -> {
+            // Clear all fields
+            patientNameField.setText("");
+            patientPhoneField.setText("");
+            patientIdField.setText("");
+            cccdField.setText("");
+            customerAddressField.setText("");
+            
+            // Reset combo boxes
+            patientGenderField.setSelectedIndex(0);
+            provinceComboBox.setSelectedIndex(0);
+            districtComboBox.setSelectedIndex(0);
+            districtComboBox.setEnabled(false);
+            wardComboBox.setSelectedIndex(0);
+            wardComboBox.setEnabled(false);
+            doctorComboBox.setSelectedIndex(0);
+            checkupTypeComboBox.setSelectedIndex(0);
+            
+            // Clear date picker
+            dobPicker.getModel().setValue(null);
+            dobPicker.getJFormattedTextField().setText("");
+            
+            // Clear table selection
+            patientTable.clearSelection();
+            
+            // Update button states
+            saveButton.setEnabled(false);
+            addPatientButton.setEnabled(true);
+            
+            // Reset table to show all patients
+            if (patientData != null) {
+                patientTableModel.setDataVector(patientData, patientColumns);
             }
         });
     }
@@ -720,6 +768,7 @@ public class AddDialog extends JDialog {
             JOptionPane.showMessageDialog(null, "Invalid date format: " + patientDob);
         }
         saveButton.setEnabled(true); // Enable button after successfully populating fields
+        addPatientButton.setEnabled(false); // Disable add patient button when a patient is selected
     }
 
     private void handleAddPatientResponse(AddPatientResponse response) {
@@ -727,6 +776,8 @@ public class AddDialog extends JDialog {
         if (response.isSuccess()) {
             JOptionPane.showMessageDialog(this, "Thêm bệnh nhân thành công");
             patientIdField.setText(String.valueOf(response.getPatientId()));
+            addPatientButton.setEnabled(false); // Disable add patient button since a patient is now selected
+            saveButton.setEnabled(true); // Enable save button since we now have a patient
             sendGetRecentPatientRequest();
         } else {
             JOptionPane.showMessageDialog(this, response.getMessage());

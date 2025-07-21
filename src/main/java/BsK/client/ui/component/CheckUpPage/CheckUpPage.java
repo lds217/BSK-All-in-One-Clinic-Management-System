@@ -1,9 +1,5 @@
 package BsK.client.ui.component.CheckUpPage;
 
-
-// TO DO add backend logic to heart beat and blood pressure and weight height
-
-
 import BsK.client.LocalStorage;
 import BsK.client.network.handler.ClientHandler;
 import BsK.client.network.handler.ResponseListener;
@@ -73,6 +69,11 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.WatchService;
+import java.nio.file.WatchKey;
+import java.nio.file.WatchEvent;
+import java.nio.file.StandardWatchEventKinds;
+import java.nio.file.FileSystems;
 import javax.imageio.ImageIO;
 import javax.swing.JColorChooser;
 
@@ -98,6 +99,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeUnit;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -174,6 +176,10 @@ public class CheckUpPage extends JPanel {
     private String selectedCheckupId = null; // Use checkupId to track selection instead of row index
     private boolean saved = true; // Initially true, changed when patient selected or dialog opened.
     private DefaultComboBoxModel<String> districtModel, wardModel;
+    
+    // Variables to store target district and ward when loading patient address
+    private String targetDistrict = null;
+    private String targetWard = null;
     private JComboBox<String> callRoomComboBox;
     private JButton callPatientButton;
     private JLabel callingStatusLabel;
@@ -204,6 +210,7 @@ public class CheckUpPage extends JPanel {
     private JScrollPane imageGalleryScrollPane;
     private JLabel webcamFeedLabel; // Placeholder for webcam feed
     private JComboBox<String> webcamDeviceComboBox;
+    private JButton webcamRefreshButton;
     private JButton takePictureButton;
     private JButton recordVideoButton;
     private String currentCheckupIdForMedia;
@@ -227,6 +234,12 @@ public class CheckUpPage extends JPanel {
     private final ExecutorService imageUploadExecutor = Executors.newSingleThreadExecutor();
     private final ScheduledExecutorService timeoutExecutor = Executors.newSingleThreadScheduledExecutor();
     private final Map<String, Future<?>> uploadTimeoutTasks = new ConcurrentHashMap<>();
+    
+    // Ultrasound folder monitoring
+    private static final String ULTRASOUND_FOLDER_PATH = "ANH SIEU AM";
+    private WatchService watchService;
+    private ExecutorService folderWatchExecutor;
+    private volatile boolean isWatchingFolder = false;
 
     // Video recording components
     private FFmpegFrameRecorder recorder;
@@ -336,6 +349,17 @@ public class CheckUpPage extends JPanel {
 
         // Instantiate the new queue page but don't show it yet
         queueManagementPage = new QueueManagementPage();
+        
+        // Initialize ultrasound folder monitoring
+        initializeUltrasoundFolderWatcher();
+        
+        // Stop automatic webcam discovery to prevent background scanning
+        try {
+            Webcam.getDiscoveryService().stop();
+            log.info("Stopped automatic webcam discovery service on startup");
+        } catch (Exception e) {
+            log.debug("Webcam discovery service stop on startup (non-critical): {}", e.getMessage());
+        }
 
         updateQueue();
         getAllTemplates();
@@ -919,7 +943,6 @@ public class CheckUpPage extends JPanel {
             BorderFactory.createEmptyBorder(3, 8, 3, 8)
         ));
         addTemplateButton.addActionListener(e -> {
-            // TODO: Open template dialog
             log.info("Opening template dialog");
             TemplateDialog templateDialog = new TemplateDialog(mainFrame);
             templateDialog.setVisible(true);
@@ -1784,7 +1807,21 @@ public class CheckUpPage extends JPanel {
             log.warn("Selected row index out of bounds: {}", selectedRowInQueue);
             return;
         }
+        
         Patient selectedPatient = patientQueue.get(selectedRowInQueue);
+        
+        // SAFETY: Clear previous patient IDs IMMEDIATELY when switching patients
+        String previousPatientId = currentCheckupIdForMedia;
+        log.info("=== SWITCHING PATIENT - SAFETY CLEARING ===");
+        log.info("Previous patient ID: {}", previousPatientId);
+        log.info("New patient ID: {}", selectedPatient.getCheckupId());
+        
+        // Clear immediately to prevent any ultrasound image mix-ups
+        currentCheckupIdForMedia = null;
+        currentCheckupMediaPath = null;
+        this.selectedCheckupId = null;
+        
+        // Now set the new patient ID
         this.selectedCheckupId = selectedPatient.getCheckupId(); // Track selection by ID
 
         // Enable all action buttons when a patient is selected
@@ -1936,39 +1973,40 @@ public class CheckUpPage extends JPanel {
         else if (fullAddress != null) customerAddressField.setText(fullAddress);
         
         if (addressParts.length == 4) {
-            String ward = addressParts[1]; String district = addressParts[2]; String province = addressParts[3];
+            String ward = addressParts[1]; 
+            String district = addressParts[2]; 
+            String province = addressParts[3];
+            
+            // Store target district and ward for later setting
+            targetDistrict = district;
+            targetWard = ward;
+            
             int provinceIdx = findProvinceIndex(province);
             if (provinceIdx != -1) {
-                provinceComboBox.setSelectedIndex(provinceIdx); 
-                 SwingUtilities.invokeLater(() -> { 
-                    try { Thread.sleep(250); } catch (InterruptedException ignored) {} 
-                    int districtIdx = findDistrictIndex(district);
-                    if (districtIdx != -1) {
-                        districtComboBox.setSelectedIndex(districtIdx);
-                         SwingUtilities.invokeLater(() -> {
-                             try { Thread.sleep(250); } catch (InterruptedException ignored) {} 
-                             int wardIdx = findWardIndex(ward);
-                             if (wardIdx != -1) wardComboBox.setSelectedIndex(wardIdx);
-                         });
-                    } else {
-                         wardModel.removeAllElements(); wardModel.addElement("Phường"); wardComboBox.setEnabled(false);
-                    }
-                 });
+                provinceComboBox.setSelectedIndex(provinceIdx);
+                // The province selection will trigger district loading automatically
+                // District and ward will be set in the response handlers
             } else {
-                 districtModel.removeAllElements(); districtModel.addElement("Huyện"); districtComboBox.setEnabled(false);
-                 wardModel.removeAllElements(); wardModel.addElement("Phường"); wardComboBox.setEnabled(false);
+                log.warn("Province not found: {}", province);
+                districtModel.removeAllElements(); districtModel.addElement("Huyện"); districtComboBox.setEnabled(false);
+                wardModel.removeAllElements(); wardModel.addElement("Phường"); wardComboBox.setEnabled(false);
+                targetDistrict = null;
+                targetWard = null;
             }
-        } else if (addressParts.length > 1) { // Handle cases with partial address (e.g. street, ward, district but no province)
-            provinceComboBox.setSelectedIndex(0); // Default to placeholder
-            districtModel.removeAllElements(); districtModel.addElement("Huyện"); districtComboBox.setEnabled(false);
-            wardModel.removeAllElements(); wardModel.addElement("Phường"); wardComboBox.setEnabled(false);
-            // Potentially try to parse known parts if format is somewhat consistent
-            log.warn("Address format not fully standard ({} parts): {}", addressParts.length, fullAddress);
-        } else {
-            customerAddressField.setText(fullAddress); // If only street or unparseable
+        } else if (addressParts.length > 1) { // Handle cases with partial address
             provinceComboBox.setSelectedIndex(0);
             districtModel.removeAllElements(); districtModel.addElement("Huyện"); districtComboBox.setEnabled(false);
             wardModel.removeAllElements(); wardModel.addElement("Phường"); wardComboBox.setEnabled(false);
+            targetDistrict = null;
+            targetWard = null;
+            log.warn("Address format not fully standard ({} parts): {}", addressParts.length, fullAddress);
+        } else {
+            customerAddressField.setText(fullAddress);
+            provinceComboBox.setSelectedIndex(0);
+            districtModel.removeAllElements(); districtModel.addElement("Huyện"); districtComboBox.setEnabled(false);
+            wardModel.removeAllElements(); wardModel.addElement("Phường"); wardComboBox.setEnabled(false);
+            targetDistrict = null;
+            targetWard = null;
         }
 
         // Setup for Supersonic View media for the NEWLY selected patient
@@ -2021,9 +2059,21 @@ public class CheckUpPage extends JPanel {
         districtModel.removeAllElements(); 
         for (String district : LocalStorage.districts) { districtModel.addElement(district); }
         districtComboBox.setEnabled(true); 
-        if (LocalStorage.districts.length > 0 && !LocalStorage.districts[0].startsWith("Đang tải")) {
-             // No automatic selection, let user choose or handleRowSelection set it
+        
+        // If we have a target district to set, try to set it now
+        if (targetDistrict != null) {
+            int districtIdx = findDistrictIndex(targetDistrict);
+            if (districtIdx != -1) {
+                log.info("Setting target district: {}", targetDistrict);
+                districtComboBox.setSelectedIndex(districtIdx);
+                // The district selection will trigger ward loading automatically
+            } else {
+                log.warn("Target district not found in loaded data: {}", targetDistrict);
+                targetDistrict = null;
+                targetWard = null;
+            }
         }
+        
         wardModel.removeAllElements(); wardModel.addElement("Phường"); wardComboBox.setEnabled(false); 
         });
     }
@@ -2035,8 +2085,20 @@ public class CheckUpPage extends JPanel {
         wardModel.removeAllElements(); 
         for (String ward : LocalStorage.wards) { wardModel.addElement(ward); }
         wardComboBox.setEnabled(true); 
-        if (LocalStorage.wards.length > 0 && !LocalStorage.wards[0].startsWith("Đang tải")) {
-            // No automatic selection
+        
+        // If we have a target ward to set, try to set it now
+        if (targetWard != null) {
+            int wardIdx = findWardIndex(targetWard);
+            if (wardIdx != -1) {
+                log.info("Setting target ward: {}", targetWard);
+                wardComboBox.setSelectedIndex(wardIdx);
+                // Clear the target values since we've successfully set them
+                targetDistrict = null;
+                targetWard = null;
+            } else {
+                log.warn("Target ward not found in loaded data: {}", targetWard);
+                targetWard = null;
+            }
         }
         });
     }
@@ -2178,17 +2240,25 @@ public class CheckUpPage extends JPanel {
     }
 
     private void handleCallPatient() {
-        int selectedRow = queueManagementPage.getSelectedRow(); // Get from the queue window now
-        if (selectedRow == -1) {
-            JOptionPane.showMessageDialog(this, "Vui lòng chọn một bệnh nhân từ hàng đợi để gọi.", "Chưa chọn bệnh nhân", JOptionPane.WARNING_MESSAGE);
-            return;
-        }
-        if (selectedRow < 0 || selectedRow >= patientQueue.size()){
-             JOptionPane.showMessageDialog(this, "Lựa chọn bệnh nhân không hợp lệ.", "Lỗi", JOptionPane.ERROR_MESSAGE);
+        // Check if a patient is selected on the main CheckUpPage
+        if (selectedCheckupId == null || selectedCheckupId.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Vui lòng chọn một bệnh nhân từ danh sách để gọi.", "Chưa chọn bệnh nhân", JOptionPane.WARNING_MESSAGE);
             return;
         }
 
-        Patient selectedPatient = patientQueue.get(selectedRow);
+        // Find the selected patient by checkup ID
+        Patient selectedPatient = null;
+        for (Patient patient : patientQueue) {
+            if (patient.getCheckupId().equals(selectedCheckupId)) {
+                selectedPatient = patient;
+                break;
+            }
+        }
+
+        if (selectedPatient == null) {
+            JOptionPane.showMessageDialog(this, "Không tìm thấy bệnh nhân đã chọn trong hàng đợi.", "Lỗi", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
         String maKhamBenh = selectedPatient.getCheckupId();
         String patientName = selectedPatient.getCustomerLastName() + " " + selectedPatient.getCustomerFirstName();
         int selectedRoom = callRoomComboBox.getSelectedIndex() + 1; 
@@ -2281,19 +2351,16 @@ public class CheckUpPage extends JPanel {
                 new Font("Arial", Font.ITALIC, 14), new Color(50, 50, 50)));
         panel.setBackground(Color.WHITE);
 
-        // Initialize webcam device list - but don't start webcam yet
-        List<Webcam> webcams = Webcam.getWebcams();
-        String[] webcamNames = new String[webcams.size() + 1];
-        webcamNames[0] = "Chọn thiết bị...";
-        for (int i = 0; i < webcams.size(); i++) {
-            webcamNames[i + 1] = webcams.get(i).getName();
-        }
+        // Initialize with placeholder - no automatic device search
+        String[] initialWebcamNames = {"Chọn thiết bị..."};
 
         // Panel for device selection
         JPanel devicePanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         devicePanel.setOpaque(false);
         devicePanel.add(new JLabel("Thiết bị:"));
-        webcamDeviceComboBox = new JComboBox<>(webcamNames);
+        
+        webcamDeviceComboBox = new JComboBox<>(initialWebcamNames);
+        webcamDeviceComboBox.setPreferredSize(new Dimension(150, 25));
         webcamDeviceComboBox.addActionListener(e -> {
             String selectedDevice = (String) webcamDeviceComboBox.getSelectedItem();
             if (selectedDevice != null && !selectedDevice.equals("Chọn thiết bị...")) {
@@ -2311,6 +2378,21 @@ public class CheckUpPage extends JPanel {
             }
         });
         devicePanel.add(webcamDeviceComboBox);
+        
+        // Add refresh button with reload icon
+        ImageIcon reloadIcon = getReloadIcon();
+        if (reloadIcon != null) {
+            webcamRefreshButton = new JButton(reloadIcon);
+        } else {
+            // Fallback to emoji if icon fails to load
+            webcamRefreshButton = new JButton("🔄");
+            log.warn("Failed to load reload icon, using emoji fallback");
+        }
+        webcamRefreshButton.setPreferredSize(new Dimension(30, 25));
+        webcamRefreshButton.setToolTipText("Tìm kiếm thiết bị webcam (thay vì tự động tìm)");
+        webcamRefreshButton.setFocusPainted(false);
+        webcamRefreshButton.addActionListener(e -> refreshWebcamDevices());
+        devicePanel.add(webcamRefreshButton);
 
         // Create webcam container panel
         webcamContainer = new JPanel(new BorderLayout());
@@ -2356,6 +2438,106 @@ public class CheckUpPage extends JPanel {
 
         panel.setPreferredSize(new Dimension(200,0));
         return panel;
+    }
+    
+    // Helper method to load and scale the reload icon
+    private ImageIcon getReloadIcon() {
+        try {
+            ImageIcon reloadIcon = new ImageIcon("src/main/java/BsK/client/ui/assets/icon/reload.png");
+            Image scaledImage = reloadIcon.getImage().getScaledInstance(16, 16, Image.SCALE_SMOOTH);
+            return new ImageIcon(scaledImage);
+        } catch (Exception e) {
+            log.debug("Could not load reload icon: {}", e.getMessage());
+            return null;
+        }
+    }
+    
+    // Manual webcam device refresh
+    private void refreshWebcamDevices() {
+        log.info("Manual webcam device refresh requested");
+        
+        // Disable button and show searching state
+        webcamRefreshButton.setEnabled(false);
+        webcamRefreshButton.setText("⏳");
+        webcamRefreshButton.setIcon(null); // Remove icon during search
+        webcamDeviceComboBox.removeAllItems();
+        webcamDeviceComboBox.addItem("Đang tìm thiết bị...");
+        
+        // Search for devices in background thread
+        cleanupExecutor.submit(() -> {
+            try {
+                log.info("Searching for webcam devices...");
+                
+                // Manually trigger device discovery without continuous scanning
+                final List<Webcam> webcams;
+                try {
+                    // Get devices list (this may start discovery service temporarily)
+                    webcams = Webcam.getWebcams();
+                    log.info("Found {} webcam devices", webcams.size());
+                    
+                    // Stop the discovery service immediately after getting the list
+                    // to prevent continuous background scanning
+                    try {
+                        Webcam.getDiscoveryService().stop();
+                        log.info("Stopped webcam discovery service to prevent background scanning");
+                    } catch (Exception stopEx) {
+                        log.debug("Discovery service stop during refresh (non-critical): {}", stopEx.getMessage());
+                    }
+                    
+                } catch (Exception e) {
+                    log.error("Failed to get webcam list: {}", e.getMessage());
+                    throw e; // Re-throw to be caught by outer catch block
+                }
+                
+                SwingUtilities.invokeLater(() -> {
+                    // Update combobox with found devices
+                    webcamDeviceComboBox.removeAllItems();
+                    webcamDeviceComboBox.addItem("Chọn thiết bị...");
+                    
+                    for (Webcam webcam : webcams) {
+                        webcamDeviceComboBox.addItem(webcam.getName());
+                        log.info("Added webcam: {}", webcam.getName());
+                    }
+                    
+                    // Restore button with icon
+                    webcamRefreshButton.setEnabled(true);
+                    ImageIcon reloadIcon = getReloadIcon();
+                    if (reloadIcon != null) {
+                        webcamRefreshButton.setText("");
+                        webcamRefreshButton.setIcon(reloadIcon);
+                    } else {
+                        webcamRefreshButton.setText("🔄"); // Fallback to emoji
+                        webcamRefreshButton.setIcon(null);
+                        log.warn("Failed to restore reload icon, using emoji");
+                    }
+                    
+                    if (webcams.isEmpty()) {
+                        log.warn("No webcam devices found");
+                    } else {
+                        log.info("Webcam device refresh completed successfully");
+                    }
+                });
+                
+            } catch (Exception e) {
+                log.error("Error refreshing webcam devices: {}", e.getMessage(), e);
+                
+                SwingUtilities.invokeLater(() -> {
+                    webcamDeviceComboBox.removeAllItems();
+                    webcamDeviceComboBox.addItem("Lỗi tìm thiết bị");
+                    webcamRefreshButton.setEnabled(true);
+                    // Restore reload icon on error
+                    ImageIcon reloadIcon = getReloadIcon();
+                    if (reloadIcon != null) {
+                        webcamRefreshButton.setText("");
+                        webcamRefreshButton.setIcon(reloadIcon);
+                    } else {
+                        webcamRefreshButton.setText("🔄"); // Fallback to emoji
+                        webcamRefreshButton.setIcon(null);
+                        log.warn("Failed to restore reload icon after error, using emoji");
+                    }
+                });
+            }
+        });
     }
 
     private ExecutorService cleanupExecutor = Executors.newSingleThreadExecutor();
@@ -2438,12 +2620,19 @@ public class CheckUpPage extends JPanel {
         // Quick webcam cleanup without blocking
         cleanupWebcam();
         
+        // Note: We don't stop the ultrasound folder watcher here since it should 
+        // continue running even when switching pages. It will only be stopped
+        // during fullCleanup() when the application is closing.
+        
         // Don't stop webcam discovery service here - let it run for other instances
     }
 
     // Full cleanup only when application is closing
     public void fullCleanup() {
         fastCleanup();
+        
+        // Stop ultrasound folder watcher
+        stopUltrasoundFolderWatcher();
         
         // Only stop discovery service on full shutdown
         try {
@@ -2464,6 +2653,397 @@ public class CheckUpPage extends JPanel {
         // Use fast cleanup instead of full cleanup
         fastCleanup();
         super.removeNotify();
+    }
+    
+    // === Ultrasound Folder Monitoring Methods ===
+    
+    private void initializeUltrasoundFolderWatcher() {
+        try {
+            // Create the ultrasound folder if it doesn't exist
+            Path ultrasoundPath = Paths.get(ULTRASOUND_FOLDER_PATH);
+            log.info("Initializing ultrasound folder watcher for path: {}", ultrasoundPath.toAbsolutePath());
+            
+            if (!Files.exists(ultrasoundPath)) {
+                Files.createDirectories(ultrasoundPath);
+                log.info("Created ultrasound folder: {}", ultrasoundPath.toAbsolutePath());
+            } else {
+                log.info("Ultrasound folder already exists: {}", ultrasoundPath.toAbsolutePath());
+            }
+            
+            // Initialize watch service
+            watchService = FileSystems.getDefault().newWatchService();
+            ultrasoundPath.register(watchService, 
+                StandardWatchEventKinds.ENTRY_CREATE,
+                StandardWatchEventKinds.ENTRY_MODIFY);
+            
+            // Start watching in a separate thread
+            folderWatchExecutor = Executors.newSingleThreadExecutor();
+            isWatchingFolder = true;
+            
+            folderWatchExecutor.submit(this::watchUltrasoundFolder);
+            
+            log.info("Started watching ultrasound folder: {} (Absolute: {})", 
+                ULTRASOUND_FOLDER_PATH, ultrasoundPath.toAbsolutePath());
+            
+            // SAFETY: Clean up any existing orphaned images on startup
+            cleanupOrphanedUltrasoundImages();
+            
+        } catch (Exception e) {
+            log.error("Failed to initialize ultrasound folder watcher: {}", e.getMessage(), e);
+            // Error logged only - no dialog popup
+        }
+    }
+    
+    private void watchUltrasoundFolder() {
+        log.info("Ultrasound folder watcher thread started, waiting for events...");
+        while (isWatchingFolder) {
+            try {
+                // Synchronized check to prevent race condition
+                synchronized (this) {
+                    if (!isWatchingFolder || watchService == null) {
+                        log.info("Watch service stopped or null, exiting watcher thread");
+                        break;
+                    }
+                }
+                
+                log.info("Waiting for file system events...");
+                WatchKey key = watchService.take(); // Wait for events
+                
+                // Check again after potentially blocking call
+                if (!isWatchingFolder) {
+                    log.info("Watcher stopped while waiting for events");
+                    break;
+                }
+                
+                log.info("File system event detected!");
+                
+                for (WatchEvent<?> event : key.pollEvents()) {
+                    // Check if we should still be watching
+                    if (!isWatchingFolder) {
+                        log.info("Watcher stopped during event processing");
+                        return;
+                    }
+                    
+                    WatchEvent.Kind<?> kind = event.kind();
+                    log.info("Event type: {}", kind);
+                    
+                    if (kind == StandardWatchEventKinds.OVERFLOW) {
+                        log.warn("Event overflow detected, skipping");
+                        continue;
+                    }
+                    
+                    Path fileName = (Path) event.context();
+                    Path fullPath = Paths.get(ULTRASOUND_FOLDER_PATH).resolve(fileName);
+                    log.info("File event detected: {} at {}", fileName, fullPath.toAbsolutePath());
+                    
+                    // Check if it's an image file
+                    if (isImageFile(fileName.toString())) {
+                        log.info("Detected new IMAGE in ultrasound folder: {} (Full path: {})", fileName, fullPath.toAbsolutePath());
+                        
+                        // Wait a moment for file to be completely written
+                        SwingUtilities.invokeLater(() -> {
+                            Timer delayTimer = new Timer(500, e -> {
+                                handleUltrasoundImageDetected(fullPath);
+                            });
+                            delayTimer.setRepeats(false);
+                            delayTimer.start();
+                        });
+                    } else {
+                        log.info("File is not an image: {}", fileName);
+                    }
+                }
+                
+                boolean valid = key.reset();
+                if (!valid) {
+                    log.warn("Watch key is no longer valid, stopping watcher");
+                    break;
+                }
+                
+            } catch (InterruptedException e) {
+                log.info("Ultrasound folder watcher interrupted");
+                Thread.currentThread().interrupt();
+                break;
+            } catch (java.nio.file.ClosedWatchServiceException e) {
+                log.info("Watch service was closed, stopping watcher thread");
+                break;
+            } catch (Exception e) {
+                log.error("Error in ultrasound folder watcher: {}", e.getMessage(), e);
+                // Don't break on general exceptions, just log and continue
+                try {
+                    Thread.sleep(1000); // Wait a bit before retrying
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+            }
+        }
+        log.info("Ultrasound folder watcher thread ended");
+    }
+    
+    private void handleUltrasoundImageDetected(Path imagePath) {
+        log.info("=== HANDLING ULTRASOUND IMAGE: {} ===", imagePath.toAbsolutePath());
+        log.info("Current patient ID: {}", currentCheckupIdForMedia);
+        log.info("Current media path: {}", currentCheckupMediaPath);
+        
+        if (currentCheckupIdForMedia == null || currentCheckupIdForMedia.trim().isEmpty()) {
+            log.warn("No patient selected, DELETING ultrasound image for safety: {}", imagePath);
+            
+            // SAFETY: Delete the image immediately to prevent mismatched patient data
+            try {
+                Files.deleteIfExists(imagePath);
+                log.info("Successfully deleted unassigned ultrasound image: {}", imagePath);
+            } catch (Exception deleteEx) {
+                log.error("Failed to delete unassigned ultrasound image: {}", deleteEx.getMessage(), deleteEx);
+            }
+            
+            // Safety handled silently - logged only
+            return;
+        }
+        
+        try {
+            // SAFETY: Double-check patient ID hasn't changed during processing
+            String safePatientId = currentCheckupIdForMedia;
+            if (safePatientId == null || safePatientId.trim().isEmpty()) {
+                log.error("SAFETY ERROR: Patient ID became null during ultrasound image processing! Deleting image.");
+                Files.deleteIfExists(imagePath);
+                return;
+            }
+            
+            // Wait for file to be completely written
+            Thread.sleep(1000);
+            
+            if (!Files.exists(imagePath)) {
+                log.warn("Ultrasound image file no longer exists: {}", imagePath);
+                return;
+            }
+            
+            // SAFETY: Final check that patient ID is still valid
+            if (!safePatientId.equals(currentCheckupIdForMedia)) {
+                log.error("SAFETY ERROR: Patient ID changed during processing! Expected: {}, Current: {}. Deleting image for safety.", 
+                    safePatientId, currentCheckupIdForMedia);
+                Files.deleteIfExists(imagePath);
+                // Safety handled silently - logged only
+                return;
+            }
+            
+            // Generate unique filename for the patient's folder
+            String originalFileName = imagePath.getFileName().toString();
+            String fileExtension = "";
+            int lastDotIndex = originalFileName.lastIndexOf('.');
+            if (lastDotIndex > 0) {
+                fileExtension = originalFileName.substring(lastDotIndex);
+            }
+            
+            String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss_SSS").format(new Date());
+            String newFileName = "ultrasound_" + safePatientId + "_" + timestamp + fileExtension;
+            
+            // Move to patient's media folder
+            Path targetPath = currentCheckupMediaPath.resolve(newFileName);
+            Files.move(imagePath, targetPath);
+            
+            log.info("Moved ultrasound image from {} to {}", imagePath, targetPath);
+            
+            // Upload the image to server (same as chụp ảnh function)
+            try {
+                BufferedImage image = ImageIO.read(targetPath.toFile());
+                if (image != null) {
+                    uploadImageInBackground(newFileName, image);
+                    log.info("Started uploading ultrasound image to server: {}", newFileName);
+                } else {
+                    log.warn("Could not read ultrasound image for upload: {}", targetPath);
+                }
+            } catch (Exception uploadEx) {
+                log.error("Error reading ultrasound image for upload: {}", uploadEx.getMessage(), uploadEx);
+            }
+            
+            SwingUtilities.invokeLater(() -> {
+                // Refresh the image gallery to show the new image
+                if (currentCheckupMediaPath != null && Files.exists(currentCheckupMediaPath)) {
+                    loadAndDisplayImages(currentCheckupMediaPath);
+                }
+                
+                // Success logged only - no dialog popup
+                log.info("✅ SUCCESS: Ultrasound image processed for patient {} - File: {}", safePatientId, newFileName);
+            });
+            
+        } catch (Exception e) {
+            log.error("Error handling ultrasound image: {}", e.getMessage(), e);
+            // Error logged only - no dialog popup
+        }
+    }
+    
+    private boolean isImageFile(String fileName) {
+        if (fileName == null) return false;
+        String lowercaseName = fileName.toLowerCase();
+        return lowercaseName.endsWith(".jpg") || 
+               lowercaseName.endsWith(".jpeg") || 
+               lowercaseName.endsWith(".png") || 
+               lowercaseName.endsWith(".bmp") || 
+               lowercaseName.endsWith(".tiff") || 
+               lowercaseName.endsWith(".tif");
+    }
+    
+    // Debug method to check folder watcher status
+    public void checkUltrasoundFolderWatcherStatus() {
+        Path ultrasoundPath = Paths.get(ULTRASOUND_FOLDER_PATH);
+        
+        SwingUtilities.invokeLater(() -> {
+            StringBuilder status = new StringBuilder();
+            status.append("=== ULTRASOUND FOLDER WATCHER STATUS ===\n");
+            status.append("Folder path: ").append(ULTRASOUND_FOLDER_PATH).append("\n");
+            status.append("Absolute path: ").append(ultrasoundPath.toAbsolutePath()).append("\n");
+            status.append("Folder exists: ").append(Files.exists(ultrasoundPath)).append("\n");
+            status.append("Is watching: ").append(isWatchingFolder).append("\n");
+            status.append("Watch service: ").append(watchService != null ? "Active" : "Null").append("\n");
+            status.append("Executor: ").append(folderWatchExecutor != null && !folderWatchExecutor.isShutdown() ? "Active" : "Inactive").append("\n");
+            status.append("Current patient: ").append(currentCheckupIdForMedia != null ? currentCheckupIdForMedia : "None").append("\n");
+            
+            if (Files.exists(ultrasoundPath)) {
+                try {
+                    long fileCount = Files.list(ultrasoundPath).count();
+                    status.append("Files in folder: ").append(fileCount).append("\n");
+                } catch (Exception e) {
+                    status.append("Error reading folder: ").append(e.getMessage()).append("\n");
+                }
+            }
+            
+            log.info("Folder watcher status:\n{}", status.toString());
+            // Status logged only - no dialog popup
+        });
+    }
+    
+    // Manual test method to scan for existing images
+    public void scanUltrasoundFolderManually() {
+        Path ultrasoundPath = Paths.get(ULTRASOUND_FOLDER_PATH);
+        log.info("=== MANUAL SCAN OF ULTRASOUND FOLDER ===");
+        log.info("Scanning path: {}", ultrasoundPath.toAbsolutePath());
+        log.info("Current patient ID: {}", currentCheckupIdForMedia);
+        
+        if (!Files.exists(ultrasoundPath)) {
+            log.warn("Ultrasound folder doesn't exist: {}", ultrasoundPath.toAbsolutePath());
+            // Error logged only - no dialog popup
+            return;
+        }
+        
+        // SAFETY: Check if patient is selected before processing any images
+        if (currentCheckupIdForMedia == null || currentCheckupIdForMedia.trim().isEmpty()) {
+            log.warn("No patient selected during manual scan. Will delete any found images for safety.");
+            
+            try {
+                long deletedCount = Files.list(ultrasoundPath)
+                    .filter(path -> isImageFile(path.getFileName().toString()))
+                    .peek(imagePath -> log.info("Deleting unassigned image: {}", imagePath))
+                    .mapToLong(imagePath -> {
+                        try {
+                            Files.deleteIfExists(imagePath);
+                            return 1;
+                        } catch (Exception e) {
+                            log.error("Failed to delete image: {}", imagePath, e);
+                            return 0;
+                        }
+                    })
+                    .sum();
+                
+                // Manual scan safety handled silently - logged only
+            } catch (Exception e) {
+                log.error("Error during manual scan cleanup: {}", e.getMessage(), e);
+            }
+            return;
+        }
+        
+        try {
+            Files.list(ultrasoundPath)
+                .filter(path -> isImageFile(path.getFileName().toString()))
+                .forEach(imagePath -> {
+                    log.info("Found existing image: {}", imagePath);
+                    // Automatically process without confirmation dialog
+                    handleUltrasoundImageDetected(imagePath);
+                });
+        } catch (Exception e) {
+            log.error("Error scanning ultrasound folder: {}", e.getMessage(), e);
+            // Error logged only - no dialog popup
+        }
+    }
+    
+    // SAFETY: Clean up any orphaned ultrasound images that don't have a patient assigned
+    private void cleanupOrphanedUltrasoundImages() {
+        Path ultrasoundPath = Paths.get(ULTRASOUND_FOLDER_PATH);
+        log.info("=== SAFETY CLEANUP: Checking for orphaned ultrasound images ===");
+        
+        if (!Files.exists(ultrasoundPath)) {
+            log.info("Ultrasound folder doesn't exist, no cleanup needed");
+            return;
+        }
+        
+        // Since no patient is selected during startup, delete any existing images for safety
+        try {
+            long deletedCount = Files.list(ultrasoundPath)
+                .filter(path -> isImageFile(path.getFileName().toString()))
+                .peek(imagePath -> log.info("Deleting orphaned ultrasound image: {}", imagePath))
+                .mapToLong(imagePath -> {
+                    try {
+                        Files.deleteIfExists(imagePath);
+                        return 1;
+                    } catch (Exception e) {
+                        log.error("Failed to delete orphaned image: {}", imagePath, e);
+                        return 0;
+                    }
+                })
+                .sum();
+            
+            if (deletedCount > 0) {
+                log.info("SAFETY: Deleted {} orphaned ultrasound images during startup", deletedCount);
+            } else {
+                log.info("No orphaned ultrasound images found during startup");
+            }
+            
+        } catch (Exception e) {
+            log.error("Error during orphaned image cleanup: {}", e.getMessage(), e);
+        }
+    }
+    
+    private synchronized void stopUltrasoundFolderWatcher() {
+        try {
+            log.info("Stopping ultrasound folder watcher...");
+            isWatchingFolder = false;
+            
+            // Close watch service first to interrupt the waiting thread
+            if (watchService != null) {
+                try {
+                    watchService.close();
+                    log.info("Watch service closed");
+                } catch (Exception e) {
+                    log.warn("Error closing watch service: {}", e.getMessage());
+                }
+                watchService = null;
+            }
+            
+            // Shutdown executor with proper timeout
+            if (folderWatchExecutor != null && !folderWatchExecutor.isShutdown()) {
+                log.info("Shutting down folder watch executor...");
+                folderWatchExecutor.shutdown();
+                try {
+                    if (!folderWatchExecutor.awaitTermination(3, TimeUnit.SECONDS)) {
+                        log.warn("Executor didn't shutdown gracefully, forcing shutdown");
+                        folderWatchExecutor.shutdownNow();
+                        // Wait a bit more for forced shutdown
+                        if (!folderWatchExecutor.awaitTermination(1, TimeUnit.SECONDS)) {
+                            log.warn("Executor didn't shutdown even after forced shutdown");
+                        }
+                    }
+                } catch (InterruptedException e) {
+                    log.warn("Interrupted while waiting for executor shutdown");
+                    folderWatchExecutor.shutdownNow();
+                    Thread.currentThread().interrupt();
+                }
+                folderWatchExecutor = null;
+            }
+            
+            log.info("Ultrasound folder watcher stopped successfully");
+            
+        } catch (Exception e) {
+            log.error("Error stopping ultrasound folder watcher: {}", e.getMessage(), e);
+        }
     }
 
     private void initializeWebcam(String deviceName) {
@@ -3724,6 +4304,16 @@ public class CheckUpPage extends JPanel {
 
     private void clearPatientDetails() {
         if (SwingUtilities.isEventDispatchThread()) {
+            log.info("=== CLEARING PATIENT DETAILS FOR SAFETY ===");
+            
+            // SAFETY: Clear patient IDs FIRST to prevent ultrasound image mismatches
+            String previousPatientId = currentCheckupIdForMedia;
+            currentCheckupIdForMedia = null;
+            currentCheckupMediaPath = null;
+            selectedCheckupId = null;
+            
+            log.info("Cleared patient IDs - Previous ID: {}, Now: NULL", previousPatientId);
+            
             // Reset all fields to default values
             checkupIdField.setText("");
             customerLastNameField.setText("");
@@ -3736,6 +4326,10 @@ public class CheckUpPage extends JPanel {
             conclusionField.setText("");
             setRtfContentFromString("{\\rtf1\\ansi\\ansicpg1252\\deff0\\deflang1033{\\fonttbl{\\f0\\fnil\\fcharset163 Times New Roman;}}\\viewkind4\\uc1\\pard\\f0\\fs32\\par}"); // Clear notes
             customerCccdDdcnField.setText("");
+            
+            // Clear target address values
+            targetDistrict = null;
+            targetWard = null;
 
             if (doctorComboBox.getItemCount() > 0) doctorComboBox.setSelectedIndex(0);
             statusComboBox.setSelectedIndex(0);
