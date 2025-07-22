@@ -29,6 +29,7 @@ import org.apache.pdfbox.rendering.PDFRenderer;
 // --- JasperReports Imports ---
 import net.sf.jasperreports.engine.JREmptyDataSource;
 import net.sf.jasperreports.engine.JasperCompileManager;
+import net.sf.jasperreports.engine.JasperExportManager;
 import net.sf.jasperreports.engine.JasperFillManager;
 import net.sf.jasperreports.engine.JasperPrint;
 import net.sf.jasperreports.engine.JasperReport;
@@ -200,6 +201,20 @@ public class UltrasoundResult {
 
             return jasperPrint;
         }
+    }
+
+    /**
+     * Exports the ultrasound result as PDF bytes for backend upload
+     * @return byte array of the PDF file
+     * @throws JRException if there's an error during PDF export
+     * @throws IOException if there's an error during file operations
+     */
+    public byte[] exportToPdfBytes() throws JRException, IOException {
+        // First create the JasperPrint object
+        JasperPrint jasperPrint = createJasperPrint();
+        
+        // Export to PDF bytes
+        return JasperExportManager.exportReportToPdf(jasperPrint);
     }
 
     public void createDialog(JFrame parent) {

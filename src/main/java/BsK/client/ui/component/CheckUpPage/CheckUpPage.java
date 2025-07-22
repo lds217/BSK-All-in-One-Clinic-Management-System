@@ -95,6 +95,7 @@ import org.bytedeco.opencv.opencv_core.IplImage;
 import static org.bytedeco.opencv.global.opencv_core.cvFlip;
 
 // Java imports for concurrent tasks
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -134,11 +135,13 @@ import BsK.common.packet.req.SaveCheckupRequest;
 import BsK.common.packet.req.SearchAllRole;
 import BsK.common.packet.req.SearchAllUser;
 import BsK.common.packet.req.UploadCheckupImageRequest;
+import BsK.common.packet.req.UploadCheckupPdfRequest;
 import BsK.common.packet.res.AddCheckupResponse;
 import BsK.common.packet.res.AddPatientResponse;
 import BsK.common.packet.res.RegisterSuccessResponse;
 import BsK.common.packet.res.SaveCheckupRes;
 import BsK.common.packet.res.UploadCheckupImageResponse;
+import BsK.common.packet.res.UploadCheckupPdfResponse;
 import BsK.common.util.date.DateUtils;
 import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
@@ -161,6 +164,7 @@ public class CheckUpPage extends JPanel {
     private final ResponseListener<GetOrderInfoByCheckupRes> orderInfoByCheckupListener = this::handleGetOrderInfoByCheckupResponse;
     private final ResponseListener<GetAllTemplatesRes> getAllTemplatesListener = this::handleGetAllTemplatesResponse;
     private final ResponseListener<UploadCheckupImageResponse> uploadImageResponseListener = this::handleUploadImageResponse;
+    private final ResponseListener<UploadCheckupPdfResponse> uploadPdfResponseListener = this::handleUploadPdfResponse;
     private JTextField checkupIdField, customerLastNameField, customerFirstNameField,customerAddressField, customerPhoneField, customerIdField, customerCccdDdcnField;
     private JTextArea suggestionField, diagnosisField, conclusionField; // Changed symptomsField to suggestionField
     private JTextPane notesField;
@@ -346,6 +350,7 @@ public class CheckUpPage extends JPanel {
         ClientHandler.addResponseListener(CallPatientResponse.class, callPatientResponseListener);
         ClientHandler.addResponseListener(GetAllTemplatesRes.class, getAllTemplatesListener);
         ClientHandler.addResponseListener(UploadCheckupImageResponse.class, uploadImageResponseListener);
+        ClientHandler.addResponseListener(UploadCheckupPdfResponse.class, uploadPdfResponseListener);
 
         // Instantiate the new queue page but don't show it yet
         queueManagementPage = new QueueManagementPage();
@@ -1684,9 +1689,10 @@ public class CheckUpPage extends JPanel {
                 }
 
                 // Step 3: If report creation is successful, commit by saving and printing.
-                if ("ĐANG KHÁM".equals(statusComboBox.getSelectedItem())) {
-                    statusComboBox.setSelectedItem("ĐÃ KHÁM");
-                }
+                // This will be turn on later
+                // if ("ĐANG KHÁM".equals(statusComboBox.getSelectedItem())) {
+                //     statusComboBox.setSelectedItem("ĐÃ KHÁM");
+                // }
                 String statusToSavePrint = (String) statusComboBox.getSelectedItem();
                 handleSave();
                 afterSaveActions(statusToSavePrint, "Đã lưu. Đang gửi lệnh in...");
@@ -1698,6 +1704,9 @@ public class CheckUpPage extends JPanel {
                     log.error("Error showing print dialog", e);
                     JOptionPane.showMessageDialog(this, "Không thể hiển thị hộp thoại in: " + e.getMessage(), "Lỗi In", JOptionPane.ERROR_MESSAGE);
                 }
+
+                // Step 5: Upload PDF to backend after successful print dialog
+                uploadPdfToBackend(ultrasoundResultPrint, "ultrasound_result");
                 break;
             case "loupe": // This case now handles "Lưu & Xem"
                 // Step 1: Validate conditions first.
@@ -1761,6 +1770,9 @@ public class CheckUpPage extends JPanel {
 
                 // Step 4: Finally, show the viewer with the pre-made object.
                 JasperViewer.viewReport(jasperPrintToView, false);
+
+                // Step 5: Upload PDF to backend after successful view
+                uploadPdfToBackend(ultrasoundResultView, "ultrasound_result");
                 break;
         }
     }
@@ -3275,6 +3287,67 @@ public class CheckUpPage extends JPanel {
                     "Lỗi Tải Ảnh",
                     JOptionPane.ERROR_MESSAGE);
         }
+    }
+
+    private void handleUploadPdfResponse(UploadCheckupPdfResponse response) {
+        if (response.isSuccess()) {
+            log.info("Successfully uploaded PDF: {} - {}", response.getPdfType(), response.getMessage());
+            SwingUtilities.invokeLater(() -> {
+                callingStatusLabel.setText("Đã lưu PDF thành công: " + response.getPdfType());
+                callingStatusLabel.setForeground(new Color(0, 100, 0));
+            });
+        } else {
+            log.error("Failed to upload PDF: {} - {}", response.getPdfType(), response.getMessage());
+            SwingUtilities.invokeLater(() -> {
+                JOptionPane.showMessageDialog(this,
+                        "Lỗi khi tải PDF lên server: " + response.getMessage(),
+                        "Lỗi Tải PDF",
+                        JOptionPane.ERROR_MESSAGE);
+            });
+        }
+    }
+
+    /**
+     * Uploads PDF to backend asynchronously
+     * @param ultrasoundResult The UltrasoundResult object to export as PDF
+     * @param pdfType The type of PDF ("ultrasound_result" or "medserinvoice")
+     */
+    private void uploadPdfToBackend(UltrasoundResult ultrasoundResult, String pdfType) {
+        if (currentCheckupIdForMedia == null) {
+            log.warn("No current checkup ID for PDF upload");
+            return;
+        }
+
+        // Run PDF export and upload in background thread to avoid blocking UI
+        CompletableFuture.runAsync(() -> {
+            try {
+                // Export PDF as bytes
+                byte[] pdfBytes = ultrasoundResult.exportToPdfBytes();
+                
+                // Create filename with override behavior (same name = override)
+                String fileName = pdfType + ".pdf";
+                
+                // Create and send upload request
+                UploadCheckupPdfRequest request = new UploadCheckupPdfRequest(
+                    currentCheckupIdForMedia,
+                    pdfBytes,
+                    fileName,
+                    pdfType
+                );
+                
+                NetworkUtil.sendPacket(ClientHandler.ctx.channel(), request);
+                log.info("Sent PDF upload request for checkup: {}, type: {}", currentCheckupIdForMedia, pdfType);
+                
+            } catch (Exception e) {
+                log.error("Failed to export or upload PDF for checkup: {}", currentCheckupIdForMedia, e);
+                SwingUtilities.invokeLater(() -> {
+                    JOptionPane.showMessageDialog(this,
+                        "Lỗi khi tạo hoặc tải PDF: " + e.getMessage(),
+                        "Lỗi PDF",
+                        JOptionPane.ERROR_MESSAGE);
+                });
+            }
+        });
     }
 
     private void handleRecordVideo() {

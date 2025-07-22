@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<fontFamilies>
+   <fontFamily name="SVN-Arial">
+       <normal>fonts/SVN-Arial Regular.ttf</normal>
+       <bold>fonts/SVN-Arial Bold.ttf</bold>
+       <italic>fonts/SVN-Arial Regular.ttf</italic> 
+       <boldItalic>fonts/SVN-Arial Bold.ttf</boldItalic>
+       <pdfEncoding>Identity-H</pdfEncoding>
+       <pdfEmbedded>true</pdfEmbedded>
+   </fontFamily>
+</fontFamilies> 

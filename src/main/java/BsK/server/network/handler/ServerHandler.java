@@ -1260,6 +1260,44 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         }
       }
 
+      if (packet instanceof UploadCheckupPdfRequest uploadCheckupPdfRequest) {
+        log.info("Received UploadCheckupPdfRequest for checkupId: {}, type: {}", uploadCheckupPdfRequest.getCheckupId(), uploadCheckupPdfRequest.getPdfType());
+
+        String checkupId = uploadCheckupPdfRequest.getCheckupId();
+        String fileName = uploadCheckupPdfRequest.getFileName();
+        String pdfType = uploadCheckupPdfRequest.getPdfType();
+        byte[] pdfData = uploadCheckupPdfRequest.getPdfData();
+
+        if (checkupId == null || checkupId.trim().isEmpty()) {
+            UserUtil.sendPacket(currentUser.getSessionId(), new UploadCheckupPdfResponse(false, "CheckupID is null or empty. Cannot save PDF.", fileName, pdfType));
+            return;
+        }
+
+        try {
+            // 1. Define and create storage directory (use same img_db structure)
+            Path storageDir = Paths.get(IMAGE_DB_PATH, checkupId.trim());
+            Files.createDirectories(storageDir); // Create dirs if they don't exist
+
+            // 2. Save the PDF file (with override behavior - same name = override)
+            Path filePath = storageDir.resolve(fileName);
+            try (FileOutputStream fos = new FileOutputStream(filePath.toFile())) {
+                fos.write(pdfData);
+            }
+            String savedPath = filePath.toString().replace("\\", "/");
+            log.info("Successfully saved PDF to {} (override mode)", savedPath);
+
+            // 3. Send immediate success response to client
+            UserUtil.sendPacket(currentUser.getSessionId(), new UploadCheckupPdfResponse(true, "PDF uploaded successfully to " + savedPath, fileName, pdfType));
+
+            // 4. Upload to Google Drive asynchronously (don't block the response)
+            uploadCheckupPdfToGoogleDriveAsync(checkupId, fileName, pdfData, pdfType);
+
+        } catch (IOException e) {
+            log.error("Failed to save uploaded PDF for checkupId {}: {}", checkupId, e.getMessage());
+            UserUtil.sendPacket(currentUser.getSessionId(), new UploadCheckupPdfResponse(false, "Server failed to save PDF: " + e.getMessage(), fileName, pdfType));
+        }
+      }
+
       if (packet instanceof GetImagesByCheckupIdReq getImagesByCheckupIdReq) {
         String checkupId = getImagesByCheckupIdReq.getCheckupId();
         log.info("Received GetImagesByCheckupIdReq for checkupId: {}", checkupId);
@@ -1622,5 +1660,83 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
     }
     
     return tempFile;
+  }
+
+  /**
+   * Uploads a checkup PDF to Google Drive asynchronously using the checkup's folder ID.
+   * This method runs in a background thread to avoid blocking the PDF upload response.
+   * @param checkupId The checkup ID
+   * @param fileName The PDF filename (e.g., "ultrasound_result.pdf")
+   * @param pdfData The PDF file as byte array
+   * @param pdfType The type of PDF ("ultrasound_result" or "medserinvoice")
+   */
+  private void uploadCheckupPdfToGoogleDriveAsync(String checkupId, String fileName, byte[] pdfData, String pdfType) {
+    // Run in background thread to avoid blocking
+    new Thread(() -> {
+      try {
+        // Check if Google Drive is connected
+        if (!Server.isGoogleDriveConnected()) {
+          log.info("Google Drive not connected - skipping PDF upload for checkup {}", checkupId);
+          return;
+        }
+
+        // Get checkup's Google Drive folder ID from database
+        PreparedStatement checkupStmt = Server.connection.prepareStatement(
+          "SELECT drive_folder_id FROM Checkup WHERE checkup_id = ?"
+        );
+        checkupStmt.setString(1, checkupId);
+        ResultSet checkupRs = checkupStmt.executeQuery();
+        
+        String checkupDriveFolderId = "";
+        if (checkupRs.next()) {
+          checkupDriveFolderId = checkupRs.getString("drive_folder_id");
+        }
+        checkupStmt.close();
+        checkupRs.close();
+
+        if (checkupDriveFolderId == null || checkupDriveFolderId.trim().isEmpty()) {
+          log.warn("Checkup {} has no Google Drive folder ID - cannot upload PDF", checkupId);
+          return;
+        }
+
+        log.info("Uploading PDF {} ({}) to Google Drive for checkup {}", fileName, pdfType, checkupId);
+        
+        // Create temporary file from byte array for Google Drive upload
+        java.io.File tempFile = createTempFileFromBytes(pdfData, fileName);
+        
+        try {
+          // Upload file to Google Drive using checkup's folder ID (with override behavior)
+          String uploadedFileId = Server.getGoogleDriveService().uploadFileToFolder(
+            checkupDriveFolderId, tempFile, fileName
+          );
+          
+          log.info("PDF uploaded successfully to Google Drive for checkup {}: FileID={}", checkupId, uploadedFileId);
+          
+          // Notify dashboard
+          if (ServerDashboard.getInstance() != null) {
+            ServerDashboard.getInstance().addLog(
+              String.format("Uploaded PDF %s (%s) to Google Drive for checkup %s", fileName, pdfType, checkupId)
+            );
+          }
+          
+        } finally {
+          // Clean up temporary file
+          if (tempFile.exists()) {
+            tempFile.delete();
+            log.debug("Cleaned up temporary PDF file: {}", tempFile.getAbsolutePath());
+          }
+        }
+        
+      } catch (Exception e) {
+        log.error("Failed to upload PDF to Google Drive for checkup {}: {}", checkupId, e.getMessage(), e);
+        
+        // Notify dashboard of error
+        if (ServerDashboard.getInstance() != null) {
+          ServerDashboard.getInstance().addLog(
+            String.format("Failed to upload PDF %s (%s) to Google Drive for checkup %s: %s", fileName, pdfType, checkupId, e.getMessage())
+          );
+        }
+      }
+    }).start();
   }
 }
