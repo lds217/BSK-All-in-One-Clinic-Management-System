@@ -29,6 +29,7 @@ import java.time.format.DateTimeFormatter;
 import java.text.DecimalFormat;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.util.concurrent.CompletableFuture;
 
 public class MedicineInvoice{
 
@@ -47,6 +48,19 @@ public class MedicineInvoice{
     private String[][] services; // Name, Quantity, Price
     private String[][] supplements; // Name, Quantity, Price
     private static final DecimalFormat vndFormatter = new DecimalFormat("#,##0");
+
+    public CompletableFuture<byte[]> generatePdfBytesAsync() {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                return generatePdfBytes();
+            } catch (Exception e) {
+                // Since this runs in a background thread, we can't show a dialog directly.
+                // We'll wrap the exception and let the caller handle it.
+                e.printStackTrace();
+                throw new RuntimeException("Error generating PDF bytes for invoice: " + e.getMessage(), e);
+            }
+        });
+    }
 
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
@@ -287,8 +301,38 @@ public class MedicineInvoice{
 
     private JasperPrint jasperPrint; // Store JasperPrint for reuse
 
+    private byte[] generatePdfBytes() throws Exception {
+        try {
+            // This method is almost identical to generatePdf, but exports to a byte array
+            fillJasperPrint(); // Ensures jasperPrint is filled
+            return JasperExportManager.exportReportToPdf(jasperPrint);
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw new Exception("Error generating PDF byte array with JasperReports: " + e.getMessage(), e);
+        }
+    }
+
     private void generatePdf(String pdfPath) throws Exception {
         try {
+            // Refactored to use a common method to fill the report
+            fillJasperPrint();
+            // Export to PDF file
+            JasperExportManager.exportReportToPdfFile(jasperPrint, pdfPath);
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw new Exception("Error generating PDF with JasperReports: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Common method to fill the JasperPrint object with data and parameters.
+     * This avoids code duplication between generating a file and a byte array.
+     */
+    private void fillJasperPrint() throws JRException, FileNotFoundException {
+        // Only fill if it hasn't been filled already
+        if (jasperPrint != null) {
+            return;
+        }
             // 1. Create data sources for medicines, services, and supplements
             java.util.List<InvoiceItem> medicines = new ArrayList<>();
             java.util.List<InvoiceItem> serviceItems = new ArrayList<>();
@@ -409,16 +453,6 @@ public class MedicineInvoice{
 
             // 4. Fill the report with data
             jasperPrint = JasperFillManager.fillReport(jasperReport, parameters, new JREmptyDataSource());
-
-            // 5. Export to PDF
-            JasperExportManager.exportReportToPdfFile(jasperPrint, pdfPath);
-
-            inputStream.close();
-            
-        } catch (Exception e) {
-            e.printStackTrace();
-            throw new Exception("Error generating PDF with JasperReports: " + e.getMessage(), e);
-        }
     }
 
     private void displayPdfInLabel(String pdfPath, JPanel pdfPanel) throws Exception {

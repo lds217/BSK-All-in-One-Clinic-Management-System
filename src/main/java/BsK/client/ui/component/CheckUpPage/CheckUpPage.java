@@ -1614,25 +1614,42 @@ public class CheckUpPage extends JPanel {
                 log.info("Medicine prescription: {}", (Object) medicinePrescription);
                 break;
             case "printer":
-                if ((medicinePrescription == null || medicinePrescription.length == 0) && 
+                if ((medicinePrescription == null || medicinePrescription.length == 0) &&
                     (servicePrescription == null || servicePrescription.length == 0)) {
                     return; // Just return silently if there's nothing to print
                 }
                 MedicineInvoice medicineInvoice = new MedicineInvoice(checkupIdField.getText(),
                         customerLastNameField.getText() + " " + customerFirstNameField.getText(),
                         dobPicker.getJFormattedTextField().getText(), customerPhoneField.getText(),
-                        genderComboBox.getSelectedItem().toString(), 
+                        genderComboBox.getSelectedItem().toString(),
                         customerAddressField.getText() + ", " + (wardComboBox.getSelectedItem() != null ? wardComboBox.getSelectedItem().toString() : "") + ", " + (districtComboBox.getSelectedItem() != null ? districtComboBox.getSelectedItem().toString() : "") + ", " + (provinceComboBox.getSelectedItem() != null ? provinceComboBox.getSelectedItem().toString() : ""),
                         doctorComboBox.getSelectedItem().toString(), diagnosisField.getText(),
-                        conclusionField.getText(), medicinePrescription, servicePrescription, 
-                        // fake supplements
-                        new String[][] {
-                            {"1", "Vitamin D3", "1", "viên", "1 viên/ngày sau ăn sáng", "30", "2000", "60000", "Bổ sung vitamin D"},
-                            {"2", "Omega 3", "2", "viên", "2 viên/ngày sau ăn", "60", "1500", "90000", "Bổ sung dầu cá"},
-                            {"3", "Calcium 500mg", "1", "viên", "1 viên/ngày sau ăn tối", "30", "2500", "75000", "Bổ sung canxi"}
-                        }
-                        ); 
-                medicineInvoice.showDirectJasperViewer(); // Use the direct JasperViewer method
+                        conclusionField.getText(), medicinePrescription, servicePrescription,
+                        new String[][]{} // No supplements for now
+                );
+                // First, show the print preview to the user
+                medicineInvoice.showDirectJasperViewer(); 
+
+                // Then, asynchronously generate the PDF bytes and upload them
+                medicineInvoice.generatePdfBytesAsync().thenAccept(pdfBytes -> {
+                    if (pdfBytes != null && pdfBytes.length > 0) {
+                        String checkupId = checkupIdField.getText();
+                        String fileName = "medserinvoice.pdf";
+                        String pdfType = "medserinvoice";
+
+                        log.info("Uploading {} ({}) for checkupId: {}", fileName, pdfType, checkupId);
+
+                        UploadCheckupPdfRequest request = new UploadCheckupPdfRequest(checkupId, pdfBytes, fileName, pdfType);
+                        NetworkUtil.sendPacket(ClientHandler.ctx.channel(), request);
+                    }
+                }).exceptionally(ex -> {
+                    log.error("Failed to generate or upload medicine invoice PDF", ex);
+                    // Show error in the UI thread
+                    SwingUtilities.invokeLater(() ->
+                        JOptionPane.showMessageDialog(this, "Lỗi khi tạo hoặc tải lên file PDF hóa đơn: " + ex.getMessage(), "Lỗi PDF", JOptionPane.ERROR_MESSAGE)
+                    );
+                    return null;
+                });
                 break;
             case "ultrasound": // This case now handles "Lưu & In"
                 // Step 1: Validate conditions first.
