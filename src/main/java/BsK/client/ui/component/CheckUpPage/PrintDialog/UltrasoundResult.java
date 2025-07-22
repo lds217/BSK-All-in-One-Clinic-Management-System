@@ -77,6 +77,7 @@ public class UltrasoundResult {
     private final List<File> selectedImages;
     private final String printType; // "ngang" or "dọc"
     private final String templateTitle;
+    private final String driveUrl; // Google Drive URL for QR code
     
     // Vitals data
     private final String customerHeight;
@@ -91,7 +92,7 @@ public class UltrasoundResult {
                             String rtfContent, String conclusion, String suggestion,
                             String recheckupDate, List<File> selectedImages, 
                             String printType, String templateTitle, String customerHeight, 
-                            String customerWeight, String heartRate, String bloodPressure) {
+                            String customerWeight, String heartRate, String bloodPressure, String driveUrl) {
 
         // Defensive null checks to prevent JasperReports from crashing on null parameters
         this.checkupId = checkupId != null ? checkupId : "";
@@ -112,6 +113,7 @@ public class UltrasoundResult {
         this.customerWeight = customerWeight != null ? customerWeight : "";
         this.heartRate = heartRate != null ? heartRate : "";
         this.bloodPressure = bloodPressure != null ? bloodPressure : "";
+        this.driveUrl = driveUrl != null ? driveUrl : ""; // Google Drive URL
     }
 
     public void showDirectJasperViewer() {
@@ -185,6 +187,9 @@ public class UltrasoundResult {
                     parameters.put("image" + (i + 1), null); // Pass null for unused image slots
                 }
             }
+
+            // Google Drive URL for QR code generation
+            parameters.put("driveURL", this.driveUrl);
 
             // Load and compile the report
             JasperDesign jasperDesign = JRXmlLoader.load(inputStream);

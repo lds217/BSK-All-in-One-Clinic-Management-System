@@ -164,7 +164,7 @@ public class CheckUpPage extends JPanel {
     private JTextField checkupIdField, customerLastNameField, customerFirstNameField,customerAddressField, customerPhoneField, customerIdField, customerCccdDdcnField;
     private JTextArea suggestionField, diagnosisField, conclusionField; // Changed symptomsField to suggestionField
     private JTextPane notesField;
-    private JComboBox<String> doctorComboBox, statusComboBox, genderComboBox, provinceComboBox, districtComboBox, wardComboBox, checkupTypeComboBox, templateComboBox;
+    private JComboBox<String> doctorComboBox, statusComboBox, genderComboBox, provinceComboBox, districtComboBox, wardComboBox, checkupTypeComboBox, templateComboBox, orientationComboBox; // Added orientationComboBox
     private JSpinner customerWeightSpinner, customerHeightSpinner, patientHeartRateSpinner, bloodPressureSystolicSpinner, bloodPressureDiastolicSpinner;
     private JDatePickerImpl datePicker, dobPicker, recheckupDatePicker;
     private String[][] medicinePrescription = new String[0][0]; // Initialize to empty
@@ -931,7 +931,23 @@ public class CheckUpPage extends JPanel {
 
         
         // Add "Thêm mẫu" button next to template combobox
+        // Add orientation dropdown
         gbcTemplate.gridx = 2; gbcTemplate.weightx = 0.0;
+        JLabel orientationLabel = new JLabel("Hướng in:");
+        orientationLabel.setFont(labelFont);
+        templatePanel.add(orientationLabel, gbcTemplate);
+
+        gbcTemplate.gridx = 3;
+        orientationComboBox = new JComboBox<>(new String[]{"ngang", "dọc"});
+        orientationComboBox.setFont(fieldFont);
+        orientationComboBox.setPreferredSize(new Dimension(80, 25));
+        orientationComboBox.addActionListener(e -> {
+            printType = (String) orientationComboBox.getSelectedItem();
+        });
+        templatePanel.add(orientationComboBox, gbcTemplate);
+
+        // Add template button
+        gbcTemplate.gridx = 4; gbcTemplate.weightx = 0.0;
         JButton addTemplateButton = new JButton("Thêm mẫu");
         addTemplateButton.setFont(fieldFont);
         addTemplateButton.setBackground(new Color(63, 81, 181));
@@ -1544,6 +1560,24 @@ public class CheckUpPage extends JPanel {
         return button;
     }
 
+    /**
+     * Helper method to get the currently selected patient from the queue
+     * @return The currently selected Patient object, or null if none selected
+     */
+    private Patient getCurrentSelectedPatient() {
+        if (selectedCheckupId == null) {
+            return null;
+        }
+        
+        // Find the patient in the queue by checkupId
+        for (Patient patient : patientQueue) {
+            if (patient != null && selectedCheckupId.equals(patient.getCheckupId())) {
+                return patient;
+            }
+        }
+        return null;
+    }
+
     private void handleActionPanelClick(String name) {
         switch (name) {
             case "service":
@@ -1611,6 +1645,10 @@ public class CheckUpPage extends JPanel {
                 }
 
                 // Step 2: Attempt to create the report object BEFORE saving anything.
+                // Get current patient's Google Drive URL for QR code
+                Patient currentPatient = getCurrentSelectedPatient();
+                String currentPatientDriveUrl = (currentPatient != null) ? currentPatient.getDriveUrl() : "";
+                
                 UltrasoundResult ultrasoundResultPrint = new UltrasoundResult(
                         checkupIdField.getText(),
                         customerLastNameField.getText() + " " + customerFirstNameField.getText(),
@@ -1624,12 +1662,13 @@ public class CheckUpPage extends JPanel {
                         suggestionField.getText(),
                         recheckupDatePicker.getJFormattedTextField().getText(),
                         selectedImagesForPrint,
-                        printType,
+                        (String) orientationComboBox.getSelectedItem(), // Use selected orientation
                         templateTitle,
                         customerHeightSpinner.getValue().toString(),
                         customerWeightSpinner.getValue().toString(),
                         patientHeartRateSpinner.getValue().toString(),
-                        bloodPressureSystolicSpinner.getValue() + "/" + bloodPressureDiastolicSpinner.getValue()
+                        bloodPressureSystolicSpinner.getValue() + "/" + bloodPressureDiastolicSpinner.getValue(),
+                        currentPatientDriveUrl // Google Drive URL for QR code
                 );
                 
                 JasperPrint jasperPrintToPrint;
@@ -1652,12 +1691,12 @@ public class CheckUpPage extends JPanel {
                 handleSave();
                 afterSaveActions(statusToSavePrint, "Đã lưu. Đang gửi lệnh in...");
 
-                // Step 4: Finally, print using the pre-made object.
+                // Step 4: Finally, show print dialog with the pre-made object.
                 try {
-                    JasperPrintManager.printReport(jasperPrintToPrint, false);
+                    JasperPrintManager.printReport(jasperPrintToPrint, true); // true = show print dialog
                 } catch (JRException e) {
-                    log.error("Error printing report directly", e);
-                    JOptionPane.showMessageDialog(this, "Không thể in trực tiếp: " + e.getMessage(), "Lỗi In", JOptionPane.ERROR_MESSAGE);
+                    log.error("Error showing print dialog", e);
+                    JOptionPane.showMessageDialog(this, "Không thể hiển thị hộp thoại in: " + e.getMessage(), "Lỗi In", JOptionPane.ERROR_MESSAGE);
                 }
                 break;
             case "loupe": // This case now handles "Lưu & Xem"
@@ -1676,6 +1715,10 @@ public class CheckUpPage extends JPanel {
                 }
 
                 // Step 2: Attempt to create the report object BEFORE saving anything.
+                // Get current patient's Google Drive URL for QR code  
+                Patient viewPatient = getCurrentSelectedPatient();
+                String viewPatientDriveUrl = (viewPatient != null) ? viewPatient.getDriveUrl() : "";
+                
                 UltrasoundResult ultrasoundResultView = new UltrasoundResult(
                         checkupIdField.getText(),
                         customerLastNameField.getText() + " " + customerFirstNameField.getText(),
@@ -1689,12 +1732,13 @@ public class CheckUpPage extends JPanel {
                         suggestionField.getText(),
                         recheckupDatePicker.getJFormattedTextField().getText(),
                         selectedImagesForPrint,
-                        printType,
+                        (String) orientationComboBox.getSelectedItem(), // Use selected orientation
                         templateTitle,
                         customerHeightSpinner.getValue().toString(),
                         customerWeightSpinner.getValue().toString(),
                         patientHeartRateSpinner.getValue().toString(),
-                        bloodPressureSystolicSpinner.getValue() + "/" + bloodPressureDiastolicSpinner.getValue()
+                        bloodPressureSystolicSpinner.getValue() + "/" + bloodPressureDiastolicSpinner.getValue(),
+                        viewPatientDriveUrl // Google Drive URL for QR code
                 );
 
                 JasperPrint jasperPrintToView;
@@ -4243,6 +4287,8 @@ public class CheckUpPage extends JPanel {
         String selectedTemplateName = (String) templateComboBox.getSelectedItem();
 
         if (selectedTemplateName == null || allTemplates == null || selectedTemplateName.equals("Không sử dụng mẫu")) {
+            // Reset orientation to landscape when no template is selected
+            orientationComboBox.setSelectedItem("ngang");
             return;
         }
 
@@ -4266,6 +4312,7 @@ public class CheckUpPage extends JPanel {
         // Set template print setting
         photoNum = Integer.parseInt(template.getPhotoNum());
         printType = template.getPrintType();
+        orientationComboBox.setSelectedItem(template.getPrintType()); // Update orientation dropdown
         templateName = template.getTemplateName();
         templateTitle = template.getTemplateTitle();
         templateGender = template.getTemplateGender();

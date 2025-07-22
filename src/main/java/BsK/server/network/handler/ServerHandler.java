@@ -111,7 +111,8 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
           ResultSet rs = statement.executeQuery(
                   "select a.checkup_id, a.checkup_date, c.customer_last_name, c.customer_first_name,\n" +
                           "d.doctor_first_name, d.doctor_last_name, a.suggestion, a.diagnosis, a.notes, a.status, a.customer_id, \n" +
-                          "c.customer_number, c.customer_address, a.customer_weight, a.customer_height, c.customer_gender, c.customer_dob, a.checkup_type, a.conclusion, a.reCheckupDate, c.cccd_ddcn, a.heart_beat, a.blood_pressure\n" +
+                          "c.customer_number, c.customer_address, a.customer_weight, a.customer_height, c.customer_gender, c.customer_dob,\n" +
+                          "a.checkup_type, a.conclusion, a.reCheckupDate, c.cccd_ddcn, a.heart_beat, a.blood_pressure, c.drive_url\n" +
                           "from checkup as a\n" +
                           "join customer as c on a.customer_id = c.customer_id\n" +
                           "join Doctor D on a.doctor_id = D.doctor_id\n" +
@@ -152,11 +153,16 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
               String cccdDdcn = rs.getString("cccd_ddcn");
               String heartBeat = rs.getString("heart_beat");
               String bloodPressure = rs.getString("blood_pressure");
+              String driveUrl = rs.getString("drive_url");
+              if (driveUrl == null) {
+                driveUrl = "";
+              }
               String result = String.join("|", checkupId,
                       checkupDate, customerLastName, customerFirstName,
                       doctorLastName + " " + doctorFirstName, suggestion,
                       diagnosis, notes, status, customerId, customerNumber, customerAddress, customerWeight, customerHeight,
-                      customerGender, customerDob, checkupType, conclusion, reCheckupDate, cccdDdcn, heartBeat, bloodPressure
+                      customerGender, customerDob, checkupType, conclusion, reCheckupDate, cccdDdcn, heartBeat, bloodPressure,
+                      driveUrl
               );
 
               resultList.add(result);
@@ -181,7 +187,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
           ResultSet rs = statement.executeQuery(
                   "select a.checkup_id, a.checkup_date, c.customer_last_name, c.customer_first_name,\n" +
                           "d.doctor_first_name, d.doctor_last_name, a.suggestion, a.diagnosis, a.notes, a.status, a.customer_id, \n" +
-                          "c.customer_number, c.customer_address, a.customer_weight, a.customer_height, c.customer_gender, c.customer_dob, a.checkup_type, a.conclusion, a.reCheckupDate, c.cccd_ddcn, a.heart_beat, a.blood_pressure\n" +
+                          "c.customer_number, c.customer_address, a.customer_weight, a.customer_height, c.customer_gender, c.customer_dob, a.checkup_type, a.conclusion, a.reCheckupDate, c.cccd_ddcn, a.heart_beat, a.blood_pressure, c.drive_url\n" +
                           "from checkup as a\n" +
                           "join customer as c on a.customer_id = c.customer_id\n" +
                           "join Doctor D on a.doctor_id = D.doctor_id\n" +
@@ -226,11 +232,16 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
               String cccdDdcn = rs.getString("cccd_ddcn");
               String heartBeat = rs.getString("heart_beat");
               String bloodPressure = rs.getString("blood_pressure");
+              String driveUrl = rs.getString("drive_url");
+              if (driveUrl == null) {
+                driveUrl = "";
+              }
               String result = String.join("|", checkupId,
                       checkupDate, customerLastName, customerFirstName,
                       doctorLastName + " " + doctorFirstName, suggestion,
                       diagnosis, notes, status, customerId, customerNumber, customerAddress, customerWeight, customerHeight,
-                      customerGender, customerDob, checkupType, conclusion, reCheckupDate, cccdDdcn, heartBeat, bloodPressure
+                      customerGender, customerDob, checkupType, conclusion, reCheckupDate, cccdDdcn, heartBeat, bloodPressure,
+                      driveUrl
               );
 
               resultList.add(result);

@@ -44,6 +44,7 @@
 	<parameter name="checkupBloodPressure" class="java.lang.String"/>
 	<parameter name="checkupHeartBeat" class="java.lang.String"/>
 	<parameter name="checkupWeight" class="java.lang.String"/>
+	<parameter name="driveURL" class="java.lang.String"/>
 	<query language="sql"><![CDATA[]]></query>
 	<background splitType="Stretch"/>
 	<title splitType="Stretch"/>
@@ -55,13 +56,13 @@
 				<element kind="image" uuid="fd80ab38-4cae-409b-84b9-356220d2b1e5" x="0" y="-5" width="70" height="64">
 					<expression><![CDATA[$P{logoImage}]]></expression>
 				</element>
-				<element kind="textField" uuid="eb56d4c8-2a0d-45fa-89a2-ad6528f9a99b" x="70" y="0" width="267" height="20" fontName="Times New Roman" fontSize="14.0" bold="true">
+				<element kind="textField" uuid="eb56d4c8-2a0d-45fa-89a2-ad6528f9a99b" x="70" y="0" width="233" height="20" fontName="Times New Roman" fontSize="14.0" bold="true">
 					<expression><![CDATA[$P{clinicName}]]></expression>
 				</element>
 				<element kind="staticText" uuid="2677daaf-d0fb-40ad-afaa-513efa16055c" x="70" y="20" width="150" height="15" fontName="Times New Roman" fontSize="10.0" bold="true" hTextAlign="Left">
 					<text><![CDATA[Địa chỉ: ]]></text>
 				</element>
-				<element kind="textField" uuid="796d9ffd-6d2e-4ae3-bdfb-b08183d7d9c0" x="106" y="20" width="231" height="15" fontName="Times New Roman" fontSize="10.0">
+				<element kind="textField" uuid="796d9ffd-6d2e-4ae3-bdfb-b08183d7d9c0" x="106" y="20" width="193" height="15" fontName="Times New Roman" fontSize="10.0">
 					<expression><![CDATA[$P{clinicAddress}]]></expression>
 				</element>
 				<element kind="staticText" uuid="1a1405ee-b3e4-4e98-ac08-6818bc29e902" x="70" y="36" width="150" height="15" fontName="Times New Roman" fontSize="10.0" bold="true" hTextAlign="Left">
@@ -134,16 +135,21 @@
 					<text><![CDATA[Huyết áp:]]></text>
 				</element>
 				<element kind="textField" uuid="3e1069a6-daea-45c2-b21f-935b49baba45" x="50" y="150" width="50" height="16" fontName="Times New Roman" fontSize="10.0">
-					<expression><![CDATA[$P{checkupHeight} +" cm"]]></expression>
+					<expression><![CDATA[$P{checkupWeight} +" cm"]]></expression>
 				</element>
 				<element kind="textField" uuid="fb080012-3196-4535-bcd2-e87274c66fa5" x="150" y="150" width="50" height="16" fontName="Times New Roman" fontSize="10.0">
 					<expression><![CDATA[$P{checkupWeight} + " kg"]]></expression>
 				</element>
 				<element kind="textField" uuid="e4185ffe-8712-41e3-a9ff-2be6569dff15" x="243" y="150" width="47" height="16" fontName="Times New Roman" fontSize="10.0">
-					<expression><![CDATA[$P{checkupHeartBeat} + " bpm"]]></expression>
+					<expression><![CDATA[$P{checkupHeartBeat} + " l/p"]]></expression>
 				</element>
 				<element kind="textField" uuid="6b0b21be-2ca3-4594-bbe9-34868e13eb1e" x="335" y="150" width="63" height="16" fontName="Times New Roman" fontSize="10.0">
 					<expression><![CDATA[$P{checkupBloodPressure} +" mmHg"]]></expression>
+				</element>
+				<element kind="component" uuid="e8842007-3343-4399-a101-76a302d0755d" x="354" y="8" width="41" height="38">
+					<component kind="barcode4j:QRCode">
+						<codeExpression><![CDATA[$P{driveURL}]]></codeExpression>
+					</component>
 				</element>
 			</element>
 			<element kind="frame" uuid="a72ffc70-007e-43af-a566-b34e6e07b312" x="400" y="0" width="400" height="540">
@@ -168,13 +174,10 @@
 				<element kind="textField" uuid="e90ad772-4425-482d-9e75-f2bc66b9084d" x="0" y="358" width="400" height="70" fontName="Times New Roman" fontSize="10.0">
 					<expression><![CDATA[$P{checkupConclusion}]]></expression>
 				</element>
-				<element kind="component" uuid="cb28d811-1328-45dc-9461-cfbb88b7eeae" x="-63" y="13" width="60" height="40">
+				<element kind="component" uuid="cb28d811-1328-45dc-9461-cfbb88b7eeae" x="-97" y="9" width="50" height="39">
 					<component kind="barcode4j:Code128">
 						<codeExpression><![CDATA[$P{barcodeNumber}]]></codeExpression>
 					</component>
-				</element>
-				<element kind="staticText" uuid="6a7d5f66-d7cc-481f-9fff-8ece0789b3b4" x="-63" y="2" width="61" height="17" fontName="Times New Roman" fontSize="10.0" bold="false" hTextAlign="Center">
-					<text><![CDATA[Mã khám bệnh]]></text>
 				</element>
 				<element kind="textField" uuid="d63165c2-19e2-43ad-8a3f-004e00bffdfe" x="0" y="450" width="230" height="55" fontName="Times New Roman" fontSize="10.0">
 					<expression><![CDATA[$P{checkupSuggestion}]]></expression>
@@ -265,6 +268,10 @@
 					<element kind="image" uuid="a7cef70f-1dbe-4d6f-a007-7543bbc2b9b8" x="29" y="4" width="342" height="335">
 						<expression><![CDATA[$P{image1}]]></expression>
 					</element>
+				</element>
+				<element kind="staticText" uuid="8f35aa72-22a4-45f0-a35e-8e35e832404e" x="-55" y="46" width="55" height="14" fontName="Times New Roman" fontSize="8.0" bold="false" hTextAlign="Center">
+					<printWhenExpression><![CDATA[$P{driveURL} != null && !$P{driveURL}.trim().isEmpty()]]></printWhenExpression>
+					<text><![CDATA[Xem KQ online]]></text>
 				</element>
 			</element>
 		</band>
