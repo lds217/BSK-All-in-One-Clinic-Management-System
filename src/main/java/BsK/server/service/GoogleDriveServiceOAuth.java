@@ -415,6 +415,20 @@ public class GoogleDriveServiceOAuth {
      */
     public String uploadFileToFolder(String folderId, java.io.File localFile, String fileName) throws IOException {
         String mimeType = determineMimeType(fileName);
+
+        // --- OVERRIDE LOGIC START ---
+        // 1. Find any existing files with the same name in the target folder
+        findFilesByName(folderId, fileName).forEach(file -> {
+            try {
+                log.info("Deleting existing file '{}' (ID: {}) to override.", file.getName(), file.getId());
+                driveService.files().delete(file.getId()).execute();
+            } catch (IOException e) {
+                log.error("Failed to delete existing file (ID: {})", file.getId(), e);
+                // We wrap in a RuntimeException because the lambda can't throw a checked IOException
+                throw new RuntimeException("Failed to delete existing file for override", e);
+            }
+        });
+        // --- OVERRIDE LOGIC END ---
         
         File fileMetadata = new File();
         fileMetadata.setName(fileName);
@@ -428,5 +442,26 @@ public class GoogleDriveServiceOAuth {
         
         log.info("Uploaded file: {} to folder {} (File ID: {})", fileName, folderId, uploadedFile.getId());
         return uploadedFile.getId();
+    }
+
+    /**
+     * Helper method to find all files with a specific name inside a parent folder.
+     * @param parentFolderId The ID of the folder to search within.
+     * @param fileName The exact name of the files to find.
+     * @return A list of File objects matching the name.
+     * @throws IOException if the Google Drive API call fails.
+     */
+    private List<File> findFilesByName(String parentFolderId, String fileName) throws IOException {
+        String query = String.format("name = '%s' and '%s' in parents and trashed = false",
+                fileName.replace("'", "\\'"), // Escape single quotes in filename
+                parentFolderId);
+
+        FileList result = driveService.files().list()
+                .setQ(query)
+                .setSpaces("drive")
+                .setFields("nextPageToken, files(id, name)")
+                .execute();
+        
+        return result.getFiles();
     }
 } 
