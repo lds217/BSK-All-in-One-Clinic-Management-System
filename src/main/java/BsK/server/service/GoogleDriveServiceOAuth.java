@@ -37,12 +37,18 @@ public class GoogleDriveServiceOAuth {
     
     private Drive driveService;
     private String rootFolderId; // BSK Clinic root folder
+    private String rootFolderName; // Configurable root folder name
     
     public GoogleDriveServiceOAuth() {
+        this("BSK_Clinic_Patient_Files"); // Default folder name
+    }
+    
+    public GoogleDriveServiceOAuth(String rootFolderName) {
         try {
+            this.rootFolderName = rootFolderName != null ? rootFolderName : "BSK_Clinic_Patient_Files";
             this.driveService = buildDriveService();
             this.rootFolderId = getOrCreateRootFolder();
-            log.info("Google Drive OAuth service initialized successfully");
+            log.info("Google Drive OAuth service initialized successfully with root folder: {}", this.rootFolderName);
         } catch (Exception e) {
             log.error("Failed to initialize Google Drive OAuth service", e);
             throw new RuntimeException("Google Drive OAuth service initialization failed", e);
@@ -82,7 +88,7 @@ public class GoogleDriveServiceOAuth {
      * Get or create the root folder for BSK Clinic
      */
     private String getOrCreateRootFolder() throws IOException {
-        String folderName = "BSK_Clinic_Patient_Files";
+        String folderName = this.rootFolderName;
         
         // Search for existing root folder
         String query = "name='" + folderName + "' and mimeType='application/vnd.google-apps.folder' and trashed=false";
@@ -158,6 +164,55 @@ public class GoogleDriveServiceOAuth {
     }
     
     /**
+     * Create a folder for a specific patient's checkup
+     */
+    public String createCheckupFolder(String patientId, String patientName, String checkupId) throws IOException {
+        // First ensure patient folder exists
+        String patientFolderId = createPatientFolder(patientId, patientName);
+        
+        String checkupFolderName = "Checkup_" + checkupId;
+        
+        // Check if checkup folder already exists
+        Optional<String> existingCheckupFolderId = findCheckupFolder(patientFolderId, checkupId);
+        if (existingCheckupFolderId.isPresent()) {
+            log.info("Checkup folder already exists: {} (ID: {})", checkupFolderName, existingCheckupFolderId.get());
+            return existingCheckupFolderId.get();
+        }
+        
+        // Create new checkup folder
+        File folderMetadata = new File();
+        folderMetadata.setName(checkupFolderName);
+        folderMetadata.setMimeType("application/vnd.google-apps.folder");
+        folderMetadata.setParents(Collections.singletonList(patientFolderId));
+        
+        File folder = driveService.files().create(folderMetadata)
+                .setFields("id")
+                .execute();
+        
+        log.info("Created checkup folder: {} (ID: {})", checkupFolderName, folder.getId());
+        return folder.getId();
+    }
+    
+    /**
+     * Find existing checkup folder by checkup ID within a patient folder
+     */
+    private Optional<String> findCheckupFolder(String patientFolderId, String checkupId) throws IOException {
+        String query = "name='Checkup_" + checkupId + "' and mimeType='application/vnd.google-apps.folder' and trashed=false and '" + patientFolderId + "' in parents";
+        
+        FileList result = driveService.files().list()
+                .setQ(query)
+                .setSpaces("drive")
+                .execute();
+        
+        List<File> files = result.getFiles();
+        if (files != null && !files.isEmpty()) {
+            return Optional.of(files.get(0).getId());
+        }
+        
+        return Optional.empty();
+    }
+    
+    /**
      * Upload a file to a patient's folder
      */
     public String uploadFile(String patientFolderId, java.io.File localFile, String fileName) throws IOException {
@@ -178,6 +233,14 @@ public class GoogleDriveServiceOAuth {
     }
     
     /**
+     * Upload a file to a specific checkup folder
+     */
+    public String uploadFileToCheckup(String patientId, String patientName, String checkupId, java.io.File localFile, String fileName) throws IOException {
+        String checkupFolderId = createCheckupFolder(patientId, patientName, checkupId);
+        return uploadFile(checkupFolderId, localFile, fileName);
+    }
+
+    /**
      * Get the public sharing URL for a folder
      */
     public String getFolderSharingUrl(String folderId) throws IOException {
@@ -194,6 +257,57 @@ public class GoogleDriveServiceOAuth {
                 .execute();
         
         return folder.getWebViewLink();
+    }
+
+    /**
+     * Get the folder URL (without making it public)
+     */
+    public String getFolderUrl(String folderId) throws IOException {
+        File folder = driveService.files().get(folderId)
+                .setFields("webViewLink")
+                .execute();
+        
+        return folder.getWebViewLink();
+    }
+
+    /**
+     * Get patient folder URL with QR code generation
+     */
+    public String getPatientFolderUrlWithQR(String patientId, String patientName) throws IOException {
+        String patientFolderId = createPatientFolder(patientId, patientName);
+        String folderUrl = getFolderUrl(patientFolderId);
+        
+        // Generate QR code for the folder URL
+        try {
+            String qrFileName = "patient_" + patientId + "_folder_qr.png";
+            java.io.File qrFile = BsK.server.util.QRCodeGenerator.generateQRCode(folderUrl, qrFileName);
+            log.info("📱 QR code generated for patient {} folder: {}", patientId, qrFile.getAbsolutePath());
+            log.info("🔗 QR code contains URL: {}", folderUrl);
+            return folderUrl;
+        } catch (Exception e) {
+            log.error("❌ Failed to generate QR code for patient folder", e);
+            return folderUrl;
+        }
+    }
+    
+    /**
+     * Get checkup folder URL with QR code generation
+     */
+    public String getCheckupFolderUrlWithQR(String patientId, String patientName, String checkupId) throws IOException {
+        String checkupFolderId = createCheckupFolder(patientId, patientName, checkupId);
+        String folderUrl = getFolderUrl(checkupFolderId);
+        
+        // Generate QR code for the folder URL
+        try {
+            String qrFileName = "patient_" + patientId + "_checkup_" + checkupId + "_qr.png";
+            java.io.File qrFile = BsK.server.util.QRCodeGenerator.generateQRCode(folderUrl, qrFileName);
+            log.info("📱 QR code generated for patient {} checkup {} folder: {}", patientId, checkupId, qrFile.getAbsolutePath());
+            log.info("🔗 QR code contains URL: {}", folderUrl);
+            return folderUrl;
+        } catch (Exception e) {
+            log.error("❌ Failed to generate QR code for checkup folder", e);
+            return folderUrl;
+        }
     }
     
     /**
@@ -262,5 +376,57 @@ public class GoogleDriveServiceOAuth {
     
     public String getRootFolderId() {
         return rootFolderId;
+    }
+    
+    public String getRootFolderName() {
+        return rootFolderName;
+    }
+    
+    /**
+     * Update the root folder name (creates new folder, doesn't affect existing folders)
+     */
+    public void updateRootFolderName(String newRootFolderName) throws IOException {
+        if (newRootFolderName != null && !newRootFolderName.trim().isEmpty()) {
+            this.rootFolderName = newRootFolderName.trim();
+            this.rootFolderId = getOrCreateRootFolder();
+            log.info("Root folder updated to: {} (ID: {})", this.rootFolderName, this.rootFolderId);
+        }
+    }
+
+    /**
+     * Creates a folder directly under a specific parent folder using the folder ID
+     */
+    public String createFolderUnderParent(String parentFolderId, String folderName) throws IOException {
+        File folderMetadata = new File();
+        folderMetadata.setName(folderName);
+        folderMetadata.setMimeType("application/vnd.google-apps.folder");
+        folderMetadata.setParents(Collections.singletonList(parentFolderId));
+        
+        File folder = driveService.files().create(folderMetadata)
+                .setFields("id")
+                .execute();
+        
+        log.info("Created folder: {} under parent {} (ID: {})", folderName, parentFolderId, folder.getId());
+        return folder.getId();
+    }
+
+    /**
+     * Upload a file to a specific folder using the folder ID
+     */
+    public String uploadFileToFolder(String folderId, java.io.File localFile, String fileName) throws IOException {
+        String mimeType = determineMimeType(fileName);
+        
+        File fileMetadata = new File();
+        fileMetadata.setName(fileName);
+        fileMetadata.setParents(Collections.singletonList(folderId));
+        
+        FileContent mediaContent = new FileContent(mimeType, localFile);
+        
+        File uploadedFile = driveService.files().create(fileMetadata, mediaContent)
+                .setFields("id,webViewLink,webContentLink")
+                .execute();
+        
+        log.info("Uploaded file: {} to folder {} (File ID: {})", fileName, folderId, uploadedFile.getId());
+        return uploadedFile.getId();
     }
 } 

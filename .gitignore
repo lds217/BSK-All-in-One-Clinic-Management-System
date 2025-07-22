@@ -149,7 +149,7 @@ src/main/resources/image/checkup_media/32/IMG_32_20250604_112123.png
 src/main/resources/image/checkup_media/34/IMG_34_20250604_120802.png
 src/main/resources/image/checkup_media/34/VID_34_20250604_120241.mp4
 src/main/resources/image/checkup_media/8/IMG_8_20250604_112523.png
-src/main/resources/image/checkup_media/8/IMG_8_20250604_112526.png
+src/main/resources/image/checkup_media/8/IMG_8_20250604_112526.png                                                          
 src/main/resources/image/checkup_media/8/VID_8_20250604_115008.mp4
 src/main/resources/client_secret_1063629801433-01ubsp30l0sabhbk28q2esh9c3bhjgka.apps.googleusercontent.com.json
 GOOGLE_DRIVE_SETUP.md
@@ -159,3 +159,8 @@ tokens/StoredCredential
 src/main/resources/database/BSK.db
 src/main/resources/database/BSK.db
 src/main/resources/database/BSK.db
+GoogleDriveTest_README.md
+patient_P002_checkup_CHK001_qr.png
+patient_P002_checkup_CHK002_qr.png
+test-qr-code.png
+patient_P002_folder_qr.png

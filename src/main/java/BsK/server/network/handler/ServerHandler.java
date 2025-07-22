@@ -42,6 +42,7 @@ import BsK.common.entity.Medicine;
 import BsK.common.entity.Service;
 import BsK.common.entity.PatientHistory;
 import BsK.common.entity.Template;
+import BsK.common.util.text.TextUtils;
 
 import static BsK.server.Server.statement;
 
@@ -636,7 +637,11 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
           // Close resources
           preparedStatement.close();
 
+          // Send immediate response to client
           UserUtil.sendPacket(currentUser.getSessionId(), new AddPatientResponse(true, customerId, "Thêm bệnh nhân thành công"));
+          
+          // Create Google Drive folder asynchronously (don't block the response)
+          createPatientGoogleDriveFolderAsync(customerId, addPatientRequest.getPatientLastName(), addPatientRequest.getPatientFirstName());
         } catch (SQLException e) {
           try {
             // Rollback on error
@@ -686,10 +691,26 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
           updateStmt.setInt(1, addCheckupRequest.getCustomerId());
           updateStmt.executeUpdate();
 
+          // Get the generated checkup ID safely
+          int generatedCheckupId = 0;
+          PreparedStatement getCheckupIdStmt = Server.connection.prepareStatement(
+                  "SELECT MAX(checkup_id) FROM Checkup WHERE customer_id = ?");
+          getCheckupIdStmt.setInt(1, addCheckupRequest.getCustomerId());
+          ResultSet checkupIdRs = getCheckupIdStmt.executeQuery();
+          if (checkupIdRs.next()) {
+            generatedCheckupId = checkupIdRs.getInt(1);
+          }
+          getCheckupIdStmt.close();
+          checkupIdRs.close();
+
           // Commit the transaction
           Server.connection.commit();
 
+          // Send immediate response to client
           UserUtil.sendPacket(currentUser.getSessionId(), new AddCheckupResponse(true, "Thêm bệnh nhân thành công"));
+          
+          // Create Google Drive folder asynchronously (don't block the response)
+          createCheckupGoogleDriveFolderAsync(generatedCheckupId, addCheckupRequest.getCustomerId());
         }
         catch (SQLException e) {
           try {
@@ -1216,8 +1237,11 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
             // 3. TODO: Store file path in database, linking it to the checkupId
             // A proper implementation would have a 'CheckupImages' table and an INSERT query here.
 
-            // 4. Send success response
+            // 4. Send immediate success response to client
             UserUtil.sendPacket(currentUser.getSessionId(), new UploadCheckupImageResponse(true, "Image uploaded successfully to " + savedPath, fileName));
+
+            // 5. Upload to Google Drive asynchronously (don't block the response)
+            uploadCheckupImageToGoogleDriveAsync(checkupId, fileName, imageData);
 
         } catch (IOException e) {
             log.error("Failed to save uploaded image for checkupId {}: {}", checkupId, e.getMessage());
@@ -1303,5 +1327,289 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
     } else {
       super.userEventTriggered(ctx, evt);
     }
+  }
+
+  /**
+   * Creates a Google Drive folder for a patient asynchronously and updates the drive_url in database.
+   * This method runs in a background thread to avoid blocking the patient creation response.
+   */
+  private void createPatientGoogleDriveFolderAsync(int patientId, String patientLastName, String patientFirstName) {
+    // Run in background thread to avoid blocking
+    new Thread(() -> {
+      try {
+        // Check if Google Drive is connected
+        if (!Server.isGoogleDriveConnected()) {
+          log.info("Google Drive not connected - skipping folder creation for patient {}", patientId);
+          return;
+        }
+
+        log.info("Creating Google Drive folder for patient {} ({} {})", patientId, patientLastName, patientFirstName);
+        
+        // Create English name (without Patient_ prefix since createPatientFolder will add it)
+        String fullName = (patientLastName + " " + patientFirstName).trim();
+        String englishPatientName = TextUtils.vietnameseToEnglishName(fullName);
+        
+        // Create patient folder in Google Drive
+        String patientFolderId = Server.getGoogleDriveService().createPatientFolder(
+            String.valueOf(patientId), 
+            englishPatientName
+        );
+        
+        // Make the folder public and get sharing URL
+        String folderUrl = Server.getGoogleDriveService().getFolderSharingUrl(patientFolderId);
+        
+        // Update both drive_url and drive_folder_id in database
+        updatePatientDriveInfo(patientId, folderUrl, patientFolderId);
+        
+        log.info("Google Drive folder created successfully for patient {}: {}", patientId, folderUrl);
+        
+        // Notify dashboard
+        if (ServerDashboard.getInstance() != null) {
+          ServerDashboard.getInstance().addLog(
+            String.format("Created Google Drive folder for patient %d: %s", patientId, englishPatientName)
+          );
+        }
+        
+      } catch (Exception e) {
+        log.error("Failed to create Google Drive folder for patient {}: {}", patientId, e.getMessage());
+        
+        // Notify dashboard about the error
+        if (ServerDashboard.getInstance() != null) {
+          ServerDashboard.getInstance().addLog(
+            String.format("Failed to create Google Drive folder for patient %d: %s", patientId, e.getMessage())
+          );
+        }
+      }
+    }).start();
+  }
+
+  /**
+   * Updates both the drive_url and drive_folder_id columns for a patient in the database.
+   */
+  private void updatePatientDriveInfo(int patientId, String driveUrl, String driveFolderId) {
+    try {
+      PreparedStatement updateStmt = Server.connection.prepareStatement(
+        "UPDATE Customer SET drive_url = ?, drive_folder_id = ? WHERE customer_id = ?"
+      );
+      updateStmt.setString(1, driveUrl);
+      updateStmt.setString(2, driveFolderId);
+      updateStmt.setInt(3, patientId);
+      
+      int rowsUpdated = updateStmt.executeUpdate();
+      updateStmt.close();
+      
+      if (rowsUpdated > 0) {
+        log.info("Updated Google Drive info for patient {}: URL={}, FolderID={}", patientId, driveUrl, driveFolderId);
+      } else {
+        log.warn("No rows updated for patient {} drive info", patientId);
+      }
+      
+    } catch (SQLException e) {
+      log.error("Failed to update Google Drive info for patient {}: {}", patientId, e.getMessage());
+    }
+  }
+
+  /**
+   * Creates a Google Drive folder for a checkup asynchronously and updates the checkup drive_url in database.
+   * This method runs in a background thread to avoid blocking the checkup creation response.
+   */
+  private void createCheckupGoogleDriveFolderAsync(int checkupId, int customerId) {
+    // Run in background thread to avoid blocking
+    new Thread(() -> {
+      try {
+        // Check if Google Drive is connected
+        if (!Server.isGoogleDriveConnected()) {
+          log.info("Google Drive not connected - skipping checkup folder creation for checkup {}", checkupId);
+          return;
+        }
+
+        // Get patient information from database
+        PreparedStatement patientStmt = Server.connection.prepareStatement(
+          "SELECT customer_last_name, customer_first_name, drive_folder_id FROM Customer WHERE customer_id = ?"
+        );
+        patientStmt.setInt(1, customerId);
+        ResultSet patientRs = patientStmt.executeQuery();
+        
+        String patientLastName = "";
+        String patientFirstName = "";
+        String patientDriveFolderId = "";
+        
+        if (patientRs.next()) {
+          patientLastName = patientRs.getString("customer_last_name");
+          patientFirstName = patientRs.getString("customer_first_name");
+          patientDriveFolderId = patientRs.getString("drive_folder_id");
+        }
+        patientStmt.close();
+        patientRs.close();
+
+        if (patientDriveFolderId == null || patientDriveFolderId.trim().isEmpty()) {
+          log.warn("Patient {} has no Google Drive folder ID - cannot create checkup folder", customerId);
+          return;
+        }
+
+        log.info("Creating Google Drive checkup folder for checkup {} (patient: {} {})", checkupId, patientLastName, patientFirstName);
+        
+        // Create checkup folder name using Vietnamese format
+        String checkupFolderName = TextUtils.createCheckupFolderNameWithId(checkupId, patientLastName, patientFirstName);
+        
+        // Create checkup folder directly under patient folder using saved folder ID
+        String checkupFolderId = createCheckupFolderDirectly(patientDriveFolderId, checkupFolderName);
+        
+        // Make the checkup folder public and get sharing URL
+        String folderUrl = Server.getGoogleDriveService().getFolderSharingUrl(checkupFolderId);
+        
+        // Update the checkup drive_url and drive_folder_id in database
+        updateCheckupDriveInfo(checkupId, folderUrl, checkupFolderId);
+        
+        log.info("Google Drive checkup folder created successfully for checkup {}: {}", checkupId, folderUrl);
+        
+        // Notify dashboard
+        if (ServerDashboard.getInstance() != null) {
+          ServerDashboard.getInstance().addLog(
+            String.format("Created Google Drive checkup folder for checkup %d: %s", checkupId, checkupFolderName)
+          );
+        }
+        
+      } catch (Exception e) {
+        log.error("Failed to create Google Drive checkup folder for checkup {}: {}", checkupId, e.getMessage());
+        
+        // Notify dashboard about the error
+        if (ServerDashboard.getInstance() != null) {
+          ServerDashboard.getInstance().addLog(
+            String.format("Failed to create Google Drive checkup folder for checkup %d: %s", checkupId, e.getMessage())
+          );
+        }
+      }
+    }).start();
+  }
+
+  /**
+   * Creates a checkup folder directly under patient folder using Google Drive API
+   */
+  private String createCheckupFolderDirectly(String parentFolderId, String folderName) throws Exception {
+    return Server.getGoogleDriveService().createFolderUnderParent(parentFolderId, folderName);
+  }
+
+  /**
+   * Updates both the drive_url and drive_folder_id columns for a checkup in the database.
+   * Note: You need to add drive_url and drive_folder_id columns to the Checkup table.
+   */
+  private void updateCheckupDriveInfo(int checkupId, String driveUrl, String driveFolderId) {
+    try {
+      PreparedStatement updateStmt = Server.connection.prepareStatement(
+        "UPDATE Checkup SET drive_url = ?, drive_folder_id = ? WHERE checkup_id = ?"
+      );
+      updateStmt.setString(1, driveUrl);
+      updateStmt.setString(2, driveFolderId);
+      updateStmt.setInt(3, checkupId);
+      
+      int rowsUpdated = updateStmt.executeUpdate();
+      updateStmt.close();
+      
+      if (rowsUpdated > 0) {
+        log.info("Updated Google Drive info for checkup {}: URL={}, FolderID={}", checkupId, driveUrl, driveFolderId);
+      } else {
+        log.warn("No rows updated for checkup {} drive info", checkupId);
+      }
+      
+    } catch (SQLException e) {
+      log.error("Failed to update Google Drive info for checkup {}: {}", checkupId, e.getMessage());
+    }
+  }
+
+  /**
+   * Uploads a checkup image to Google Drive asynchronously using the checkup's folder ID.
+   * This method runs in a background thread to avoid blocking the image upload response.
+   */
+  private void uploadCheckupImageToGoogleDriveAsync(String checkupId, String fileName, byte[] imageData) {
+    // Run in background thread to avoid blocking
+    new Thread(() -> {
+      try {
+        // Check if Google Drive is connected
+        if (!Server.isGoogleDriveConnected()) {
+          log.info("Google Drive not connected - skipping image upload for checkup {}", checkupId);
+          return;
+        }
+
+        // Get checkup's Google Drive folder ID from database
+        PreparedStatement checkupStmt = Server.connection.prepareStatement(
+          "SELECT drive_folder_id FROM Checkup WHERE checkup_id = ?"
+        );
+        checkupStmt.setString(1, checkupId);
+        ResultSet checkupRs = checkupStmt.executeQuery();
+        
+        String checkupDriveFolderId = "";
+        if (checkupRs.next()) {
+          checkupDriveFolderId = checkupRs.getString("drive_folder_id");
+        }
+        checkupStmt.close();
+        checkupRs.close();
+
+        if (checkupDriveFolderId == null || checkupDriveFolderId.trim().isEmpty()) {
+          log.warn("Checkup {} has no Google Drive folder ID - cannot upload image", checkupId);
+          return;
+        }
+
+        log.info("Uploading image {} to Google Drive for checkup {}", fileName, checkupId);
+        
+        // Create temporary file from byte array for Google Drive upload
+        java.io.File tempFile = createTempFileFromBytes(imageData, fileName);
+        
+        try {
+          // Upload file to Google Drive using checkup's folder ID
+          String uploadedFileId = Server.getGoogleDriveService().uploadFileToFolder(
+            checkupDriveFolderId, tempFile, fileName
+          );
+          
+          log.info("Image uploaded successfully to Google Drive for checkup {}: FileID={}", checkupId, uploadedFileId);
+          
+          // Notify dashboard
+          if (ServerDashboard.getInstance() != null) {
+            ServerDashboard.getInstance().addLog(
+              String.format("Uploaded image %s to Google Drive for checkup %s", fileName, checkupId)
+            );
+          }
+          
+        } finally {
+          // Clean up temporary file
+          if (tempFile.exists()) {
+            tempFile.delete();
+            log.debug("Cleaned up temporary file: {}", tempFile.getAbsolutePath());
+          }
+        }
+        
+      } catch (Exception e) {
+        log.error("Failed to upload image to Google Drive for checkup {}: {}", checkupId, e.getMessage());
+        
+        // Notify dashboard about the error
+        if (ServerDashboard.getInstance() != null) {
+          ServerDashboard.getInstance().addLog(
+            String.format("Failed to upload image %s to Google Drive for checkup %s: %s", fileName, checkupId, e.getMessage())
+          );
+        }
+      }
+    }).start();
+  }
+
+  /**
+   * Creates a temporary file from byte array for Google Drive upload
+   */
+  private java.io.File createTempFileFromBytes(byte[] data, String originalFileName) throws IOException {
+    // Get file extension
+    String extension = "";
+    int dotIndex = originalFileName.lastIndexOf('.');
+    if (dotIndex > 0) {
+      extension = originalFileName.substring(dotIndex);
+    }
+    
+    // Create temporary file
+    java.io.File tempFile = java.io.File.createTempFile("checkup_image_", extension);
+    
+    // Write byte data to temporary file
+    try (java.io.FileOutputStream fos = new java.io.FileOutputStream(tempFile)) {
+      fos.write(data);
+    }
+    
+    return tempFile;
   }
 }

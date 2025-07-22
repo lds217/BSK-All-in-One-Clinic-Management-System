@@ -3,6 +3,13 @@
     "configurations": [
         {
             "type": "java",
+            "name": "TextUtils",
+            "request": "launch",
+            "mainClass": "BsK.common.util.text.TextUtils",
+            "projectName": "ldS_BsK"
+        },
+        {
+            "type": "java",
             "name": "GoogleDriveOAuthTest",
             "request": "launch",
             "mainClass": "BsK.server.test.GoogleDriveOAuthTest",

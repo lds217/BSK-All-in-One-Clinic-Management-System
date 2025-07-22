@@ -23,6 +23,8 @@ public class ServerDashboard extends JFrame {
     private JLabel clientsLabel;
     private JLabel memoryLabel;
     private JLabel cpuLabel;
+    private JLabel googleDriveLabel;
+    private JButton googleDriveButton;
     private JToggleButton autoScrollToggle;
     private JTextField searchField;
     private static int connectedClients = 0;
@@ -52,34 +54,56 @@ public class ServerDashboard extends JFrame {
         mainPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
         // Status Panel (North)
-        JPanel topPanel = new JPanel(new GridLayout(2, 1, 0, 5));
+        JPanel topPanel = new JPanel(new GridLayout(3, 1, 0, 5));
         
         // Server Status Panel
-        JPanel statusPanel = new JPanel(new GridLayout(1, 3, 10, 0));
+        JPanel statusPanel = new JPanel(new GridLayout(1, 4, 10, 0));
         statusPanel.setBorder(BorderFactory.createTitledBorder("Server Status"));
 
         statusLabel = new JLabel("Status: Starting...", SwingConstants.CENTER);
         portLabel = new JLabel("Port: --", SwingConstants.CENTER);
         clientsLabel = new JLabel("Connected Clients: 0", SwingConstants.CENTER);
+        googleDriveLabel = new JLabel("Google Drive: Checking...", SwingConstants.CENTER);
 
         statusPanel.add(statusLabel);
         statusPanel.add(portLabel);
         statusPanel.add(clientsLabel);
+        statusPanel.add(googleDriveLabel);
 
         // System Info Panel
-        JPanel systemPanel = new JPanel(new GridLayout(1, 3, 10, 0));
+        JPanel systemPanel = new JPanel(new GridLayout(1, 4, 10, 0));
         systemPanel.setBorder(BorderFactory.createTitledBorder("System Information"));
 
         memoryLabel = new JLabel("Memory Usage: --", SwingConstants.CENTER);
         cpuLabel = new JLabel("CPU Usage: --", SwingConstants.CENTER);
         JLabel osLabel = new JLabel("OS: " + System.getProperty("os.name"), SwingConstants.CENTER);
+        
+        // Google Drive settings button
+        googleDriveButton = new JButton("Retry Drive");
+        googleDriveButton.addActionListener(e -> retryGoogleDriveConnection());
+        googleDriveButton.setToolTipText("Retry Google Drive connection");
 
         systemPanel.add(memoryLabel);
         systemPanel.add(cpuLabel);
         systemPanel.add(osLabel);
+        systemPanel.add(googleDriveButton);
+
+        // Google Drive Settings Panel
+        JPanel driveSettingsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        driveSettingsPanel.setBorder(BorderFactory.createTitledBorder("Google Drive Settings"));
+        
+        JLabel folderNameLabel = new JLabel("Root Folder Name:");
+        JTextField driveRootFolderField = new JTextField(getCurrentDriveRootFolder(), 20);
+        JButton applyDriveSettingsButton = new JButton("Apply");
+        applyDriveSettingsButton.addActionListener(e -> applyDriveSettings(driveRootFolderField.getText().trim()));
+        
+        driveSettingsPanel.add(folderNameLabel);
+        driveSettingsPanel.add(driveRootFolderField);
+        driveSettingsPanel.add(applyDriveSettingsButton);
 
         topPanel.add(statusPanel);
         topPanel.add(systemPanel);
+        topPanel.add(driveSettingsPanel);
 
         // Create split pane for logs and network info
         JSplitPane splitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
@@ -304,8 +328,97 @@ public class ServerDashboard extends JFrame {
         });
     }
 
-    @Override
-    public void dispose() {
+    public void updateGoogleDriveStatus(boolean connected, String statusMessage) {
+        SwingUtilities.invokeLater(() -> {
+            if (connected) {
+                googleDriveLabel.setText("Google Drive: ✅ " + statusMessage);
+                googleDriveLabel.setForeground(Color.GREEN);
+                googleDriveButton.setText("Test Drive");
+                googleDriveButton.setToolTipText("Test Google Drive connection");
+            } else {
+                googleDriveLabel.setText("Google Drive: ❌ " + statusMessage);
+                googleDriveLabel.setForeground(Color.RED);
+                googleDriveButton.setText("Retry Drive");
+                googleDriveButton.setToolTipText("Retry Google Drive connection");
+            }
+        });
+    }
+
+    private void retryGoogleDriveConnection() {
+        SwingUtilities.invokeLater(() -> {
+            googleDriveLabel.setText("Google Drive: 🔄 Connecting...");
+            googleDriveLabel.setForeground(Color.ORANGE);
+            googleDriveButton.setEnabled(false);
+            addLog("Retrying Google Drive connection...");
+        });
+
+        // Run connection attempt in background thread
+        new Thread(() -> {
+            try {
+                BsK.server.Server.retryGoogleDriveConnection();
+                SwingUtilities.invokeLater(() -> {
+                    googleDriveButton.setEnabled(true);
+                    if (BsK.server.Server.isGoogleDriveConnected()) {
+                        addLog("Google Drive connection successful ✅");
+                    } else {
+                        addLog("Google Drive connection failed ❌");
+                    }
+                });
+            } catch (Exception e) {
+                SwingUtilities.invokeLater(() -> {
+                    googleDriveButton.setEnabled(true);
+                    addLog("Google Drive connection error: " + e.getMessage());
+                });
+                         }
+         }).start();
+     }
+
+     private String getCurrentDriveRootFolder() {
+         // Get current root folder name from Server or return default
+         try {
+             if (BsK.server.Server.getGoogleDriveService() != null) {
+                 return BsK.server.Server.getGoogleDriveRootFolderName();
+             }
+         } catch (Exception e) {
+             log.warn("Could not get current drive root folder name", e);
+         }
+         return "BSK_Clinic_Patient_Files"; // Default value
+     }
+
+     private void applyDriveSettings(String newRootFolderName) {
+         if (newRootFolderName == null || newRootFolderName.trim().isEmpty()) {
+             addLog("❌ Root folder name cannot be empty");
+             return;
+         }
+
+         // Sanitize folder name
+         String sanitizedName = newRootFolderName.replaceAll("[^a-zA-Z0-9._-]", "_");
+         if (!sanitizedName.equals(newRootFolderName)) {
+             addLog("⚠️  Folder name sanitized to: " + sanitizedName);
+         }
+
+         addLog("🔄 Updating Google Drive root folder to: " + sanitizedName);
+         
+         new Thread(() -> {
+             try {
+                 // Update the root folder name in server
+                 BsK.server.Server.updateGoogleDriveRootFolder(sanitizedName);
+                 
+                 SwingUtilities.invokeLater(() -> {
+                     addLog("✅ Google Drive root folder updated successfully");
+                     addLog("💡 New patient folders will be created under: " + sanitizedName);
+                 });
+             } catch (Exception e) {
+                 SwingUtilities.invokeLater(() -> {
+                     addLog("❌ Failed to update Google Drive root folder: " + e.getMessage());
+                 });
+                 log.error("Error updating Google Drive root folder", e);
+             }
+         }).start();
+     }
+
+     @Override
+     public void dispose() {
         if (statsTimer != null) {
             statsTimer.stop();
         }

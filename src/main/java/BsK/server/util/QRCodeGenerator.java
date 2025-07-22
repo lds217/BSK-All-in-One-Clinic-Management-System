@@ -97,12 +97,12 @@ public class QRCodeGenerator {
             
             File qrFile = generateQRCode(testUrl, fileName);
             log.info("✅ Test QR code generated successfully: {}", qrFile.getAbsolutePath());
+            log.info("📱 QR code contains URL: {}", testUrl);
+            log.info("💾 QR code saved as: {}", fileName);
+            log.info("ℹ️  You can scan this QR code to test the functionality");
             
-            // Clean up test file
-            if (qrFile.exists()) {
-                qrFile.delete();
-                log.info("🧹 Test QR code file cleaned up");
-            }
+            // Keep the test file so user can see it
+            log.info("🔍 Test QR code file kept for inspection");
             
         } catch (Exception e) {
             log.error("❌ QR code generation test failed", e);

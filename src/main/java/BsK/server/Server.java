@@ -1,6 +1,7 @@
 package BsK.server;
 
 import BsK.server.network.handler.ServerHandler;
+import BsK.server.service.GoogleDriveServiceOAuth;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelInitializer;
@@ -36,6 +37,9 @@ import lombok.extern.slf4j.Slf4j;
 public class Server {
   private static int PORT;
   public static Connection connection;
+  public static GoogleDriveServiceOAuth googleDriveService;
+  private static boolean googleDriveEnabled = true; // Can be configured
+  private static String googleDriveRootFolderName = "BSK_Clinic_Patient_Files"; // Default
 
     static {
         try {
@@ -81,11 +85,149 @@ public class Server {
                 log.info("Using default port: {}", PORT);
             }
 
+            // Get Google Drive configuration
+            String driveEnabledStr = props.getProperty("google.drive.enabled");
+            if (driveEnabledStr != null) {
+                googleDriveEnabled = Boolean.parseBoolean(driveEnabledStr);
+            }
+            
+            String driveRootFolderStr = props.getProperty("google.drive.root.folder");
+            if (driveRootFolderStr != null && !driveRootFolderStr.trim().isEmpty()) {
+                googleDriveRootFolderName = driveRootFolderStr.trim();
+            }
+            
+            log.info("Google Drive integration enabled: {}", googleDriveEnabled);
+            log.info("Google Drive root folder: {}", googleDriveRootFolderName);
+
             // Directly use the provided database path
             String dbPath = "src/main/resources/database/BSK.db";
             connection = DriverManager.getConnection("jdbc:sqlite:" + dbPath);
+            
+            // Initialize Google Drive service if enabled
+            initializeGoogleDriveService();
+            
         } catch (Exception e) {
             throw new RuntimeException("Failed to initialize server", e);
+        }
+    }
+
+    private static void initializeGoogleDriveService() {
+        if (!googleDriveEnabled) {
+            log.info("Google Drive integration is disabled");
+            googleDriveService = null;
+            return;
+        }
+
+        try {
+            log.info("🔄 Initializing Google Drive OAuth service...");
+            googleDriveService = new GoogleDriveServiceOAuth(googleDriveRootFolderName);
+            log.info("✅ Google Drive OAuth service initialized successfully");
+            
+            // Update dashboard if it exists
+            if (ServerDashboard.getInstance() != null) {
+                ServerDashboard.getInstance().updateGoogleDriveStatus(true, "Connected");
+            }
+            
+        } catch (Exception e) {
+            log.error("❌ Failed to initialize Google Drive OAuth service: {}", e.getMessage());
+            log.info("💡 Server will continue without Google Drive integration");
+            log.info("🔧 To fix this, ensure google-oauth-credentials.json is properly configured");
+            googleDriveService = null;
+            
+            // Update dashboard if it exists
+            if (ServerDashboard.getInstance() != null) {
+                ServerDashboard.getInstance().updateGoogleDriveStatus(false, "Failed: " + e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * Manually retry Google Drive connection
+     */
+    public static void retryGoogleDriveConnection() {
+        log.info("🔄 Retrying Google Drive connection...");
+        initializeGoogleDriveService();
+    }
+
+    /**
+     * Check if Google Drive is connected
+     */
+    public static boolean isGoogleDriveConnected() {
+        return googleDriveService != null;
+    }
+
+    /**
+     * Get Google Drive service instance
+     */
+    public static GoogleDriveServiceOAuth getGoogleDriveService() {
+        return googleDriveService;
+    }
+
+    /**
+     * Get the current Google Drive root folder name
+     */
+    public static String getGoogleDriveRootFolderName() {
+        return googleDriveRootFolderName;
+    }
+
+    /**
+     * Update Google Drive root folder name and reinitialize service
+     */
+    public static void updateGoogleDriveRootFolder(String newRootFolderName) throws Exception {
+        if (newRootFolderName == null || newRootFolderName.trim().isEmpty()) {
+            throw new IllegalArgumentException("Root folder name cannot be empty");
+        }
+        
+        googleDriveRootFolderName = newRootFolderName.trim();
+        log.info("🔄 Updating Google Drive root folder to: {}", googleDriveRootFolderName);
+        
+        // Save to configuration file
+        saveGoogleDriveRootFolderToConfig(googleDriveRootFolderName);
+        
+        // Reinitialize Google Drive service with new root folder
+        if (googleDriveEnabled) {
+            initializeGoogleDriveService();
+        }
+    }
+
+    /**
+     * Save Google Drive root folder name to config file
+     */
+    private static void saveGoogleDriveRootFolderToConfig(String rootFolderName) {
+        try {
+            Properties props = new Properties();
+            
+            // Load existing properties
+            File externalConfig = new File("config/config.properties");
+            if (externalConfig.exists()) {
+                try (var input = Files.newInputStream(externalConfig.toPath())) {
+                    props.load(input);
+                }
+            } else {
+                try (InputStream input = Server.class.getClassLoader().getResourceAsStream("config.properties")) {
+                    if (input != null) {
+                        props.load(input);
+                    }
+                }
+            }
+            
+            // Update the root folder property
+            props.setProperty("google.drive.root.folder", rootFolderName);
+            
+            // Create config directory if it doesn't exist
+            File configDir = new File("config");
+            if (!configDir.exists()) {
+                configDir.mkdirs();
+            }
+            
+            // Save to external config file
+            try (var output = Files.newOutputStream(externalConfig.toPath())) {
+                props.store(output, "BSK Server Configuration - Updated by Dashboard");
+                log.info("💾 Saved Google Drive root folder setting to config file");
+            }
+            
+        } catch (Exception e) {
+            log.warn("⚠️  Could not save Google Drive root folder to config file: {}", e.getMessage());
         }
     }
 
@@ -112,6 +254,10 @@ public class Server {
         dashboard.setVisible(true);
         dashboard.updateStatus("Starting...", Color.ORANGE);
         dashboard.updatePort(PORT);
+        
+        // Update Google Drive status on dashboard
+        dashboard.updateGoogleDriveStatus(isGoogleDriveConnected(), 
+            isGoogleDriveConnected() ? "Connected" : "Disconnected");
 
         EventLoopGroup parentGroup =
             Epoll.isAvailable() ? new EpollEventLoopGroup() : new NioEventLoopGroup();
@@ -150,6 +296,11 @@ public class Server {
           // Update dashboard status to running
           dashboard.updateStatus("Running", Color.GREEN);
           dashboard.addLog("Server started successfully on port " + PORT);
+          if (isGoogleDriveConnected()) {
+              dashboard.addLog("Google Drive integration: Connected ✅");
+          } else {
+              dashboard.addLog("Google Drive integration: Disconnected ❌");
+          }
           
           f.channel().closeFuture().sync();
         } catch (Exception e) {
