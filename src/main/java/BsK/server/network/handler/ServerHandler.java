@@ -50,9 +50,6 @@ import static BsK.server.Server.statement;
 @Slf4j
 public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFrame> {
 
-  private static final String IMAGE_DB_PATH = "img_db";
-  private static final String CHECKUP_MEDIA_BASE_DIR = "src/main/resources/image/checkup_media";
-
   @Override
   protected void channelRead0(ChannelHandlerContext ctx, TextWebSocketFrame frame) {
     log.debug("Received message: {}", frame.text());
@@ -1129,11 +1126,13 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         String templatePrintType = addTemplateReq.getTemplatePrintType();
         String templateGender = addTemplateReq.getTemplateGender();
         String templateContent = addTemplateReq.getTemplateContent();
+        boolean templateVisible = addTemplateReq.isVisible();
+        int templateStt = addTemplateReq.getStt();
         try {
           PreparedStatement templateStmt = Server.connection.prepareStatement(
             """
-            INSERT INTO CheckupTemplate (template_gender, template_name, template_title, photo_num, print_type, content, conclusion, suggestion, diagnosis)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO CheckupTemplate (template_gender, template_name, template_title, photo_num, print_type, content, conclusion, suggestion, diagnosis, visible, stt)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """);
           templateStmt.setString(1, templateGender);
           templateStmt.setString(2, templateName);
@@ -1144,6 +1143,8 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
           templateStmt.setString(7, templateConclusion);
           templateStmt.setString(8, templateSuggestion);
           templateStmt.setString(9, templateDiagnosis);
+          templateStmt.setBoolean(10, templateVisible);
+          templateStmt.setInt(11, templateStt);
           templateStmt.executeUpdate();
           log.info("Template saved successfully");
           UserUtil.sendPacket(currentUser.getSessionId(), new AddTemplateRes(true, "Template saved successfully"));
@@ -1169,7 +1170,9 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                     rs.getString("content"),
                     rs.getString("conclusion"),
                     rs.getString("suggestion"),
-                    rs.getString("diagnosis")
+                    rs.getString("diagnosis"),
+                    rs.getBoolean("visible"),
+                    rs.getInt("stt")
                 ));
             }
             UserUtil.sendPacket(currentUser.getSessionId(), new GetAllTemplatesRes(templates));
@@ -1184,7 +1187,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         try {
             PreparedStatement stmt = Server.connection.prepareStatement(
                 """
-                UPDATE CheckupTemplate SET template_gender = ?, template_name = ?, template_title = ?, photo_num = ?, print_type = ?, content = ?, conclusion = ?, suggestion = ?, diagnosis = ?
+                UPDATE CheckupTemplate SET template_gender = ?, template_name = ?, template_title = ?, photo_num = ?, print_type = ?, content = ?, conclusion = ?, suggestion = ?, diagnosis = ?, visible = ?, stt = ?
                 WHERE template_id = ?
                 """
             );
@@ -1197,7 +1200,9 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
             stmt.setString(7, template.getConclusion());
             stmt.setString(8, template.getSuggestion());
             stmt.setString(9, template.getDiagnosis());
-            stmt.setInt(10, template.getTemplateId());
+            stmt.setBoolean(10, template.isVisible());
+            stmt.setInt(11, template.getStt());
+            stmt.setInt(12, template.getTemplateId());
             stmt.executeUpdate();
             log.info("Template updated successfully");
             UserUtil.sendPacket(currentUser.getSessionId(), new EditTemplateRes(true, "Template updated successfully"));
@@ -1234,7 +1239,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
 
         try {
             // 1. Define and create storage directory
-            Path storageDir = Paths.get(IMAGE_DB_PATH, checkupId.trim());
+            Path storageDir = Paths.get(Server.imageDbPath, checkupId.trim());
             Files.createDirectories(storageDir); // Create dirs if they don't exist
 
             // 2. Save the file
@@ -1275,7 +1280,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
 
         try {
             // 1. Define and create storage directory (use same img_db structure)
-            Path storageDir = Paths.get(IMAGE_DB_PATH, checkupId.trim());
+            Path storageDir = Paths.get(Server.imageDbPath, checkupId.trim());
             Files.createDirectories(storageDir); // Create dirs if they don't exist
 
             // 2. Save the PDF file (with override behavior - same name = override)
@@ -1305,7 +1310,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         List<String> imageNames = new ArrayList<>();
         List<byte[]> imageDatas = new ArrayList<>();
 
-        Path checkupDir = Paths.get(IMAGE_DB_PATH, checkupId);
+        Path checkupDir = Paths.get(Server.imageDbPath, checkupId);
         if (Files.exists(checkupDir) && Files.isDirectory(checkupDir)) {
             try {
                 List<Path> imagePaths = Files.list(checkupDir)
@@ -1582,8 +1587,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
 
         // Get checkup's Google Drive folder ID from database
         PreparedStatement checkupStmt = Server.connection.prepareStatement(
-          "SELECT drive_folder_id FROM Checkup WHERE checkup_id = ?"
-        );
+          "SELECT drive_folder_id FROM Checkup WHERE checkup_id = ?");
         checkupStmt.setString(1, checkupId);
         ResultSet checkupRs = checkupStmt.executeQuery();
         
@@ -1682,8 +1686,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
 
         // Get checkup's Google Drive folder ID from database
         PreparedStatement checkupStmt = Server.connection.prepareStatement(
-          "SELECT drive_folder_id FROM Checkup WHERE checkup_id = ?"
-        );
+          "SELECT drive_folder_id FROM Checkup WHERE checkup_id = ?");
         checkupStmt.setString(1, checkupId);
         ResultSet checkupRs = checkupStmt.executeQuery();
         

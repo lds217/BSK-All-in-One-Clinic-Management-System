@@ -40,6 +40,8 @@ public class Server {
   public static GoogleDriveServiceOAuth googleDriveService;
   private static boolean googleDriveEnabled = true; // Can be configured
   private static String googleDriveRootFolderName = "BSK_Clinic_Patient_Files"; // Default
+  public static String imageDbPath = "img_db"; // Default
+  public static String checkupMediaBaseDir = "src/main/resources/image/checkup_media"; // Default
 
     static {
         try {
@@ -98,6 +100,20 @@ public class Server {
             
             log.info("Google Drive integration enabled: {}", googleDriveEnabled);
             log.info("Google Drive root folder: {}", googleDriveRootFolderName);
+
+            // Get Storage paths configuration
+            String imageDbPathStr = props.getProperty("storage.image_db_path");
+            if (imageDbPathStr != null && !imageDbPathStr.trim().isEmpty()) {
+                imageDbPath = imageDbPathStr.trim();
+            }
+
+            String checkupMediaBaseDirStr = props.getProperty("storage.checkup_media_base_dir");
+            if (checkupMediaBaseDirStr != null && !checkupMediaBaseDirStr.trim().isEmpty()) {
+                checkupMediaBaseDir = checkupMediaBaseDirStr.trim();
+            }
+
+            log.info("Image DB path: {}", imageDbPath);
+            log.info("Checkup media base dir: {}", checkupMediaBaseDir);
 
             // Directly use the provided database path
             String dbPath = "src/main/resources/database/BSK.db";

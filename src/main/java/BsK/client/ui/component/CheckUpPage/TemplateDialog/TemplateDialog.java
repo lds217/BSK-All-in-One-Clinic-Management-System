@@ -21,6 +21,8 @@ import javax.swing.text.StyledEditorKit;
 import javax.swing.text.MutableAttributeSet;
 import javax.swing.text.SimpleAttributeSet;
 import javax.swing.text.StyleConstants;
+import javax.swing.undo.UndoManager;
+import javax.swing.undo.UndoableEditSupport;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
@@ -31,10 +33,12 @@ import BsK.client.network.handler.ClientHandler;
 import BsK.client.network.handler.ResponseListener;
 import java.io.StringReader;
 import java.util.List;
+import java.util.ArrayList;
 import javax.swing.SpinnerModel;
 import javax.swing.SpinnerNumberModel;
 import javax.swing.JColorChooser;
 import java.awt.event.KeyEvent;
+import javax.swing.text.Document;
 
 @Slf4j
 public class TemplateDialog extends JDialog {
@@ -45,6 +49,19 @@ public class TemplateDialog extends JDialog {
     private final ResponseListener<DeleteTemplateRes> deleteTemplateResListener;
     private List<Template> templates;
     
+    // RTF Enhancement components
+    private UndoManager undoManager;
+    private static List<Color> recentColors = new ArrayList<>();
+    private static final Color[] COMMON_COLORS = {
+        Color.BLACK, Color.RED, Color.BLUE, Color.GREEN,
+        Color.ORANGE, Color.MAGENTA, new Color(128, 0, 128), // Purple
+        new Color(165, 42, 42), // Brown
+        new Color(0, 128, 128), // Teal
+        new Color(128, 128, 0), // Olive
+        new Color(255, 20, 147), // Deep Pink
+        new Color(30, 144, 255)  // Dodger Blue
+    };
+    
     // Left panel components
     private JTextField idField;
     private JComboBox<String> genderComboBox;
@@ -53,6 +70,8 @@ public class TemplateDialog extends JDialog {
     private JTextArea diagnosisArea;
     private JComboBox<String> imageCountComboBox;
     private JComboBox<String> printTypeComboBox;
+    private JTextField sttField;
+    private JCheckBox visibleCheckBox;
     private JTable templateTable;
     private DefaultTableModel tableModel;
     
@@ -142,8 +161,14 @@ public class TemplateDialog extends JDialog {
         imageCountComboBox = new JComboBox<>(new String[]{"1", "2", "3", "4", "5", "6"});
         printTypeComboBox = new JComboBox<>(new String[]{"Ngang", "Dọc"});
         
+        sttField = new JTextField(10);
+        sttField.setToolTipText("Số thứ tự để sắp xếp mẫu (0 = mặc định)");
+        
+        visibleCheckBox = new JCheckBox("Ẩn");
+        visibleCheckBox.setToolTipText("Đánh dấu để ẩn mẫu này khỏi danh sách hiển thị");
+        
         // Table for template list
-        String[] columnNames = {"ID", "Tên mẫu"};
+        String[] columnNames = {"ID", "STT", "Tên mẫu"};
         tableModel = new DefaultTableModel(columnNames, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
@@ -153,11 +178,31 @@ public class TemplateDialog extends JDialog {
         templateTable = new JTable(tableModel);
         templateTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         
+        // Set bigger font for better visibility
+        templateTable.setFont(new Font("Arial", Font.PLAIN, 14));
+        templateTable.getTableHeader().setFont(new Font("Arial", Font.BOLD, 14));
+        templateTable.setRowHeight(25); // Increase row height for better readability
+        
+        // Initialize recent colors if empty
+        if (recentColors.isEmpty()) {
+            recentColors.add(Color.BLACK);
+            recentColors.add(Color.RED);
+            recentColors.add(Color.BLUE);
+        }
+        
         // Right panel components
         contentRTFField = new JTextPane();
         contentRTFField.setContentType("text/rtf");
         contentRTFField.setEditorKit(new RTFEditorKit());
         contentRTFField.setFont(new Font("Times New Roman", Font.PLAIN, 16)); // Set default font
+        
+        // Set up undo manager
+        undoManager = new UndoManager();
+        Document doc = contentRTFField.getDocument();
+        doc.addUndoableEditListener(undoManager);
+        
+        // Add keyboard shortcuts for formatting and undo/redo
+        setupRTFKeyboardShortcuts();
         
         conclusionField = new JTextArea(5, 20);
         conclusionField.setLineWrap(true);
@@ -279,6 +324,15 @@ public class TemplateDialog extends JDialog {
         gbc.gridx = 3;
         infoPanel.add(printTypeComboBox, gbc);
         
+        // Row 7: STT and Visible checkbox
+        gbc.gridx = 0; gbc.gridy = 7; gbc.gridwidth = 1;
+        infoPanel.add(new JLabel("STT:"), gbc);
+        gbc.gridx = 1;
+        infoPanel.add(sttField, gbc);
+        
+        gbc.gridx = 2; gbc.gridwidth = 2;
+        infoPanel.add(visibleCheckBox, gbc);
+        
         leftPanel.add(infoPanel, BorderLayout.CENTER);
         
         // Template table at bottom
@@ -314,6 +368,13 @@ public class TemplateDialog extends JDialog {
             new Color(63, 81, 181)
         ));
         
+        // Add recommendation label
+        JLabel recommendLabel = new JLabel("Chú thích: Nên dùng font từ 20 đến 24, font chữ Times New Roman.");
+        recommendLabel.setFont(new Font("Arial", Font.ITALIC, 13));
+        recommendLabel.setForeground(new Color(200, 60, 60));
+        recommendLabel.setBorder(BorderFactory.createEmptyBorder(2, 4, 2, 4));
+        contentPanel.add(recommendLabel, BorderLayout.SOUTH);
+
         // Create formatting toolbar for RTF content
         JToolBar contentToolbar = createContentToolbar();
         contentPanel.add(contentToolbar, BorderLayout.NORTH);
@@ -421,6 +482,29 @@ public class TemplateDialog extends JDialog {
         underlineButton.setToolTipText("Gạch chân (Ctrl+U)");
         underlineButton.setPreferredSize(new Dimension(30, 25));
 
+        // Undo and Redo buttons
+        JButton undoButton = new JButton("↶");
+        undoButton.setFont(new Font("Arial", Font.BOLD, 14));
+        undoButton.setFocusPainted(false);
+        undoButton.setToolTipText("Hoàn tác (Ctrl+Z)");
+        undoButton.setPreferredSize(new Dimension(30, 25));
+        undoButton.addActionListener(e -> {
+            if (undoManager.canUndo()) {
+                undoManager.undo();
+            }
+        });
+
+        JButton redoButton = new JButton("↷");
+        redoButton.setFont(new Font("Arial", Font.BOLD, 14));
+        redoButton.setFocusPainted(false);
+        redoButton.setToolTipText("Làm lại (Ctrl+Y)");
+        redoButton.setPreferredSize(new Dimension(30, 25));
+        redoButton.addActionListener(e -> {
+            if (undoManager.canRedo()) {
+                undoManager.redo();
+            }
+        });
+
         // Color chooser button
         JButton colorButton = new JButton("Màu");
         colorButton.setFont(new Font("Arial", Font.PLAIN, 11));
@@ -428,16 +512,21 @@ public class TemplateDialog extends JDialog {
         colorButton.setToolTipText("Chọn màu chữ");
         colorButton.setPreferredSize(new Dimension(50, 25));
         colorButton.addActionListener(e -> {
-            Color newColor = JColorChooser.showDialog(TemplateDialog.this, "Chọn màu chữ", contentRTFField.getForeground());
+            Color newColor = showCustomColorChooser();
             if (newColor != null) {
                 MutableAttributeSet attr = new SimpleAttributeSet();
                 StyleConstants.setForeground(attr, newColor);
                 contentRTFField.setCharacterAttributes(attr, false);
+                addToRecentColors(newColor);
             }
         });
 
         // Add components to toolbar with spacing
         contentToolbar.add(Box.createHorizontalStrut(3));
+        contentToolbar.add(undoButton);
+        contentToolbar.addSeparator(new Dimension(3, 0));
+        contentToolbar.add(redoButton);
+        contentToolbar.addSeparator(new Dimension(8, 0));
         contentToolbar.add(fontFamilyComboBox);
         contentToolbar.addSeparator(new Dimension(5, 0));
         contentToolbar.add(sizeSpinner);
@@ -466,6 +555,137 @@ public class TemplateDialog extends JDialog {
         return contentToolbar;
     }
     
+    private void setupRTFKeyboardShortcuts() {
+        InputMap inputMap = contentRTFField.getInputMap(JComponent.WHEN_FOCUSED);
+        ActionMap actionMap = contentRTFField.getActionMap();
+        
+        // Undo/Redo shortcuts
+        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_Z, KeyEvent.CTRL_DOWN_MASK), "undo");
+        actionMap.put("undo", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (undoManager.canUndo()) {
+                    undoManager.undo();
+                }
+            }
+        });
+        
+        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_Y, KeyEvent.CTRL_DOWN_MASK), "redo");
+        actionMap.put("redo", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (undoManager.canRedo()) {
+                    undoManager.redo();
+                }
+            }
+        });
+        
+        // Format shortcuts - Bold, Italic, Underline
+        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_B, KeyEvent.CTRL_DOWN_MASK), "bold");
+        actionMap.put("bold", new StyledEditorKit.BoldAction());
+        
+        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_I, KeyEvent.CTRL_DOWN_MASK), "italic");
+        actionMap.put("italic", new StyledEditorKit.ItalicAction());
+        
+        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_U, KeyEvent.CTRL_DOWN_MASK), "underline");
+        actionMap.put("underline", new StyledEditorKit.UnderlineAction());
+    }
+    
+    private Color showCustomColorChooser() {
+        JDialog colorDialog = new JDialog(this, "Chọn màu chữ", true);
+        colorDialog.setSize(400, 300);
+        colorDialog.setLocationRelativeTo(this);
+        colorDialog.setResizable(false);
+        
+        JPanel mainPanel = new JPanel(new BorderLayout(10, 10));
+        mainPanel.setBorder(BorderFactory.createEmptyBorder(15, 15, 15, 15));
+        
+        // Recent colors panel
+        JPanel recentPanel = new JPanel(new GridLayout(1, Math.min(recentColors.size(), 6), 5, 5));
+        recentPanel.setBorder(BorderFactory.createTitledBorder("Màu gần đây"));
+        
+        final Color[] selectedColor = new Color[1];
+        
+        for (Color color : recentColors) {
+            JButton colorBtn = createColorButton(color, selectedColor, colorDialog);
+            recentPanel.add(colorBtn);
+        }
+        
+        // Common colors panel
+        JPanel commonPanel = new JPanel(new GridLayout(3, 4, 5, 5));
+        commonPanel.setBorder(BorderFactory.createTitledBorder("Màu thông dụng"));
+        
+        for (Color color : COMMON_COLORS) {
+            JButton colorBtn = createColorButton(color, selectedColor, colorDialog);
+            commonPanel.add(colorBtn);
+        }
+        
+        // More colors button
+        JPanel buttonPanel = new JPanel(new FlowLayout());
+        JButton moreColorsBtn = new JButton("Màu khác...");
+        moreColorsBtn.addActionListener(e -> {
+            Color customColor = JColorChooser.showDialog(colorDialog, "Chọn màu tùy chỉnh", Color.BLACK);
+            if (customColor != null) {
+                selectedColor[0] = customColor;
+                colorDialog.dispose();
+            }
+        });
+        buttonPanel.add(moreColorsBtn);
+        
+        JButton cancelBtn = new JButton("Hủy");
+        cancelBtn.addActionListener(e -> {
+            selectedColor[0] = null;
+            colorDialog.dispose();
+        });
+        buttonPanel.add(cancelBtn);
+        
+        mainPanel.add(recentPanel, BorderLayout.NORTH);
+        mainPanel.add(commonPanel, BorderLayout.CENTER);
+        mainPanel.add(buttonPanel, BorderLayout.SOUTH);
+        
+        colorDialog.add(mainPanel);
+        colorDialog.setVisible(true);
+        
+        return selectedColor[0];
+    }
+    
+    private JButton createColorButton(Color color, Color[] selectedColor, JDialog parentDialog) {
+        JButton colorBtn = new JButton();
+        colorBtn.setBackground(color);
+        colorBtn.setPreferredSize(new Dimension(40, 30));
+        colorBtn.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(Color.GRAY, 1),
+            BorderFactory.createEmptyBorder(2, 2, 2, 2)
+        ));
+        colorBtn.setToolTipText(getColorName(color));
+        colorBtn.addActionListener(e -> {
+            selectedColor[0] = color;
+            parentDialog.dispose();
+        });
+        return colorBtn;
+    }
+    
+    private String getColorName(Color color) {
+        if (color.equals(Color.BLACK)) return "Đen";
+        if (color.equals(Color.RED)) return "Đỏ";
+        if (color.equals(Color.BLUE)) return "Xanh dương";
+        if (color.equals(Color.GREEN)) return "Xanh lá";
+        if (color.equals(Color.ORANGE)) return "Cam";
+        if (color.equals(Color.MAGENTA)) return "Tím hồng";
+        return String.format("RGB(%d,%d,%d)", color.getRed(), color.getGreen(), color.getBlue());
+    }
+    
+    private void addToRecentColors(Color newColor) {
+        // Remove if already exists
+        recentColors.remove(newColor);
+        // Add to front
+        recentColors.add(0, newColor);
+        // Keep only last 6 colors
+        if (recentColors.size() > 6) {
+            recentColors.remove(recentColors.size() - 1);
+        }
+    }
+    
     private void setupListeners() {
         // TODO: Add listeners for all buttons and table selection
         
@@ -488,6 +708,7 @@ public class TemplateDialog extends JDialog {
             }
             String templatePrintType = printTypeComboBox.getSelectedItem().toString();
             String templateGender = genderComboBox.getSelectedItem().toString();
+            int templateStt = Integer.parseInt(sttField.getText().trim().isEmpty() ? "0" : sttField.getText().trim());
             log.info("Template name: {}", templateName);
             log.info("Template title: {}", templateTitle);
             log.info("Template diagnosis: {}", templateDiagnosis);
@@ -497,9 +718,10 @@ public class TemplateDialog extends JDialog {
             log.info("Template print type: {}", templatePrintType);
             log.info("Template gender: {}", templateGender);
             log.info("Template content: {}", templateContent);
+            log.info("Template STT: {}", templateStt);
 
             NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new AddTemplateReq(templateName, templateTitle, templateDiagnosis, templateConclusion,
-                        templateSuggestion, templateImageCount, templatePrintType, templateGender, templateContent));
+                        templateSuggestion, templateImageCount, templatePrintType, templateGender, templateContent, !visibleCheckBox.isSelected(), templateStt));
             
         });
         
@@ -543,7 +765,26 @@ public class TemplateDialog extends JDialog {
         SwingUtilities.invokeLater(() -> {
             tableModel.setRowCount(0);
             for (Template template : templates) {
-                tableModel.addRow(new Object[]{template.getTemplateId(), template.getTemplateName()});
+                tableModel.addRow(new Object[]{template.getTemplateId(), template.getStt(), template.getTemplateName()});
+            }
+            
+            // Set column widths after data is loaded - ID and STT much smaller
+            if (templateTable.getColumnCount() >= 3) {
+                templateTable.getColumnModel().getColumn(0).setPreferredWidth(50);  // ID column - much smaller
+                templateTable.getColumnModel().getColumn(0).setMaxWidth(60);
+                templateTable.getColumnModel().getColumn(0).setMinWidth(40);
+                
+                templateTable.getColumnModel().getColumn(1).setPreferredWidth(50);  // STT column - much smaller  
+                templateTable.getColumnModel().getColumn(1).setMaxWidth(60);
+                templateTable.getColumnModel().getColumn(1).setMinWidth(40);
+                
+                templateTable.getColumnModel().getColumn(2).setPreferredWidth(200); // Template name - larger
+                
+                // Center align ID and STT columns for better appearance
+                javax.swing.table.DefaultTableCellRenderer centerRenderer = new javax.swing.table.DefaultTableCellRenderer();
+                centerRenderer.setHorizontalAlignment(javax.swing.SwingConstants.CENTER);
+                templateTable.getColumnModel().getColumn(0).setCellRenderer(centerRenderer); // ID
+                templateTable.getColumnModel().getColumn(1).setCellRenderer(centerRenderer); // STT
             }
         });
     }
@@ -556,6 +797,8 @@ public class TemplateDialog extends JDialog {
         diagnosisArea.setText(template.getDiagnosis());
         imageCountComboBox.setSelectedItem(template.getPhotoNum());
         printTypeComboBox.setSelectedItem(template.getPrintType());
+        sttField.setText(String.valueOf(template.getStt()));
+        visibleCheckBox.setSelected(!template.isVisible()); // Checkbox is "Ẩn" so inverted logic
         conclusionField.setText(template.getConclusion());
         suggestionField.setText(template.getSuggestion());
         
@@ -564,9 +807,15 @@ public class TemplateDialog extends JDialog {
             RTFEditorKit rtfEditorKit = (RTFEditorKit) contentRTFField.getEditorKit();
             StringReader reader = new StringReader(template.getContent());
             rtfEditorKit.read(reader, contentRTFField.getDocument(), 0);
+            
+            // Reset undo manager after loading new content
+            undoManager.discardAllEdits();
         } catch (Exception ex) {
             log.error("Failed to load RTF content for template ID {}", template.getTemplateId(), ex);
             contentRTFField.setText(template.getContent()); // Fallback to plain text
+            
+            // Reset undo manager even in fallback case
+            undoManager.discardAllEdits();
         }
     }
     
@@ -586,6 +835,8 @@ public class TemplateDialog extends JDialog {
             log.error("Could not get RTF text from contentRTFField", ex);
         }
 
+        int templateStt = Integer.parseInt(sttField.getText().trim().isEmpty() ? "0" : sttField.getText().trim());
+        
         Template template = new Template(
             Integer.parseInt(idField.getText()),
             genderComboBox.getSelectedItem().toString(),
@@ -596,7 +847,9 @@ public class TemplateDialog extends JDialog {
             templateContent,
             conclusionField.getText(),
             suggestionField.getText(),
-            diagnosisArea.getText()
+            diagnosisArea.getText(),
+            !visibleCheckBox.isSelected(),  // Checkbox is "Ẩn" so inverted logic
+            templateStt
         );
 
         NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new EditTemplateReq(template));
@@ -652,8 +905,15 @@ public class TemplateDialog extends JDialog {
         diagnosisArea.setText("");
         imageCountComboBox.setSelectedIndex(0);
         printTypeComboBox.setSelectedIndex(0);
+        sttField.setText("0"); // Default STT to 0
+        visibleCheckBox.setSelected(false); // Default to visible (not hidden)
         contentRTFField.setText("");
         conclusionField.setText("");
         suggestionField.setText("");
+        
+        // Reset undo manager when clearing fields
+        if (undoManager != null) {
+            undoManager.discardAllEdits();
+        }
     }
 } 

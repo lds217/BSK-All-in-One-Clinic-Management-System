@@ -192,6 +192,10 @@ public class CheckUpPage extends JPanel {
     private JButton openQueueButton;
     private JButton addPatientButton;
     private JButton[] actionButtons;
+    
+    // Template info labels
+    private JLabel imageCountValueLabel;
+    private JLabel genderValueLabel;
 
     private QueueViewPage tvQueueFrame;
     private QueueManagementPage queueManagementPage; // The new queue window
@@ -934,15 +938,40 @@ public class CheckUpPage extends JPanel {
         templateComboBox.addActionListener(e -> handleTemplateSelection());
         templatePanel.add(templateComboBox, gbcTemplate);
 
+        // Add template info labels between template selection and orientation
+        gbcTemplate.gridx = 2; gbcTemplate.weightx = 0.0;
+        JLabel imageCountInfoLabel = new JLabel("SL ảnh:");
+        imageCountInfoLabel.setFont(new Font("Arial", Font.PLAIN, 12));
+        imageCountInfoLabel.setForeground(new Color(100, 100, 100));
+        templatePanel.add(imageCountInfoLabel, gbcTemplate);
+
+        gbcTemplate.gridx = 3;
+        imageCountValueLabel = new JLabel("-");
+        imageCountValueLabel.setFont(new Font("Arial", Font.BOLD, 12));
+        imageCountValueLabel.setForeground(new Color(63, 81, 181));
+        templatePanel.add(imageCountValueLabel, gbcTemplate);
+
+        gbcTemplate.gridx = 4;
+        JLabel genderInfoLabel = new JLabel("Giới:");
+        genderInfoLabel.setFont(new Font("Arial", Font.PLAIN, 12));
+        genderInfoLabel.setForeground(new Color(100, 100, 100));
+        templatePanel.add(genderInfoLabel, gbcTemplate);
+
+        gbcTemplate.gridx = 5;
+        genderValueLabel = new JLabel("-");
+        genderValueLabel.setFont(new Font("Arial", Font.BOLD, 12));
+        genderValueLabel.setForeground(new Color(63, 81, 181));
+        templatePanel.add(genderValueLabel, gbcTemplate);
+
         
         // Add "Thêm mẫu" button next to template combobox
         // Add orientation dropdown
-        gbcTemplate.gridx = 2; gbcTemplate.weightx = 0.0;
+        gbcTemplate.gridx = 6; gbcTemplate.weightx = 0.0;
         JLabel orientationLabel = new JLabel("Hướng in:");
         orientationLabel.setFont(labelFont);
         templatePanel.add(orientationLabel, gbcTemplate);
 
-        gbcTemplate.gridx = 3;
+        gbcTemplate.gridx = 7;
         orientationComboBox = new JComboBox<>(new String[]{"ngang", "dọc"});
         orientationComboBox.setFont(fieldFont);
         orientationComboBox.setPreferredSize(new Dimension(80, 25));
@@ -952,7 +981,7 @@ public class CheckUpPage extends JPanel {
         templatePanel.add(orientationComboBox, gbcTemplate);
 
         // Add template button
-        gbcTemplate.gridx = 4; gbcTemplate.weightx = 0.0;
+        gbcTemplate.gridx = 8; gbcTemplate.weightx = 0.0;
         JButton addTemplateButton = new JButton("Thêm mẫu");
         addTemplateButton.setFont(fieldFont);
         addTemplateButton.setBackground(new Color(63, 81, 181));
@@ -986,7 +1015,7 @@ public class CheckUpPage extends JPanel {
 
         notesField = new JTextPane();
         notesField.setContentType("text/rtf");
-        addSelectAllOnFocus(notesField);
+        // addSelectAllOnFocus(notesField); // Do NOT select all for notes field
         
         // Set default font and size
         notesField.setFont(new Font("Times New Roman", Font.PLAIN, 16));
@@ -4379,6 +4408,9 @@ public class CheckUpPage extends JPanel {
         if (selectedTemplateName == null || allTemplates == null || selectedTemplateName.equals("Không sử dụng mẫu")) {
             // Reset orientation to landscape when no template is selected
             orientationComboBox.setSelectedItem("ngang");
+            // Clear template info when no template is selected
+            imageCountValueLabel.setText("-");
+            genderValueLabel.setText("-");
             return;
         }
 
@@ -4409,12 +4441,28 @@ public class CheckUpPage extends JPanel {
         templateContent = template.getContent();
         templateConclusion = template.getConclusion();
         templateSuggestion = template.getSuggestion();
+        
+        // Update template info labels
+        imageCountValueLabel.setText(template.getPhotoNum());
+        genderValueLabel.setText(template.getTemplateGender());
     }
 
     private void handleGetAllTemplatesResponse(GetAllTemplatesRes response) {
         log.info("Get all templates response");
         this.allTemplates = response.getTemplates();
         List<Template> templates = response.getTemplates();
+        
+        // Sort templates by STT first (ascending), then by name (alphabetical)
+        templates.sort((t1, t2) -> {
+            // First compare by STT (smaller numbers first)
+            int sttCompare = Integer.compare(t1.getStt(), t2.getStt());
+            if (sttCompare != 0) {
+                return sttCompare;
+            }
+            // If STT is the same, compare by template name alphabetically
+            return t1.getTemplateName().compareToIgnoreCase(t2.getTemplateName());
+        });
+        
         SwingUtilities.invokeLater(() -> {
             templateComboBox.removeAllItems();
             templateComboBox.addItem("Không sử dụng mẫu");

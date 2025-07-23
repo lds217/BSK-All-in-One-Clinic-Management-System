@@ -18,4 +18,6 @@ public class Template {
     private String conclusion;
     private String suggestion;
     private String diagnosis;
+    private boolean visible = true; // Default to true (visible)
+    private int stt = 0; // STT (số thứ tự) - order number, default to 0
 } 

@@ -71,9 +71,9 @@ public class NavBar extends JPanel {
         welcomePanel.add(welcomeLabel);
         userPanel.add(welcomePanel, new GridBagConstraints());
 
-        String[] navBarItems = {"Thống kê", "Thăm khám", "Dữ liệu", "Kho", "Thanh toán", "Người dùng", "Thông tin"};
-        String[] destination = {"DashboardPage", "CheckUpPage", "PatientDataPage", "InventoryPage", "CheckoutPage", "UserPage", "InfoPage"};
-        String[] iconFiles = {"dashboard.png", "health-check.png", "database.png", "warehouse.png", "cashier-machine.png", "user.png", "info.png"};
+        String[] navBarItems = {"Thống kê", "Thăm khám", "Dữ liệu", "Kho", "Thanh toán", "Cài đặt", "Thông tin"};
+        String[] destination = {"DashboardPage", "CheckUpPage", "PatientDataPage", "InventoryPage", "CheckoutPage", "SettingsPage", "InfoPage"};
+        String[] iconFiles = {"dashboard.png", "health-check.png", "database.png", "warehouse.png", "cashier-machine.png", "settings.png", "info.png"};
         Color[] navItemColors = {
             new Color(51, 135, 204),    // Darker Blue
             new Color(66, 157, 21),     // Darker Green

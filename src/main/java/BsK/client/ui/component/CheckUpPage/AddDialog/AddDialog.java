@@ -41,7 +41,7 @@ public class AddDialog extends JDialog {
     private JTextField customerAddressField;
     private DefaultTableModel patientTableModel;
     private JTable patientTable;
-    private String[] patientColumns = {"Patient ID", "Patient Name", "Patient Year", "Patient Phone" ,"Patient Address"};
+    private String[] patientColumns = {"Mã BN", "Tên Bệnh Nhân", "Năm sinh", "Số điện thoại" ,"Địa chỉ"};
     private String[][] patientData;
     private final ResponseListener<GetRecentPatientResponse> getRecentPatientResponseListener = this::getRecentPatientHandler;
     private final ResponseListener<GetDistrictResponse> districtResponseListener = this::handleGetDistrictResponse;
@@ -77,6 +77,11 @@ public class AddDialog extends JDialog {
         patientData = response.getPatientData();
 
         patientTableModel.setDataVector(patientData, patientColumns);
+        // Set column widths: id, name, birthyear, sdt, address
+        int[] columnWidths = {60, 180, 70, 120, 300};
+        for (int i = 0; i < columnWidths.length; i++) {
+            patientTable.getColumnModel().getColumn(i).setPreferredWidth(columnWidths[i]);
+        }
     }
 
     private int findProvinceIndex(String province) {
@@ -172,7 +177,7 @@ public class AddDialog extends JDialog {
     }
 
     public AddDialog(Frame parent) {
-        super(parent, "Add Patient", true);
+        super(parent, "Thêm Bệnh Nhân", true);
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
 
         // Set size of the dialog
@@ -229,6 +234,11 @@ public class AddDialog extends JDialog {
         patientTable.setFont(textFont);
         patientTable.setRowHeight(35);
         patientTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        // Set column widths: id, name, birthyear, sdt, address
+        int[] columnWidths = {60, 180, 70, 120, 300};
+        for (int i = 0; i < columnWidths.length; i++) {
+            patientTable.getColumnModel().getColumn(i).setPreferredWidth(columnWidths[i]);
+        }
         JScrollPane scrollPane = new JScrollPane(patientTable);
 
         patientTable.addMouseListener(new MouseAdapter() {
@@ -441,7 +451,7 @@ public class AddDialog extends JDialog {
         gbc.gridx = 2;
         gbc.gridwidth = 2;
         gbc.weightx = 0.5;
-        clearButton = new JButton("Clear");
+        clearButton = new JButton("Làm mới");
         clearButton.setFont(textFont);
         checkupInfoPanel.add(clearButton, gbc);
         gbc.weightx = 0.0; // Reset weightx
@@ -583,14 +593,14 @@ public class AddDialog extends JDialog {
 
 
         JPanel ButtonPanel = new JPanel();
-        JButton closeButton = new JButton("Close");
+        JButton closeButton = new JButton("Đóng");
         closeButton.setFont(labelFont);
         closeButton.addActionListener(e -> {
             setVisible(false);
         });
         ButtonPanel.add(closeButton);
 
-        saveButton = new JButton("Add to Checkup");
+        saveButton = new JButton("Thêm vào khám");
         saveButton.setFont(labelFont);
         saveButton.addActionListener(e -> {
             int patientId = Integer.parseInt(patientIdField.getText());
@@ -646,7 +656,7 @@ public class AddDialog extends JDialog {
             String lastNameStr = lastName.toString();
             // check if dobPicker is not null
             if (patientName.isEmpty()  || patientPhone.isEmpty() || customerAddress.isEmpty() || dobPicker.getJFormattedTextField().getText().isEmpty()) {
-                JOptionPane.showMessageDialog(this, "Please fill in all fields");
+                JOptionPane.showMessageDialog(this, "Vui lòng điền đầy đủ thông tin");
                 return;
             }
 
@@ -660,7 +670,7 @@ public class AddDialog extends JDialog {
                         patientPhone, address, patientGender, cccd));
             } catch (ParseException pe) {
                 pe.printStackTrace();
-                JOptionPane.showMessageDialog(null, "Invalid date format: " + dateText);
+                JOptionPane.showMessageDialog(null, "Định dạng ngày không hợp lệ: " + dateText);
             }
         });
 
@@ -765,7 +775,7 @@ public class AddDialog extends JDialog {
             dobPicker.getModel().setSelected(true);
         } catch (ParseException | NumberFormatException exception) {
             exception.printStackTrace();
-            JOptionPane.showMessageDialog(null, "Invalid date format: " + patientDob);
+            JOptionPane.showMessageDialog(null, "Định dạng ngày không hợp lệ: " + patientDob);
         }
         saveButton.setEnabled(true); // Enable button after successfully populating fields
         addPatientButton.setEnabled(false); // Disable add patient button when a patient is selected
@@ -850,7 +860,7 @@ public class AddDialog extends JDialog {
         frame.setLayout(new BorderLayout());
         frame.setVisible(true);
 
-        JButton openDialogButton = new JButton("Open Dialog");
+        JButton openDialogButton = new JButton("Mở Dialog");
         openDialogButton.addActionListener(e -> {
             AddDialog dialog = new AddDialog(frame);
             dialog.setVisible(true);
