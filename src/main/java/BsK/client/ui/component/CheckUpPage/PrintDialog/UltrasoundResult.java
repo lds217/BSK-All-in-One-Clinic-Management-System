@@ -174,6 +174,9 @@ public class UltrasoundResult {
             parameters.put("checkupHeartBeat", this.heartRate);
             parameters.put("checkupBloodPressure", this.bloodPressure);
 
+            // Template title
+            parameters.put("templateTitle", this.templateTitle);
+
             // Handle images
             int numberOfImages = this.selectedImages.size();
             parameters.put("numberImage", numberOfImages);
