@@ -70,6 +70,7 @@ public class UltrasoundResult {
     private final String patientGender;
     private final String patientAddress;
     private final String doctorName;
+    private final String ultrasoundDoctorName;
     private final String checkupDate;
     private final String rtfContent;
     private final String conclusion;
@@ -89,32 +90,59 @@ public class UltrasoundResult {
     private static final String PDF_PATH = "ultrasound_result.pdf";
 
     public UltrasoundResult(String checkupId, String patientName, String patientDOB, String patientGender,
-                            String patientAddress, String doctorName, String checkupDate,
+                            String patientAddress, String doctorName, String ultrasoundDoctorName, String checkupDate,
                             String rtfContent, String conclusion, String suggestion,
                             String recheckupDate, List<File> selectedImages, 
                             String printType, String templateTitle, String customerHeight, 
                             String customerWeight, String heartRate, String bloodPressure, String driveUrl) {
 
         // Defensive null checks to prevent JasperReports from crashing on null parameters
-        this.checkupId = checkupId != null ? checkupId : "";
-        this.patientName = patientName != null ? patientName : "";
-        this.patientDOB = patientDOB != null ? patientDOB : "";
-        this.patientGender = patientGender != null ? patientGender : "";
-        this.patientAddress = patientAddress != null ? patientAddress : "";
-        this.doctorName = doctorName != null ? doctorName : "";
-        this.checkupDate = checkupDate != null ? checkupDate : "";
-        this.rtfContent = rtfContent != null ? rtfContent : "";
-        this.conclusion = conclusion != null ? conclusion : "";
-        this.suggestion = suggestion != null ? suggestion : "";
-        this.recheckupDate = recheckupDate != null ? recheckupDate : "";
+        // Also handle "null" string values by converting them to empty strings
+        this.checkupId = convertNullToEmpty(checkupId);
+        this.patientName = convertNullToEmpty(patientName);
+        this.patientDOB = convertNullToEmpty(patientDOB);
+        this.patientGender = convertNullToEmpty(patientGender);
+        this.patientAddress = convertNullToEmpty(patientAddress);
+        this.doctorName = convertNullToEmpty(doctorName);
+        this.ultrasoundDoctorName = convertNullToEmpty(ultrasoundDoctorName);
+        this.checkupDate = convertNullToEmpty(checkupDate);
+        this.rtfContent = convertNullToEmpty(rtfContent);
+        this.conclusion = convertNullToEmpty(conclusion);
+        this.suggestion = convertNullToEmpty(suggestion);
+        this.recheckupDate = convertNullToEmpty(recheckupDate);
         this.selectedImages = selectedImages != null ? selectedImages : new ArrayList<>();
-        this.printType = printType != null ? printType : "";
-        this.templateTitle = templateTitle != null ? templateTitle : "";
-        this.customerHeight = customerHeight != null ? customerHeight : "";
-        this.customerWeight = customerWeight != null ? customerWeight : "";
-        this.heartRate = heartRate != null ? heartRate : "";
-        this.bloodPressure = bloodPressure != null ? bloodPressure : "";
-        this.driveUrl = driveUrl != null ? driveUrl : ""; // Google Drive URL
+        this.printType = convertNullToEmpty(printType);
+        this.templateTitle = convertNullToEmpty(templateTitle);
+        this.customerHeight = convertNullToEmpty(customerHeight);
+        this.customerWeight = convertNullToEmpty(customerWeight);
+        this.heartRate = convertNullToEmpty(heartRate);
+        this.bloodPressure = convertNullToEmpty(bloodPressure);
+        this.driveUrl = convertNullToEmpty(driveUrl); // Google Drive URL
+    }
+    
+    /**
+     * Helper method to convert null or "null" string values to empty strings
+     * @param value The string to check
+     * @return Empty string if value is null or equals "null", otherwise the original value
+     */
+    private String convertNullToEmpty(String value) {
+        if (value == null || "null".equals(value)) {
+            return "";
+        }
+        return value;
+    }
+    
+    /**
+     * Helper method to convert null or "null" string values to a default value
+     * @param value The string to check
+     * @param defaultValue The default value to use if value is null or "null"
+     * @return defaultValue if value is null or equals "null", otherwise the original value
+     */
+    private String convertNullToEmpty(String value, String defaultValue) {
+        if (value == null || "null".equals(value)) {
+            return defaultValue;
+        }
+        return value;
     }
 
     public void showDirectJasperViewer() {
@@ -143,7 +171,15 @@ public class UltrasoundResult {
     }
 
     public JasperPrint createJasperPrint() throws JRException, IOException {
-        String jrxmlPath = System.getProperty("user.dir") + "/src/main/java/BsK/client/ui/component/CheckUpPage/PrintDialog/print_forms/ultrasoundresult.jrxml";
+        String jrxmlPath;
+        if ("Dọc".equalsIgnoreCase(this.printType)) {
+            jrxmlPath = System.getProperty("user.dir") + "/src/main/java/BsK/client/ui/component/CheckUpPage/PrintDialog/print_forms/ultrasoundresult_potrait.jrxml";
+        } else {
+            jrxmlPath = System.getProperty("user.dir") + "/src/main/java/BsK/client/ui/component/CheckUpPage/PrintDialog/print_forms/ultrasoundresult.jrxml";
+        }
+        
+        log.info("Using JRXML template: {}", jrxmlPath);
+
         try (InputStream inputStream = new FileInputStream(new File(jrxmlPath))) {
             Map<String, Object> parameters = new HashMap<>();
 
@@ -151,14 +187,15 @@ public class UltrasoundResult {
             parameters.put(JRParameter.REPORT_LOCALE, new Locale("vi", "VN"));
             
             // Populate all the string parameters
-            parameters.put("clinicName", LocalStorage.ClinicName != null ? LocalStorage.ClinicName : "Phòng khám BSK");
-            parameters.put("clinicAddress", LocalStorage.ClinicAddress != null ? LocalStorage.ClinicAddress : "Địa chỉ phòng khám");
-            parameters.put("clinicPhone", LocalStorage.ClinicPhone != null ? LocalStorage.ClinicPhone : "SĐT phòng khám");
+            parameters.put("clinicName", convertNullToEmpty(LocalStorage.ClinicName, "Phòng khám BSK"));
+            parameters.put("clinicAddress", convertNullToEmpty(LocalStorage.ClinicAddress, "Địa chỉ phòng khám"));
+            parameters.put("clinicPhone", convertNullToEmpty(LocalStorage.ClinicPhone, "SĐT phòng khám"));
             parameters.put("patientName", this.patientName);
             parameters.put("patientDOB", this.patientDOB);
             parameters.put("patientGender", this.patientGender);
             parameters.put("patientAddress", this.patientAddress);
             parameters.put("doctorName", this.doctorName);
+            parameters.put("ultrasoundDoctorName", this.ultrasoundDoctorName);
             parameters.put("checkupDate", this.checkupDate);
             parameters.put("barcodeNumber", this.checkupId);
 
@@ -176,6 +213,14 @@ public class UltrasoundResult {
 
             // Template title
             parameters.put("templateTitle", this.templateTitle);
+            
+            // Extra safety: Ensure no parameter is null or "null" string
+            for (String key : parameters.keySet()) {
+                Object value = parameters.get(key);
+                if (value instanceof String && ("null".equals(value) || value == null)) {
+                    parameters.put(key, "");
+                }
+            }
 
             // Handle images
             int numberOfImages = this.selectedImages.size();

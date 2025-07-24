@@ -11,6 +11,7 @@ public class SaveCheckupRequest implements Packet {
     Integer checkupId;
     Integer customerId;
     Integer doctorId;
+    Integer doctorUltrasoundId;
     Long checkupDate;
 
     // Checkup Details
@@ -21,6 +22,7 @@ public class SaveCheckupRequest implements Packet {
     String checkupType;
     String conclusion;
     Long reCheckupDate;
+    Boolean needsRecheckup; // Flag to indicate if re-checkup is needed
 
     // Patient Details
     String customerFirstName;

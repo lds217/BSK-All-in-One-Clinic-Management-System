@@ -30,6 +30,8 @@ public class Patient {
     private String heartBeat;
     private String bloodPressure;
     private String driveUrl;
+    private String doctorUltrasoundId;
+    private String queueNumber;
 
     public Patient(String[][] array) {
         this.checkupId = array[0][0];
@@ -55,12 +57,14 @@ public class Patient {
         this.heartBeat = array[0][20];
         this.bloodPressure = array[0][21];
         this.driveUrl = array[0][22];
+        this.doctorUltrasoundId = array[0][23];
+        this.queueNumber = array[0][24];
     }
 
     // New constructor for a single patient data row
     public Patient(String[] data) {
-        if (data.length < 23) {
-            throw new IllegalArgumentException("Patient data array must contain at least 23 elements to include a conclusion.");
+        if (data.length < 25) {
+            throw new IllegalArgumentException("Patient data array must contain at least 25 elements to include a conclusion.");
         }
         this.checkupId = data[0];
         this.checkupDate = data[1];
@@ -85,5 +89,7 @@ public class Patient {
         this.heartBeat = data[20];
         this.bloodPressure = data[21];
         this.driveUrl = data[22];
+        this.doctorUltrasoundId = data[23];
+        this.queueNumber = data[24];
     }
 }

@@ -18,7 +18,7 @@ import java.util.List;
 public class QueueViewPage extends JFrame {
     private DefaultTableModel tvQueueTableModel;
     private JTable tvQueueTable;
-    private final String[] tvQueueColumns = {"Mã khám bệnh", "Họ và Tên", "Năm sinh"};
+    private final String[] tvQueueColumns = {"STT", "Họ và Tên", "Năm sinh"};
 
     private JLabel clinicNameLabel;
     private JLabel clinicAddressLabel;
@@ -211,7 +211,7 @@ public class QueueViewPage extends JFrame {
         }
     }
 
-    public void updateSpecificRoomStatus(int roomId, String patientIdForRoomBox, String fullPatientInfoForCentralDisplay, BsK.common.entity.Status status) {
+    public void updateSpecificRoomStatus(int roomId, String patientIdForRoomBox, String queueNumberForRoomBox, String fullPatientInfoForCentralDisplay, BsK.common.entity.Status status) {
         JLabel targetLabel;
         JPanel targetPanel;
         String roomName;
@@ -230,7 +230,7 @@ public class QueueViewPage extends JFrame {
         }
 
         if (status == BsK.common.entity.Status.PROCESSING) {
-            styleRoomLabel(targetLabel, targetPanel, Color.RED.darker(), "Mã BN: " + patientIdForRoomBox);
+            styleRoomLabel(targetLabel, targetPanel, Color.RED.darker(), "STT: " + queueNumberForRoomBox);
             if (roomId == 1) {
                 room1PatientInfo = fullPatientInfoForCentralDisplay;
             } else {
@@ -289,8 +289,8 @@ public class QueueViewPage extends JFrame {
         SimpleDateFormat inputDateFormat = new SimpleDateFormat("dd/MM/yyyy");
 
         for (String[] row : fullQueueData) {
-            if (row.length > 15) { // Changed from > 3 to > 15 to ensure we have DOB data
-                String maKhamBenh = row[0];
+            if (row.length > 24) { // Ensure we have all data including queue number
+                String queueNumber = row[24]; // Use the new queue number from index 24
                 String ho = row[2];
                 String ten = row[3];
                 String hoVaTen = ho + " " + ten;
@@ -316,7 +316,7 @@ public class QueueViewPage extends JFrame {
                         }
                     }
                 }
-                tvDataList.add(new Object[]{maKhamBenh, hoVaTen, namSinh});
+                tvDataList.add(new Object[]{queueNumber, hoVaTen, namSinh});
             }
         }
         tvQueueTableModel.setDataVector(tvDataList.toArray(new Object[0][0]), tvQueueColumns);

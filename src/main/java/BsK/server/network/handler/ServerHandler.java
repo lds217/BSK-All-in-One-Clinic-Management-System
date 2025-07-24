@@ -109,7 +109,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                   "select a.checkup_id, a.checkup_date, c.customer_last_name, c.customer_first_name,\n" +
                           "d.doctor_first_name, d.doctor_last_name, a.suggestion, a.diagnosis, a.notes, a.status, a.customer_id, \n" +
                           "c.customer_number, c.customer_address, a.customer_weight, a.customer_height, c.customer_gender, c.customer_dob,\n" +
-                          "a.checkup_type, a.conclusion, a.reCheckupDate, c.cccd_ddcn, a.heart_beat, a.blood_pressure, c.drive_url\n" +
+                          "a.checkup_type, a.conclusion, a.reCheckupDate, c.cccd_ddcn, a.heart_beat, a.blood_pressure, c.drive_url, a.doctor_ultrasound_id, a.queue_number\n" +
                           "from checkup as a\n" +
                           "join customer as c on a.customer_id = c.customer_id\n" +
                           "join Doctor D on a.doctor_id = D.doctor_id\n" +
@@ -151,6 +151,8 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
               String heartBeat = rs.getString("heart_beat");
               String bloodPressure = rs.getString("blood_pressure");
               String driveUrl = rs.getString("drive_url");
+              String doctorUltrasoundId = rs.getString("doctor_ultrasound_id");
+              String queueNumber = String.format("%02d", rs.getInt("queue_number"));
               if (driveUrl == null) {
                 driveUrl = "";
               }
@@ -159,7 +161,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                       doctorLastName + " " + doctorFirstName, suggestion,
                       diagnosis, notes, status, customerId, customerNumber, customerAddress, customerWeight, customerHeight,
                       customerGender, customerDob, checkupType, conclusion, reCheckupDate, cccdDdcn, heartBeat, bloodPressure,
-                      driveUrl
+                      driveUrl, doctorUltrasoundId, queueNumber
               );
 
               resultList.add(result);
@@ -184,7 +186,8 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
           ResultSet rs = statement.executeQuery(
                   "select a.checkup_id, a.checkup_date, c.customer_last_name, c.customer_first_name,\n" +
                           "d.doctor_first_name, d.doctor_last_name, a.suggestion, a.diagnosis, a.notes, a.status, a.customer_id, \n" +
-                          "c.customer_number, c.customer_address, a.customer_weight, a.customer_height, c.customer_gender, c.customer_dob, a.checkup_type, a.conclusion, a.reCheckupDate, c.cccd_ddcn, a.heart_beat, a.blood_pressure, c.drive_url\n" +
+                          "c.customer_number, c.customer_address, a.customer_weight, a.customer_height, c.customer_gender, c.customer_dob, \n" +
+                          "a.checkup_type, a.conclusion, a.reCheckupDate, c.cccd_ddcn, a.heart_beat, a.blood_pressure, c.drive_url, a.doctor_ultrasound_id, a.queue_number\n" +
                           "from checkup as a\n" +
                           "join customer as c on a.customer_id = c.customer_id\n" +
                           "join Doctor D on a.doctor_id = D.doctor_id\n" +
@@ -230,6 +233,8 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
               String heartBeat = rs.getString("heart_beat");
               String bloodPressure = rs.getString("blood_pressure");
               String driveUrl = rs.getString("drive_url");
+              String doctorUltrasoundId = rs.getString("doctor_ultrasound_id");
+              String queueNumber = String.format("%02d", rs.getInt("queue_number"));
               if (driveUrl == null) {
                 driveUrl = "";
               }
@@ -238,7 +243,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                       doctorLastName + " " + doctorFirstName, suggestion,
                       diagnosis, notes, status, customerId, customerNumber, customerAddress, customerWeight, customerHeight,
                       customerGender, customerDob, checkupType, conclusion, reCheckupDate, cccdDdcn, heartBeat, bloodPressure,
-                      driveUrl
+                      driveUrl, doctorUltrasoundId, queueNumber  
               );
 
               resultList.add(result);
@@ -676,13 +681,44 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
           // Disable auto-commit
           Server.connection.setAutoCommit(false);
 
+          int queueNumber = 0;
+          // Use a transaction to ensure atomic operations
+          try {
+              // First, try to update an existing counter for today
+              try (PreparedStatement updateStmt = Server.connection.prepareStatement(
+                      "UPDATE DailyQueueCounter SET current_count = current_count + 1 " +
+                      "WHERE date = date('now', 'localtime') RETURNING current_count")) {
+                  ResultSet rs = updateStmt.executeQuery();
+                  if (rs.next()) {
+                      // Update successful, get the new value
+                      queueNumber = rs.getInt(1);
+                  } else {
+                      // No row for today exists yet, insert one
+                      try (PreparedStatement insertStmt = Server.connection.prepareStatement(
+                              "INSERT INTO DailyQueueCounter (date, current_count) VALUES (date('now', 'localtime'), 1) " +
+                              "RETURNING current_count")) {
+                          ResultSet insertRs = insertStmt.executeQuery();
+                          if (insertRs.next()) {
+                              queueNumber = insertRs.getInt(1); // Should be 1
+                          } else {
+                              throw new SQLException("Failed to insert new queue counter");
+                          }
+                      }
+                  }
+              }
+          } catch (SQLException e) {
+            log.error("Error updating queue counter", e);
+            throw new RuntimeException(e);
+          } 
+
           // First query: Insert Checkup
           PreparedStatement checkupStmt = Server.connection.prepareStatement(
-                  "INSERT INTO Checkup (customer_id, doctor_id, checkup_type, status) VALUES (?, ?, ?, ?)");
+                  "INSERT INTO Checkup (customer_id, doctor_id, checkup_type, status, queue_number) VALUES (?, ?, ?, ?, ?)");
           checkupStmt.setInt(1, addCheckupRequest.getCustomerId());
           checkupStmt.setInt(2, addCheckupRequest.getDoctorId());
           checkupStmt.setString(3, addCheckupRequest.getCheckupType());
           checkupStmt.setString(4, addCheckupRequest.getStatus());
+          checkupStmt.setInt(5, queueNumber);
           checkupStmt.executeUpdate();
 
           // Second query: Insert MedicineOrder
@@ -742,14 +778,15 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
       }
 
       if (packet instanceof CallPatientRequest callPatientRequest) {
-        log.debug("Received CallPatientRequest to call patient{}", callPatientRequest.getPatientId());
-        int patientId = callPatientRequest.getPatientId();
+        log.debug("Received CallPatientRequest to call patient checkup_id: {}", callPatientRequest.getPatientId());
+        int checkupId = callPatientRequest.getPatientId(); // This is the checkup_id
         int roomId = callPatientRequest.getRoomId();
         Status status = callPatientRequest.getStatus();
-        // send to all clients
+        String queueNumber = callPatientRequest.getQueueNumber();
+        // send to all clients with the queue number included
         int maxCurId = SessionManager.getMaxSessionId();
         for (int sessionId = 1; sessionId <= maxCurId; sessionId++) {
-          UserUtil.sendPacket(sessionId, new CallPatientResponse(patientId, roomId, status));
+            UserUtil.sendPacket(sessionId, new CallPatientResponse(checkupId, roomId, queueNumber, status));
         }
       }
 
@@ -809,8 +846,9 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
           String checkupSql = """
             INSERT INTO Checkup (
                 checkup_id, customer_id, doctor_id, checkup_date,
-                suggestion, diagnosis, prescription_id, notes, status, checkup_type, conclusion, reCheckupDate, customer_weight, customer_height, heart_beat, blood_pressure
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                suggestion, diagnosis, prescription_id, notes, status, checkup_type, conclusion, reCheckupDate, customer_weight, customer_height, 
+                heart_beat, blood_pressure, doctor_ultrasound_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(checkup_id) DO UPDATE SET
                 suggestion = excluded.suggestion,
                 diagnosis = excluded.diagnosis,
@@ -823,7 +861,9 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                 customer_weight = excluded.customer_weight,
                 customer_height = excluded.customer_height,
                 heart_beat = excluded.heart_beat,
-                blood_pressure = excluded.blood_pressure
+                blood_pressure = excluded.blood_pressure,
+                doctor_ultrasound_id = excluded.doctor_ultrasound_id,
+                doctor_id = excluded.doctor_id
             """;
           
           PreparedStatement checkupStmt = conn.prepareStatement(checkupSql);
@@ -843,6 +883,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
           checkupStmt.setDouble(14, saveCheckupRequest.getCustomerHeight());
           checkupStmt.setInt(15, saveCheckupRequest.getHeartBeat());
           checkupStmt.setString(16, saveCheckupRequest.getBloodPressure());
+          checkupStmt.setInt(17, saveCheckupRequest.getDoctorUltrasoundId());
           checkupStmt.executeUpdate();
           log.info("Prescription ID generated or edited: {}", prescriptionId);
           log.info("Checkup saved successfully");

@@ -10,5 +10,6 @@ import lombok.Data;
 public class CallPatientRequest implements Packet {
     int roomId;
     int patientId;
+    String queueNumber;
     Status status;
 }

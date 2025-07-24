@@ -158,7 +158,7 @@ public class TemplateDialog extends JDialog {
         diagnosisArea.setLineWrap(true);
         diagnosisArea.setWrapStyleWord(true);
         
-        imageCountComboBox = new JComboBox<>(new String[]{"1", "2", "3", "4", "5", "6"});
+        imageCountComboBox = new JComboBox<>(new String[]{"1", "2", "3", "4"});
         printTypeComboBox = new JComboBox<>(new String[]{"Ngang", "Dọc"});
         
         sttField = new JTextField(10);
