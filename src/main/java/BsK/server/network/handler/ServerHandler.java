@@ -711,7 +711,8 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
             log.error("Error updating queue counter", e);
             throw new RuntimeException(e);
           } 
-
+          // To make it looks better when small number we mod it to 100 so the queue is only 1 to 100
+          queueNumber = (queueNumber % 100) + 1;
           // First query: Insert Checkup
           PreparedStatement checkupStmt = Server.connection.prepareStatement(
                   "INSERT INTO Checkup (customer_id, doctor_id, checkup_type, status, queue_number) VALUES (?, ?, ?, ?, ?)");

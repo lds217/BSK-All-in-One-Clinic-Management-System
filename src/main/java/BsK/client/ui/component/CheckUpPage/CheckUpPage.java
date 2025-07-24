@@ -426,7 +426,17 @@ public class CheckUpPage extends JPanel {
         addPatientButton.setBorder(BorderFactory.createEmptyBorder(8, 20, 8, 20)); // Reduced vertical padding from 10 to 8
         addPatientButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         addPatientButton.addActionListener(e -> {
-            addDialog = new AddDialog(mainFrame);
+            // Dispose any existing dialog to ensure clean listener removal
+            if (addDialog != null) {
+                addDialog.dispose();
+            }
+            addDialog = new AddDialog(mainFrame) {
+                @Override
+                public void dispose() {
+                    super.dispose();
+                    addDialog = null;  // Clear the reference when dialog is disposed
+                }
+            };
             addDialog.setVisible(true);
             updateUpdateQueue();
         });

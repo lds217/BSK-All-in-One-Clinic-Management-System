@@ -401,10 +401,10 @@ public class ServiceDialog extends JDialog {
                     if (selectedRow == -1) return;
 
                     handleServiceTableRowSelection(selectedRow); // Populate fields on any click
-
+                    suggestionPopup.setVisible(false); // Close popup on single click
+                    
                     if (e.getClickCount() == 2) {
                         addSelectedService();
-                        suggestionPopup.setVisible(false);
                     }
                 });
             }

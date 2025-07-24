@@ -115,9 +115,11 @@ public class AddDialog extends JDialog {
     public void dispose() {
         // Clean up listeners
         log.info("Cleaning up listeners");
-        ClientHandler.deleteListener(AddCheckupResponse.class);
-        ClientHandler.deleteListener(AddPatientResponse.class);
-        ClientHandler.deleteListener(GetRecentPatientResponse.class);
+        ClientHandler.deleteListener(AddCheckupResponse.class, addCheckupResponseListener);
+        ClientHandler.deleteListener(AddPatientResponse.class, addPatientResponseListener);
+        ClientHandler.deleteListener(GetRecentPatientResponse.class, getRecentPatientResponseListener);
+        ClientHandler.deleteListener(GetDistrictResponse.class, districtResponseListener);
+        ClientHandler.deleteListener(GetWardResponse.class, wardResponseListener);
         super.dispose();
     }
 
@@ -213,7 +215,7 @@ public class AddDialog extends JDialog {
                 }
             }
         });
-
+        
         // Send request to get the latest 20 patients in the database
         sendGetRecentPatientRequest();
         ClientHandler.addResponseListener(GetDistrictResponse.class, districtResponseListener);

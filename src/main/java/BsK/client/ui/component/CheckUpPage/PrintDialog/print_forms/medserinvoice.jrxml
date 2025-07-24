@@ -81,7 +81,7 @@
 		<groupHeader>
 			<band height="83">
 				<printWhenExpression><![CDATA[$P{hasMedicines}]]></printWhenExpression>
-				<element kind="component" uuid="c0ec0570-9841-4438-a387-2e29436a01e7" x="8" y="18" width="539" height="65">
+				<element kind="component" uuid="c0ec0570-9841-4438-a387-2e29436a01e7" x="10" y="18" width="539" height="65">
 					<printWhenExpression><![CDATA[$P{hasMedicines}]]></printWhenExpression>
 					<component kind="table">
 						<datasetRun uuid="ee5be970-758d-4ae3-91fa-3b3a0a5fd160" subDataset="med_pre">
@@ -90,7 +90,7 @@
 						</datasetRun>
 						<column kind="single" uuid="249a6076-168a-4d8c-ba6c-92ca1d870834" width="300">
 							<columnHeader height="15" rowSpan="1" style="Table_CH">
-								<element kind="staticText" uuid="9b6682e0-0e7a-48be-baa3-932a54d0c959" x="0" y="0" width="300" height="15" fontName="Times New Roman" hTextAlign="Center" vTextAlign="Middle">
+								<element kind="staticText" uuid="9b6682e0-0e7a-48be-baa3-932a54d0c959" x="0" y="0" width="300" height="15" fontName="Arial" hTextAlign="Center" vTextAlign="Middle">
 									<text><![CDATA[Tên thuốc]]></text>
 									<box>
 										<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
@@ -111,7 +111,7 @@
 								</box>
 							</columnFooter>
 							<detailCell height="29" style="Table_TD">
-								<element kind="textField" uuid="bc690d0f-bc31-4bcc-a134-ff5deb5be586" x="0" y="0" width="300" height="15" fontName="Times New Roman" fontSize="10.0" bold="true" hTextAlign="Left" vTextAlign="Top">
+								<element kind="textField" uuid="bc690d0f-bc31-4bcc-a134-ff5deb5be586" x="0" y="0" width="300" height="15" fontName="Arial" fontSize="10.0" bold="true" hTextAlign="Left" vTextAlign="Top">
 									<expression><![CDATA[$F{medName}]]></expression>
 									<box topPadding="3" leftPadding="3">
 										<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
@@ -120,7 +120,7 @@
 										<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
 									</box>
 								</element>
-								<element kind="textField" uuid="9b848a7f-a2e8-4360-9e6c-b5fde8d00361" x="0" y="15" width="300" height="14" fontName="Times New Roman" fontSize="8.0" italic="true">
+								<element kind="textField" uuid="9b848a7f-a2e8-4360-9e6c-b5fde8d00361" x="0" y="15" width="300" height="14" fontName="Arial" fontSize="8.0" italic="true">
 									<expression><![CDATA["Ghi chú: " + $F{medNote} +", " + $F{dosage}]]></expression>
 									<box leftPadding="3">
 										<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
@@ -141,7 +141,7 @@
 						</column>
 						<column kind="single" uuid="dd7c9141-b6c3-4471-916b-43e980f65a47" width="50">
 							<columnHeader height="15" rowSpan="1" style="Table_CH">
-								<element kind="staticText" uuid="ae479f63-bbbf-4271-85e3-59bf587e90b6" x="0" y="0" width="50" height="15" fontName="Times New Roman" hTextAlign="Center" vTextAlign="Middle">
+								<element kind="staticText" uuid="ae479f63-bbbf-4271-85e3-59bf587e90b6" x="0" y="0" width="50" height="15" fontName="Arial" hTextAlign="Center" vTextAlign="Middle">
 									<text><![CDATA[SL]]></text>
 									<box>
 										<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
@@ -160,7 +160,7 @@
 								</box>
 							</columnFooter>
 							<detailCell height="29" style="Table_TD">
-								<element kind="textField" uuid="f200da37-dcd6-40f6-aa63-558a6f9ace69" x="0" y="0" width="50" height="29" fontName="Times New Roman" fontSize="8.0" hTextAlign="Center" vTextAlign="Middle">
+								<element kind="textField" uuid="f200da37-dcd6-40f6-aa63-558a6f9ace69" x="0" y="0" width="50" height="29" fontName="Arial" fontSize="8.0" hTextAlign="Center" vTextAlign="Middle">
 									<expression><![CDATA[$F{amount}]]></expression>
 									<box topPadding="3" leftPadding="3" bottomPadding="0" rightPadding="0">
 										<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
@@ -180,7 +180,7 @@
 						</column>
 						<column kind="single" uuid="d0909427-1340-4ba9-950e-ba0fdedd2638" width="100">
 							<columnHeader height="15" rowSpan="1" style="Table_CH">
-								<element kind="staticText" uuid="72a37327-ff08-4bf2-98d7-224713fb08e1" x="0" y="0" width="100" height="15" fontName="Times New Roman" hTextAlign="Center" vTextAlign="Middle">
+								<element kind="staticText" uuid="72a37327-ff08-4bf2-98d7-224713fb08e1" x="0" y="0" width="100" height="15" fontName="Arial" hTextAlign="Center" vTextAlign="Middle">
 									<text><![CDATA[Đơn giá (VND)]]></text>
 									<box>
 										<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
@@ -191,7 +191,7 @@
 								</element>
 							</columnHeader>
 							<columnFooter height="30" rowSpan="1">
-								<element kind="staticText" uuid="705eed6a-2cbd-4649-8f7c-e44b3d21e331" x="0" y="0" width="100" height="30" fontName="Times New Roman" fontSize="12.0" bold="true" hTextAlign="Right" vTextAlign="Top">
+								<element kind="staticText" uuid="705eed6a-2cbd-4649-8f7c-e44b3d21e331" x="0" y="0" width="100" height="30" fontName="Arial" fontSize="12.0" bold="true" hTextAlign="Right" vTextAlign="Top">
 									<text><![CDATA[Tổng tiền thuốc:]]></text>
 									<property name="com.jaspersoft.studio.unit.height" value="px"/>
 									<box topPadding="3" leftPadding="0"/>
@@ -204,7 +204,7 @@
 								</box>
 							</columnFooter>
 							<detailCell height="29" style="Table_TD">
-								<element kind="textField" uuid="3b16ef7d-483a-4149-88d3-c0b8b0e35dde" x="0" y="0" width="100" height="29" fontName="Times New Roman" fontSize="8.0" pattern="#,##0" hTextAlign="Right" vTextAlign="Middle">
+								<element kind="textField" uuid="3b16ef7d-483a-4149-88d3-c0b8b0e35dde" x="0" y="0" width="100" height="29" fontName="Arial" fontSize="8.0" pattern="#,##0" hTextAlign="Right" vTextAlign="Middle">
 									<expression><![CDATA[$F{unitPrice}]]></expression>
 									<box topPadding="3" leftPadding="3" rightPadding="3">
 										<pen lineWidth="1.0"/>
@@ -225,7 +225,7 @@
 						</column>
 						<column kind="single" uuid="aeb60052-ca3b-42d2-937e-3a40af79b35c" width="89">
 							<columnHeader height="15" rowSpan="1" style="Table_CH">
-								<element kind="staticText" uuid="ec36d49b-ab0f-4e85-a43f-ad8b5715edb7" x="0" y="0" width="89" height="15" fontName="Times New Roman" hTextAlign="Center" vTextAlign="Middle">
+								<element kind="staticText" uuid="ec36d49b-ab0f-4e85-a43f-ad8b5715edb7" x="0" y="0" width="89" height="15" fontName="Arial" hTextAlign="Center" vTextAlign="Middle">
 									<text><![CDATA[Thành tiền (VND)]]></text>
 									<box>
 										<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
@@ -236,7 +236,7 @@
 								</element>
 							</columnHeader>
 							<columnFooter height="30" rowSpan="1">
-								<element kind="textField" uuid="c4a50fa9-96a2-498f-8df1-211aa2ad308b" x="0" y="0" width="89" height="30" fontName="Times New Roman" pattern="#,##0" bold="true" hTextAlign="Right" vTextAlign="Top">
+								<element kind="textField" uuid="c4a50fa9-96a2-498f-8df1-211aa2ad308b" x="0" y="0" width="89" height="30" pattern="#,##0" bold="true" hTextAlign="Right" vTextAlign="Top">
 									<expression><![CDATA[$V{medTotal}]]></expression>
 									<box topPadding="2" rightPadding="3">
 										<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
@@ -253,7 +253,7 @@
 								</box>
 							</columnFooter>
 							<detailCell height="29" style="Table_TD">
-								<element kind="textField" uuid="02937f0a-f5d4-4549-a3ac-75615083057e" x="0" y="0" width="89" height="29" fontName="Times New Roman" fontSize="8.0" pattern="#,##0" hTextAlign="Right" vTextAlign="Middle">
+								<element kind="textField" uuid="02937f0a-f5d4-4549-a3ac-75615083057e" x="0" y="0" width="89" height="29" fontName="Arial" fontSize="8.0" pattern="#,##0" hTextAlign="Right" vTextAlign="Middle">
 									<expression><![CDATA[$V{medRowTotal}]]></expression>
 									<box topPadding="3" leftPadding="0" rightPadding="3">
 										<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
@@ -301,7 +301,7 @@
 						</datasetRun>
 						<column kind="single" uuid="9be00b0a-9844-4037-a53e-be1970a83d48" width="290">
 							<columnHeader height="15" rowSpan="1" style="Table_CH">
-								<element kind="staticText" uuid="f3bfa0e9-452f-417c-a96b-a36de1d89c60" x="0" y="0" width="290" height="15" fontName="Times New Roman" hTextAlign="Center" vTextAlign="Middle">
+								<element kind="staticText" uuid="f3bfa0e9-452f-417c-a96b-a36de1d89c60" x="0" y="0" width="290" height="15" fontName="Arial" hTextAlign="Center" vTextAlign="Middle">
 									<text><![CDATA[Tên dịch vụ]]></text>
 									<box>
 										<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
@@ -322,7 +322,7 @@
 								</box>
 							</columnFooter>
 							<detailCell height="29" style="Table_TD">
-								<element kind="textField" uuid="a16334e1-e3e0-4c20-a22d-7ce6a546edc8" x="0" y="0" width="290" height="15" fontName="Times New Roman" fontSize="8.0" hTextAlign="Left" vTextAlign="Top">
+								<element kind="textField" uuid="a16334e1-e3e0-4c20-a22d-7ce6a546edc8" x="0" y="0" width="290" height="15" fontName="Arial" fontSize="10.0" bold="true" hTextAlign="Left" vTextAlign="Top">
 									<expression><![CDATA[$F{serName}]]></expression>
 									<box topPadding="3" leftPadding="3">
 										<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
@@ -331,7 +331,7 @@
 										<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
 									</box>
 								</element>
-								<element kind="textField" uuid="48a3aa97-2f44-433e-a5b3-28fbcc0b0877" x="0" y="15" width="290" height="14" fontName="Times New Roman" fontSize="8.0" italic="true">
+								<element kind="textField" uuid="48a3aa97-2f44-433e-a5b3-28fbcc0b0877" x="0" y="15" width="290" height="14" fontName="Arial" fontSize="8.0" italic="true">
 									<expression><![CDATA["Ghi chú: " + $F{serNote}]]></expression>
 									<box leftPadding="3">
 										<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
@@ -351,7 +351,7 @@
 						</column>
 						<column kind="single" uuid="5d4cb5ab-0637-4bc5-9aa4-51d8748d93a3" width="59">
 							<columnHeader height="15" rowSpan="1" style="Table_CH">
-								<element kind="staticText" uuid="7d80482e-8a8d-4afe-9024-2ebddcd229ba" x="0" y="0" width="59" height="15" fontName="Times New Roman" hTextAlign="Center" vTextAlign="Middle">
+								<element kind="staticText" uuid="7d80482e-8a8d-4afe-9024-2ebddcd229ba" x="0" y="0" width="59" height="15" fontName="Arial" hTextAlign="Center" vTextAlign="Middle">
 									<text><![CDATA[SL]]></text>
 									<box>
 										<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
@@ -370,7 +370,7 @@
 								</box>
 							</columnFooter>
 							<detailCell height="29" style="Table_TD">
-								<element kind="textField" uuid="48ad7d8f-6a79-4804-9f36-9f5c8b6ce888" x="0" y="0" width="59" height="29" fontName="Times New Roman" fontSize="8.0" hTextAlign="Center" vTextAlign="Middle">
+								<element kind="textField" uuid="48ad7d8f-6a79-4804-9f36-9f5c8b6ce888" x="0" y="0" width="59" height="29" fontName="Arial" fontSize="8.0" hTextAlign="Center" vTextAlign="Middle">
 									<expression><![CDATA[$F{serAmount}]]></expression>
 									<box topPadding="3" leftPadding="3" bottomPadding="0" rightPadding="0">
 										<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
@@ -390,7 +390,7 @@
 						</column>
 						<column kind="single" uuid="3327181e-4f64-4d63-82ff-0ed2b59480cc" width="110">
 							<columnHeader height="15" rowSpan="1" style="Table_CH">
-								<element kind="staticText" uuid="37981f61-4b25-40b0-8a0c-41bcc6ed32fa" x="0" y="0" width="110" height="15" fontName="Times New Roman" hTextAlign="Center" vTextAlign="Middle">
+								<element kind="staticText" uuid="37981f61-4b25-40b0-8a0c-41bcc6ed32fa" x="0" y="0" width="110" height="15" fontName="Arial" hTextAlign="Center" vTextAlign="Middle">
 									<text><![CDATA[Đơn giá (VND)]]></text>
 									<box>
 										<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
@@ -401,7 +401,7 @@
 								</element>
 							</columnHeader>
 							<columnFooter height="30" rowSpan="1">
-								<element kind="staticText" uuid="3b9fa332-aed6-4fa5-936b-8de4b1e1bae0" x="0" y="0" width="110" height="30" fontName="Times New Roman" fontSize="12.0" bold="true" hTextAlign="Left" vTextAlign="Top">
+								<element kind="staticText" uuid="3b9fa332-aed6-4fa5-936b-8de4b1e1bae0" x="0" y="0" width="110" height="30" fontName="Arial" fontSize="12.0" bold="true" hTextAlign="Left" vTextAlign="Top">
 									<text><![CDATA[Tổng tiền dịch vụ:]]></text>
 									<box topPadding="3" leftPadding="3"/>
 								</element>
@@ -413,7 +413,7 @@
 								</box>
 							</columnFooter>
 							<detailCell height="29" style="Table_TD">
-								<element kind="textField" uuid="6bf24316-39cd-4805-8548-52ea9d23818e" x="0" y="0" width="110" height="29" fontName="Times New Roman" fontSize="8.0" pattern="#,##0" hTextAlign="Right" vTextAlign="Middle">
+								<element kind="textField" uuid="6bf24316-39cd-4805-8548-52ea9d23818e" x="0" y="0" width="110" height="29" fontName="Arial" fontSize="8.0" pattern="#,##0" hTextAlign="Right" vTextAlign="Middle">
 									<expression><![CDATA[$F{serUnitPrice}]]></expression>
 									<box topPadding="3" leftPadding="3" rightPadding="3">
 										<pen lineWidth="1.0"/>
@@ -434,7 +434,7 @@
 						</column>
 						<column kind="single" uuid="5aca36b8-4305-428a-9311-4223d48dc96b" width="81">
 							<columnHeader height="15" rowSpan="1" style="Table_CH">
-								<element kind="staticText" uuid="51fe5f04-3e6f-4f9c-bfbe-c9aa31e5266d" x="0" y="0" width="81" height="15" fontName="Times New Roman" hTextAlign="Center" vTextAlign="Middle">
+								<element kind="staticText" uuid="51fe5f04-3e6f-4f9c-bfbe-c9aa31e5266d" x="0" y="0" width="81" height="15" fontName="Arial" hTextAlign="Center" vTextAlign="Middle">
 									<text><![CDATA[Thành tiền (VND)]]></text>
 									<box>
 										<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
@@ -445,7 +445,7 @@
 								</element>
 							</columnHeader>
 							<columnFooter height="30" rowSpan="1">
-								<element kind="textField" uuid="a0606f4b-6dad-47cd-b470-f401e298612e" x="0" y="0" width="81" height="30" fontName="Times New Roman" pattern="#,##0" bold="true" hTextAlign="Right" vTextAlign="Top">
+								<element kind="textField" uuid="a0606f4b-6dad-47cd-b470-f401e298612e" x="0" y="0" width="81" height="30" pattern="#,##0" bold="true" hTextAlign="Right" vTextAlign="Top">
 									<expression><![CDATA[$V{serTotal}]]></expression>
 									<box topPadding="3" rightPadding="3">
 										<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
@@ -462,7 +462,7 @@
 								</box>
 							</columnFooter>
 							<detailCell height="29" style="Table_TD">
-								<element kind="textField" uuid="035cfa1b-9187-4bfe-8fa1-1d149d789768" x="0" y="0" width="81" height="29" fontName="Times New Roman" fontSize="8.0" pattern="#,##0" hTextAlign="Right" vTextAlign="Middle">
+								<element kind="textField" uuid="035cfa1b-9187-4bfe-8fa1-1d149d789768" x="0" y="0" width="81" height="29" fontName="Arial" fontSize="8.0" pattern="#,##0" hTextAlign="Right" vTextAlign="Middle">
 									<expression><![CDATA[$V{serRowTotal}]]></expression>
 									<box topPadding="3" leftPadding="0" rightPadding="3">
 										<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
@@ -506,7 +506,7 @@
 						</datasetRun>
 						<column kind="single" uuid="c56e4696-b21a-4640-a3ca-b528622c7c86" width="300">
 							<columnHeader height="15" rowSpan="1" style="Table_CH">
-								<element kind="staticText" uuid="5ac78482-8ead-4d65-8232-92426efbcb34" stretchType="NoStretch" x="0" y="0" width="300" height="15" fontName="Times New Roman" hTextAlign="Center" vTextAlign="Middle">
+								<element kind="staticText" uuid="5ac78482-8ead-4d65-8232-92426efbcb34" stretchType="NoStretch" x="0" y="0" width="300" height="15" fontName="Arial" hTextAlign="Center" vTextAlign="Middle">
 									<text><![CDATA[Tên sản phẩm]]></text>
 									<property name="com.jaspersoft.studio.unit.height" value="px"/>
 									<box>
@@ -528,7 +528,7 @@
 								</box>
 							</columnFooter>
 							<detailCell height="30" style="Table_TD">
-								<element kind="textField" uuid="d5ea8862-e0b9-46d9-a53c-c10aca930651" x="0" y="0" width="300" height="15" fontName="Times New Roman" fontSize="8.0" hTextAlign="Left" vTextAlign="Top">
+								<element kind="textField" uuid="d5ea8862-e0b9-46d9-a53c-c10aca930651" x="0" y="0" width="300" height="15" fontName="Arial" fontSize="10.0" bold="true" hTextAlign="Left" vTextAlign="Top">
 									<expression><![CDATA[$F{supName}]]></expression>
 									<box topPadding="3" leftPadding="3">
 										<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
@@ -537,7 +537,7 @@
 										<rightPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
 									</box>
 								</element>
-								<element kind="textField" uuid="5bf931d8-5fc9-4ad0-9a88-ce5fb7874edd" x="0" y="15" width="300" height="15" fontName="Times New Roman" fontSize="8.0" italic="true">
+								<element kind="textField" uuid="5bf931d8-5fc9-4ad0-9a88-ce5fb7874edd" x="0" y="15" width="300" height="15" fontName="Arial" fontSize="8.0" italic="true">
 									<expression><![CDATA["Ghi chú: " + $F{supNote} + ", " + $F{supDosage}]]></expression>
 									<box leftPadding="3">
 										<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
@@ -557,7 +557,7 @@
 						</column>
 						<column kind="single" uuid="896672c4-8128-4e60-b52a-4469dff9bc37" width="50">
 							<columnHeader height="15" rowSpan="1" style="Table_CH">
-								<element kind="staticText" uuid="dec34657-b22a-42b0-b8f6-54c2d0b557b7" x="0" y="0" width="50" height="15" fontName="Times New Roman" hTextAlign="Center" vTextAlign="Middle">
+								<element kind="staticText" uuid="dec34657-b22a-42b0-b8f6-54c2d0b557b7" x="0" y="0" width="50" height="15" fontName="Arial" hTextAlign="Center" vTextAlign="Middle">
 									<text><![CDATA[SL]]></text>
 									<box>
 										<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
@@ -576,7 +576,7 @@
 								</box>
 							</columnFooter>
 							<detailCell height="30" style="Table_TD">
-								<element kind="textField" uuid="b0d84fb4-a5d8-4b2d-89c0-f082afe51ef3" x="0" y="0" width="50" height="30" fontName="Times New Roman" fontSize="8.0" hTextAlign="Center" vTextAlign="Middle">
+								<element kind="textField" uuid="b0d84fb4-a5d8-4b2d-89c0-f082afe51ef3" x="0" y="0" width="50" height="30" fontName="Arial" fontSize="8.0" hTextAlign="Center" vTextAlign="Middle">
 									<expression><![CDATA[$F{supAmount}]]></expression>
 									<box topPadding="3" leftPadding="3" bottomPadding="0" rightPadding="0">
 										<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
@@ -596,7 +596,7 @@
 						</column>
 						<column kind="single" uuid="b39552ea-7133-415f-9651-ab70891e8c3b" width="100">
 							<columnHeader height="15" rowSpan="1" style="Table_CH">
-								<element kind="staticText" uuid="6ccc7d95-8eb4-45dd-990a-405dbdd76460" x="0" y="0" width="100" height="15" fontName="Times New Roman" hTextAlign="Center" vTextAlign="Middle">
+								<element kind="staticText" uuid="6ccc7d95-8eb4-45dd-990a-405dbdd76460" x="0" y="0" width="100" height="15" fontName="Arial" hTextAlign="Center" vTextAlign="Middle">
 									<text><![CDATA[Đơn giá (VND)]]></text>
 									<box>
 										<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
@@ -607,7 +607,7 @@
 								</element>
 							</columnHeader>
 							<columnFooter height="30" rowSpan="1">
-								<element kind="staticText" uuid="9507b170-f15d-4fc1-92d0-afdff63314dc" x="0" y="0" width="100" height="30" fontName="Times New Roman" fontSize="12.0" bold="true" hTextAlign="Left" vTextAlign="Top">
+								<element kind="staticText" uuid="9507b170-f15d-4fc1-92d0-afdff63314dc" x="0" y="0" width="100" height="30" fontName="Arial" fontSize="12.0" bold="true" hTextAlign="Left" vTextAlign="Top">
 									<text><![CDATA[Tổng tiền thuốc:]]></text>
 									<box topPadding="3" leftPadding="3"/>
 								</element>
@@ -619,7 +619,7 @@
 								</box>
 							</columnFooter>
 							<detailCell height="30" style="Table_TD">
-								<element kind="textField" uuid="b2a7a96b-2dfa-4e45-80fb-a539e558c7f7" x="0" y="0" width="100" height="30" fontName="Times New Roman" fontSize="8.0" pattern="#,##0" hTextAlign="Right" vTextAlign="Middle">
+								<element kind="textField" uuid="b2a7a96b-2dfa-4e45-80fb-a539e558c7f7" x="0" y="0" width="100" height="30" fontName="Arial" fontSize="8.0" pattern="#,##0" hTextAlign="Right" vTextAlign="Middle">
 									<expression><![CDATA[$F{supUnitPrice}]]></expression>
 									<box topPadding="3" leftPadding="3" rightPadding="3">
 										<pen lineWidth="1.0"/>
@@ -640,7 +640,7 @@
 						</column>
 						<column kind="single" uuid="37250740-3d62-4dc1-800d-eb943da0388e" width="89">
 							<columnHeader height="15" rowSpan="1" style="Table_CH">
-								<element kind="staticText" uuid="5c61209b-8409-4ba2-979e-f52e49eb0b00" x="0" y="0" width="89" height="15" fontName="Times New Roman" hTextAlign="Center" vTextAlign="Middle">
+								<element kind="staticText" uuid="5c61209b-8409-4ba2-979e-f52e49eb0b00" x="0" y="0" width="89" height="15" fontName="Arial" hTextAlign="Center" vTextAlign="Middle">
 									<text><![CDATA[Thành tiền (VND)]]></text>
 									<box>
 										<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
@@ -651,7 +651,7 @@
 								</element>
 							</columnHeader>
 							<columnFooter height="30" rowSpan="1">
-								<element kind="textField" uuid="f0e1b6cf-c081-4483-ab9c-a9112960858d" x="0" y="0" width="89" height="30" fontName="Times New Roman" pattern="#,##0" bold="true" hTextAlign="Right" vTextAlign="Top">
+								<element kind="textField" uuid="f0e1b6cf-c081-4483-ab9c-a9112960858d" x="0" y="0" width="89" height="30" pattern="#,##0" bold="true" hTextAlign="Right" vTextAlign="Top">
 									<expression><![CDATA[$V{supTotal}]]></expression>
 									<box topPadding="3" rightPadding="3">
 										<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
@@ -668,7 +668,7 @@
 								</box>
 							</columnFooter>
 							<detailCell height="30" style="Table_TD">
-								<element kind="textField" uuid="b46cdc11-d0af-4436-a554-b9c38613f07a" x="0" y="0" width="89" height="30" fontName="Times New Roman" fontSize="8.0" pattern="#,##0" hTextAlign="Right" vTextAlign="Middle">
+								<element kind="textField" uuid="b46cdc11-d0af-4436-a554-b9c38613f07a" x="0" y="0" width="89" height="30" fontName="Arial" fontSize="8.0" pattern="#,##0" hTextAlign="Right" vTextAlign="Middle">
 									<expression><![CDATA[$V{supRowTotal}]]></expression>
 									<box topPadding="3" leftPadding="0" rightPadding="3">
 										<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
@@ -783,7 +783,7 @@
 		</element>
 	</pageFooter>
 	<summary height="128" splitType="Stretch">
-		<element kind="staticText" uuid="f6d652a5-b593-4ee5-96a2-a4886beb7483" x="240" y="15" width="280" height="30" fontName="Times New Roman" fontSize="16.0" bold="true">
+		<element kind="staticText" uuid="f6d652a5-b593-4ee5-96a2-a4886beb7483" x="240" y="15" width="205" height="30" fontName="Times New Roman" fontSize="16.0" bold="true">
 			<text><![CDATA[Tổng cộng thanh toán:]]></text>
 		</element>
 		<element kind="textField" uuid="f53358c4-1118-484a-968d-cf3fa2f55f3c" x="446" y="15" width="100" height="30" fontName="Times New Roman" fontSize="16.0" evaluationTime="Report" pattern="#,##0" bold="true" hTextAlign="Right">

@@ -45,7 +45,7 @@ public class MedicineDialog extends JDialog {
     private JTextArea noteField;
     private DefaultTableModel tableModel, selectedTableModel;
     private String[] medcineColumns = {"ID", "Tên thuốc", "Công ty", "Mô tả", "Tồn kho", "ĐVT", "Giá"};
-    private String[] suggestionColumns = {"Tên thuốc", "Tồn kho", "ĐVT", "Giá"};
+    private String[] suggestionColumns = {"Tên thuốc", "Tồn kho", "ĐVT", "Giá", "Supplement"};
     private String[][] medicineData;
     private final ResponseListener<GetMedInfoResponse> getMedInfoResponseListener = this::getMedInfoHandler;
     private TableColumnModel columnModel;
@@ -512,10 +512,10 @@ public class MedicineDialog extends JDialog {
                     if (selectedRow == -1) return;
 
                     handleMedicineTableRowSelection(selectedRow); // Populate fields on any click
-
+                    suggestionPopup.setVisible(false); // Close popup on single click
+                    
                     if (e.getClickCount() == 2) {
                         addSelectedMedicine();
-                        suggestionPopup.setVisible(false);
                     }
                 });
             }
@@ -646,11 +646,14 @@ public class MedicineDialog extends JDialog {
         for (Medicine med : medicines) {
             if (filterText.isEmpty() || TextUtils.removeAccents(med.getName().toLowerCase()).contains(lowerCaseFilterText)) {
                 filteredMedicines.add(med);
+                // Show "Có" if supplement is "1", otherwise "Không"
+                String isSupplementText = "1".equals(med.getSupplement()) ? "Có" : "Không";
                 filteredDisplayData.add(new String[]{
                         med.getName(),
                         med.getQuantity(),
                         med.getUnit(),
-                        med.getSellingPrice()
+                        med.getSellingPrice(),
+                        isSupplementText
                 });
             }
         }
@@ -680,10 +683,11 @@ public class MedicineDialog extends JDialog {
 
     private void resizeSuggestionTableColumns() {
         columnModel = suggestionTable.getColumnModel();
-        columnModel.getColumn(0).setPreferredWidth(200); // Tên thuốc
+        columnModel.getColumn(0).setPreferredWidth(180); // Tên thuốc
         columnModel.getColumn(1).setPreferredWidth(50);  // Tồn kho
         columnModel.getColumn(2).setPreferredWidth(50);  // ĐVT
-        columnModel.getColumn(3).setPreferredWidth(80);  // Giá
+        columnModel.getColumn(3).setPreferredWidth(70);  // Giá
+        columnModel.getColumn(4).setPreferredWidth(70);  // Supplement
     }
     
     private void handleMedicineTableRowSelection(int viewRow) {
