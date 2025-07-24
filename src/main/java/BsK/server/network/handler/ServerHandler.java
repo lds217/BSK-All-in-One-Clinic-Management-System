@@ -374,7 +374,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         log.debug("Received GetMedInfoRequest");
         try {
           ResultSet rs = statement.executeQuery(
-                  "select med_id, med_name, med_company, med_description, quantity, med_unit, med_selling_price, preference_note\n" +
+                  "select med_id, med_name, med_company, med_description, quantity, med_unit, med_selling_price, preference_note, supplement\n" +
                           "    from Medicine"
           );
 
@@ -391,10 +391,11 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                 String medUnit = rs.getString("med_unit");
                 String medSellingPrice = rs.getString("med_selling_price");
                 String preferenceNote = rs.getString("preference_note");
+                String supplement = rs.getString("supplement");
 
 
                 String result = String.join("|",medId, medName, medCompany, medDescription, quantity, medUnit,
-                        medSellingPrice, preferenceNote != null ? preferenceNote : "");
+                        medSellingPrice, preferenceNote != null ? preferenceNote : "", supplement != null ? supplement : "0");
                 resultList.add(result);
             }
 

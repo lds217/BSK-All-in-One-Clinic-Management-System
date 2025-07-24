@@ -1779,14 +1779,31 @@ public class CheckUpPage extends JPanel {
                     (servicePrescription == null || servicePrescription.length == 0)) {
                     return; // Just return silently if there's nothing to print
                 }
+                // Separate regular medications and supplements
+                List<String[]> regularMeds = new ArrayList<>();
+                List<String[]> supplements = new ArrayList<>();
+                
+                if (medicinePrescription != null) {
+                    for (String[] med : medicinePrescription) {
+                        // Check if this is a supplement (index 8 is the supplement flag)
+                        if (med.length > 8 && "1".equals(med[8])) {
+                            supplements.add(med);
+                        } else {
+                            regularMeds.add(med);
+                        }
+                    }
+                }
+                
                 MedicineInvoice medicineInvoice = new MedicineInvoice(checkupIdField.getText(),
                         customerLastNameField.getText() + " " + customerFirstNameField.getText(),
                         dobPicker.getJFormattedTextField().getText(), customerPhoneField.getText(),
                         genderComboBox.getSelectedItem().toString(),
                         customerAddressField.getText() + ", " + (wardComboBox.getSelectedItem() != null ? wardComboBox.getSelectedItem().toString() : "") + ", " + (districtComboBox.getSelectedItem() != null ? districtComboBox.getSelectedItem().toString() : "") + ", " + (provinceComboBox.getSelectedItem() != null ? provinceComboBox.getSelectedItem().toString() : ""),
                         doctorComboBox.getSelectedItem().toString(), diagnosisField.getText(),
-                        conclusionField.getText(), medicinePrescription, servicePrescription,
-                        new String[][]{} // No supplements for now
+                        conclusionField.getText(), 
+                        regularMeds.toArray(new String[0][]),
+                        servicePrescription,
+                        supplements.toArray(new String[0][]) // Pass supplements
                 );
                 // First, show the print preview to the user
                 medicineInvoice.showDirectJasperViewer(); 
@@ -4888,15 +4905,6 @@ public class CheckUpPage extends JPanel {
         });
     }
 
-    private int findRowByCheckupId(String checkupId) {
-        DefaultTableModel model = (DefaultTableModel) table.getModel();
-        for (int i = 0; i < model.getRowCount(); i++) {
-            if (model.getValueAt(i, 0).equals(checkupId)) {
-                return i;
-            }
-        }
-        return -1; // Not found
-    }
 }
 
 
