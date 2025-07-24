@@ -1785,10 +1785,12 @@ public class CheckUpPage extends JPanel {
                 
                 if (medicinePrescription != null) {
                     for (String[] med : medicinePrescription) {
-                        // Check if this is a supplement (index 8 is the supplement flag)
-                        if (med.length > 8 && "1".equals(med[8])) {
+                        // Check if this is a supplement (index 10 is the supplement flag)
+                        if (med.length > 10 && "1".equals(med[10])) {
+                            log.info("Supplement: {}", med[1]);
                             supplements.add(med);
                         } else {
+                            log.info("Regular medicine: {}", med[1]);
                             regularMeds.add(med);
                         }
                     }

@@ -418,7 +418,7 @@ public class MedicineDialog extends JDialog {
         suggestionPopup.setFocusable(false);
 
 
-        String[] selectedColumnNames = {"ID", "Tên thuốc", "SL", "ĐVT", "Sáng", "Trưa", "Chiều", "Đơn giá", "Thành tiền", "Ghi chú"};
+        String[] selectedColumnNames = {"ID", "Tên thuốc", "SL", "ĐVT", "Sáng", "Trưa", "Chiều", "Đơn giá", "Thành tiền", "Ghi chú", "Supplement"};
         selectedTableModel = new DefaultTableModel(new String[][]{}, selectedColumnNames) {
             @Override
             public boolean isCellEditable(int row, int column) {
@@ -793,7 +793,7 @@ public class MedicineDialog extends JDialog {
     private void addSelectedMedicine() {
         int selectedRowInSuggestionTable = suggestionTable.getSelectedRow();
         
-        String medicineId, name, unit, currentPrice;
+        String medicineId, name, unit, currentPrice, supplement;
         String searchName = medicineNameField.getText().trim();
 
         if (searchName.isEmpty()) {
@@ -801,34 +801,38 @@ public class MedicineDialog extends JDialog {
             return;
         }
 
+        Medicine selectedMedicine = null;
+
         // Prioritize selection from the popup table if it's open and has a selection
         if (suggestionPopup.isVisible() && selectedRowInSuggestionTable != -1) {
-            Medicine selectedMedicine = filteredMedicines.get(suggestionTable.convertRowIndexToModel(selectedRowInSuggestionTable));
+            selectedMedicine = filteredMedicines.get(suggestionTable.convertRowIndexToModel(selectedRowInSuggestionTable));
             medicineId = selectedMedicine.getId();
             name = selectedMedicine.getName();
             unit = selectedMedicine.getUnit();
             currentPrice = selectedMedicine.getSellingPrice();
         } else {
             // Otherwise, try to find an exact match from the text field
-            Medicine foundMedicine = null;
             String normalizedSearchName = TextUtils.removeAccents(searchName.toLowerCase());
 
             for (Medicine med : medicines) {
                 if (TextUtils.removeAccents(med.getName().toLowerCase()).equals(normalizedSearchName)) {
-                    foundMedicine = med;
+                    selectedMedicine = med;
                     break;
                 }
             }
             
-            if (foundMedicine == null) {
+            if (selectedMedicine == null) {
                 JOptionPane.showMessageDialog(this, "Không tìm thấy thuốc khớp với: '" + searchName + "'. Vui lòng chọn từ danh sách gợi ý.", "Lỗi", JOptionPane.ERROR_MESSAGE);
                 return;
             }
-            medicineId = foundMedicine.getId();
-            name = foundMedicine.getName(); 
-            unit = foundMedicine.getUnit(); 
-            currentPrice = foundMedicine.getSellingPrice();
+            medicineId = selectedMedicine.getId();
+            name = selectedMedicine.getName(); 
+            unit = selectedMedicine.getUnit(); 
+            currentPrice = selectedMedicine.getSellingPrice();
         }
+        
+        // Get supplement status
+        supplement = selectedMedicine.getSupplement();
 
         int quantity = (Integer) quantitySpinner.getValue();
         int morningVal = (Integer) morningSpinner.getValue();
@@ -839,9 +843,11 @@ public class MedicineDialog extends JDialog {
 
         if (quantity <= 0) {
             JOptionPane.showMessageDialog(this, "Số lượng phải lớn hơn 0.", "Số lượng không hợp lệ", JOptionPane.WARNING_MESSAGE);
-                    return;
-                }
-        selectedTableModel.addRow(new Object[]{medicineId, name, quantity, unit, morningVal, noonVal, eveningVal, currentPrice, totalAmount, note});
+            return;
+        }
+        
+        // Include supplement information
+        selectedTableModel.addRow(new Object[]{medicineId, name, quantity, unit, morningVal, noonVal, eveningVal, currentPrice, totalAmount, note, supplement});
         
         // Clear fields for next entry
         isProgrammaticallySettingMedicineNameField = true;
@@ -866,7 +872,7 @@ public class MedicineDialog extends JDialog {
             medicinePrescription = new String[0][0];
             return;
         }
-        medicinePrescription = new String[rowCount][10];
+        medicinePrescription = new String[rowCount][11];
         for (int i = 0; i < rowCount; i++) {
             medicinePrescription[i][0] = selectedTableModel.getValueAt(i, 0).toString();
             medicinePrescription[i][1] = selectedTableModel.getValueAt(i, 1).toString();
@@ -878,6 +884,10 @@ public class MedicineDialog extends JDialog {
             medicinePrescription[i][7] = selectedTableModel.getValueAt(i, 7).toString();
             medicinePrescription[i][8] = selectedTableModel.getValueAt(i, 8).toString();
             medicinePrescription[i][9] = selectedTableModel.getValueAt(i, 9).toString();
+            
+            // Get supplement value (0/1) or default to "0" if null
+            Object supplementObj = selectedTableModel.getValueAt(i, 10);
+            medicinePrescription[i][10] = (supplementObj != null) ? supplementObj.toString() : "0";
         }
     }
 
