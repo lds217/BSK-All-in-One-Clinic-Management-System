@@ -164,7 +164,6 @@ public class CheckUpPage extends JPanel {
     private final ResponseListener<GetCheckUpQueueUpdateResponse> checkUpQueueUpdateListener = this::handleGetCheckUpQueueUpdateResponse;
     private final ResponseListener<GetCheckUpQueueResponse> checkUpQueueListener = this::handleGetCheckUpQueueResponse;
     private final ResponseListener<GetPatientHistoryResponse> patientHistoryListener = this::handleGetPatientHistoryResponse;
-    private final ResponseListener<GetDistrictResponse> districtResponseListener = this::handleGetDistrictResponse;
     private final ResponseListener<GetWardResponse> wardResponseListener = this::handleGetWardResponse;
     private final ResponseListener<CallPatientResponse> callPatientResponseListener = this::handleCallPatientResponse;
     private final ResponseListener<GetOrderInfoByCheckupRes> orderInfoByCheckupListener = this::handleGetOrderInfoByCheckupResponse;
@@ -174,7 +173,7 @@ public class CheckUpPage extends JPanel {
     private JTextField checkupIdField, customerLastNameField, customerFirstNameField,customerAddressField, customerPhoneField, customerIdField, customerCccdDdcnField;
     private JTextArea suggestionField, diagnosisField, conclusionField; // Changed symptomsField to suggestionField
     private JTextPane notesField;
-    private JComboBox<String> doctorComboBox, statusComboBox, genderComboBox, provinceComboBox, districtComboBox, wardComboBox, checkupTypeComboBox, templateComboBox, orientationComboBox; // Added orientationComboBox
+    private JComboBox<String> doctorComboBox, statusComboBox, genderComboBox, provinceComboBox, wardComboBox, checkupTypeComboBox, templateComboBox, orientationComboBox; // Added orientationComboBox
     private JComboBox<String> ultrasoundDoctorComboBox;
     private JCheckBox needRecheckupCheckbox; // Checkbox to indicate if re-checkup is needed
     private JSpinner customerWeightSpinner, customerHeightSpinner, patientHeartRateSpinner, bloodPressureSystolicSpinner, bloodPressureDiastolicSpinner;
@@ -188,10 +187,9 @@ public class CheckUpPage extends JPanel {
     private AddDialog addDialog = null;
     private String selectedCheckupId = null; // Use checkupId to track selection instead of row index
     private boolean saved = true; // Initially true, changed when patient selected or dialog opened.
-    private DefaultComboBoxModel<String> districtModel, wardModel;
+    private DefaultComboBoxModel<String> wardModel;
     
-    // Variables to store target district and ward when loading patient address
-    private String targetDistrict = null;
+    // Variables to store target ward and ward when loading patient address
     private String targetWard = null;
     private JComboBox<String> callRoomComboBox;
     private JButton callPatientButton;
@@ -321,15 +319,6 @@ public class CheckUpPage extends JPanel {
         return -1;
     }
 
-    private int findDistrictIndex(String district) {
-        for (int i = 0; i < LocalStorage.districts.length; i++) {
-            if (TextUtils.removeAccents(LocalStorage.districts[i]).equals(TextUtils.removeAccents(district))) {
-                return i;
-            }
-        }
-        return -1;
-    }
-
     private int findWardIndex(String ward) {
         for (int i = 0; i < LocalStorage.wards.length; i++) {
             if (TextUtils.removeAccents(LocalStorage.wards[i]).equals(TextUtils.removeAccents(ward))) {
@@ -358,7 +347,6 @@ public class CheckUpPage extends JPanel {
         ClientHandler.addResponseListener(GetCheckUpQueueUpdateResponse.class, checkUpQueueUpdateListener);
         ClientHandler.addResponseListener(GetPatientHistoryResponse.class, patientHistoryListener);
         ClientHandler.addResponseListener(GetOrderInfoByCheckupRes.class, orderInfoByCheckupListener);
-        ClientHandler.addResponseListener(GetDistrictResponse.class, districtResponseListener);
         ClientHandler.addResponseListener(GetWardResponse.class, wardResponseListener);
         ClientHandler.addResponseListener(CallPatientResponse.class, callPatientResponseListener);
         ClientHandler.addResponseListener(GetAllTemplatesRes.class, getAllTemplatesListener);
@@ -426,6 +414,9 @@ public class CheckUpPage extends JPanel {
         addPatientButton.setBorder(BorderFactory.createEmptyBorder(8, 20, 8, 20)); // Reduced vertical padding from 10 to 8
         addPatientButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         addPatientButton.addActionListener(e -> {
+            // Unregister the listener from the parent page to avoid conflicts
+            ClientHandler.deleteListener(GetWardResponse.class, wardResponseListener);
+
             // Dispose any existing dialog to ensure clean listener removal
             if (addDialog != null) {
                 addDialog.dispose();
@@ -435,9 +426,18 @@ public class CheckUpPage extends JPanel {
                 public void dispose() {
                     super.dispose();
                     addDialog = null;  // Clear the reference when dialog is disposed
+                    // Re-register the listener after the dialog is actually disposed
+                    ClientHandler.addResponseListener(GetWardResponse.class, wardResponseListener);
+                    log.info("AddDialog disposed, re-registered ward listener for CheckUpPage.");
                 }
             };
-            addDialog.setVisible(true);
+            
+            // Show the dialog without blocking the main thread
+            SwingUtilities.invokeLater(() -> {
+                addDialog.setVisible(true);
+                // The re-registration will now happen inside the dispose() override
+            });
+
             updateUpdateQueue();
         });
 
@@ -765,14 +765,7 @@ public class CheckUpPage extends JPanel {
         patientInfoInnerPanel.add(provinceComboBox, gbcPatient);
 
         gbcPatient.gridx = 2;
-        districtModel = new DefaultComboBoxModel<>(new String[]{"Huyện"});
-        districtComboBox = new JComboBox<>(districtModel);
-        districtComboBox.setFont(fieldFont);
-        districtComboBox.setEnabled(false);
-        patientInfoInnerPanel.add(districtComboBox, gbcPatient);
-
-        gbcPatient.gridx = 3;
-        wardModel = new DefaultComboBoxModel<>(new String[]{"Phường"});
+        wardModel = new DefaultComboBoxModel<>(new String[]{"Huyện"});
         wardComboBox = new JComboBox<>(wardModel);
         wardComboBox.setFont(fieldFont);
         wardComboBox.setEnabled(false);
@@ -834,40 +827,19 @@ public class CheckUpPage extends JPanel {
             if (selectedProvince != null && !selectedProvince.equals("Tỉnh/Thành phố")) {
                 String provinceId = LocalStorage.provinceToId.get(selectedProvince);
                 if (provinceId != null) {
-                    NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetDistrictRequest(provinceId));
-                    districtComboBox.setEnabled(false); 
-                    districtModel.removeAllElements(); 
-                    districtModel.addElement("Đang tải quận/huyện...");
+                    NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetWardRequest(provinceId));
                     wardComboBox.setEnabled(false); 
                     wardModel.removeAllElements(); 
-                    wardModel.addElement("Phường"); 
+                    wardModel.addElement("Đang tải quận/huyện...");
                 }
             } else {
-                districtComboBox.setEnabled(false); 
-                districtModel.removeAllElements(); 
-                districtModel.addElement("Huyện");
                 wardComboBox.setEnabled(false); 
                 wardModel.removeAllElements(); 
-                wardModel.addElement("Phường");
+                wardModel.addElement("Huyện");
             }
         });
 
-        districtComboBox.addActionListener(e -> {
-            String selectedDistrict = (String) districtComboBox.getSelectedItem();
-            if (selectedDistrict != null && LocalStorage.districtToId != null && LocalStorage.districtToId.containsKey(selectedDistrict)) {
-                String districtId = LocalStorage.districtToId.get(selectedDistrict);
-                if (districtId != null) {
-                    NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetWardRequest(districtId));
-                    wardComboBox.setEnabled(false); 
-                    wardModel.removeAllElements(); 
-                    wardModel.addElement("Đang tải phường/xã...");
-                }
-            } else {
-                wardComboBox.setEnabled(false); 
-                wardModel.removeAllElements(); 
-                wardModel.addElement("Phường");
-            }
-        });
+
 
         // Checkup Info Section
         JPanel checkupInfoPanel = new JPanel(new BorderLayout(10, 5)); // Reduced vertical gap from 10 to 5
@@ -1810,7 +1782,7 @@ public class CheckUpPage extends JPanel {
                         customerLastNameField.getText() + " " + customerFirstNameField.getText(),
                         dobPicker.getJFormattedTextField().getText(), customerPhoneField.getText(),
                         genderComboBox.getSelectedItem().toString(),
-                        customerAddressField.getText() + ", " + (wardComboBox.getSelectedItem() != null ? wardComboBox.getSelectedItem().toString() : "") + ", " + (districtComboBox.getSelectedItem() != null ? districtComboBox.getSelectedItem().toString() : "") + ", " + (provinceComboBox.getSelectedItem() != null ? provinceComboBox.getSelectedItem().toString() : ""),
+                        customerAddressField.getText()  + ", " + (wardComboBox.getSelectedItem() != null ? wardComboBox.getSelectedItem().toString() : "") + ", " + (provinceComboBox.getSelectedItem() != null ? provinceComboBox.getSelectedItem().toString() : ""),
                         doctorComboBox.getSelectedItem().toString(), diagnosisField.getText(),
                         conclusionField.getText(), 
                         regularMeds.toArray(new String[0][]),
@@ -1866,7 +1838,7 @@ public class CheckUpPage extends JPanel {
                         customerLastNameField.getText() + " " + customerFirstNameField.getText(),
                         dobPicker.getJFormattedTextField().getText(),
                         (String) genderComboBox.getSelectedItem(),
-                        customerAddressField.getText() + ", " + (wardComboBox.getSelectedItem() != null ? wardComboBox.getSelectedItem().toString() : "") + ", " + (districtComboBox.getSelectedItem() != null ? districtComboBox.getSelectedItem().toString() : "") + ", " + (provinceComboBox.getSelectedItem() != null ? provinceComboBox.getSelectedItem().toString() : ""),
+                        customerAddressField.getText() +  ", " + (wardComboBox.getSelectedItem() != null ? wardComboBox.getSelectedItem().toString() : "") + ", " + (provinceComboBox.getSelectedItem() != null ? provinceComboBox.getSelectedItem().toString() : ""),
                         (String) doctorComboBox.getSelectedItem(),
                         (String) ultrasoundDoctorComboBox.getSelectedItem(),
                         datePicker.getJFormattedTextField().getText(),
@@ -1941,7 +1913,7 @@ public class CheckUpPage extends JPanel {
                         customerLastNameField.getText() + " " + customerFirstNameField.getText(),
                         dobPicker.getJFormattedTextField().getText(),
                         (String) genderComboBox.getSelectedItem(),
-                        customerAddressField.getText() + ", " + (wardComboBox.getSelectedItem() != null ? wardComboBox.getSelectedItem().toString() : "") + ", " + (districtComboBox.getSelectedItem() != null ? districtComboBox.getSelectedItem().toString() : "") + ", " + (provinceComboBox.getSelectedItem() != null ? provinceComboBox.getSelectedItem().toString() : ""),
+                        customerAddressField.getText() + ", " + (wardComboBox.getSelectedItem() != null ? wardComboBox.getSelectedItem().toString() : "") + ", " + (provinceComboBox.getSelectedItem() != null ? provinceComboBox.getSelectedItem().toString() : ""),
                         (String) doctorComboBox.getSelectedItem(),
                         (String) ultrasoundDoctorComboBox.getSelectedItem(),
                         datePicker.getJFormattedTextField().getText(),
@@ -2270,44 +2242,47 @@ public class CheckUpPage extends JPanel {
         NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetOrderInfoByCheckupReq(selectedPatient.getCheckupId()));
         String fullAddress = selectedPatient.getCustomerAddress();
         String[] addressParts = fullAddress.split(", ");
-        if (addressParts.length > 0) customerAddressField.setText(addressParts[0]);
-        else if (fullAddress != null) customerAddressField.setText(fullAddress);
         
-        if (addressParts.length == 4) {
-            String ward = addressParts[1]; 
-            String district = addressParts[2]; 
-            String province = addressParts[3];
+        // Reset target ward
+        targetWard = null;
+        
+        if (addressParts.length >= 2) {
+            // Last part is province, second last is ward, everything else is address
+            String province = addressParts[addressParts.length - 1];
+            targetWard = addressParts[addressParts.length - 2];
+            log.info("Province: {}", province);
+            log.info("Target ward: {}", targetWard);
+            // Combine remaining parts as the detailed address
+            StringBuilder detailedAddress = new StringBuilder();
+            for (int i = 0; i < addressParts.length - 2; i++) {
+                detailedAddress.append(addressParts[i]);
+                if (i < addressParts.length - 3) {
+                    detailedAddress.append(", ");
+                }
+            }
             
-            // Store target district and ward for later setting
-            targetDistrict = district;
-            targetWard = ward;
+            customerAddressField.setText(detailedAddress.toString());
             
             int provinceIdx = findProvinceIndex(province);
             if (provinceIdx != -1) {
                 provinceComboBox.setSelectedIndex(provinceIdx);
-                // The province selection will trigger district loading automatically
-                // District and ward will be set in the response handlers
+                // The province selection will trigger ward loading automatically
+                // Ward will be set in the response handler using targetWard
             } else {
                 log.warn("Province not found: {}", province);
-                districtModel.removeAllElements(); districtModel.addElement("Huyện"); districtComboBox.setEnabled(false);
-                wardModel.removeAllElements(); wardModel.addElement("Phường"); wardComboBox.setEnabled(false);
-                targetDistrict = null;
+                wardModel.removeAllElements(); wardModel.addElement("Huyện"); wardComboBox.setEnabled(false);
                 targetWard = null;
             }
-        } else if (addressParts.length > 1) { // Handle cases with partial address
-            provinceComboBox.setSelectedIndex(0);
-            districtModel.removeAllElements(); districtModel.addElement("Huyện"); districtComboBox.setEnabled(false);
-            wardModel.removeAllElements(); wardModel.addElement("Phường"); wardComboBox.setEnabled(false);
-            targetDistrict = null;
-            targetWard = null;
-            log.warn("Address format not fully standard ({} parts): {}", addressParts.length, fullAddress);
-        } else {
+        } else if (addressParts.length == 1) {
+            // Handle case with only one part
             customerAddressField.setText(fullAddress);
             provinceComboBox.setSelectedIndex(0);
-            districtModel.removeAllElements(); districtModel.addElement("Huyện"); districtComboBox.setEnabled(false);
-            wardModel.removeAllElements(); wardModel.addElement("Phường"); wardComboBox.setEnabled(false);
-            targetDistrict = null;
-            targetWard = null;
+            wardModel.removeAllElements(); wardModel.addElement("Huyện"); wardComboBox.setEnabled(false);
+        } else {
+            // Empty address case
+            customerAddressField.setText("");
+            provinceComboBox.setSelectedIndex(0);
+            wardModel.removeAllElements(); wardModel.addElement("Huyện"); wardComboBox.setEnabled(false);
         }
 
         // Setup for Supersonic View media for the NEWLY selected patient
@@ -2352,33 +2327,6 @@ public class CheckUpPage extends JPanel {
         saved = false; // Data loaded, any change from now on is "unsaved" until save button.
     }
 
-    private void handleGetDistrictResponse(GetDistrictResponse response) {
-        SwingUtilities.invokeLater(() -> {
-        log.info("Received district data");
-        LocalStorage.districts = response.getDistricts();
-        LocalStorage.districtToId = response.getDistrictToId();
-        districtModel.removeAllElements(); 
-        for (String district : LocalStorage.districts) { districtModel.addElement(district); }
-        districtComboBox.setEnabled(true); 
-        
-        // If we have a target district to set, try to set it now
-        if (targetDistrict != null) {
-            int districtIdx = findDistrictIndex(targetDistrict);
-            if (districtIdx != -1) {
-                log.info("Setting target district: {}", targetDistrict);
-                districtComboBox.setSelectedIndex(districtIdx);
-                // The district selection will trigger ward loading automatically
-            } else {
-                log.warn("Target district not found in loaded data: {}", targetDistrict);
-                targetDistrict = null;
-                targetWard = null;
-            }
-        }
-        
-        wardModel.removeAllElements(); wardModel.addElement("Phường"); wardComboBox.setEnabled(false); 
-        });
-    }
-
     private void handleGetWardResponse(GetWardResponse response) {
         SwingUtilities.invokeLater(() -> {
         log.info("Received ward data");
@@ -2393,9 +2341,7 @@ public class CheckUpPage extends JPanel {
             if (wardIdx != -1) {
                 log.info("Setting target ward: {}", targetWard);
                 wardComboBox.setSelectedIndex(wardIdx);
-                // Clear the target values since we've successfully set them
-                targetDistrict = null;
-                targetWard = null;
+                // The ward selection will trigger ward loading automatically
             } else {
                 log.warn("Target ward not found in loaded data: {}", targetWard);
                 targetWard = null;
@@ -2403,6 +2349,7 @@ public class CheckUpPage extends JPanel {
         }
         });
     }
+
 
     private void handleGetPatientHistoryResponse(GetPatientHistoryResponse response) {
         SwingUtilities.invokeLater(() -> {
@@ -4537,12 +4484,10 @@ public class CheckUpPage extends JPanel {
         // Construct full address
         String address = customerAddressField.getText();
         String ward = (String) wardComboBox.getSelectedItem();
-        String district = (String) districtComboBox.getSelectedItem();
         String province = (String) provinceComboBox.getSelectedItem();
         String fullAddress = String.format("%s, %s, %s, %s", 
             address,
-            ward != null && !ward.equals("Phường") ? ward : "",
-            district != null && !district.equals("Huyện") ? district : "",
+            ward != null && !ward.equals("Huyện") ? ward : "",
             province != null && !province.equals("Tỉnh/Thành phố") ? province : ""
         ).replaceAll(", ,", ",").trim().replaceAll(",$", "");
 
@@ -4765,14 +4710,13 @@ public class CheckUpPage extends JPanel {
             customerCccdDdcnField.setText("");
             
             // Clear target address values
-            targetDistrict = null;
             targetWard = null;
 
             if (doctorComboBox.getItemCount() > 0) doctorComboBox.setSelectedIndex(0);
             statusComboBox.setSelectedIndex(0);
             genderComboBox.setSelectedIndex(0);
             if (provinceComboBox.getItemCount() > 0) provinceComboBox.setSelectedIndex(0);
-            // district and ward will be cleared by province selection listener
+            // ward and ward will be cleared by province selection listener
             checkupTypeComboBox.setSelectedIndex(0);
             if (templateComboBox.getItemCount() > 0) templateComboBox.setSelectedIndex(0);
 

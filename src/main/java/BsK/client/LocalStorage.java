@@ -17,10 +17,7 @@ public class LocalStorage {
     public static String ClinicPhone = "0123456789";
     public static String[] doctorsName;
     public static String[] provinces;
-    public static String[] districts;
     public static String[] wards;
     public static HashMap<String, String> provinceToId;
-    public static HashMap<String, String> districtToId;
-    public static HashMap<String, String[]> cachedDistricts; // cache local areas later will do
     public static HashMap<String, String[]> cachedWards; // cache local areas later will do
 }

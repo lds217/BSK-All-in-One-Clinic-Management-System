@@ -10,7 +10,6 @@ import java.util.HashMap;
 @Slf4j
 @Data
 @AllArgsConstructor
-public class GetDistrictResponse  implements Packet {
-    String[] districts;
-    HashMap<String, String> districtToId;
+public class GetWardResponse  implements Packet {
+    String[] wards;
 }

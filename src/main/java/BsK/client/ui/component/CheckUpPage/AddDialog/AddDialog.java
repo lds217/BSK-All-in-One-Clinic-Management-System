@@ -37,29 +37,44 @@ public class AddDialog extends JDialog {
     private JTextField patientPhoneField;
     private JTextField cccdField;
     private JComboBox patientGenderField;
-    private JComboBox wardComboBox, districtComboBox, provinceComboBox;
+    private JComboBox wardComboBox, provinceComboBox;
     private JTextField customerAddressField;
     private DefaultTableModel patientTableModel;
     private JTable patientTable;
     private String[] patientColumns = {"Mã BN", "Tên Bệnh Nhân", "Năm sinh", "Số điện thoại" ,"Địa chỉ"};
     private String[][] patientData;
     private final ResponseListener<GetRecentPatientResponse> getRecentPatientResponseListener = this::getRecentPatientHandler;
-    private final ResponseListener<GetDistrictResponse> districtResponseListener = this::handleGetDistrictResponse;
     private final ResponseListener<GetWardResponse> wardResponseListener = this::handleGetWardResponse;
     private final ResponseListener<AddPatientResponse> addPatientResponseListener = this::handleAddPatientResponse;
     private final ResponseListener<AddCheckupResponse> addCheckupResponseListener = this::handleAddCheckupResponse;
     private JComboBox doctorComboBox;
     private JComboBox<String> checkupTypeComboBox;
     JButton saveButton;
-    private DefaultComboBoxModel<String> districtModel, wardModel;
+    private DefaultComboBoxModel<String> wardModel;
     private JDatePickerImpl dobPicker;
     private JButton addPatientButton;
     private JButton clearButton;
+    private String targetWard = null;
 
     private void handleAddCheckupResponse(AddCheckupResponse response) {
         log.info("Received AddCheckupResponse");
         if (response.isSuccess()) {
-            JOptionPane.showMessageDialog(this, "Thêm bệnh nhân vào khám thành công");
+            JPanel panel = new JPanel();
+            panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+
+            JLabel messageLabel = new JLabel("Thêm bệnh nhân vào khám thành công");
+            messageLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+            messageLabel.setFont(new Font("Arial", Font.PLAIN, 16));
+
+            JLabel queueLabel = new JLabel("Số thứ tự: " + response.getQueueNumber());
+            queueLabel.setFont(new Font("Arial", Font.BOLD, 28));
+            queueLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+            panel.add(messageLabel);
+            panel.add(Box.createVerticalStrut(10));
+            panel.add(queueLabel);
+
+            JOptionPane.showMessageDialog(this, panel, "Thành công", JOptionPane.INFORMATION_MESSAGE);
         } else {
             JOptionPane.showMessageDialog(this, response.getError());
         }
@@ -93,15 +108,6 @@ public class AddDialog extends JDialog {
         return -1;
     }
 
-    private int findDistrictIndex(String district) {
-        for (int i = 0; i < LocalStorage.districts.length; i++) {
-            if (TextUtils.removeAccents(LocalStorage.districts[i]).equals(TextUtils.removeAccents(district))) {
-                return i;
-            }
-        }
-        return -1;
-    }
-
     private int findWardIndex(String ward) {
         for (int i = 0; i < LocalStorage.wards.length; i++) {
             if (TextUtils.removeAccents(LocalStorage.wards[i]).equals(TextUtils.removeAccents(ward))) {
@@ -111,6 +117,7 @@ public class AddDialog extends JDialog {
         return -1;
     }
 
+
     @Override
     public void dispose() {
         // Clean up listeners
@@ -118,7 +125,6 @@ public class AddDialog extends JDialog {
         ClientHandler.deleteListener(AddCheckupResponse.class, addCheckupResponseListener);
         ClientHandler.deleteListener(AddPatientResponse.class, addPatientResponseListener);
         ClientHandler.deleteListener(GetRecentPatientResponse.class, getRecentPatientResponseListener);
-        ClientHandler.deleteListener(GetDistrictResponse.class, districtResponseListener);
         ClientHandler.deleteListener(GetWardResponse.class, wardResponseListener);
         super.dispose();
     }
@@ -218,7 +224,6 @@ public class AddDialog extends JDialog {
         
         // Send request to get the latest 20 patients in the database
         sendGetRecentPatientRequest();
-        ClientHandler.addResponseListener(GetDistrictResponse.class, districtResponseListener);
         ClientHandler.addResponseListener(GetWardResponse.class, wardResponseListener);
         ClientHandler.addResponseListener(AddPatientResponse.class, addPatientResponseListener);
         ClientHandler.addResponseListener(AddCheckupResponse.class, addCheckupResponseListener);
@@ -479,7 +484,7 @@ public class AddDialog extends JDialog {
         addressInfoPanel.add(customerAddressField, gbc);
         gbc.weightx = 0.0; 
 
-        // Province, District, Ward ComboBoxes on a single line (Row 1)
+        // Province, Ward, Ward ComboBoxes on a single line (Row 1)
         gbc.gridy++;
         gbc.gridx = 0; // Start from the first column for the combo boxes
         gbc.gridwidth = 1; // Each combo box takes 1 logical column in this setup
@@ -490,20 +495,14 @@ public class AddDialog extends JDialog {
         addressInfoPanel.add(provinceComboBox, gbc);
 
         gbc.gridx = 1;
-        districtModel = new DefaultComboBoxModel<>(new String[]{"Quận/Huyện"});
-        districtComboBox = new JComboBox<>(districtModel);
-        districtComboBox.setFont(textFont);
-        districtComboBox.setPreferredSize(comboBoxSize);
-        districtComboBox.setEnabled(false);
-        addressInfoPanel.add(districtComboBox, gbc);
-
-        gbc.gridx = 2;
-        wardModel = new DefaultComboBoxModel<>(new String[]{"Phường/Xã"});
+        wardModel = new DefaultComboBoxModel<>(new String[]{"Quận/Huyện"});
         wardComboBox = new JComboBox<>(wardModel);
         wardComboBox.setFont(textFont);
         wardComboBox.setPreferredSize(comboBoxSize);
         wardComboBox.setEnabled(false);
         addressInfoPanel.add(wardComboBox, gbc);
+
+        gbc.gridx = 2;
         gbc.weightx = 0.0; // Reset weightx for any subsequent components in this panel
         gbc.gridwidth = 1; // Reset gridwidth
 
@@ -552,35 +551,20 @@ public class AddDialog extends JDialog {
             @Override
             public void actionPerformed(ActionEvent e) {
                 int selectedIndex = provinceComboBox.getSelectedIndex();
-                districtModel = new DefaultComboBoxModel<>(new String[]{"Quận/Huyện"});
-                districtComboBox.setModel(districtModel); // Set district combo box model
+                wardModel = new DefaultComboBoxModel<>(new String[]{"Quận/Huyện"});
+                wardComboBox.setModel(wardModel); // Set ward combo box model
                 if (selectedIndex != 0) { // If the selected index is not 0 (which corresponds to "Tỉnh/Thành phố")
-                    NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetDistrictRequest(LocalStorage.provinceToId
+                    NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetWardRequest(LocalStorage.provinceToId
                             .get(provinceComboBox.getSelectedItem().toString())));
                 } else {
-                    districtComboBox.setEnabled(false); // Disable district combo box if "Tỉnh/Thành phố" is selected
-                    wardComboBox.setEnabled(false); // Disable ward combo box as well
+                    wardComboBox.setEnabled(false); // Disable ward combo box if "Tỉnh/Thành phố" is selected
                 }
             }
         });
 
 
-        // District ComboBox Listener
-        districtComboBox.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                int selectedIndex = districtComboBox.getSelectedIndex();
-                wardModel = new DefaultComboBoxModel<>(new String[]{"Xã/Phường"});
-                wardComboBox.setModel(wardModel); // Set district combo box model
-                if (selectedIndex != 0) { // If the selected index is not 0 (which corresponds to "Quận/Huyện")
-                    NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetWardRequest(LocalStorage.districtToId
-                            .get(districtComboBox.getSelectedItem().toString())));
-                } else {
-                    districtComboBox.setEnabled(false); // Disable district combo box if "Tỉnh/Thành phố" is selected
-                    wardComboBox.setEnabled(false); // Disable ward combo box as well
-                }
-            }
-        });
+        // Ward ComboBox Listener
+    
         inputPanel.setMinimumSize(new Dimension(400, 0));
         
         // Wrap inputPanel in a JScrollPane
@@ -634,15 +618,40 @@ public class AddDialog extends JDialog {
                 JOptionPane.showMessageDialog(this, "Bạn đã chọn bệnh nhân rồi");
                 return;
             }
-            String patientName = patientNameField.getText();
-            String patientPhone = patientPhoneField.getText();
+            String patientName = patientNameField.getText().trim();
+            String patientPhone = patientPhoneField.getText().trim();
             String patientGender = (String) patientGenderField.getSelectedItem();
-            String customerAddress = customerAddressField.getText();
+            String customerAddress = customerAddressField.getText().trim();
             String province = (String) provinceComboBox.getSelectedItem();
-            String district = (String) districtComboBox.getSelectedItem();
             String ward = (String) wardComboBox.getSelectedItem();
-            String address = String.join(", ", customerAddress, ward, district, province);
-            String cccd = cccdField.getText();
+            String cccd = cccdField.getText().trim();
+
+            // Validate required fields
+            if (patientName.isEmpty() || patientPhone.isEmpty() || customerAddress.isEmpty() || 
+                dobPicker.getJFormattedTextField().getText().isEmpty()) {
+                JOptionPane.showMessageDialog(this, "Vui lòng điền đầy đủ thông tin");
+                return;
+            }
+            
+            // Check if province is selected
+            if (provinceComboBox.getSelectedIndex() <= 0) {
+                JOptionPane.showMessageDialog(this, "Vui lòng chọn tỉnh/thành phố");
+                return;
+            }
+            
+            // Check if ward is selected and enabled
+            if (wardComboBox.isEnabled() && wardComboBox.getSelectedIndex() <= 0) {
+                JOptionPane.showMessageDialog(this, "Vui lòng chọn quận/huyện");
+                return;
+            }
+
+            // Build the full address with proper format
+            String address;
+            if (wardComboBox.isEnabled() && wardComboBox.getSelectedIndex() > 0) {
+                address = String.join(", ", customerAddress, ward, province);
+            } else {
+                address = String.join(", ", customerAddress, province);
+            }
 
             //split name into first name and last name
             String[] nameParts = patientName.split(" ");
@@ -656,12 +665,6 @@ public class AddDialog extends JDialog {
             }
 
             String lastNameStr = lastName.toString();
-            // check if dobPicker is not null
-            if (patientName.isEmpty()  || patientPhone.isEmpty() || customerAddress.isEmpty() || dobPicker.getJFormattedTextField().getText().isEmpty()) {
-                JOptionPane.showMessageDialog(this, "Vui lòng điền đầy đủ thông tin");
-                return;
-            }
-
             String dateText = dobPicker.getJFormattedTextField().getText();
 
             SimpleDateFormat dateFormat = new SimpleDateFormat("dd/MM/yyyy");
@@ -687,12 +690,13 @@ public class AddDialog extends JDialog {
             // Reset combo boxes
             patientGenderField.setSelectedIndex(0);
             provinceComboBox.setSelectedIndex(0);
-            districtComboBox.setSelectedIndex(0);
-            districtComboBox.setEnabled(false);
             wardComboBox.setSelectedIndex(0);
             wardComboBox.setEnabled(false);
             doctorComboBox.setSelectedIndex(0);
             checkupTypeComboBox.setSelectedIndex(0);
+            
+            // Reset targetWard
+            targetWard = null;
             
             // Clear date picker
             dobPicker.getModel().setValue(null);
@@ -731,34 +735,41 @@ public class AddDialog extends JDialog {
         patientGenderField.setSelectedItem(patientGender);
         cccdField.setText(patientCccd);
 
-        // Extract province, district, ward from the address
-        String[] addressParts = patientAddress.split(", ");
-        if (addressParts.length == 4) {
-            String address = addressParts[0];
-            String ward = addressParts[1];
-            String district = addressParts[2];
-            String province = addressParts[3];
-            customerAddressField.setText(address);
-            provinceComboBox.setSelectedIndex(findProvinceIndex(province));
-            try {
-                Thread.sleep(100);
-                while(!districtComboBox.isEditable()) {
-                    districtComboBox.setSelectedIndex(findDistrictIndex(district));
-                    break;
+        // Reset targetWard
+        targetWard = null;
+
+        // Extract province, ward, and detailed address from the full address
+        if (patientAddress != null && !patientAddress.isEmpty()) {
+            String[] addressParts = patientAddress.split(", ");
+            
+            if (addressParts.length >= 2) {
+                // Last part is province, second last is ward, everything else is address
+                String province = addressParts[addressParts.length - 1];
+                targetWard = addressParts[addressParts.length - 2];
+                
+                // Combine remaining parts as the detailed address
+                StringBuilder detailedAddress = new StringBuilder();
+                for (int i = 0; i < addressParts.length - 2; i++) {
+                    detailedAddress.append(addressParts[i]);
+                    if (i < addressParts.length - 3) {
+                        detailedAddress.append(", ");
+                    }
                 }
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
+                
+                customerAddressField.setText(detailedAddress.toString());
+                provinceComboBox.setSelectedIndex(findProvinceIndex(province));
+                // Ward will be set in the response handler using targetWard
+            } else {
+                // If address doesn't have enough parts, just use the whole address as detailed address
+                customerAddressField.setText(patientAddress);
+                provinceComboBox.setSelectedIndex(0); // Select default province
             }
-            try {
-                Thread.sleep(100);
-                while(!wardComboBox.isEditable()) {
-                    wardComboBox.setSelectedIndex(findWardIndex(ward));
-                    break;
-                }
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
+        } else {
+            // Clear address fields if no address is available
+            customerAddressField.setText("");
+            provinceComboBox.setSelectedIndex(0);
         }
+        
         SimpleDateFormat dobFormat;
         try {
             Date parsedDate;
@@ -797,23 +808,25 @@ public class AddDialog extends JDialog {
     }
 
 
-    private void handleGetDistrictResponse(GetDistrictResponse response) {
-        log.info("Received dialog district data");
-
-        LocalStorage.districts = response.getDistricts();
-        LocalStorage.districtToId = response.getDistrictToId();
-        districtModel = new DefaultComboBoxModel<>(LocalStorage.districts);
-        districtComboBox.setModel(districtModel);
-        districtComboBox.setEnabled(true); // Enable district combo box
-    }
-
     private void handleGetWardResponse(GetWardResponse response) {
         log.info("Received dialog ward data");
+
         LocalStorage.wards = response.getWards();
         wardModel = new DefaultComboBoxModel<>(LocalStorage.wards);
         wardComboBox.setModel(wardModel);
         wardComboBox.setEnabled(true); // Enable ward combo box
+
+        // Set the ward after the ward data is loaded
+        if (targetWard != null) {
+            int wardIndex = findWardIndex(targetWard);
+            if (wardIndex >= 0) {
+                wardComboBox.setSelectedIndex(wardIndex);
+            }
+            // We've handled this targetWard, so clear it
+            targetWard = null;
+        }
     }
+
 
     private void setupDateFieldForDirectInput(JDatePickerImpl datePicker) {
         JFormattedTextField textField = datePicker.getJFormattedTextField();

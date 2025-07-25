@@ -56,11 +56,11 @@ public class QueueViewPage extends JFrame {
         clinicInfoPanel.setOpaque(false);
 
         clinicNameLabel = new JLabel("Phòng khám: Đang tải...");
-        styleLabelForTv(clinicNameLabel, 28, Font.BOLD, Color.WHITE);
+        styleLabelForTv(clinicNameLabel, 40, Font.BOLD, Color.WHITE);
         clinicAddressLabel = new JLabel("Địa chỉ: Đang tải...");
-        styleLabelForTv(clinicAddressLabel, 20, Font.PLAIN, Color.LIGHT_GRAY);
+        styleLabelForTv(clinicAddressLabel, 30, Font.PLAIN, Color.LIGHT_GRAY);
         clinicPhoneLabel = new JLabel("Điện thoại: Đang tải...");
-        styleLabelForTv(clinicPhoneLabel, 20, Font.PLAIN, Color.LIGHT_GRAY);
+        styleLabelForTv(clinicPhoneLabel, 30, Font.PLAIN, Color.LIGHT_GRAY);
 
         clinicInfoPanel.add(clinicNameLabel);
         clinicInfoPanel.add(Box.createRigidArea(new Dimension(0, 5)));
@@ -81,13 +81,13 @@ public class QueueViewPage extends JFrame {
         room1StatusLabel = new JLabel("PHÒNG 1", SwingConstants.CENTER);
         styleRoomLabel(room1StatusLabel, room1Panel, Color.GREEN.darker(), "TRỐNG"); // Initial state: Room 1 Empty
         room1Panel.add(room1StatusLabel, BorderLayout.CENTER);
-        room1Panel.setPreferredSize(new Dimension(220, 100));
+        room1Panel.setPreferredSize(new Dimension(280, 120));
 
         room2Panel = new JPanel(new BorderLayout());
         room2StatusLabel = new JLabel("PHÒNG 2", SwingConstants.CENTER);
         styleRoomLabel(room2StatusLabel, room2Panel, Color.GREEN.darker(), "TRỐNG"); // Initial state: Room 2 Empty
         room2Panel.add(room2StatusLabel, BorderLayout.CENTER);
-        room2Panel.setPreferredSize(new Dimension(220, 100));
+        room2Panel.setPreferredSize(new Dimension(280, 120));
 
         roomsPanel.add(room1Panel);
         roomsPanel.add(room2Panel);
@@ -103,16 +103,16 @@ public class QueueViewPage extends JFrame {
         callingPatientDisplayPanel.setBorder(new EmptyBorder(15, 20, 15, 20)); // Padding
 
         nowCallingTextLabel = new JLabel("ĐANG GỌI:");
-        styleLabelForTv(nowCallingTextLabel, 38, Font.BOLD, new Color(255, 215, 0)); // Gold color
+        styleLabelForTv(nowCallingTextLabel, 60, Font.BOLD, new Color(255, 215, 0)); // Gold color
         nowCallingTextLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
         nowCallingTextLabel.setVisible(false); // Initially hidden
 
         nowCallingInfoLine1Label = new JLabel("Phòng 1: TRỐNG"); // Default message
-        styleLabelForTv(nowCallingInfoLine1Label, 32, Font.BOLD, Color.WHITE);
+        styleLabelForTv(nowCallingInfoLine1Label, 50, Font.BOLD, Color.WHITE);
         nowCallingInfoLine1Label.setAlignmentX(Component.CENTER_ALIGNMENT);
 
         nowCallingInfoLine2Label = new JLabel("Phòng 2: TRỐNG"); // Default message
-        styleLabelForTv(nowCallingInfoLine2Label, 32, Font.BOLD, Color.WHITE);
+        styleLabelForTv(nowCallingInfoLine2Label, 50, Font.BOLD, Color.WHITE);
         nowCallingInfoLine2Label.setAlignmentX(Component.CENTER_ALIGNMENT);
 
         callingPatientDisplayPanel.add(nowCallingTextLabel);
@@ -135,17 +135,17 @@ public class QueueViewPage extends JFrame {
         };
         tvQueueTable = new JTable(tvQueueTableModel);
 
-        tvQueueTable.setFont(new Font("Arial", Font.BOLD, 26));
-        tvQueueTable.setRowHeight(45);
+        tvQueueTable.setFont(new Font("Arial", Font.BOLD, 50));
+        tvQueueTable.setRowHeight(80);
         tvQueueTable.setFillsViewportHeight(true);
         tvQueueTable.setBackground(new Color(220, 220, 220)); // Light gray for table background
         tvQueueTable.setGridColor(Color.GRAY);
 
         JTableHeader tableHeader = tvQueueTable.getTableHeader();
-        tableHeader.setFont(new Font("Arial", Font.BOLD, 28));
+        tableHeader.setFont(new Font("Arial", Font.BOLD, 52));
         tableHeader.setBackground(new Color(63, 81, 181));
         tableHeader.setForeground(Color.WHITE);
-        tableHeader.setPreferredSize(new Dimension(0, 50)); // Header height
+        tableHeader.setPreferredSize(new Dimension(0, 90)); // Header height
 
         JScrollPane scrollPane = new JScrollPane(tvQueueTable);
         scrollPane.setBorder(new EmptyBorder(10, 20, 20, 20)); // Padding around table
@@ -165,7 +165,7 @@ public class QueueViewPage extends JFrame {
         String baseRoomText = label.getText().split("<br>")[0]; // Get "PHÒNG X"
         if (baseRoomText.contains("html")) baseRoomText = (label == room1StatusLabel ? "PHÒNG 1" : "PHÒNG 2"); // Fallback if parsing fails
         
-        label.setFont(new Font("Segoe UI", Font.BOLD, 22));
+        label.setFont(new Font("Segoe UI", Font.BOLD, 32));
         label.setForeground(Color.WHITE);
         label.setText("<html><div style='text-align: center;'>" + baseRoomText + "<br>" + statusText + "</div></html>");
         panel.setBackground(bgColor);
@@ -190,18 +190,18 @@ public class QueueViewPage extends JFrame {
 
         if (room1Busy) {
             nowCallingInfoLine1Label.setText("Phòng 1: " + room1PatientInfo);
-            styleLabelForTv(nowCallingInfoLine1Label, 32, Font.BOLD, Color.WHITE);
+            styleLabelForTv(nowCallingInfoLine1Label, 50, Font.BOLD, Color.WHITE);
         } else {
             nowCallingInfoLine1Label.setText("Phòng 1: TRỐNG");
-            styleLabelForTv(nowCallingInfoLine1Label, 32, Font.ITALIC, Color.LIGHT_GRAY);
+            styleLabelForTv(nowCallingInfoLine1Label, 50, Font.ITALIC, Color.LIGHT_GRAY);
         }
 
         if (room2Busy) {
             nowCallingInfoLine2Label.setText("Phòng 2: " + room2PatientInfo);
-            styleLabelForTv(nowCallingInfoLine2Label, 32, Font.BOLD, Color.WHITE);
+            styleLabelForTv(nowCallingInfoLine2Label, 50, Font.BOLD, Color.WHITE);
         } else {
             nowCallingInfoLine2Label.setText("Phòng 2: TRỐNG");
-            styleLabelForTv(nowCallingInfoLine2Label, 32, Font.ITALIC, Color.LIGHT_GRAY);
+            styleLabelForTv(nowCallingInfoLine2Label, 50, Font.ITALIC, Color.LIGHT_GRAY);
         }
 
         if (room1Busy || room2Busy) {
@@ -320,6 +320,12 @@ public class QueueViewPage extends JFrame {
             }
         }
         tvQueueTableModel.setDataVector(tvDataList.toArray(new Object[0][0]), tvQueueColumns);
+
+        // Set column widths for TV display
+        tvQueueTable.getColumnModel().getColumn(0).setPreferredWidth(150); // STT
+        tvQueueTable.getColumnModel().getColumn(0).setMaxWidth(200);
+        tvQueueTable.getColumnModel().getColumn(2).setPreferredWidth(250); // Năm sinh
+        tvQueueTable.getColumnModel().getColumn(2).setMaxWidth(300);
 
         // The specific room status (patient ID in box) is now handled by updateSpecificRoomStatus
         // and markRoomAsFree. The general updateQueueData should not override this detailed status.

@@ -9,4 +9,5 @@ import lombok.Data;
 public class AddCheckupResponse implements Packet {
     boolean success;
     String error;
+    int queueNumber;
 }

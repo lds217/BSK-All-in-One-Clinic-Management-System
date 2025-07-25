@@ -542,80 +542,39 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         }
       }
 
-      if (packet instanceof GetDistrictRequest getDistrictRequest) {
-        log.debug("Received GetDistrictRequest");
+      if (packet instanceof GetWardRequest getWardRequest) {
+        log.debug("Received GetWardRequest");
         try{
 
           PreparedStatement preparedStatement = Server.connection.prepareStatement(
-                  "SELECT districts.code, districts.name " +
-                          "                          FROM districts " +
+                  "SELECT wards.code, wards.name " +
+                          "                          FROM wards " +
                           "                          WHERE province_code = ? " +
-                          "                          ORDER BY districts.name"
+                          "                          ORDER BY wards.name"
           );
-          preparedStatement.setString(1, getDistrictRequest.getProvinceId());
+          preparedStatement.setString(1, getWardRequest.getProvinceId());
 
           ResultSet rs = preparedStatement.executeQuery();
 
 
           if (!rs.isBeforeFirst()) {
-                System.out.println("No data found in the district table.");
+                System.out.println("No data found in the ward table.");
             } else {
                 ArrayList<String> resultList = new ArrayList<>();
-                HashMap<String, String> districtIdMap = new HashMap<>();
-                resultList.add("Quận/Huyện");
+                resultList.add("Phường/Xã");
                 while (rs.next()) {
-                String districtId = rs.getString("code");
-                String districtName = rs.getString("name");
-                districtIdMap.put(districtName, districtId);
-                resultList.add(districtName);
+                String wardName = rs.getString("name");
+                resultList.add(wardName);
                 }
 
                 String[] resultString = resultList.toArray(new String[0]);
 
-                UserUtil.sendPacket(currentUser.getSessionId(), new GetDistrictResponse(resultString, districtIdMap));
+                UserUtil.sendPacket(currentUser.getSessionId(), new GetWardResponse(resultString));
             }
             } catch (SQLException e) {
           throw new RuntimeException(e);
         }
       }
-
-      if (packet instanceof GetWardRequest getWardRequest) {
-        log.debug("Received GetWardRequest");
-
-        try{
-          PreparedStatement preparedStatement = Server.connection.prepareStatement(
-                  "SELECT wards.code, wards.name \n" +
-                          "                          FROM wards\n" +
-                          "                          WHERE district_code = ? " +
-                          "                          ORDER BY wards.name"
-          );
-          preparedStatement.setString(1, getWardRequest.getDistrictId());
-
-          ResultSet rs = preparedStatement.executeQuery();
-
-
-          if (!rs.isBeforeFirst()) {
-            System.out.println("No data found in the district table.");
-          } else {
-            ArrayList<String> resultList = new ArrayList<>();
-            HashMap<String, String> districtIdMap = new HashMap<>();
-            resultList.add("Xã/Phường");
-            while (rs.next()) {
-              String districtId = rs.getString("code");
-              String districtName = rs.getString("name");
-              districtIdMap.put(districtName, districtId);
-              resultList.add(districtName);
-            }
-
-            String[] resultString = resultList.toArray(new String[0]);
-            UserUtil.sendPacket(currentUser.getSessionId(), new GetWardResponse(resultString));
-          }
-        } catch (SQLException e) {
-          UserUtil.sendPacket(currentUser.getSessionId(), new ErrorResponse(Error.SQL_EXCEPTION));
-          throw new RuntimeException(e);
-        }
-      }
-
       if (packet instanceof AddPatientRequest addPatientRequest) {
         log.debug("Received AddPatientRequest");
         try {
@@ -753,7 +712,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
           Server.connection.commit();
 
           // Send immediate response to client
-          UserUtil.sendPacket(currentUser.getSessionId(), new AddCheckupResponse(true, "Thêm bệnh nhân thành công"));
+          UserUtil.sendPacket(currentUser.getSessionId(), new AddCheckupResponse(true, "Thêm bệnh nhân thành công", queueNumber));
           
           // Create Google Drive folder asynchronously (don't block the response)
           createCheckupGoogleDriveFolderAsync(generatedCheckupId, addCheckupRequest.getCustomerId());
@@ -766,7 +725,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
             log.error("Error during rollback", rollbackEx);
           }
           String errorMessage = e.getMessage();
-          UserUtil.sendPacket(currentUser.getSessionId(), new AddCheckupResponse(false, "Lỗi: " + errorMessage));
+          UserUtil.sendPacket(currentUser.getSessionId(), new AddCheckupResponse(false, "Lỗi: " + errorMessage, -1));
           throw new RuntimeException(e);
         }
         finally {
