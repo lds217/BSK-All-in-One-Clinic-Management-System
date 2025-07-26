@@ -472,14 +472,87 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
       if (packet instanceof GetRecentPatientRequest getRecentPatientRequest) {
         log.debug("Received GetRecentPatientRequest");
         try {
-          ResultSet rs = statement.executeQuery(
-                  "SELECT customer_id, customer_last_name, customer_first_name, customer_dob, customer_number, " +
-                          "customer_address, customer_address, customer_gender, cccd_ddcn\n" +
-                          "FROM Customer\n" +
-                          "ORDER BY customer_id DESC\n" +
-                          "LIMIT 20;");
+          // Build the base query
+          StringBuilder queryBuilder = new StringBuilder();
+          queryBuilder.append("SELECT customer_id, customer_last_name, customer_first_name, customer_dob, customer_number, ")
+                      .append("customer_address, customer_gender, cccd_ddcn FROM Customer");
+          
+          // Add WHERE clause for search parameters
+          boolean hasNameSearch = getRecentPatientRequest.getSearchName() != null && !getRecentPatientRequest.getSearchName().trim().isEmpty();
+          boolean hasPhoneSearch = getRecentPatientRequest.getSearchPhone() != null && !getRecentPatientRequest.getSearchPhone().trim().isEmpty();
+          
+          if (hasNameSearch || hasPhoneSearch) {
+            queryBuilder.append(" WHERE ");
+            if (hasNameSearch) {
+              queryBuilder.append("(LOWER(customer_first_name) LIKE ? OR LOWER(customer_last_name) LIKE ? OR ")
+                          .append("LOWER(CONCAT(customer_last_name, ' ', customer_first_name)) LIKE ?)");
+            }
+            if (hasNameSearch && hasPhoneSearch) {
+              queryBuilder.append(" AND ");
+            }
+            if (hasPhoneSearch) {
+              queryBuilder.append("customer_number LIKE ?");
+            }
+          }
+          
+          // Add ORDER BY
+          queryBuilder.append(" ORDER BY customer_id DESC");
+          
+          // Count total records for pagination
+          String countQuery = queryBuilder.toString().replace("SELECT customer_id, customer_last_name, customer_first_name, customer_dob, customer_number, customer_address, customer_gender, cccd_ddcn", "SELECT COUNT(*)");
+          PreparedStatement countStmt = Server.connection.prepareStatement(countQuery);
+          
+          int paramIndex = 1;
+          if (hasNameSearch) {
+            String searchName = "%" + getRecentPatientRequest.getSearchName().toLowerCase().trim() + "%";
+            countStmt.setString(paramIndex++, searchName);
+            countStmt.setString(paramIndex++, searchName);
+            countStmt.setString(paramIndex++, searchName);
+          }
+          if (hasPhoneSearch) {
+            String searchPhone = "%" + getRecentPatientRequest.getSearchPhone().trim() + "%";
+            countStmt.setString(paramIndex++, searchPhone);
+          }
+          
+          ResultSet countRs = countStmt.executeQuery();
+          int totalCount = 0;
+          if (countRs.next()) {
+            totalCount = countRs.getInt(1);
+          }
+          countRs.close();
+          countStmt.close();
+          
+          // Calculate pagination
+          int pageSize = getRecentPatientRequest.getPageSize();
+          int currentPage = getRecentPatientRequest.getPage();
+          int totalPages = (int) Math.ceil((double) totalCount / pageSize);
+          int offset = (currentPage - 1) * pageSize;
+          
+          // Add LIMIT and OFFSET for pagination
+          queryBuilder.append(" LIMIT ? OFFSET ?");
+          
+          PreparedStatement stmt = Server.connection.prepareStatement(queryBuilder.toString());
+          
+          // Set parameters for the main query
+          paramIndex = 1;
+          if (hasNameSearch) {
+            String searchName = "%" + getRecentPatientRequest.getSearchName().toLowerCase().trim() + "%";
+            stmt.setString(paramIndex++, searchName);
+            stmt.setString(paramIndex++, searchName);
+            stmt.setString(paramIndex++, searchName);
+          }
+          if (hasPhoneSearch) {
+            String searchPhone = "%" + getRecentPatientRequest.getSearchPhone().trim() + "%";
+            stmt.setString(paramIndex++, searchPhone);
+          }
+          stmt.setInt(paramIndex++, pageSize);
+          stmt.setInt(paramIndex++, offset);
+          
+          ResultSet rs = stmt.executeQuery();
+          
           if (!rs.isBeforeFirst()) {
-            System.out.println("No data found in the customer table.");
+            log.debug("No data found in the customer table for the given search criteria.");
+            UserUtil.sendPacket(currentUser.getSessionId(), new GetRecentPatientResponse(new String[0][], totalCount, currentPage, totalPages, pageSize));
           } else {
             ArrayList<String> resultList = new ArrayList<>();
             while (rs.next()) {
@@ -498,16 +571,19 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
               resultList.add(result);
             }
 
-
             String[] resultString = resultList.toArray(new String[0]);
             String[][] resultArray = new String[resultString.length][];
             for (int i = 0; i < resultString.length; i++) {
               resultArray[i] = resultString[i].split("\\|");
             }
 
-            UserUtil.sendPacket(currentUser.getSessionId(), new GetRecentPatientResponse(resultArray));
+            UserUtil.sendPacket(currentUser.getSessionId(), new GetRecentPatientResponse(resultArray, totalCount, currentPage, totalPages, pageSize));
           }
+          
+          rs.close();
+          stmt.close();
         } catch (SQLException e) {
+          log.error("Error processing GetRecentPatientRequest", e);
           throw new RuntimeException(e);
         }
       }

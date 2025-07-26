@@ -758,14 +758,26 @@ public class CheckUpPage extends JPanel {
         patientInfoInnerPanel.add(customerAddressField, gbcPatient);
 
         // Row 7: Location dropdowns
+        gbcPatient.gridx = 0; gbcPatient.gridy = 7;
+        gbcPatient.gridwidth = 1; // Reset gridwidth
+        JLabel provinceLabel = new JLabel("Tỉnh/Thành phố", SwingConstants.RIGHT);
+        provinceLabel.setFont(labelFont);
+        patientInfoInnerPanel.add(provinceLabel, gbcPatient);
+
         gbcPatient.gridwidth = 1; // Reset gridwidth
         gbcPatient.gridx = 1; gbcPatient.gridy = 7;
         provinceComboBox = new JComboBox<>(LocalStorage.provinces);
         provinceComboBox.setFont(fieldFont);
         patientInfoInnerPanel.add(provinceComboBox, gbcPatient);
+        
+        // Add Xã/Phường label before wardComboBox
+        gbcPatient.gridx = 2; gbcPatient.gridy = 7;
+        JLabel wardLabel = new JLabel("Xã/Phường", SwingConstants.RIGHT);
+        wardLabel.setFont(labelFont);
+        patientInfoInnerPanel.add(wardLabel, gbcPatient);
 
-        gbcPatient.gridx = 2;
-        wardModel = new DefaultComboBoxModel<>(new String[]{"Huyện"});
+        gbcPatient.gridx = 3;
+        wardModel = new DefaultComboBoxModel<>(new String[]{"Xã/Phường"});
         wardComboBox = new JComboBox<>(wardModel);
         wardComboBox.setFont(fieldFont);
         wardComboBox.setEnabled(false);
@@ -830,12 +842,12 @@ public class CheckUpPage extends JPanel {
                     NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetWardRequest(provinceId));
                     wardComboBox.setEnabled(false); 
                     wardModel.removeAllElements(); 
-                    wardModel.addElement("Đang tải quận/huyện...");
+                    wardModel.addElement("Đang tải xã/phường...");
                 }
             } else {
                 wardComboBox.setEnabled(false); 
                 wardModel.removeAllElements(); 
-                wardModel.addElement("Huyện");
+                wardModel.addElement("Xã/Phường");
             }
         });
 
@@ -2270,19 +2282,19 @@ public class CheckUpPage extends JPanel {
                 // Ward will be set in the response handler using targetWard
             } else {
                 log.warn("Province not found: {}", province);
-                wardModel.removeAllElements(); wardModel.addElement("Huyện"); wardComboBox.setEnabled(false);
+                wardModel.removeAllElements(); wardModel.addElement("Xã/Phường"); wardComboBox.setEnabled(false);
                 targetWard = null;
             }
         } else if (addressParts.length == 1) {
             // Handle case with only one part
             customerAddressField.setText(fullAddress);
             provinceComboBox.setSelectedIndex(0);
-            wardModel.removeAllElements(); wardModel.addElement("Huyện"); wardComboBox.setEnabled(false);
+            wardModel.removeAllElements(); wardModel.addElement("Xã/Phường"); wardComboBox.setEnabled(false);
         } else {
             // Empty address case
             customerAddressField.setText("");
             provinceComboBox.setSelectedIndex(0);
-            wardModel.removeAllElements(); wardModel.addElement("Huyện"); wardComboBox.setEnabled(false);
+            wardModel.removeAllElements(); wardModel.addElement("Xã/Phường"); wardComboBox.setEnabled(false);
         }
 
         // Setup for Supersonic View media for the NEWLY selected patient
@@ -4487,7 +4499,7 @@ public class CheckUpPage extends JPanel {
         String province = (String) provinceComboBox.getSelectedItem();
         String fullAddress = String.format("%s, %s, %s, %s", 
             address,
-            ward != null && !ward.equals("Huyện") ? ward : "",
+            ward != null && !ward.equals("Xã/Phường") ? ward : "",
             province != null && !province.equals("Tỉnh/Thành phố") ? province : ""
         ).replaceAll(", ,", ",").trim().replaceAll(",$", "");
 
