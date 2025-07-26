@@ -20,4 +20,5 @@ public class LocalStorage {
     public static String[] wards;
     public static HashMap<String, String> provinceToId;
     public static HashMap<String, String[]> cachedWards; // cache local areas later will do
+    public static HashMap<String, String[][]> medUnitConversion; // hash by med id inside is unit id and unit name and conversion rate and unit price
 }

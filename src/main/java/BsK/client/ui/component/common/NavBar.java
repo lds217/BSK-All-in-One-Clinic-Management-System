@@ -2,6 +2,7 @@ package BsK.client.ui.component.common;
 
 import BsK.client.LocalStorage;
 import BsK.client.ui.component.MainFrame;
+import BsK.client.ui.component.InfoPage.InfoDialog;
 import BsK.common.packet.req.LogoutRequest;
 import BsK.common.util.network.NetworkUtil;
 import BsK.client.network.handler.ClientHandler;
@@ -71,16 +72,14 @@ public class NavBar extends JPanel {
         welcomePanel.add(welcomeLabel);
         userPanel.add(welcomePanel, new GridBagConstraints());
 
-        String[] navBarItems = {"Thống kê", "Thăm khám", "Dữ liệu", "Kho", "Thanh toán", "Cài đặt", "Thông tin"};
-        String[] destination = {"DashboardPage", "CheckUpPage", "PatientDataPage", "InventoryPage", "CheckoutPage", "SettingsPage", "InfoPage"};
-        String[] iconFiles = {"dashboard.png", "health-check.png", "database.png", "warehouse.png", "cashier-machine.png", "settings.png", "info.png"};
+        String[] navBarItems = {"Thống kê", "Thăm khám", "Dữ liệu", "Cài đặt", "Thông tin"};
+        String[] destination = {"DashboardPage", "CheckUpPage", "PatientDataPage", "SettingsPage", "InfoPage"};
+        String[] iconFiles = {"dashboard.png", "health-check.png", "database.png","settings.png", "info.png"};
         Color[] navItemColors = {
             new Color(51, 135, 204),    // Darker Blue
             new Color(66, 157, 21),     // Darker Green
             new Color(200, 138, 16),    // Darker Orange
-            new Color(204, 62, 63),     // Darker Red
             new Color(91, 37, 167),     // Darker Purple
-            new Color(15, 155, 155),    // Darker Cyan
             new Color(196, 27, 36)      // Darker Red-Orange
         };
 
@@ -133,6 +132,12 @@ public class NavBar extends JPanel {
             itemPanel.addMouseListener(new MouseAdapter() {
                 @Override
                 public void mouseClicked(MouseEvent e) {
+                    if ("InfoPage".equals(dest)) {
+                        InfoDialog infoDialog = new InfoDialog();
+                        infoDialog.setVisible(true);
+                        return;
+                    }
+
                     if (activeNavItem != null && activeNavItem != label) {
                         JPanel prevPanel = (JPanel) activeNavItem.getParent();
                         prevPanel.setBackground(navItemColors[findNavItemIndex(activeNavItem.getText(), navBarItems)].brighter());

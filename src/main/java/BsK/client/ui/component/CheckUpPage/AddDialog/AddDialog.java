@@ -484,12 +484,28 @@ public class AddDialog extends JDialog {
         gbc.gridx = 0; // Start from the first column for the combo boxes
         gbc.gridwidth = 1; // Each combo box takes 1 logical column in this setup
         gbc.weightx = 0.33; // Distribute space among the three combo boxes
+        // Add Tỉnh/Thành phố label before provinceComboBox
+        gbc.gridx = 0;
+        JLabel provinceLabel = new JLabel("Tỉnh/Thành phố", SwingConstants.RIGHT);
+        provinceLabel.setFont(labelFont);
+        addressInfoPanel.add(provinceLabel, gbc);
+
+        gbc.gridx = 1;
         provinceComboBox = new JComboBox<>(LocalStorage.provinces != null ? LocalStorage.provinces : new String[]{"Tỉnh/TP"});
         provinceComboBox.setFont(textFont);
         provinceComboBox.setPreferredSize(comboBoxSize);
         addressInfoPanel.add(provinceComboBox, gbc);
 
-        gbc.gridx = 1;
+        gbc.gridx = 2;
+        gbc.gridwidth = 1;
+        gbc.weightx = 0.33;
+        JLabel wardLabel = new JLabel("Xã/Phường", SwingConstants.RIGHT);
+        wardLabel.setFont(labelFont);
+        addressInfoPanel.add(wardLabel, gbc);
+
+        gbc.gridx = 3;
+        gbc.gridwidth = 1;
+        gbc.weightx = 0.33;
         wardModel = new DefaultComboBoxModel<>(new String[]{"Xã/Phường"});
         wardComboBox = new JComboBox<>(wardModel);
         wardComboBox.setFont(textFont);
