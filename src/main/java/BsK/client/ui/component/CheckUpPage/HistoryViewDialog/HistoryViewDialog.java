@@ -75,7 +75,7 @@ public class HistoryViewDialog extends JDialog {
     // Constants
     private static final int THUMBNAIL_WIDTH = 80;
     private static final int THUMBNAIL_HEIGHT = 80;
-    private static final String CHECKUP_MEDIA_BASE_DIR = "src/main/resources/image/checkup_media";
+    // Using LocalStorage.checkupMediaBaseDir which is loaded at startup
     private static final DecimalFormat df = new DecimalFormat("#,##0");
     
     // Current selected image

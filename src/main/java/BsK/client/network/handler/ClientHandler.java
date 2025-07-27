@@ -25,6 +25,14 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import lombok.extern.slf4j.Slf4j;
 import org.w3c.dom.Text;
+import BsK.client.ui.component.CheckUpPage.AddDialog.AddDialog;
+import BsK.client.ui.component.CheckUpPage.CheckUpPage;
+import BsK.client.ui.component.CheckUpPage.DoctorItem;
+import BsK.client.ui.component.LoginPage.LoginPage;
+import BsK.client.ui.component.MainFrame;
+import BsK.common.packet.res.GetDoctorGeneralInfoResponse;
+import BsK.common.packet.res.GetMedInfoResponse;
+import BsK.common.packet.res.GetOrderInfoByCheckupRes;
 
 @Slf4j
 public class ClientHandler extends SimpleChannelInboundHandler<TextWebSocketFrame> {
@@ -76,10 +84,20 @@ public class ClientHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         return;
       }
 
-      if (packet instanceof GetDoctorGeneralInfoResponse doctorGeneralInfoResponse) {
-        log.info("Doctor general info received: {}", doctorGeneralInfoResponse);
-        LocalStorage.doctorsName = doctorGeneralInfoResponse.getDoctorsName();
-        return;
+      if (packet instanceof GetDoctorGeneralInfoResponse) {
+        GetDoctorGeneralInfoResponse res = (GetDoctorGeneralInfoResponse) packet;
+        LocalStorage.doctorsName.clear();
+        if (res.getDoctorsName() != null) {
+            for (String[] doctorData : res.getDoctorsName()) {
+                if (doctorData != null && doctorData.length >= 2) {
+                    LocalStorage.doctorsName.add(new DoctorItem(doctorData[1], doctorData[0])); // id, name
+                }
+            }
+        }
+        log.info("Updated doctors list in LocalStorage. Total doctors: {}", LocalStorage.doctorsName.size());
+      } else if (packet instanceof GetMedInfoResponse) {
+          GetMedInfoResponse res = (GetMedInfoResponse) packet;
+          log.debug("GetMedInfoResponse received");
       }
 
       if (packet instanceof GetProvinceResponse provinceResponse) {

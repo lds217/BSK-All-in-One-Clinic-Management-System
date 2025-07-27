@@ -1,5 +1,6 @@
 package BsK.client.ui.component.CheckUpPage;
 
+import BsK.client.Client;
 import BsK.client.LocalStorage;
 import BsK.client.network.handler.ClientHandler;
 import BsK.client.network.handler.ResponseListener;
@@ -152,6 +153,7 @@ import BsK.common.util.date.DateUtils;
 import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
 import javax.swing.text.JTextComponent;
+import BsK.client.ui.component.CheckUpPage.DoctorItem;
 
 @Slf4j
 public class CheckUpPage extends JPanel {
@@ -173,15 +175,14 @@ public class CheckUpPage extends JPanel {
     private JTextField checkupIdField, customerLastNameField, customerFirstNameField,customerAddressField, customerPhoneField, customerIdField, customerCccdDdcnField;
     private JTextArea suggestionField, diagnosisField, conclusionField; // Changed symptomsField to suggestionField
     private JTextPane notesField;
-    private JComboBox<String> doctorComboBox, statusComboBox, genderComboBox, provinceComboBox, wardComboBox, checkupTypeComboBox, templateComboBox, orientationComboBox; // Added orientationComboBox
-    private JComboBox<String> ultrasoundDoctorComboBox;
+    private JComboBox<DoctorItem> doctorComboBox, ultrasoundDoctorComboBox;
+    private JComboBox<String> statusComboBox, genderComboBox, provinceComboBox, wardComboBox, checkupTypeComboBox, templateComboBox, orientationComboBox; // Added orientationComboBox
     private JCheckBox needRecheckupCheckbox; // Checkbox to indicate if re-checkup is needed
     private JSpinner customerWeightSpinner, customerHeightSpinner, patientHeartRateSpinner, bloodPressureSystolicSpinner, bloodPressureDiastolicSpinner;
     private JDatePickerImpl datePicker, dobPicker, recheckupDatePicker;
     private JButton recheckupDatePickerButton;
     private String[][] medicinePrescription = new String[0][0]; // Initialize to empty
     private String[][] servicePrescription = new String[0][0]; // Initialize to empty
-    private String[] doctorOptions;
     private MedicineDialog medDialog = null;
     private ServiceDialog serDialog = null;
     private AddDialog addDialog = null;
@@ -231,7 +232,7 @@ public class CheckUpPage extends JPanel {
     private String currentCheckupIdForMedia;
     private Path currentCheckupMediaPath;
     private javax.swing.Timer imageRefreshTimer;
-    private static final String CHECKUP_MEDIA_BASE_DIR = "src/main/resources/image/checkup_media"; // Updated media directory path
+    // Using LocalStorage.checkupMediaBaseDir which is loaded at startup
     private static final int THUMBNAIL_WIDTH = 100;
     private static final int THUMBNAIL_HEIGHT = 100;
 
@@ -333,8 +334,8 @@ public class CheckUpPage extends JPanel {
 
         // Ensure the base media directory exists
         try {
-            Files.createDirectories(Paths.get(CHECKUP_MEDIA_BASE_DIR));
-            log.info("Created or verified media directory at: {}", CHECKUP_MEDIA_BASE_DIR);
+            Files.createDirectories(Paths.get(LocalStorage.checkupMediaBaseDir));
+            log.info("Created or verified media directory at: {}", LocalStorage.checkupMediaBaseDir);
         } catch (IOException e) {
             log.error("Failed to create media directory: {}", e.getMessage(), e);
             JOptionPane.showMessageDialog(this,
@@ -497,7 +498,7 @@ public class CheckUpPage extends JPanel {
             BorderFactory.createEmptyBorder(3, 10, 3, 10), // Reduced top/bottom from 5 to 3
             BorderFactory.createTitledBorder(
                 BorderFactory.createLineBorder(new Color(63, 81, 181), 1, true),
-                "Đơn thuốc và Dịch vụ",
+                "Đơn thuốc và Dịch vụ (tham khảo)",
                 TitledBorder.LEADING, TitledBorder.TOP,
                 new Font("Arial", Font.BOLD, 16), new Color(63, 81, 181)
             )
@@ -920,7 +921,7 @@ public class CheckUpPage extends JPanel {
         doctorPanel.add(doctorLabel, gbcDoctor);
 
         gbcDoctor.gridx = 1; gbcDoctor.weightx = 0.4;
-        doctorComboBox = new JComboBox<>(LocalStorage.doctorsName != null ? LocalStorage.doctorsName : new String[]{"Đang tải bác sĩ..."});
+        doctorComboBox = new JComboBox<>(LocalStorage.doctorsName.toArray(new DoctorItem[0]));
         doctorComboBox.setFont(fieldFont);
         doctorPanel.add(doctorComboBox, gbcDoctor);
 
@@ -930,7 +931,7 @@ public class CheckUpPage extends JPanel {
         doctorPanel.add(ultrasoundDoctorLabel, gbcDoctor);
 
         gbcDoctor.gridx = 3; gbcDoctor.weightx = 0.4;
-        ultrasoundDoctorComboBox = new JComboBox<>(LocalStorage.doctorsName != null ? LocalStorage.doctorsName : new String[]{"Đang tải bác sĩ..."});
+        ultrasoundDoctorComboBox = new JComboBox<>(LocalStorage.doctorsName.toArray(new DoctorItem[0]));
         ultrasoundDoctorComboBox.setFont(fieldFont);
         doctorPanel.add(ultrasoundDoctorComboBox, gbcDoctor);
 
@@ -1779,8 +1780,8 @@ public class CheckUpPage extends JPanel {
                 
                 if (medicinePrescription != null) {
                     for (String[] med : medicinePrescription) {
-                        // Check if this is a supplement (index 10 is the supplement flag)
-                        if (med.length > 10 && "1".equals(med[10])) {
+                        // The supplement flag is at index 10 (after returned from the med dialog)
+                        if ("1".equals(med[10])) {
                             log.info("Supplement: {}", med[1]);
                             supplements.add(med);
                         } else {
@@ -1790,13 +1791,21 @@ public class CheckUpPage extends JPanel {
                     }
                 }
                 
+                Patient printerPatient = getCurrentSelectedPatient();
+                String printerPatientDriveUrl = (printerPatient != null) ? printerPatient.getDriveUrl() : "";
+
+                DoctorItem selectedDoctor = (DoctorItem) doctorComboBox.getSelectedItem();
+                String doctorName = (selectedDoctor != null) ? selectedDoctor.getName() : "";
+                
                 MedicineInvoice medicineInvoice = new MedicineInvoice(checkupIdField.getText(),
                         customerLastNameField.getText() + " " + customerFirstNameField.getText(),
                         dobPicker.getJFormattedTextField().getText(), customerPhoneField.getText(),
                         genderComboBox.getSelectedItem().toString(),
                         customerAddressField.getText()  + ", " + (wardComboBox.getSelectedItem() != null ? wardComboBox.getSelectedItem().toString() : "") + ", " + (provinceComboBox.getSelectedItem() != null ? provinceComboBox.getSelectedItem().toString() : ""),
-                        doctorComboBox.getSelectedItem().toString(), diagnosisField.getText(),
-                        conclusionField.getText(), 
+                        doctorName, 
+                        diagnosisField.getText(),
+                        conclusionField.getText(),
+                        printerPatientDriveUrl,
                         regularMeds.toArray(new String[0][]),
                         servicePrescription,
                         supplements.toArray(new String[0][]) // Pass supplements
@@ -1845,14 +1854,20 @@ public class CheckUpPage extends JPanel {
                 Patient currentPatient = getCurrentSelectedPatient();
                 String currentPatientDriveUrl = (currentPatient != null) ? currentPatient.getDriveUrl() : "";
                 
+                DoctorItem selectedDoctorForPrint = (DoctorItem) doctorComboBox.getSelectedItem();
+                String doctorNameForPrint = (selectedDoctorForPrint != null) ? selectedDoctorForPrint.getName() : "";
+                
+                DoctorItem selectedUltrasoundDoctorForPrint = (DoctorItem) ultrasoundDoctorComboBox.getSelectedItem();
+                String ultrasoundDoctorNameForPrint = (selectedUltrasoundDoctorForPrint != null) ? selectedUltrasoundDoctorForPrint.getName() : "";
+                
                 UltrasoundResult ultrasoundResultPrint = new UltrasoundResult(
                         checkupIdField.getText(),
                         customerLastNameField.getText() + " " + customerFirstNameField.getText(),
                         dobPicker.getJFormattedTextField().getText(),
                         (String) genderComboBox.getSelectedItem(),
                         customerAddressField.getText() +  ", " + (wardComboBox.getSelectedItem() != null ? wardComboBox.getSelectedItem().toString() : "") + ", " + (provinceComboBox.getSelectedItem() != null ? provinceComboBox.getSelectedItem().toString() : ""),
-                        (String) doctorComboBox.getSelectedItem(),
-                        (String) ultrasoundDoctorComboBox.getSelectedItem(),
+                        doctorNameForPrint,
+                        ultrasoundDoctorNameForPrint,
                         datePicker.getJFormattedTextField().getText(),
                         TextUtils.scaleRtfFontSize(getRtfContentAsString()),
                         conclusionField.getText(),
@@ -1920,14 +1935,20 @@ public class CheckUpPage extends JPanel {
                 Patient viewPatient = getCurrentSelectedPatient();
                 String viewPatientDriveUrl = (viewPatient != null) ? viewPatient.getDriveUrl() : "";
                 
+                DoctorItem selectedDoctorForView = (DoctorItem) doctorComboBox.getSelectedItem();
+                String doctorNameForView = (selectedDoctorForView != null) ? selectedDoctorForView.getName() : "";
+                
+                DoctorItem selectedUltrasoundDoctorForView = (DoctorItem) ultrasoundDoctorComboBox.getSelectedItem();
+                String ultrasoundDoctorNameForView = (selectedUltrasoundDoctorForView != null) ? selectedUltrasoundDoctorForView.getName() : "";
+                
                 UltrasoundResult ultrasoundResultView = new UltrasoundResult(
                         checkupIdField.getText(),
                         customerLastNameField.getText() + " " + customerFirstNameField.getText(),
                         dobPicker.getJFormattedTextField().getText(),
                         (String) genderComboBox.getSelectedItem(),
                         customerAddressField.getText() + ", " + (wardComboBox.getSelectedItem() != null ? wardComboBox.getSelectedItem().toString() : "") + ", " + (provinceComboBox.getSelectedItem() != null ? provinceComboBox.getSelectedItem().toString() : ""),
-                        (String) doctorComboBox.getSelectedItem(),
-                        (String) ultrasoundDoctorComboBox.getSelectedItem(),
+                        doctorNameForView,
+                        ultrasoundDoctorNameForView,
                         datePicker.getJFormattedTextField().getText(),
                         TextUtils.scaleRtfFontSize(getRtfContentAsString()),
                         conclusionField.getText(),
@@ -2181,8 +2202,24 @@ public class CheckUpPage extends JPanel {
 
         customerLastNameField.setText(selectedPatient.getCustomerLastName());
         customerFirstNameField.setText(selectedPatient.getCustomerFirstName());
-        doctorComboBox.setSelectedItem(selectedPatient.getDoctorName());
-        ultrasoundDoctorComboBox.setSelectedItem(selectedPatient.getDoctorUltrasoundId());
+
+        // Select doctor by name
+        DoctorItem doctorToSelect = findDoctorByName(selectedPatient.getDoctorName());
+        if (doctorToSelect != null) {
+            doctorComboBox.setSelectedItem(doctorToSelect);
+        } else if (doctorComboBox.getItemCount() > 0) {
+            doctorComboBox.setSelectedIndex(0);
+            log.warn("Doctor '{}' not found in the list for patient selection.", selectedPatient.getDoctorName());
+        }
+
+        DoctorItem ultrasoundDoctorToSelect = findDoctorByName(selectedPatient.getDoctorUltrasoundId());
+        if (ultrasoundDoctorToSelect != null) {
+            ultrasoundDoctorComboBox.setSelectedItem(ultrasoundDoctorToSelect);
+        } else if (ultrasoundDoctorComboBox.getItemCount() > 0) {
+            ultrasoundDoctorComboBox.setSelectedIndex(0);
+            log.warn("Ultrasound Doctor '{}' not found in the list for patient selection.", selectedPatient.getDoctorUltrasoundId());
+        }
+
         suggestionField.setText(selectedPatient.getSuggestion()); // De nghi
         diagnosisField.setText(selectedPatient.getDiagnosis()); // Chuan doan
         conclusionField.setText(selectedPatient.getConclusion()); // Ket luan
@@ -2301,7 +2338,7 @@ public class CheckUpPage extends JPanel {
         currentCheckupIdForMedia = selectedPatient.getCheckupId();
         if (currentCheckupIdForMedia != null && !currentCheckupIdForMedia.trim().isEmpty()) {
             ensureMediaDirectoryExists(currentCheckupIdForMedia);
-            currentCheckupMediaPath = Paths.get(CHECKUP_MEDIA_BASE_DIR, currentCheckupIdForMedia.trim());
+            currentCheckupMediaPath = Paths.get(LocalStorage.checkupMediaBaseDir, currentCheckupIdForMedia.trim());
             
             if (Files.exists(currentCheckupMediaPath)) {
                 loadAndDisplayImages(currentCheckupMediaPath); // Load initial images for this patient
@@ -3977,7 +4014,7 @@ public class CheckUpPage extends JPanel {
     private void ensureMediaDirectoryExists(String checkupId) {
         try {
             // First ensure base directory exists
-            Path baseDir = Paths.get(CHECKUP_MEDIA_BASE_DIR);
+            Path baseDir = Paths.get(LocalStorage.checkupMediaBaseDir);
             if (!Files.exists(baseDir)) {
                 Files.createDirectories(baseDir);
                 log.info("Created base media directory at: {}", baseDir);
@@ -4483,111 +4520,62 @@ public class CheckUpPage extends JPanel {
 
     // Update the save method to get RTF content
     private void handleSave() {
-        // Get all the field values
-        String rtfContent = getRtfContentAsString();
-        String checkupId = checkupIdField.getText();
-        String checkupDate = datePicker.getJFormattedTextField().getText();
-        String customerId = customerIdField.getText();
-        String customerLastName = customerLastNameField.getText();
-        String customerFirstName = customerFirstNameField.getText();
-        String customerDob = dobPicker.getJFormattedTextField().getText();
-        String customerGender = (String) genderComboBox.getSelectedItem();
-        
-        // Construct full address
-        String address = customerAddressField.getText();
-        String ward = (String) wardComboBox.getSelectedItem();
-        String province = (String) provinceComboBox.getSelectedItem();
-        String fullAddress = String.format("%s, %s, %s, %s", 
-            address,
-            ward != null && !ward.equals("Xã/Phường") ? ward : "",
-            province != null && !province.equals("Tỉnh/Thành phố") ? province : ""
-        ).replaceAll(", ,", ",").trim().replaceAll(",$", "");
-
-        String customerNumber = customerPhoneField.getText();
-        String customerWeight = customerWeightSpinner.getValue().toString();
-        String customerHeight = customerHeightSpinner.getValue().toString();
-        String doctorId = String.valueOf(doctorComboBox.getSelectedIndex() + 1);
-        String ultrasoundDoctorId = String.valueOf(ultrasoundDoctorComboBox.getSelectedIndex() + 1);
-        String suggestions = suggestionField.getText();
-        String diagnosis = diagnosisField.getText();
-        String conclusion = conclusionField.getText();
-        String status = (String) statusComboBox.getSelectedItem();
-        String checkupType = (String) checkupTypeComboBox.getSelectedItem();
-        String reCheckupDate = recheckupDatePicker.getJFormattedTextField().getText();
-        String customerCccdDdcn = customerCccdDdcnField.getText();
-
-        // Log all fields that will be sent to backend
-        log.info("=== SaveCheckupRequest Data ===");
-        log.info("checkupId: {}", checkupId);
-        log.info("checkupDate: {}", checkupDate);
-        log.info("customerId: {}", customerId);
-        log.info("customerLastName: {}", customerLastName);
-        log.info("customerFirstName: {}", customerFirstName);
-        log.info("customerDob: {}", customerDob);
-        log.info("customerGender: {}", customerGender);
-        log.info("customerAddress: {}", fullAddress);
-        log.info("customerNumber: {}", customerNumber);
-        log.info("customerWeight: {}", customerWeight);
-        log.info("customerHeight: {}", customerHeight);
-        log.info("doctorId: {}", doctorId);
-        log.info("ultrasoundDoctorId: {}", ultrasoundDoctorId);
-        log.info("suggestions: {}", suggestions);
-        log.info("diagnosis: {}", diagnosis);
-        log.info("conclusion: {}", conclusion);
-        log.info("notes (RTF): {}", rtfContent);
-        log.info("status: {}", status);
-        log.info("checkupType: {}", checkupType);
-        log.info("medicinePrescription: {}", (Object) medicinePrescription);
-        log.info("servicePrescription: {}", (Object) servicePrescription);
-        log.info("reCheckupDate: {}", reCheckupDate);
-        log.info("customerCccdDdcn: {}", customerCccdDdcn);
-        log.info("heartBeat: {}", patientHeartRateSpinner.getValue());
-        log.info("bloodPressure: {}", bloodPressureSystolicSpinner.getValue() + "/" + bloodPressureDiastolicSpinner.getValue());
-        log.info("=== End SaveCheckupRequest Data ===");
-
-        String bloodPressure = bloodPressureSystolicSpinner.getValue() + "/" + bloodPressureDiastolicSpinner.getValue();
-        Long customerDobLong = DateUtils.convertToDate(customerDob).getTime();
-        Long reCheckupDateLong = DateUtils.convertToDate(reCheckupDate).getTime();
-        Long checkupDateLong = DateUtils.convertToDate(checkupDate).getTime();
-        Integer heartBeat = (Integer) patientHeartRateSpinner.getValue();
-        Boolean needsRecheckup = needRecheckupCheckbox.isSelected();
-        
-        // If re-checkup is not needed, clear the re-checkup date
-        if (!needsRecheckup) {
-            reCheckupDateLong = 0L; // Use 0 to indicate no re-checkup date
+        if (checkupIdField.getText().isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Chưa chọn bệnh nhân.", "Lỗi", JOptionPane.ERROR_MESSAGE);
+            return;
         }
-        
+
+        DoctorItem selectedDoctor = (DoctorItem) doctorComboBox.getSelectedItem();
+        String doctorIdStr = (selectedDoctor != null) ? selectedDoctor.getId() : null;
+        DoctorItem selectedUltrasoundDoctor = (DoctorItem) ultrasoundDoctorComboBox.getSelectedItem();
+        String ultrasoundDoctorIdStr = (selectedUltrasoundDoctor != null) ? selectedUltrasoundDoctor.getId() : null;
+
+        if (doctorIdStr == null) {
+            JOptionPane.showMessageDialog(this, "Chưa chọn bác sĩ.", "Lỗi", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        Date recheckupDate = (Date) recheckupDatePicker.getModel().getValue();
+        if (needRecheckupCheckbox.isSelected() && recheckupDate == null) {
+            JOptionPane.showMessageDialog(this, "Vui lòng chọn ngày tái khám.", "Thiếu thông tin", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        try {
         SaveCheckupRequest request = new SaveCheckupRequest(
-            Integer.parseInt(checkupId),
-            Integer.parseInt(customerId),
-            Integer.parseInt(doctorId),
-            Integer.parseInt(ultrasoundDoctorId),
-            checkupDateLong,
-            suggestions,
-            diagnosis,
-            rtfContent,
-            status,
-            checkupType,
-            conclusion,
-            reCheckupDateLong,
-            needsRecheckup,
-            customerFirstName,
-            customerLastName,
-            customerDobLong,
-            customerGender,
-            fullAddress,
-            customerNumber,
-            Double.parseDouble(customerWeight),
-            Double.parseDouble(customerHeight),
-            customerCccdDdcn,
-            heartBeat,
-            bloodPressure,
+                Integer.parseInt(checkupIdField.getText()),
+                Integer.parseInt(customerIdField.getText()),
+                Integer.parseInt(doctorIdStr),
+                ultrasoundDoctorIdStr != null ? Integer.parseInt(ultrasoundDoctorIdStr) : null,
+                DateUtils.convertToDate(datePicker.getJFormattedTextField().getText()).getTime(),
+                suggestionField.getText(),
+                diagnosisField.getText(),
+                getRtfContentAsString(),
+                (String) statusComboBox.getSelectedItem(),
+                (String) checkupTypeComboBox.getSelectedItem(),
+                conclusionField.getText(),
+                recheckupDate != null ? recheckupDate.getTime() : null,
+                needRecheckupCheckbox.isSelected(),
+                customerFirstNameField.getText(),
+                customerLastNameField.getText(),
+                DateUtils.convertToDate(dobPicker.getJFormattedTextField().getText()).getTime(),
+                (String) genderComboBox.getSelectedItem(),
+                customerAddressField.getText() + ", " + (wardComboBox.getSelectedItem() != null ? wardComboBox.getSelectedItem().toString() : "") + ", " + (provinceComboBox.getSelectedItem() != null ? provinceComboBox.getSelectedItem().toString() : ""),
+                customerPhoneField.getText(),
+                (Double) customerWeightSpinner.getValue(),
+                (Double) customerHeightSpinner.getValue(),
+                customerCccdDdcnField.getText(),
+                (Integer) patientHeartRateSpinner.getValue(),
+                bloodPressureSystolicSpinner.getValue() + "/" + bloodPressureDiastolicSpinner.getValue(),
             medicinePrescription,
             servicePrescription
         );
-
         NetworkUtil.sendPacket(ClientHandler.ctx.channel(), request);
         saved = true;
+        } catch (Exception e) {
+            log.error("Failed to create or send SaveCheckupRequest", e);
+            JOptionPane.showMessageDialog(this, "Lỗi khi lưu dữ liệu: " + e.getMessage(), "Lỗi", JOptionPane.ERROR_MESSAGE);
+        }
     }
 
     private void handleTemplateSelection() {
@@ -4653,28 +4641,28 @@ public class CheckUpPage extends JPanel {
     }
 
     private void handleGetAllTemplatesResponse(GetAllTemplatesRes response) {
-        log.info("Get all templates response");
-        this.allTemplates = response.getTemplates();
-        List<Template> templates = response.getTemplates();
+        allTemplates = response.getTemplates();
         
-        // Sort templates by STT first (ascending), then by name (alphabetical)
-        templates.sort((t1, t2) -> {
-            // First compare by STT (smaller numbers first)
-            int sttCompare = Integer.compare(t1.getStt(), t2.getStt());
-            if (sttCompare != 0) {
-                return sttCompare;
+        // Update Doctor ComboBoxes
+        doctorComboBox.removeAllItems();
+        ultrasoundDoctorComboBox.removeAllItems();
+        if (LocalStorage.doctorsName != null && !LocalStorage.doctorsName.isEmpty()) {
+            for (DoctorItem item : LocalStorage.doctorsName) {
+                doctorComboBox.addItem(item);
+                ultrasoundDoctorComboBox.addItem(item);
             }
-            // If STT is the same, compare by template name alphabetically
-            return t1.getTemplateName().compareToIgnoreCase(t2.getTemplateName());
-        });
-        
-        SwingUtilities.invokeLater(() -> {
+        } else {
+            doctorComboBox.addItem(new DoctorItem(null, "Đang tải..."));
+            ultrasoundDoctorComboBox.addItem(new DoctorItem(null, "Đang tải..."));
+        }
+
+        // Update Template ComboBox
             templateComboBox.removeAllItems();
             templateComboBox.addItem("Không sử dụng mẫu");
-            for (Template template : templates) {
-                templateComboBox.addItem(template.getTemplateName());
-            }
-        });
+        templateComboBox.addItem("Mẫu khám tổng quát");
+        templateComboBox.addItem("Mẫu khám thai");
+        templateComboBox.addItem("Mẫu khám nhi");
+        templateComboBox.addItem("Mẫu khám tim mạch");
 
         // No need to delete listener here because it will be called again when user click refresh button
     }
@@ -4871,6 +4859,18 @@ public class CheckUpPage extends JPanel {
                 }
             }
         });
+    }
+
+    private DoctorItem findDoctorByName(String name) {
+        if (name == null || name.trim().isEmpty()) {
+            return null;
+        }
+        for (DoctorItem item : LocalStorage.doctorsName) {
+            if (item.getName().equalsIgnoreCase(name.trim())) {
+                return item;
+            }
+        }
+        return null;
     }
 
 }

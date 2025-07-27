@@ -14,6 +14,8 @@ import org.jdatepicker.impl.JDatePickerImpl;
 import org.jdatepicker.impl.UtilDateModel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import BsK.client.ui.component.CheckUpPage.DoctorItem;
+
 
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;
@@ -47,7 +49,7 @@ public class AddDialog extends JDialog {
     private final ResponseListener<GetWardResponse> wardResponseListener = this::handleGetWardResponse;
     private final ResponseListener<AddPatientResponse> addPatientResponseListener = this::handleAddPatientResponse;
     private final ResponseListener<AddCheckupResponse> addCheckupResponseListener = this::handleAddCheckupResponse;
-    private JComboBox doctorComboBox;
+    private JComboBox<DoctorItem> doctorComboBox;
     private JComboBox<String> checkupTypeComboBox;
     JButton saveButton;
     private DefaultComboBoxModel<String> wardModel;
@@ -417,7 +419,7 @@ public class AddDialog extends JDialog {
         gbc.gridx = 1;
         gbc.gridwidth = 1; // Doctor ComboBox takes 1 column
         gbc.weightx = 0.5; // Doctor ComboBox takes some horizontal space
-        doctorComboBox = new JComboBox<>(LocalStorage.doctorsName != null ? LocalStorage.doctorsName : new String[]{"Đang tải..."});
+        doctorComboBox = new JComboBox<>(LocalStorage.doctorsName.toArray(new DoctorItem[0]));
         doctorComboBox.setFont(textFont);
         doctorComboBox.setPreferredSize(comboBoxSize);
         checkupInfoPanel.add(doctorComboBox, gbc);
@@ -590,7 +592,12 @@ public class AddDialog extends JDialog {
         saveButton.setFont(labelFont);
         saveButton.addActionListener(e -> {
             int patientId = Integer.parseInt(patientIdField.getText());
-            int doctorId = doctorComboBox.getSelectedIndex()+ 1;
+            DoctorItem selectedDoctor = (DoctorItem) doctorComboBox.getSelectedItem();
+            if (selectedDoctor == null || selectedDoctor.getId() == null) {
+                JOptionPane.showMessageDialog(this, "Vui lòng chọn một bác sĩ hợp lệ.", "Lỗi", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            int doctorId = Integer.parseInt(selectedDoctor.getId());
             String selectedCheckupType = (String) checkupTypeComboBox.getSelectedItem();
             NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new AddCheckupRequest(patientId, doctorId, LocalStorage.userId, selectedCheckupType, "ĐANG KHÁM"));
 
@@ -700,7 +707,9 @@ public class AddDialog extends JDialog {
             provinceComboBox.setSelectedIndex(0);
             wardComboBox.setSelectedIndex(0);
             wardComboBox.setEnabled(false);
-            doctorComboBox.setSelectedIndex(0);
+            if (doctorComboBox.getItemCount() > 0) {
+                doctorComboBox.setSelectedIndex(0);
+            }
             checkupTypeComboBox.setSelectedIndex(0);
             
             // Reset targetWard

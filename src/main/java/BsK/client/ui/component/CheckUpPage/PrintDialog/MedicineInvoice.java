@@ -44,6 +44,7 @@ public class MedicineInvoice{
     private String notes;
     private String date;
     private String id;
+    private String driveURL;
     private String[][] med; // Name, Quantity, Price
     private String[][] services; // Name, Quantity, Price
     private String[][] supplements; // Name, Quantity, Price
@@ -73,9 +74,9 @@ public class MedicineInvoice{
             JButton medicineOnlyButton = new JButton("Only Medicines");
             medicineOnlyButton.addActionListener(e -> new MedicineInvoice("1001", "Nguyễn Văn A", "01/01/1990", "0123456789",
                     "Nam", "123 Đường ABC, Quận XYZ, TP HCM", "Bác sĩ XYZ", "Sốt cao",
-                    "Nghỉ ngơi nhiều, uống nhiều nước",
+                    "Nghỉ ngơi nhiều, uống nhiều nước", "https://example.com/drive1",
                     new String[][]{
-                            {"1", "Paracetamol", "2", "viên", "1", "2", "1", "5000", "10000", "Uống sau ăn"}
+                            {"1", "Paracetamol", "2 viên", "viên", "1", "2", "1", "5000", "10000", "Uống sau ăn"}
                     },
                     new String[][]{}, // No services
                     new String[][]{} // No supplements
@@ -85,7 +86,7 @@ public class MedicineInvoice{
             JButton serviceOnlyButton = new JButton("Only Services");
             serviceOnlyButton.addActionListener(e -> new MedicineInvoice("1002", "Trần Thị B", "15/05/1985", "0987654321",
                     "Nữ", "456 Đường DEF, Quận ABC, TP HCM", "Bác sĩ ABC", "Khám tổng quát",
-                    "Theo dõi định kỳ",
+                    "Theo dõi định kỳ", "https://example.com/drive2",
                     new String[][]{}, // No medicines
                     new String[][] {
                         {"1", "Khám tổng quát", "1", "150000", "150000", "Kiểm tra sức khỏe tổng quát"},
@@ -98,12 +99,12 @@ public class MedicineInvoice{
             JButton supplementOnlyButton = new JButton("Only Supplements");
             supplementOnlyButton.addActionListener(e -> new MedicineInvoice("1003", "Lê Văn C", "20/12/1992", "0456789123",
                     "Nam", "789 Đường GHI, Quận DEF, TP HCM", "Bác sĩ DEF", "Tư vấn dinh dưỡng",
-                    "Bổ sung vitamin và khoáng chất",
+                    "Bổ sung vitamin và khoáng chất", "https://example.com/drive3",
                     new String[][]{}, // No medicines
                     new String[][]{}, // No services
                     new String[][] {
-                        {"1", "Vitamin D3", "1", "viên", "1 viên/ngày sau ăn sáng", "30", "2000", "60000", "Bổ sung vitamin D"},
-                        {"2", "Omega 3", "2", "viên", "2 viên/ngày sau ăn", "60", "1500", "90000", "Bổ sung dầu cá"}
+                        {"1", "Vitamin D3", "1", "viên", "1 viên/ngày sau ăn sáng", "30 viên", "2000", "60000", "Bổ sung vitamin D"},
+                        {"2", "Omega 3", "2", "viên", "2 viên/ngày sau ăn", "60 viên", "1500", "90000", "Bổ sung dầu cá"}
                     }
             ).createDialog(frame));
 
@@ -111,9 +112,9 @@ public class MedicineInvoice{
             JButton medServiceButton = new JButton("Medicines + Services");
             medServiceButton.addActionListener(e -> new MedicineInvoice("1004", "Phạm Thị D", "10/03/1988", "0789123456",
                     "Nữ", "321 Đường JKL, Quận GHI, TP HCM", "Bác sĩ GHI", "Viêm họng",
-                    "Điều trị kháng sinh và theo dõi",
+                    "Điều trị kháng sinh và theo dõi", "https://example.com/drive4",
                     new String[][]{
-                            {"1", "Amoxicillin", "1", "viên", "1", "1", "0", "20000", "20000", "Uống trước ăn 30 phút"}
+                            {"1", "Amoxicillin", "1 vỉ", "viên", "1", "1", "0", "20000", "20000", "Uống trước ăn 30 phút"}
                     },
                     new String[][] {
                         {"1", "Khám tai mũi họng", "1", "100000", "100000", "Khám chuyên khoa"}
@@ -125,15 +126,15 @@ public class MedicineInvoice{
             JButton allCategoriesButton = new JButton("All Categories");
             allCategoriesButton.addActionListener(e -> new MedicineInvoice("1005", "Hoàng Văn E", "25/07/1990", "0654321987",
                     "Nam", "654 Đường MNO, Quận JKL, TP HCM", "Bác sĩ JKL", "Kiểm tra sức khỏe định kỳ",
-                    "Tổng quát + bổ sung dinh dưỡng",
+                    "Tổng quát + bổ sung dinh dưỡng", "https://example.com/drive5",
                     new String[][]{
-                            {"1", "Vitamin C", "1", "viên", "1", "0", "0", "10000", "10000", "Uống buổi sáng"}
+                            {"1", "Vitamin C", "1 hộp", "viên", "1", "0", "0", "10000", "10000", "Uống buổi sáng"}
                     },
                     new String[][] {
                         {"1", "Khám tổng quát", "1", "150000", "150000", "Kiểm tra sức khỏe tổng quát"}
                     },
                     new String[][] {
-                        {"1", "Calcium 500mg", "1", "viên", "1 viên/ngày sau ăn tối", "30", "2500", "75000", "Bổ sung canxi"}
+                        {"1", "Calcium 500mg", "1 lọ", "viên", "1 viên/ngày sau ăn tối", "30 viên", "2500", "75000", "Bổ sung canxi"}
                     }
             ).createDialog(frame));
 
@@ -141,7 +142,7 @@ public class MedicineInvoice{
             JButton emptyButton = new JButton("Empty Invoice");
             emptyButton.addActionListener(e -> new MedicineInvoice("1006", "Võ Thị F", "05/11/1995", "0321654987",
                     "Nữ", "987 Đường PQR, Quận MNO, TP HCM", "Bác sĩ MNO", "Tư vấn y tế",
-                    "Chỉ tư vấn, không kê đơn",
+                    "Chỉ tư vấn, không kê đơn", null,
                     new String[][]{}, // No medicines
                     new String[][]{}, // No services
                     new String[][]{} // No supplements
@@ -160,7 +161,7 @@ public class MedicineInvoice{
 
     public MedicineInvoice(String id, String patientName, String patientDOB, String patientPhone,
                                String patientGender, String patientAddress, String doctorName, String diagnosis,
-                               String notes, String[][] med, String[][] services, String[][] supplements) {
+                               String notes, String driveURL, String[][] med, String[][] services, String[][] supplements) {
         this.id = id;
         this.patientName = patientName;
         this.patientDOB = patientDOB;
@@ -170,6 +171,7 @@ public class MedicineInvoice{
         this.doctorName = doctorName;
         this.diagnosis = diagnosis;
         this.notes = notes;
+        this.driveURL = driveURL;
         // Get today's date
         LocalDate today = LocalDate.now();
 
@@ -347,13 +349,12 @@ public class MedicineInvoice{
                                 medicine[4] != null ? medicine[4] : "0", 
                                 medicine[5] != null ? medicine[5] : "0", 
                                 medicine[6] != null ? medicine[6] : "0");
+                            String amount = medicine[2] + " " + medicine[3];
                             
                             medicines.add(InvoiceItem.createMedicine(
                                 medicine[1] != null ? medicine[1] : "",  // medName
                                 dosageInfo,  // dosage
-                                medicine[2] != null ? Integer.parseInt(medicine[2]) : 0,  // amount
-                                medicine[7] != null ? Double.parseDouble(medicine[7]) : 0.0,  // unitPrice
-                                medicine[9] != null ? medicine[9] : ""  // medNote
+                                amount  // amount
                             ));
                         } catch (NumberFormatException e) {
                             System.err.println("Error parsing medicine data: " + e.getMessage());
@@ -383,16 +384,23 @@ public class MedicineInvoice{
             // Convert supplement data to InvoiceItem objects
             if (supplements != null) {
                 for (String[] supplement : supplements) {
-                    if (supplement != null && supplement.length >= 9) {
+                    if (supplement != null && supplement.length >= 10) {
                         try {
+                            String dosageInfo = String.format("S: %s, T: %s, C: %s",
+                                    supplement[4] != null ? supplement[4] : "0",
+                                    supplement[5] != null ? supplement[5] : "0",
+                                    supplement[6] != null ? supplement[6] : "0");
+
+                            String amount = supplement[2] + " " + supplement[3]; // Quantity + Unit
+
                             supplementItems.add(InvoiceItem.createSupplement(
                                 supplement[1] != null ? supplement[1] : "",  // supName
-                                supplement.length > 8 && supplement[8] != null ? supplement[8] : "",  // supNote
-                                supplement[4] != null ? supplement[4] : "",  // supDosage
-                                supplement[5] != null ? Integer.parseInt(supplement[5]) : 0,  // supAmount
-                                supplement[6] != null ? Double.parseDouble(supplement[6]) : 0.0  // supUnitPrice
+                                supplement[9] != null ? supplement[9] : "",  // supNote
+                                dosageInfo,  // supDosage
+                                amount,  // supAmount
+                                0.0  // supUnitPrice, since it's not displayed for supplements
                             ));
-                } catch (NumberFormatException e) { 
+                        } catch (Exception e) {
                             System.err.println("Error parsing supplement data: " + e.getMessage());
                         }
                     }
@@ -434,6 +442,9 @@ public class MedicineInvoice{
 
             // Barcode
             parameters.put("barcodeNumber", id != null ? id : "");
+            
+            // Drive URL for QR Code
+            parameters.put("driveURL", driveURL != null ? driveURL : "");
 
             // Logo image path
             String logoPath = System.getProperty("user.dir") + "/src/main/java/BsK/client/ui/assets/icon/logo.jpg";

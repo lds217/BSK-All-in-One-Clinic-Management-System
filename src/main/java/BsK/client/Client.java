@@ -29,6 +29,12 @@ import javax.swing.SwingUtilities;
 
 @Slf4j
 public class Client {
+    private static Properties config = new Properties();
+    
+    public static Properties getConfig() {
+        return config;
+    }
+
     private static void showConnectionErrorDialog(String serverAddress, int port, Exception error) {
         SwingUtilities.invokeLater(() -> {
             String message = String.format(
@@ -69,15 +75,11 @@ public class Client {
 
     public static void main(String[] args) throws Exception {
         var thread = new Thread(() -> {
-            Properties props = new Properties();
-            String serverAddress = "localhost";
-            int port = 1999;
-            
             // First try to load from external config file
             File externalConfig = new File("config/config.properties");
             if (externalConfig.exists()) {
                 try (var input = Files.newInputStream(externalConfig.toPath())) {
-                    props.load(input);
+                    config.load(input);
                     log.info("Loaded configuration from external file: {}", externalConfig.getAbsolutePath());
                 } catch (IOException e) {
                     log.error("Error loading external config file", e);
@@ -85,33 +87,60 @@ public class Client {
             }
             
             // If external config failed or doesn't exist, try internal config
-            if (props.isEmpty()) {
+            if (config.isEmpty()) {
                 try (InputStream input = Client.class.getClassLoader().getResourceAsStream("config.properties")) {
                     if (input == null) {
                         log.error("Unable to find config.properties");
-                        showConnectionErrorDialog(serverAddress, port, 
+                        showConnectionErrorDialog("localhost", 1999, 
                             new Exception("Không tìm thấy file cấu hình config.properties"));
                         return;
                     }
-                    props.load(input);
+                    config.load(input);
                     log.info("Loaded configuration from internal resources");
                 } catch (IOException e) {
                     log.error("Error loading internal config file", e);
-                    showConnectionErrorDialog(serverAddress, port, e);
+                    showConnectionErrorDialog("localhost", 1999, e);
                     return;
                 }
             }
 
             // Get server configuration
-            serverAddress = props.getProperty("server.address", "localhost");
-            String portStr = props.getProperty("server.port");
+            String serverAddress = config.getProperty("server.address", "localhost");
+            String portStr = config.getProperty("server.port");
+            
+            // Load media directory setting into LocalStorage
+            String mediaDir = config.getProperty("storage.checkup_media_base_dir");
+            if (mediaDir != null && !mediaDir.trim().isEmpty()) {
+                LocalStorage.checkupMediaBaseDir = mediaDir.trim();
+                log.info("Using configured media directory: {}", mediaDir);
+            } else {
+                log.info("Using default media directory: {}", LocalStorage.checkupMediaBaseDir);
+            }
+            
+            // Load ultrasound folder setting into LocalStorage
+            String ultrasoundFolder = config.getProperty("storage.ultrasound_folder_path");
+            if (ultrasoundFolder != null && !ultrasoundFolder.trim().isEmpty()) {
+                LocalStorage.ULTRASOUND_FOLDER_PATH = ultrasoundFolder.trim();
+                log.info("Using configured ultrasound folder: {}", ultrasoundFolder);
+            } else {
+                log.info("Using default ultrasound folder: {}", LocalStorage.ULTRASOUND_FOLDER_PATH);
+            }
+            
+            // Load auto change status setting into LocalStorage
+            String autoChangeStatus = config.getProperty("app.auto_change_status_to_finished");
+            if (autoChangeStatus != null && !autoChangeStatus.trim().isEmpty()) {
+                LocalStorage.autoChangeStatusToFinished = Boolean.parseBoolean(autoChangeStatus.trim());
+                log.info("Auto change status to finished: {}", LocalStorage.autoChangeStatusToFinished);
+            } else {
+                log.info("Using default auto change status: {}", LocalStorage.autoChangeStatusToFinished);
+            }
             
             // Use defaults if not configured
             if (portStr != null) {
-                port = Integer.parseInt(portStr);
+                int port = Integer.parseInt(portStr);
                 log.info("Using configured port: {}", port);
             } else {
-                log.info("Using default port: {}", port);
+                log.info("Using default port: {}", 1999);
             }
 
             log.info("Using server address: {}", serverAddress);
@@ -121,9 +150,9 @@ public class Client {
             
             URI uri = null;
             try {
-                uri = new URI("ws://" + serverAddress + ":" + port + "/");
+                uri = new URI("ws://" + serverAddress + ":" + 1999 + "/");
             } catch (URISyntaxException e) {
-                showConnectionErrorDialog(serverAddress, port, e);
+                showConnectionErrorDialog(serverAddress, 1999, e);
                 return;
             }
 
@@ -154,13 +183,13 @@ public class Client {
                                                         .addLast("ws", ClientHandler.INSTANCE);
                                             }
                                         });
-                log.info("Connecting to {}:{}", serverAddress, port);
-                Channel channel = bootstrap.connect(serverAddress, port).sync().channel();
+                log.info("Connecting to {}:{}", serverAddress, 1999);
+                Channel channel = bootstrap.connect(serverAddress, 1999).sync().channel();
                 channel.closeFuture().sync();
 
             } catch (Exception e) {
                 log.error("Connection error", e);
-                showConnectionErrorDialog(serverAddress, port, e);
+                showConnectionErrorDialog(serverAddress, 1999, e);
                 return;
             } finally {
                 try {

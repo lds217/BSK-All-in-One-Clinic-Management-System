@@ -272,7 +272,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         log.debug("Received GetDoctorGeneralInfo");
         try {
           ResultSet rs = statement.executeQuery(
-                  "select concat(doctor_last_name, ' ', doctor_first_name) from Doctor"
+                  "select concat(doctor_last_name, ' ', doctor_first_name), doctor_id from Doctor"
           );
 
             if (!rs.isBeforeFirst()) {
@@ -281,10 +281,15 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
               ArrayList<String> resultList = new ArrayList<>();
               while (rs.next()) {
                 String doctorName = rs.getString(1);
-                resultList.add(doctorName);
+                String doctorId = rs.getString(2);
+                resultList.add(doctorName + "|" + doctorId);
               }
               String[] resultString = resultList.toArray(new String[0]);
-              UserUtil.sendPacket(currentUser.getSessionId(), new GetDoctorGeneralInfoResponse(resultString));
+              String[][] resultArray = new String[resultString.length][];
+              for (int i = 0; i < resultString.length; i++) {
+                resultArray[i] = resultString[i].split("\\|");
+              }
+              UserUtil.sendPacket(currentUser.getSessionId(), new GetDoctorGeneralInfoResponse(resultArray));
               log.info("Send response to client GetDoctorGeneralInfo");
           }
         }
@@ -1109,7 +1114,8 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                   OI.dosage,
                   OI.price_per_unit,
                   OI.total_price,
-                  OI.notes
+                  OI.notes,
+                  M.supplement
               FROM OrderItem OI
               JOIN Medicine M ON OI.med_id = M.med_id
               WHERE OI.checkup_id = ?
@@ -1120,7 +1126,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
           
           ArrayList<String[]> medList = new ArrayList<>();
           while(medRs.next()) {
-            String[] med = new String[10];
+            String[] med = new String[11];
             med[0] = medRs.getString("med_id");
             med[1] = medRs.getString("med_name");
             med[2] = medRs.getString("quantity_ordered");
@@ -1147,6 +1153,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
             med[7] = medRs.getString("price_per_unit");
             med[8] = medRs.getString("total_price");
             med[9] = medRs.getString("notes");
+            med[10] = medRs.getString("supplement");
             medList.add(med);
           }
           medicinePrescription = medList.toArray(new String[0][]);

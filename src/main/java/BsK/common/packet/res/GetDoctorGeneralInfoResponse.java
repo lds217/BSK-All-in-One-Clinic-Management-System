@@ -9,5 +9,5 @@ import lombok.Data;
 @Data
 
 public class GetDoctorGeneralInfoResponse implements Packet {
-    String[] doctorsName;
+    String[][] doctorsName;
 }

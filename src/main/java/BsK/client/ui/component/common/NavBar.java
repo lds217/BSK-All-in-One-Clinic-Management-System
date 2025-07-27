@@ -3,6 +3,7 @@ package BsK.client.ui.component.common;
 import BsK.client.LocalStorage;
 import BsK.client.ui.component.MainFrame;
 import BsK.client.ui.component.InfoPage.InfoDialog;
+import BsK.client.ui.component.SettingsPage.SettingsDialog;
 import BsK.common.packet.req.LogoutRequest;
 import BsK.common.util.network.NetworkUtil;
 import BsK.client.network.handler.ClientHandler;
@@ -137,6 +138,13 @@ public class NavBar extends JPanel {
                         infoDialog.setVisible(true);
                         return;
                     }
+                    
+                    if ("SettingsPage".equals(dest)) {
+                        // Open settings dialog instead of navigating to a page
+                        SettingsDialog settingsDialog = new SettingsDialog(mainFrame);
+                        settingsDialog.setVisible(true);
+                        return;
+                    }
 
                     if (activeNavItem != null && activeNavItem != label) {
                         JPanel prevPanel = (JPanel) activeNavItem.getParent();
@@ -190,8 +198,10 @@ public class NavBar extends JPanel {
         JMenuItem profileItem = createMenuItem("Hồ sơ cá nhân", e ->
             JOptionPane.showMessageDialog(mainFrame, "Tính năng Hồ sơ cá nhân sắp ra mắt!", "Thông báo", JOptionPane.INFORMATION_MESSAGE));
 
-        JMenuItem settingsItem = createMenuItem("Cài đặt", e ->
-            JOptionPane.showMessageDialog(mainFrame, "Tính năng Cài đặt sắp ra mắt!", "Thông báo", JOptionPane.INFORMATION_MESSAGE));
+        JMenuItem settingsItem = createMenuItem("Cài đặt", e -> {
+            SettingsDialog settingsDialog = new SettingsDialog(mainFrame);
+            settingsDialog.setVisible(true);
+        });
 
         JMenuItem logoutItem = createMenuItem("Đăng xuất", e -> {
             NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new LogoutRequest());

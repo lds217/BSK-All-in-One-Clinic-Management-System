@@ -11,7 +11,7 @@ public class InvoiceItem {
     // --- Medicine Fields ---
     private String medName;
     private String dosage;
-    private Integer amount;
+    private String amount;
     private Double unitPrice;
     private String medNote;
 
@@ -25,7 +25,7 @@ public class InvoiceItem {
     private String supName;
     private String supNote;
     private String supDosage;
-    private Integer supAmount;
+    private String supAmount;
     private Double supUnitPrice;
 
     // Private constructor to be used by factory methods
@@ -33,14 +33,14 @@ public class InvoiceItem {
 
     // --- Factory Methods ---
 
-    public static InvoiceItem createMedicine(String medName, String dosage, Integer amount, Double unitPrice, String medNote) {
+    public static InvoiceItem createMedicine(String medName, String dosage, String amount) {
         InvoiceItem item = new InvoiceItem();
         item.type = "MED";
         item.medName = medName;
         item.dosage = dosage;
         item.amount = amount;
-        item.unitPrice = unitPrice;
-        item.medNote = medNote;
+        item.unitPrice = 0.0;
+        item.medNote = "";
         return item;
     }
 
@@ -54,7 +54,7 @@ public class InvoiceItem {
         return item;
     }
 
-    public static InvoiceItem createSupplement(String supName, String supNote, String supDosage, Integer supAmount, Double supUnitPrice) {
+    public static InvoiceItem createSupplement(String supName, String supNote, String supDosage, String supAmount, Double supUnitPrice) {
         InvoiceItem item = new InvoiceItem();
         item.type = "SUP";
         item.supName = supName;
@@ -71,7 +71,7 @@ public class InvoiceItem {
     public String getType() { return type; }
     public String getMedName() { return medName; }
     public String getDosage() { return dosage; }
-    public Integer getAmount() { return amount; }
+    public String getAmount() { return amount; }
     public Double getUnitPrice() { return unitPrice; }
     public String getMedNote() { return medNote; }
     public String getSerName() { return serName; }
@@ -81,6 +81,6 @@ public class InvoiceItem {
     public String getSupName() { return supName; }
     public String getSupNote() { return supNote; }
     public String getSupDosage() { return supDosage; }
-    public Integer getSupAmount() { return supAmount; }
+    public String getSupAmount() { return supAmount; }
     public Double getSupUnitPrice() { return supUnitPrice; }
 } 
