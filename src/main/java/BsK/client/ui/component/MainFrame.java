@@ -67,6 +67,10 @@ public class MainFrame extends JFrame {
         }
     }
 
+    public JPanel getCurrentPage() {
+        return currentPage;
+    }
+
     private void performFullCleanup() {
         // Perform full cleanup on current page if it's CheckUpPage
         if (currentPage instanceof CheckUpPage) {

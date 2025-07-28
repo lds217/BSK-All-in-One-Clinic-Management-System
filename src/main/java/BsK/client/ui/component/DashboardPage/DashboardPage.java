@@ -5,6 +5,7 @@ import BsK.client.ui.component.MainFrame;
 import BsK.client.ui.component.common.NavBar;
 import BsK.client.ui.component.common.RoundedButtonUI;
 import BsK.client.ui.component.common.RoundedPanel;
+import BsK.client.ui.component.common.AddDialog.AddDialog;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.swing.*;
@@ -21,12 +22,11 @@ import java.time.format.DateTimeFormatter;
 public class DashboardPage extends JPanel {
     private final MainFrame mainFrame;
     
-    // TODO: Add backend request handlers
     private JLabel todayPatientsLabel;
+    private JLabel waitingPatientsLabel;
     private JLabel recheckPatientsLabel;
     private JLabel totalPatientsLabel;
-    private JLabel pendingResultsLabel;
-    private JTable recentActivitiesTable;
+    private JTable currentQueueTable;
     private JLabel lastUpdateLabel;
 
     public DashboardPage(MainFrame mainFrame) {
@@ -47,22 +47,20 @@ public class DashboardPage extends JPanel {
         // Create main sections
         JPanel topSection = createTopSection();
         JPanel centerSection = createCenterSection();
-        JPanel bottomSection = createBottomSection();
 
         mainContent.add(topSection, BorderLayout.NORTH);
         mainContent.add(centerSection, BorderLayout.CENTER);
-        mainContent.add(bottomSection, BorderLayout.SOUTH);
 
         add(mainContent, BorderLayout.CENTER);
 
-        // TODO: Initialize with real data from backend
+        // Load initial data
         loadDashboardData();
     }
 
     private JPanel createTopSection() {
         JPanel topSection = new JPanel(new BorderLayout());
         topSection.setOpaque(false);
-        topSection.setBorder(BorderFactory.createEmptyBorder(0, 0, 20, 0));
+        topSection.setBorder(BorderFactory.createEmptyBorder(0, 0, 30, 0));
 
         // Welcome header
         JPanel headerPanel = createHeaderPanel();
@@ -96,10 +94,7 @@ public class DashboardPage extends JPanel {
         refreshButton.setFocusPainted(false);
         refreshButton.setBorder(BorderFactory.createEmptyBorder(8, 16, 8, 16));
         refreshButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        refreshButton.addActionListener(e -> {
-            // TODO: Implement refresh data from backend
-            refreshDashboardData();
-        });
+        refreshButton.addActionListener(e -> refreshDashboardData());
 
         JPanel leftPanel = new JPanel(new BorderLayout());
         leftPanel.setOpaque(false);
@@ -116,15 +111,15 @@ public class DashboardPage extends JPanel {
         JPanel metricsPanel = new JPanel(new GridLayout(1, 4, 20, 0));
         metricsPanel.setOpaque(false);
 
-        // Patient metrics cards
-        String[] cardTitles = {"Bệnh nhân hôm nay", "Cần tái khám", "Tổng bệnh nhân", "Chờ kết quả"};
+        // Patient metrics cards with specific titles
+        String[] cardTitles = {"Bệnh nhân trong ngày", "Đang đợi khám", "Cần tái khám", "Tổng bệnh nhân"};
         Color[] cardColors = {
             new Color(59, 130, 246),   // Blue - Today's patients
-            new Color(245, 158, 11),   // Orange - Recheck patients  
-            new Color(16, 185, 129),   // Green - Total patients
-            new Color(139, 92, 246)    // Purple - Pending results
+            new Color(245, 158, 11),   // Orange - Waiting patients  
+            new Color(139, 92, 246),   // Purple - Recheck patients
+            new Color(16, 185, 129)    // Green - Total patients
         };
-        String[] cardIcons = {"👥", "🔄", "📊", "⏳"};
+        String[] cardIcons = {"👥", "⏳", "🔄", "📊"};
 
         JLabel[] valueLabels = new JLabel[4];
 
@@ -150,9 +145,9 @@ public class DashboardPage extends JPanel {
 
         // Store references for updating data
         todayPatientsLabel = valueLabels[0];
-        recheckPatientsLabel = valueLabels[1];
-        totalPatientsLabel = valueLabels[2];
-        pendingResultsLabel = valueLabels[3];
+        waitingPatientsLabel = valueLabels[1];
+        recheckPatientsLabel = valueLabels[2];
+        totalPatientsLabel = valueLabels[3];
 
         return metricsPanel;
     }
@@ -205,31 +200,30 @@ public class DashboardPage extends JPanel {
     private JPanel createCenterSection() {
         JPanel centerSection = new JPanel(new GridLayout(1, 2, 20, 0));
         centerSection.setOpaque(false);
-        centerSection.setBorder(BorderFactory.createEmptyBorder(0, 0, 20, 0));
 
-        // Recent activities panel
-        JPanel activitiesPanel = createRecentActivitiesPanel();
+        // Current queue panel (left side)
+        JPanel queuePanel = createCurrentQueuePanel();
         
-        // Quick actions panel
-        JPanel actionsPanel = createQuickActionsPanel();
+        // Action buttons panel (right side)
+        JPanel actionsPanel = createActionButtonsPanel();
 
-        centerSection.add(activitiesPanel);
+        centerSection.add(queuePanel);
         centerSection.add(actionsPanel);
 
         return centerSection;
     }
 
-    private JPanel createRecentActivitiesPanel() {
+    private JPanel createCurrentQueuePanel() {
         RoundedPanel panel = new RoundedPanel(15, Color.WHITE, false);
         panel.setLayout(new BorderLayout());
         panel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
 
-        JLabel titleLabel = new JLabel("Hoạt động gần đây");
+        JLabel titleLabel = new JLabel("Hàng đợi hiện tại");
         titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 18));
         titleLabel.setForeground(new Color(31, 41, 55));
 
-        // Table for recent activities
-        String[] columns = {"Thời gian", "Bệnh nhân", "Hoạt động", "Trạng thái"};
+        // Table for current queue
+        String[] columns = {"STT", "Mã BN", "Họ và Tên", "Loại khám", "Trạng thái"};
         DefaultTableModel tableModel = new DefaultTableModel(columns, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
@@ -237,14 +231,14 @@ public class DashboardPage extends JPanel {
             }
         };
 
-        recentActivitiesTable = new JTable(tableModel);
-        recentActivitiesTable.setRowHeight(35);
-        recentActivitiesTable.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 12));
-        recentActivitiesTable.setFont(new Font("Segoe UI", Font.PLAIN, 12));
-        recentActivitiesTable.setSelectionBackground(new Color(219, 234, 254));
-        recentActivitiesTable.setGridColor(new Color(229, 231, 235));
+        currentQueueTable = new JTable(tableModel);
+        currentQueueTable.setRowHeight(35);
+        currentQueueTable.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 12));
+        currentQueueTable.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        currentQueueTable.setSelectionBackground(new Color(219, 234, 254));
+        currentQueueTable.setGridColor(new Color(229, 231, 235));
 
-        JScrollPane tableScroll = new JScrollPane(recentActivitiesTable);
+        JScrollPane tableScroll = new JScrollPane(currentQueueTable);
         tableScroll.setBorder(BorderFactory.createEmptyBorder());
         tableScroll.getViewport().setBackground(Color.WHITE);
 
@@ -255,7 +249,7 @@ public class DashboardPage extends JPanel {
         return panel;
     }
 
-    private JPanel createQuickActionsPanel() {
+    private JPanel createActionButtonsPanel() {
         RoundedPanel panel = new RoundedPanel(15, Color.WHITE, false);
         panel.setLayout(new BorderLayout());
         panel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
@@ -264,26 +258,24 @@ public class DashboardPage extends JPanel {
         titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 18));
         titleLabel.setForeground(new Color(31, 41, 55));
 
-        JPanel actionsGrid = new JPanel(new GridLayout(3, 2, 15, 15));
+        JPanel actionsGrid = new JPanel(new GridLayout(2, 2, 15, 15));
         actionsGrid.setOpaque(false);
         actionsGrid.setBorder(BorderFactory.createEmptyBorder(15, 0, 0, 0));
 
-        // Quick action buttons
-        String[] actionTitles = {"Thêm bệnh nhân", "Xem hàng đợi", "Báo cáo ngày", "Tìm bệnh nhân", "Cài đặt", "Khẩn cấp"};
-        String[] actionIcons = {"➕", "📋", "📊", "🔍", "⚙️", "🚨"};
+        // 4 specific action buttons
+        String[] actionTitles = {"Thêm bệnh nhân", "Gọi bệnh nhân tái khám", "Báo cáo ngày", "Khẩn cấp"};
+        String[] actionIcons = {"➕", "📞", "📊", "🚨"};
         Color[] actionColors = {
             new Color(34, 197, 94),   // Green - Add patient
-            new Color(59, 130, 246),  // Blue - View queue
-            new Color(168, 85, 247),  // Purple - Reports
-            new Color(245, 158, 11),  // Orange - Search
-            new Color(107, 114, 128), // Gray - Settings
+            new Color(59, 130, 246),  // Blue - Call recheck patient
+            new Color(168, 85, 247),  // Purple - Daily report
             new Color(239, 68, 68)    // Red - Emergency
         };
 
         for (int i = 0; i < actionTitles.length; i++) {
-            JButton actionButton = createQuickActionButton(actionTitles[i], actionIcons[i], actionColors[i]);
+            JButton actionButton = createActionButton(actionTitles[i], actionIcons[i], actionColors[i]);
             final int index = i;
-            actionButton.addActionListener(e -> handleQuickAction(index));
+            actionButton.addActionListener(e -> handleAction(index));
             actionsGrid.add(actionButton);
         }
 
@@ -293,7 +285,7 @@ public class DashboardPage extends JPanel {
         return panel;
     }
 
-    private JButton createQuickActionButton(String title, String icon, Color color) {
+    private JButton createActionButton(String title, String icon, Color color) {
         JButton button = new JButton();
         button.setLayout(new BorderLayout());
         button.setBackground(color);
@@ -331,68 +323,39 @@ public class DashboardPage extends JPanel {
         return button;
     }
 
-    private JPanel createBottomSection() {
-        RoundedPanel panel = new RoundedPanel(15, Color.WHITE, false);
-        panel.setLayout(new BorderLayout());
-        panel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
-
-        JLabel titleLabel = new JLabel("Lịch hẹn hôm nay");
-        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 18));
-        titleLabel.setForeground(new Color(31, 41, 55));
-
-        // TODO: Create appointment calendar widget
-        JPanel appointmentPanel = new JPanel(new BorderLayout());
-        appointmentPanel.setOpaque(false);
-        appointmentPanel.setBorder(BorderFactory.createEmptyBorder(15, 0, 0, 0));
-
-        JLabel placeholderLabel = new JLabel("Tính năng lịch hẹn đang được phát triển...");
-        placeholderLabel.setFont(new Font("Segoe UI", Font.ITALIC, 14));
-        placeholderLabel.setForeground(new Color(107, 114, 128));
-        placeholderLabel.setHorizontalAlignment(SwingConstants.CENTER);
-
-        appointmentPanel.add(placeholderLabel, BorderLayout.CENTER);
-
-        panel.add(titleLabel, BorderLayout.NORTH);
-        panel.add(appointmentPanel, BorderLayout.CENTER);
-
-        return panel;
-    }
-
-    // TODO: Implement backend data loading
     private void loadDashboardData() {
-        // Placeholder data - replace with real backend calls
-        updateMetrics(12, 3, 156, 5);
-        loadRecentActivities();
+        // Load metrics with sample data
+        updateMetrics(12, 5, 3, 156);
+        loadCurrentQueue();
     }
 
-    private void updateMetrics(int todayPatients, int recheckPatients, int totalPatients, int pendingResults) {
+    private void updateMetrics(int todayPatients, int waitingPatients, int recheckPatients, int totalPatients) {
         if (todayPatientsLabel != null) todayPatientsLabel.setText(String.valueOf(todayPatients));
+        if (waitingPatientsLabel != null) waitingPatientsLabel.setText(String.valueOf(waitingPatients));
         if (recheckPatientsLabel != null) recheckPatientsLabel.setText(String.valueOf(recheckPatients));
         if (totalPatientsLabel != null) totalPatientsLabel.setText(String.valueOf(totalPatients));
-        if (pendingResultsLabel != null) pendingResultsLabel.setText(String.valueOf(pendingResults));
     }
 
-    private void loadRecentActivities() {
-        DefaultTableModel model = (DefaultTableModel) recentActivitiesTable.getModel();
+    private void loadCurrentQueue() {
+        DefaultTableModel model = (DefaultTableModel) currentQueueTable.getModel();
         model.setRowCount(0); // Clear existing data
 
-        // TODO: Replace with real data from backend
-        String[][] sampleData = {
-            {"10:30", "Nguyễn Văn A", "Khám tổng quát", "Hoàn thành"},
-            {"10:15", "Trần Thị B", "Siêu âm", "Đang thực hiện"},
-            {"09:45", "Lê Văn C", "Tái khám", "Chờ kết quả"},
-            {"09:30", "Phạm Thị D", "Khám thai", "Hoàn thành"},
-            {"09:00", "Hoàng Văn E", "Khám tổng quát", "Hoàn thành"}
+        // Sample queue data
+        String[][] queueData = {
+            {"1", "BN-00123", "Nguyễn Văn An", "Khám tổng quát", "Đang chờ"},
+            {"2", "BN-00124", "Trần Thị Bình", "Siêu âm", "Đang khám"},
+            {"3", "BN-00125", "Lê Hoàng Cường", "Tái khám", "Đang chờ"},
+            {"4", "BN-00126", "Phạm Thị Dung", "Khám thai", "Đang chờ"},
+            {"5", "BN-00127", "Hoàng Văn Em", "Khám tổng quát", "Đang chờ"}
         };
 
-        for (String[] row : sampleData) {
+        for (String[] row : queueData) {
             model.addRow(row);
         }
     }
 
     private void refreshDashboardData() {
         lastUpdateLabel.setText("Cập nhật lần cuối: " + getCurrentTime());
-        // TODO: Implement real data refresh from backend
         loadDashboardData();
         
         JOptionPane.showMessageDialog(this, 
@@ -401,52 +364,41 @@ public class DashboardPage extends JPanel {
             JOptionPane.INFORMATION_MESSAGE);
     }
 
-    private void handleQuickAction(int actionIndex) {
-        String[] actions = {"AddPatient", "CheckUpPage", "Reports", "SearchPatient", "SettingsPage", "Emergency"};
+    private void handleAction(int actionIndex) {
         String[] messages = {
             "Chuyển đến trang thêm bệnh nhân...",
-            "Chuyển đến trang xem hàng đợi...", 
+            "Gọi bệnh nhân tái khám...", 
             "Mở báo cáo ngày...",
-            "Mở tìm kiếm bệnh nhân...",
-            "Chuyển đến trang cài đặt...",
             "Kích hoạt chế độ khẩn cấp!"
         };
 
-        // TODO: Implement real navigation and actions
         switch (actionIndex) {
-            case 0: // Add Patient - Navigate to patient data page
-                mainFrame.showPage("PatientDataPage");
+            case 0: // Add Patient
+                AddDialog addDialog = new AddDialog(mainFrame);
+                addDialog.setVisible(true);
                 break;
-            case 1: // View Queue - Navigate to checkup page
-                mainFrame.showPage("CheckUpPage");
-                break;
-            case 4: // Settings - Navigate to settings page
-                mainFrame.showPage("SettingsPage");
-                break;
-            default:
+            case 1: // Call recheck patient
                 JOptionPane.showMessageDialog(this, 
-                    messages[actionIndex], 
+                    "Chức năng gọi bệnh nhân tái khám đang được phát triển", 
                     "Thông báo", 
                     JOptionPane.INFORMATION_MESSAGE);
+                break;
+            case 2: // Daily report
+                JOptionPane.showMessageDialog(this, 
+                    "Chức năng báo cáo ngày đang được phát triển", 
+                    "Thông báo", 
+                    JOptionPane.INFORMATION_MESSAGE);
+                break;
+            case 3: // Emergency
+                JOptionPane.showMessageDialog(this, 
+                    "Chế độ khẩn cấp được kích hoạt!", 
+                    "KHẨN CẤP", 
+                    JOptionPane.WARNING_MESSAGE);
+                break;
         }
     }
 
     private String getCurrentTime() {
         return LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss"));
-    }
-
-    public static void main(String[] args) {
-        // Test frame for development
-        SwingUtilities.invokeLater(() -> {
-            JFrame frame = new JFrame("Dashboard Test");
-            frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-            frame.setSize(1400, 900);
-            frame.setLocationRelativeTo(null);
-            
-            LocalStorage.username = "Test User"; // Set test username
-            DashboardPage dashboard = new DashboardPage(null);
-            frame.add(dashboard);
-            frame.setVisible(true);
-        });
     }
 }

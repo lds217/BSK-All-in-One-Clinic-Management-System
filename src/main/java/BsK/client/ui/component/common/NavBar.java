@@ -4,6 +4,8 @@ import BsK.client.LocalStorage;
 import BsK.client.ui.component.MainFrame;
 import BsK.client.ui.component.InfoPage.InfoDialog;
 import BsK.client.ui.component.SettingsPage.SettingsDialog;
+import BsK.client.ui.component.DataDialog.DataDialog;
+import BsK.client.ui.component.CheckUpPage.CheckUpPage;
 import BsK.common.packet.req.LogoutRequest;
 import BsK.common.util.network.NetworkUtil;
 import BsK.client.network.handler.ClientHandler;
@@ -74,7 +76,7 @@ public class NavBar extends JPanel {
         userPanel.add(welcomePanel, new GridBagConstraints());
 
         String[] navBarItems = {"Thống kê", "Thăm khám", "Dữ liệu", "Cài đặt", "Thông tin"};
-        String[] destination = {"DashboardPage", "CheckUpPage", "DataPage", "SettingsPage", "InfoPage"};
+        String[] destination = {"DashboardPage", "CheckUpPage", "CheckUpPage", "SettingsPage", "InfoPage"};
         String[] iconFiles = {"dashboard.png", "health-check.png", "database.png","settings.png", "info.png"};
         Color[] navItemColors = {
             new Color(51, 135, 204),    // Darker Blue
@@ -143,6 +145,41 @@ public class NavBar extends JPanel {
                         // Open settings dialog instead of navigating to a page
                         SettingsDialog settingsDialog = new SettingsDialog(mainFrame);
                         settingsDialog.setVisible(true);
+                        return;
+                    }
+                    
+                    if ("Dữ liệu".equals(itemText)) {
+                        // If not currently on CheckUpPage, navigate there first
+                        if (!(mainFrame.getCurrentPage() instanceof CheckUpPage)) {
+                            mainFrame.showPage("CheckUpPage");
+                            // Update active nav item to CheckUpPage
+                            if (activeNavItem != null) {
+                                JPanel prevPanel = (JPanel) activeNavItem.getParent();
+                                prevPanel.setBackground(navItemColors[findNavItemIndex(activeNavItem.getText(), navBarItems)].brighter());
+                                activeNavItem.setForeground(defaultTextColor);
+                            }
+                            // Find and set the "Thăm khám" nav item as active
+                            for (int j = 0; j < navBarItems.length; j++) {
+                                if ("Thăm khám".equals(navBarItems[j])) {
+                                    Component[] components = navItemsPanel.getComponents();
+                                    if (j < components.length && components[j] instanceof JPanel) {
+                                        JPanel checkupPanel = (JPanel) components[j];
+                                        if (checkupPanel.getComponentCount() > 0 && checkupPanel.getComponent(0) instanceof JLabel) {
+                                            JLabel checkupLabel = (JLabel) checkupPanel.getComponent(0);
+                                            activeNavItem = checkupLabel;
+                                            checkupPanel.setBackground(navItemColors[j]);
+                                            checkupLabel.setForeground(activeTextColor);
+                                        }
+                                    }
+                                    break;
+                                }
+                            }
+                        }
+                        // Open data dialog
+                        SwingUtilities.invokeLater(() -> {
+                            DataDialog dataDialog = new DataDialog(mainFrame);
+                            dataDialog.setVisible(true);
+                        });
                         return;
                     }
 
