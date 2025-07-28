@@ -43,9 +43,9 @@ public class InfoDialog extends JDialog {
         
         String htmlContent = "<html>"
                 + "<body style='font-family: Segoe UI, Arial, sans-serif; line-height: 1.6; color: #333; background-color: #ffffff;'>"
-                + "<div style='text-align: center; margin-bottom: 25px;'>"
-                + "<h1 style='color: #2c5282; font-size: 24px; margin-bottom: 10px; font-weight: bold;'>BSK CLINIC MANAGEMENT SYSTEM</h1>"
-                + "<hr style='border: 2px solid #4299e1; width: 60%; margin: 20px auto;'>"
+                + "<div style='text-align: center; margin-bottom: 15px;'>"
+                + "<h1 style='color: #2c5282; font-size: 24px; margin-bottom: 5px; font-weight: bold;'>BSK CLINIC MANAGEMENT SYSTEM</h1>"
+                + "<hr style='border: 2px solid #4299e1; width: 60%; margin: 10px auto;'>"
                 + "</div>"
                 
                 + "<div style='margin-bottom: 10px;'>"
