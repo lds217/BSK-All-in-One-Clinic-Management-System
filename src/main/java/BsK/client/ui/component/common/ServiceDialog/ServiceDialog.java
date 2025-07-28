@@ -1,4 +1,4 @@
-package BsK.client.ui.component.CheckUpPage.ServiceDialog;
+package BsK.client.ui.component.common.ServiceDialog;
 
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;

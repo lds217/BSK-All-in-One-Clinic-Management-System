@@ -45,14 +45,14 @@ public class LoginPage extends JPanel {
         gbc.gridy = 0;
         gbc.gridwidth = 2; // Span across two columns
 
-        JLabel promptLabel = new JLabel("Please enter your details:");
+        JLabel promptLabel = new JLabel("Vui lòng nhập thông tin chi tiết của bạn:");
         promptLabel.setForeground(Color.WHITE);
         promptLabel.setFont(new Font("Arial", Font.BOLD, 20));
         backgroundPanel.add(promptLabel, gbc);
 
         gbc.gridwidth = 1; // Reset to default
         gbc.gridy++;
-        JLabel usernameLabel = new JLabel("Enter Username:");
+        JLabel usernameLabel = new JLabel("Nhập tên đăng nhập:");
         usernameLabel.setForeground(Color.WHITE);
         backgroundPanel.add(usernameLabel, gbc);
 
@@ -62,7 +62,7 @@ public class LoginPage extends JPanel {
 
         gbc.gridx = 0;
         gbc.gridy++;
-        JLabel passwordLabel = new JLabel("Enter Password:");
+        JLabel passwordLabel = new JLabel("Nhập mật khẩu:");
         passwordLabel.setForeground(Color.WHITE);
         backgroundPanel.add(passwordLabel, gbc);
 
@@ -71,7 +71,7 @@ public class LoginPage extends JPanel {
         backgroundPanel.add(passwordField, gbc);
 
         gbc.gridy++;
-        JButton loginButton = new JButton("Login");
+        JButton loginButton = new JButton("Đăng nhập");
 
         // listener for Password Field to press Enter
         passwordField.addActionListener(e -> {
@@ -100,7 +100,7 @@ public class LoginPage extends JPanel {
         ClientHandler.addResponseListener(ErrorResponse.class, response -> {
             log.error("Login error: {}", response.getError());
             SwingUtilities.invokeLater(() -> JOptionPane.showMessageDialog(this,
-                    "Login failed: " + response.getError(), "Error", JOptionPane.ERROR_MESSAGE));
+                    "Đăng nhập thất bại: " + response.getError(), "Lỗi", JOptionPane.ERROR_MESSAGE));
         });
 
 
@@ -108,7 +108,7 @@ public class LoginPage extends JPanel {
         add(backgroundPanel, BorderLayout.CENTER);
 
 
-        JButton backButton = new JButton("Back");
+        JButton backButton = new JButton("Trở về");
         backButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {

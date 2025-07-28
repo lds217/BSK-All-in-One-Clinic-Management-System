@@ -1,5 +1,6 @@
 package BsK.client;
 
+import BsK.common.entity.DoctorItem;
 import BsK.server.network.entity.Role;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -8,7 +9,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import BsK.client.ui.component.CheckUpPage.DoctorItem;
 
 @AllArgsConstructor
 @Data

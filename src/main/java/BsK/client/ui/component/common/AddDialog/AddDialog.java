@@ -1,9 +1,10 @@
-package BsK.client.ui.component.CheckUpPage.AddDialog;
+package BsK.client.ui.component.common.AddDialog;
 
 import BsK.client.LocalStorage;
 import BsK.client.network.handler.ClientHandler;
 import BsK.client.network.handler.ResponseListener;
 import BsK.client.ui.component.common.DateLabelFormatter;
+import BsK.common.entity.DoctorItem;
 import BsK.common.packet.req.*;
 import BsK.common.packet.res.*;
 import BsK.common.util.network.NetworkUtil;
@@ -14,8 +15,6 @@ import org.jdatepicker.impl.JDatePickerImpl;
 import org.jdatepicker.impl.UtilDateModel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import BsK.client.ui.component.CheckUpPage.DoctorItem;
-
 
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;

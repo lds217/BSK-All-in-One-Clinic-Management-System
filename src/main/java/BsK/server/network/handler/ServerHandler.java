@@ -19,11 +19,14 @@ import io.netty.handler.codec.http.websocketx.Utf8FrameValidator;
 import io.netty.handler.codec.http.websocketx.WebSocketServerProtocolHandler.HandshakeComplete;
 import io.netty.handler.timeout.IdleState;
 import io.netty.handler.timeout.IdleStateEvent;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import javax.imageio.ImageIO;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -1327,13 +1330,26 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
             Path storageDir = Paths.get(Server.imageDbPath, checkupId.trim());
             Files.createDirectories(storageDir); // Create dirs if they don't exist
 
-            // 2. Save the file
-            Path filePath = storageDir.resolve(fileName);
-            try (FileOutputStream fos = new FileOutputStream(filePath.toFile())) {
-                fos.write(imageData);
+            // 2. Convert and save image as PNG for archival storage
+            // Convert filename to PNG extension for server storage consistency
+            String pngFileName = fileName.substring(0, fileName.lastIndexOf('.')) + ".png";
+            Path filePath = storageDir.resolve(pngFileName);
+            
+            // Convert image data to PNG format
+            try (ByteArrayInputStream bais = new ByteArrayInputStream(imageData)) {
+                BufferedImage image = ImageIO.read(bais);
+                if (image != null) {
+                    ImageIO.write(image, "PNG", filePath.toFile());
+                    log.info("Successfully converted and saved image as PNG to {}", filePath);
+                } else {
+                    // Fallback: save as original format if conversion fails
+                    try (FileOutputStream fos = new FileOutputStream(storageDir.resolve(fileName).toFile())) {
+                        fos.write(imageData);
+                    }
+                    log.warn("Failed to convert image to PNG, saved as original format: {}", fileName);
+                }
             }
             String savedPath = filePath.toString().replace("\\", "/");
-            log.info("Successfully saved image to {}", savedPath);
 
             // 3. TODO: Store file path in database, linking it to the checkupId
             // A proper implementation would have a 'CheckupImages' table and an INSERT query here.
@@ -1422,6 +1438,52 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
 
         UserUtil.sendPacket(currentUser.getSessionId(), new GetImagesByCheckupIdRes(checkupId, imageNames, imageDatas));
         log.info("Sent {} images for checkupId: {}", imageDatas.size(), checkupId);
+      }
+
+      if (packet instanceof SyncCheckupImagesRequest syncCheckupImagesRequest) {
+        String checkupId = syncCheckupImagesRequest.getCheckupId();
+        log.info("Received SyncCheckupImagesRequest for checkupId: {}", checkupId);
+
+        List<String> imageNames = new ArrayList<>();
+        List<byte[]> imageDatas = new ArrayList<>();
+        boolean success = false;
+        String message = "";
+
+        Path checkupDir = Paths.get(Server.imageDbPath, checkupId);
+        if (Files.exists(checkupDir) && Files.isDirectory(checkupDir)) {
+            try {
+                List<Path> imagePaths = Files.list(checkupDir)
+                    .filter(path -> {
+                        String filename = path.toString().toLowerCase();
+                        return filename.endsWith(".jpg") || filename.endsWith(".jpeg") || filename.endsWith(".png") || filename.endsWith(".gif") || filename.endsWith(".bmp");
+                    })
+                    .collect(Collectors.toList());
+
+                for (Path imagePath : imagePaths) {
+                    try {
+                        imageDatas.add(Files.readAllBytes(imagePath));
+                        imageNames.add(imagePath.getFileName().toString());
+                    } catch (IOException e) {
+                        log.error("Failed to read image file: {}", imagePath, e);
+                    }
+                }
+                
+                success = true;
+                message = String.format("Successfully synced %d images for checkup %s", imageDatas.size(), checkupId);
+                log.info("Successfully synced {} images for checkupId: {}", imageDatas.size(), checkupId);
+                
+            } catch (IOException e) {
+                log.error("Failed to list images for checkupId: {}", checkupId, e);
+                message = "Failed to read images from server: " + e.getMessage();
+            }
+        } else {
+            log.warn("Image directory not found for checkupId: {}", checkupId);
+            message = "No images found for this checkup on server";
+            success = true; // Not finding images is still a successful response
+        }
+
+        UserUtil.sendPacket(currentUser.getSessionId(), new SyncCheckupImagesResponse(checkupId, imageNames, imageDatas, success, message));
+        log.info("Sent sync response with {} images for checkupId: {}", imageDatas.size(), checkupId);
       }
       
     }

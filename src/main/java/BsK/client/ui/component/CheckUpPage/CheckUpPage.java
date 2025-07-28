@@ -4,18 +4,19 @@ import BsK.client.Client;
 import BsK.client.LocalStorage;
 import BsK.client.network.handler.ClientHandler;
 import BsK.client.network.handler.ResponseListener;
-import BsK.client.ui.component.CheckUpPage.AddDialog.AddDialog;
-import BsK.client.ui.component.CheckUpPage.HistoryViewDialog.HistoryViewDialog;
-import BsK.client.ui.component.CheckUpPage.MedicineDialog.MedicineDialog;
-import BsK.client.ui.component.CheckUpPage.PrintDialog.MedicineInvoice;
-import BsK.client.ui.component.CheckUpPage.PrintDialog.UltrasoundResult;
-import BsK.client.ui.component.CheckUpPage.ServiceDialog.ServiceDialog;
-import BsK.client.ui.component.CheckUpPage.TemplateDialog.TemplateDialog;
+import BsK.client.ui.component.common.AddDialog.AddDialog;
+import BsK.client.ui.component.common.HistoryViewDialog.HistoryViewDialog;
+import BsK.client.ui.component.common.MedicineDialog.MedicineDialog;
+import BsK.client.ui.component.common.PrintDialog.MedicineInvoice;
+import BsK.client.ui.component.common.PrintDialog.UltrasoundResult;
+import BsK.client.ui.component.common.ServiceDialog.ServiceDialog;
+import BsK.client.ui.component.common.TemplateDialog.TemplateDialog;
 import BsK.client.ui.component.MainFrame;
 import BsK.client.ui.component.common.DateLabelFormatter;
 import BsK.client.ui.component.common.NavBar;
 import BsK.client.ui.component.common.RoundedPanel;
 import BsK.client.ui.component.QueueViewPage.QueueViewPage;
+import BsK.common.entity.DoctorItem;
 import BsK.common.entity.Patient;
 import BsK.common.entity.Status;
 import BsK.common.entity.Template;
@@ -153,7 +154,6 @@ import BsK.common.util.date.DateUtils;
 import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
 import javax.swing.text.JTextComponent;
-import BsK.client.ui.component.CheckUpPage.DoctorItem;
 
 @Slf4j
 public class CheckUpPage extends JPanel {
@@ -172,6 +172,7 @@ public class CheckUpPage extends JPanel {
     private final ResponseListener<GetAllTemplatesRes> getAllTemplatesListener = this::handleGetAllTemplatesResponse;
     private final ResponseListener<UploadCheckupImageResponse> uploadImageResponseListener = this::handleUploadImageResponse;
     private final ResponseListener<UploadCheckupPdfResponse> uploadPdfResponseListener = this::handleUploadPdfResponse;
+    private final ResponseListener<SyncCheckupImagesResponse> syncImagesResponseListener = this::handleSyncImagesResponse;
     private JTextField checkupIdField, customerLastNameField, customerFirstNameField,customerAddressField, customerPhoneField, customerIdField, customerCccdDdcnField;
     private JTextArea suggestionField, diagnosisField, conclusionField; // Changed symptomsField to suggestionField
     private JTextPane notesField;
@@ -353,6 +354,7 @@ public class CheckUpPage extends JPanel {
         ClientHandler.addResponseListener(GetAllTemplatesRes.class, getAllTemplatesListener);
         ClientHandler.addResponseListener(UploadCheckupImageResponse.class, uploadImageResponseListener);
         ClientHandler.addResponseListener(UploadCheckupPdfResponse.class, uploadPdfResponseListener);
+        ClientHandler.addResponseListener(SyncCheckupImagesResponse.class, syncImagesResponseListener);
 
         // Instantiate the new queue page but don't show it yet
         queueManagementPage = new QueueManagementPage();
@@ -2289,6 +2291,8 @@ public class CheckUpPage extends JPanel {
 
         NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetPatientHistoryRequest(Integer.parseInt(selectedPatient.getCustomerId())));
         NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetOrderInfoByCheckupReq(selectedPatient.getCheckupId()));
+        // Sync images from server to client for consistency
+        NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new SyncCheckupImagesRequest(selectedPatient.getCheckupId()));
         String fullAddress = selectedPatient.getCustomerAddress();
         String[] addressParts = fullAddress.split(", ");
         
@@ -3442,20 +3446,20 @@ public class CheckUpPage extends JPanel {
             }
 
             String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
-            String fileName = "IMG_" + currentCheckupIdForMedia + "_" + timestamp + ".png";
+            String fileName = "IMG_" + currentCheckupIdForMedia + "_" + timestamp + ".jpg";
             Path filePath = currentCheckupMediaPath.resolve(fileName);
 
             try {
                 BufferedImage image = selectedWebcam.getImage();
                 if (image != null) {
-                    // Save locally first for immediate UI feedback (PNG for high quality local cache)
-                    ImageIO.write(image, "PNG", filePath.toFile());
-                    log.info("Picture taken and saved locally at: {}", filePath);
+                    // Save locally as JPG for consistency (compressed format for client storage)
+                    ImageIO.write(image, "JPG", filePath.toFile());
+                    log.info("Picture taken and saved locally as JPG at: {}", filePath);
 
                     // Refresh UI to show the new image immediately
                     loadAndDisplayImages(currentCheckupMediaPath);
 
-                    // Now, upload in the background (will be compressed to JPG)
+                    // Now, upload in the background (server will convert to PNG for archival)
                     uploadImageInBackground(filePath.getFileName().toString(), image);
 
                 } else {
@@ -3499,8 +3503,8 @@ public class CheckUpPage extends JPanel {
                 // Create and send the request
                 String checkupId = currentCheckupIdForMedia;
 
-                // Adjust file name to have .jpg extension for the server
-                String jpgFileName = fileName.substring(0, fileName.lastIndexOf('.')) + ".jpg";
+                // Keep original filename since we're already using JPG locally
+                String jpgFileName = fileName;
 
                 // Schedule a timeout task for this upload
                 Future<?> timeoutTask = timeoutExecutor.schedule(() -> {
@@ -3564,6 +3568,84 @@ public class CheckUpPage extends JPanel {
                         "Lỗi khi tải PDF lên server: " + response.getMessage(),
                         "Lỗi Tải PDF",
                         JOptionPane.ERROR_MESSAGE);
+            });
+        }
+    }
+
+    private void handleSyncImagesResponse(SyncCheckupImagesResponse response) {
+        if (response.isSuccess()) {
+            log.info("Successfully synced images for checkup {}: {}", response.getCheckupId(), response.getMessage());
+            
+            SwingUtilities.invokeLater(() -> {
+                try {
+                    // Create media directory for this checkup if it doesn't exist
+                    java.io.File mediaDir = new java.io.File("src/main/resources/image/checkup_media", response.getCheckupId());
+                    if (!mediaDir.exists()) {
+                        mediaDir.mkdirs();
+                    }
+                    
+                    // Save each image to local media directory, converting to JPG format for client consistency
+                    for (int i = 0; i < response.getImageNames().size(); i++) {
+                        String imageName = response.getImageNames().get(i);
+                        byte[] imageData = response.getImageDatas().get(i);
+                        
+                        // Convert filename to JPG extension for client storage consistency
+                        String jpgImageName = imageName.substring(0, imageName.lastIndexOf('.')) + ".jpg";
+                        java.io.File imageFile = new java.io.File(mediaDir, jpgImageName);
+                        
+                        try {
+                            // Convert image data to JPG format for client storage
+                            try (java.io.ByteArrayInputStream bais = new java.io.ByteArrayInputStream(imageData)) {
+                                java.awt.image.BufferedImage image = javax.imageio.ImageIO.read(bais);
+                                if (image != null) {
+                                    javax.imageio.ImageIO.write(image, "JPG", imageFile);
+                                    log.debug("Synced and converted image to JPG: {}", imageFile.getAbsolutePath());
+                                } else {
+                                    // Fallback: save as original format if conversion fails
+                                    try (java.io.FileOutputStream fos = new java.io.FileOutputStream(new java.io.File(mediaDir, imageName))) {
+                                        fos.write(imageData);
+                                        log.warn("Failed to convert image to JPG, saved as original format: {}", imageName);
+                                    }
+                                }
+                            }
+                        } catch (Exception e) {
+                            log.error("Failed to process synced image {}: {}", imageName, e.getMessage());
+                            // Fallback: save as original format
+                            try (java.io.FileOutputStream fos = new java.io.FileOutputStream(new java.io.File(mediaDir, imageName))) {
+                                fos.write(imageData);
+                                log.warn("Saved image as original format due to conversion error: {}", imageName);
+                            }
+                        }
+                    }
+                    
+                    // Update the current media path and refresh the gallery if this is for the current checkup
+                    if (response.getCheckupId().equals(currentCheckupIdForMedia)) {
+                        currentCheckupMediaPath = mediaDir.toPath();
+                        loadAndDisplayImages(currentCheckupMediaPath);
+                        log.info("Refreshed image gallery with {} synced images", response.getImageNames().size());
+                    }
+                    
+                    // Update UI status
+                    if (callingStatusLabel != null) {
+                        callingStatusLabel.setText("Đã đồng bộ " + response.getImageNames().size() + " hình ảnh từ server");
+                        callingStatusLabel.setForeground(new Color(0, 100, 0));
+                    }
+                    
+                } catch (Exception e) {
+                    log.error("Failed to save synced images locally: {}", e.getMessage());
+                    if (callingStatusLabel != null) {
+                        callingStatusLabel.setText("Lỗi khi lưu hình ảnh đồng bộ: " + e.getMessage());
+                        callingStatusLabel.setForeground(Color.RED);
+                    }
+                }
+            });
+        } else {
+            log.warn("Image sync failed for checkup {}: {}", response.getCheckupId(), response.getMessage());
+            SwingUtilities.invokeLater(() -> {
+                if (callingStatusLabel != null) {
+                    callingStatusLabel.setText("Đồng bộ hình ảnh: " + response.getMessage());
+                    callingStatusLabel.setForeground(new Color(200, 100, 0)); // Orange for warning
+                }
             });
         }
     }

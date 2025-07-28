@@ -1,4 +1,4 @@
-package BsK.client.ui.component.CheckUpPage.TemplateDialog;
+package BsK.client.ui.component.common.TemplateDialog;
 
 import BsK.client.ui.component.MainFrame;
 import BsK.common.packet.req.AddTemplateReq;

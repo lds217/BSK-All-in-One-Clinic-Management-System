@@ -1,4 +1,4 @@
-package BsK.client.ui.component.CheckUpPage.PrintDialog;
+package BsK.client.ui.component.common.PrintDialog;
 
 import BsK.client.LocalStorage;
 import com.itextpdf.io.font.constants.StandardFonts;

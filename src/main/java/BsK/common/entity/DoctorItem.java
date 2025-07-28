@@ -1,4 +1,4 @@
-package BsK.client.ui.component.CheckUpPage;
+package BsK.common.entity;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;

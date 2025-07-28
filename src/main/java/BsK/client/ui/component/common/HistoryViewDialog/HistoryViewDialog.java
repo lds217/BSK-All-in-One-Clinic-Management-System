@@ -1,4 +1,4 @@
-package BsK.client.ui.component.CheckUpPage.HistoryViewDialog;
+package BsK.client.ui.component.common.HistoryViewDialog;
 
 import javax.swing.*;
 import javax.swing.border.TitledBorder;

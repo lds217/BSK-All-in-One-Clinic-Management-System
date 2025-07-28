@@ -3,6 +3,7 @@ package BsK.client.network.handler;
 
 import BsK.client.LocalStorage;
 import BsK.client.ui.handler.UIHandler;
+import BsK.common.entity.DoctorItem;
 import BsK.common.packet.Packet;
 import BsK.common.packet.PacketSerializer;
 import BsK.common.packet.req.GetDoctorGeneralInfo;
@@ -27,7 +28,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.w3c.dom.Text;
 import BsK.client.ui.component.CheckUpPage.AddDialog.AddDialog;
 import BsK.client.ui.component.CheckUpPage.CheckUpPage;
-import BsK.client.ui.component.CheckUpPage.DoctorItem;
 import BsK.client.ui.component.LoginPage.LoginPage;
 import BsK.client.ui.component.MainFrame;
 import BsK.common.packet.res.GetDoctorGeneralInfoResponse;

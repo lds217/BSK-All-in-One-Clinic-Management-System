@@ -1,4 +1,4 @@
-package BsK.client.ui.component.CheckUpPage.PrintDialog.print_forms;
+package BsK.client.ui.component.common.PrintDialog.print_forms;
 
 /**
  * Represents a single item on the invoice, which can be a medicine, a service, or a supplement.

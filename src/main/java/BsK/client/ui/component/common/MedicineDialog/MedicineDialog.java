@@ -1,4 +1,4 @@
-package BsK.client.ui.component.CheckUpPage.MedicineDialog;
+package BsK.client.ui.component.common.MedicineDialog;
 
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;
