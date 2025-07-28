@@ -4641,28 +4641,28 @@ public class CheckUpPage extends JPanel {
     }
 
     private void handleGetAllTemplatesResponse(GetAllTemplatesRes response) {
-        allTemplates = response.getTemplates();
+        log.info("Get all templates response");
+        this.allTemplates = response.getTemplates();
+        List<Template> templates = response.getTemplates();
         
-        // Update Doctor ComboBoxes
-        doctorComboBox.removeAllItems();
-        ultrasoundDoctorComboBox.removeAllItems();
-        if (LocalStorage.doctorsName != null && !LocalStorage.doctorsName.isEmpty()) {
-            for (DoctorItem item : LocalStorage.doctorsName) {
-                doctorComboBox.addItem(item);
-                ultrasoundDoctorComboBox.addItem(item);
+        // Sort templates by STT first (ascending), then by name (alphabetical)
+        templates.sort((t1, t2) -> {
+            // First compare by STT (smaller numbers first)
+            int sttCompare = Integer.compare(t1.getStt(), t2.getStt());
+            if (sttCompare != 0) {
+                return sttCompare;
             }
-        } else {
-            doctorComboBox.addItem(new DoctorItem(null, "Đang tải..."));
-            ultrasoundDoctorComboBox.addItem(new DoctorItem(null, "Đang tải..."));
-        }
-
-        // Update Template ComboBox
+            // If STT is the same, compare by template name alphabetically
+            return t1.getTemplateName().compareToIgnoreCase(t2.getTemplateName());
+        });
+        
+        SwingUtilities.invokeLater(() -> {
             templateComboBox.removeAllItems();
             templateComboBox.addItem("Không sử dụng mẫu");
-        templateComboBox.addItem("Mẫu khám tổng quát");
-        templateComboBox.addItem("Mẫu khám thai");
-        templateComboBox.addItem("Mẫu khám nhi");
-        templateComboBox.addItem("Mẫu khám tim mạch");
+            for (Template template : templates) {
+                templateComboBox.addItem(template.getTemplateName());
+            }
+        });
 
         // No need to delete listener here because it will be called again when user click refresh button
     }
