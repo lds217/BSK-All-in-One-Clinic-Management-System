@@ -79,11 +79,11 @@ public class NavBar extends JPanel {
         String[] destination = {"DashboardPage", "CheckUpPage", "CheckUpPage", "SettingsPage", "InfoPage"};
         String[] iconFiles = {"dashboard.png", "health-check.png", "database.png","settings.png", "info.png"};
         Color[] navItemColors = {
-            new Color(51, 135, 204),    // Darker Blue
-            new Color(66, 157, 21),     // Darker Green
-            new Color(200, 138, 16),    // Darker Orange
-            new Color(91, 37, 167),     // Darker Purple
-            new Color(196, 27, 36)      // Darker Red-Orange
+                new Color(51, 135, 204),      // Darker Blue
+                new Color(66, 157, 21),       // Darker Green
+                new Color(200, 138, 16),      // Darker Orange
+                new Color(91, 37, 167),       // Darker Purple
+                new Color(196, 27, 36)        // Darker Red-Orange
         };
 
         final Color defaultTextColor = new Color(50, 50, 50);
@@ -98,8 +98,8 @@ public class NavBar extends JPanel {
             RoundedPanel itemPanel = new RoundedPanel(15, itemColor.brighter(), true);
             itemPanel.setLayout(new BorderLayout(2, 2));
             itemPanel.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createEmptyBorder(2, 2, 2, 2),
-                BorderFactory.createEmptyBorder(5, 10, 5, 10)
+                    BorderFactory.createEmptyBorder(2, 2, 2, 2),
+                    BorderFactory.createEmptyBorder(5, 10, 5, 10)
             ));
             itemPanel.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
             itemPanel.setPreferredSize(new Dimension(100, 55));
@@ -117,7 +117,6 @@ public class NavBar extends JPanel {
                 ImageIcon scaledIcon = new ImageIcon(scaledImage);
                 label.setIcon(scaledIcon);
             } catch (Exception e) {
-                // log is not available here, print to stderr
                 System.err.println("Error loading icon: " + iconFileName + " for nav item: " + itemText);
                 e.printStackTrace();
             }
@@ -142,40 +141,38 @@ public class NavBar extends JPanel {
                     }
                     
                     if ("SettingsPage".equals(dest)) {
-                        // Open settings dialog instead of navigating to a page
                         SettingsDialog settingsDialog = new SettingsDialog(mainFrame);
                         settingsDialog.setVisible(true);
                         return;
                     }
                     
                     if ("Dữ liệu".equals(itemText)) {
-                        // If not currently on CheckUpPage, navigate there first
                         if (!(mainFrame.getCurrentPage() instanceof CheckUpPage)) {
                             mainFrame.showPage("CheckUpPage");
-                            // Update active nav item to CheckUpPage
                             if (activeNavItem != null) {
                                 JPanel prevPanel = (JPanel) activeNavItem.getParent();
                                 prevPanel.setBackground(navItemColors[findNavItemIndex(activeNavItem.getText(), navBarItems)].brighter());
                                 activeNavItem.setForeground(defaultTextColor);
                             }
-                            // Find and set the "Thăm khám" nav item as active
                             for (int j = 0; j < navBarItems.length; j++) {
                                 if ("Thăm khám".equals(navBarItems[j])) {
                                     Component[] components = navItemsPanel.getComponents();
-                                    if (j < components.length && components[j] instanceof JPanel) {
-                                        JPanel checkupPanel = (JPanel) components[j];
-                                        if (checkupPanel.getComponentCount() > 0 && checkupPanel.getComponent(0) instanceof JLabel) {
-                                            JLabel checkupLabel = (JLabel) checkupPanel.getComponent(0);
-                                            activeNavItem = checkupLabel;
-                                            checkupPanel.setBackground(navItemColors[j]);
-                                            checkupLabel.setForeground(activeTextColor);
+                                    // Search through components to find the correct panel, as separators change the index
+                                    for(Component comp : components) {
+                                        if (comp instanceof JPanel && ((JPanel) comp).getComponentCount() > 0 && ((JPanel) comp).getComponent(0) instanceof JLabel) {
+                                            JLabel potentialLabel = (JLabel) ((JPanel) comp).getComponent(0);
+                                            if ("Thăm khám".equals(potentialLabel.getText())) {
+                                                activeNavItem = potentialLabel;
+                                                ((JPanel) comp).setBackground(navItemColors[j]);
+                                                potentialLabel.setForeground(activeTextColor);
+                                                break;
+                                            }
                                         }
                                     }
                                     break;
                                 }
                             }
                         }
-                        // Open data dialog
                         SwingUtilities.invokeLater(() -> {
                             DataDialog dataDialog = new DataDialog(mainFrame);
                             dataDialog.setVisible(true);
@@ -197,20 +194,28 @@ public class NavBar extends JPanel {
                 @Override
                 public void mouseEntered(MouseEvent e) {
                     if (label != activeNavItem) {
-                        itemPanel.setBackground(itemColor); // Darken background on hover
-                        label.setForeground(activeTextColor); // Set text to active color
+                        itemPanel.setBackground(itemColor);
+                        label.setForeground(activeTextColor);
                     }
                 }
 
                 @Override
                 public void mouseExited(MouseEvent e) {
                     if (label != activeNavItem) {
-                        itemPanel.setBackground(itemColor.brighter()); // Revert to default inactive background
-                        label.setForeground(defaultTextColor); // Revert text color
+                        itemPanel.setBackground(itemColor.brighter());
+                        label.setForeground(defaultTextColor);
                     }
                 }
             });
             navItemsPanel.add(itemPanel);
+            
+            // ADDED: Add a visual separator after the second item ("Thăm khám")
+            if (i == 1) { 
+                JSeparator separator = new JSeparator(SwingConstants.VERTICAL);
+                separator.setPreferredSize(new Dimension(separator.getPreferredSize().width, 40));
+                separator.setForeground(new Color(180, 180, 180)); // Subtle gray color
+                navItemsPanel.add(separator);
+            }
         }
 
         this.add(navItemsPanel);
@@ -263,4 +268,4 @@ public class NavBar extends JPanel {
         item.addActionListener(action);
         return item;
     }
-} 
+}

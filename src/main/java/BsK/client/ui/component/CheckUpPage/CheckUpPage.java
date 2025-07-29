@@ -296,18 +296,13 @@ public class CheckUpPage extends JPanel {
         
         for (int i = 0; i < patients.size(); i++) {
             Patient p = patients.get(i);
-            tableData[i][0] = p.getCheckupId();
-            
-            // Convert checkup date to display format using utility function
-            tableData[i][1] = DateUtils.convertToDisplayFormat(p.getCheckupDate());
-            
-            // Convert DOB to display format using utility function
-            tableData[i][2] = DateUtils.convertToDisplayFormat(p.getCustomerDob());
-            
-            tableData[i][3] = p.getCustomerLastName();
-            tableData[i][4] = p.getCustomerFirstName();
-            tableData[i][5] = p.getDoctorName();
-            tableData[i][6] = p.getCheckupType();
+            tableData[i][0] = p.getQueueNumber(); // STT
+            tableData[i][1] = p.getCheckupId(); // Mã Khám
+            tableData[i][2] = p.getCustomerLastName() + " " + p.getCustomerFirstName(); // Họ và Tên
+            tableData[i][3] = String.valueOf(DateUtils.extractYearFromTimestamp(p.getCustomerDob())); // Năm sinh
+            tableData[i][4] = p.getDoctorName(); // Bác Sĩ
+            tableData[i][5] = p.getCheckupType(); // Loại khám
+            tableData[i][6] = p.getStatus(); // Trạng thái
         }
         return tableData;
     }
@@ -601,7 +596,7 @@ public class CheckUpPage extends JPanel {
 
         // Row 2: ID and Phone
         gbcPatient.gridx = 0; gbcPatient.gridy = 2; gbcPatient.weightx = 0.1;
-        JLabel idLabel = new JLabel("Mã BN", SwingConstants.RIGHT);
+        JLabel idLabel = new JLabel("Mã Khám", SwingConstants.RIGHT);
         idLabel.setFont(labelFont);
         patientInfoInnerPanel.add(idLabel, gbcPatient);
 
@@ -4171,7 +4166,7 @@ public class CheckUpPage extends JPanel {
             JPanel filterPanel = createFilterPanel();
             add(filterPanel, BorderLayout.NORTH);
 
-            String[] columns = {"Mã khám bệnh", "Ngày khám", "Ngày sinh", "Họ", "Tên", "Bác Sĩ", "Loại khám"};
+            String[] columns = {"STT", "Mã Khám", "Họ và Tên", "Năm sinh", "Bác Sĩ", "Loại khám", "Trạng thái"};
             queueTableModel = new DefaultTableModel(preprocessPatientDataForTable(filteredPatients), columns) {
                 @Override
                 public boolean isCellEditable(int row, int column) { return false; }
@@ -4183,19 +4178,15 @@ public class CheckUpPage extends JPanel {
             queueTable.setRowHeight(35);
             queueTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
             
-            // Create custom row sorter with date comparator for proper date sorting
+            // Create a row sorter for the table
             TableRowSorter<DefaultTableModel> sorter = new TableRowSorter<>(queueTableModel);
-            
-            // Set up date comparator for column 1 (Ngày khám) and column 2 (Ngày sinh)
-            sorter.setComparator(1, createDateComparator()); // Checkup Date
-            sorter.setComparator(2, createDateComparator()); // Date of Birth
-            
             queueTable.setRowSorter(sorter);
             
-            // Sort by "Ngày khám" column in ascending order (earliest dates first)
+            // Sort by "STT" (queue number) column in ascending order
             List<RowSorter.SortKey> sortKeys = new ArrayList<>();
-            sortKeys.add(new RowSorter.SortKey(1, SortOrder.ASCENDING));
+            sortKeys.add(new RowSorter.SortKey(0, SortOrder.ASCENDING));
             sorter.setSortKeys(sortKeys);
+
             queueTable.addMouseListener(new MouseAdapter() {
                 @Override
                 public void mouseClicked(MouseEvent e) {
@@ -4378,21 +4369,16 @@ public class CheckUpPage extends JPanel {
                 .collect(Collectors.toList());
 
             // Update table with filtered data
-            String[] columns = {"Mã khám bệnh", "Ngày khám", "Ngày sinh", "Họ", "Tên", "Bác Sĩ", "Loại khám"};
+            String[] columns = {"STT", "Mã Khám", "Họ và Tên", "Năm sinh", "Bác Sĩ", "Loại khám", "Trạng thái"};
             queueTableModel.setDataVector(preprocessPatientDataForTable(filteredPatients), columns);
             
-            // Recreate row sorter with date comparator after data update
+            // Recreate row sorter for the table after data update
             TableRowSorter<DefaultTableModel> sorter = new TableRowSorter<>(queueTableModel);
-            
-            // Set up date comparator for column 1 (Ngày khám) and column 2 (Ngày sinh)
-            sorter.setComparator(1, createDateComparator()); // Checkup Date
-            sorter.setComparator(2, createDateComparator()); // Date of Birth
-            
             queueTable.setRowSorter(sorter);
             
-            // Apply sorting by checkup date
+            // Apply sorting by "STT" (queue number)
             List<RowSorter.SortKey> sortKeys = new ArrayList<>();
-            sortKeys.add(new RowSorter.SortKey(1, SortOrder.ASCENDING));
+            sortKeys.add(new RowSorter.SortKey(0, SortOrder.ASCENDING));
             sorter.setSortKeys(sortKeys);
             
             // Auto-select first row after applying filters

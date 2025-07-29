@@ -6,45 +6,112 @@ import BsK.client.ui.component.common.NavBar;
 import BsK.client.ui.component.common.RoundedButtonUI;
 import BsK.client.ui.component.common.RoundedPanel;
 import BsK.client.ui.component.common.AddDialog.AddDialog;
+import BsK.client.ui.component.DashboardPage.RecheckUpDialog.RecheckUpDialog;
+import BsK.client.network.handler.ClientHandler;
+import BsK.client.network.handler.ResponseListener;
+import BsK.common.entity.Patient;
+import BsK.common.packet.req.GetCheckUpQueueUpdateRequest;
+import BsK.common.packet.res.GetCheckUpQueueUpdateResponse;
+import BsK.common.packet.res.TodayPatientCountResponse;
+import BsK.common.packet.res.RecheckCountResponse;
+import BsK.common.util.network.NetworkUtil;
+import BsK.common.util.date.DateUtils;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.swing.*;
 import javax.swing.border.Border;
+import javax.swing.event.AncestorEvent;
+import javax.swing.event.AncestorListener;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
-import java.awt.event.ActionListener;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
 
 @Slf4j
 public class DashboardPage extends JPanel {
     private final MainFrame mainFrame;
-    
+
     private JLabel todayPatientsLabel;
     private JLabel waitingPatientsLabel;
     private JLabel recheckPatientsLabel;
-    private JLabel totalPatientsLabel;
+    private JLabel dateTimeLabel;
     private JTable currentQueueTable;
     private JLabel lastUpdateLabel;
+    private Timer realTimeClockTimer;
+
+    private final List<Patient> patientQueue = new ArrayList<>();
+
+    // --- LISTENERS ---
+    private final ResponseListener<GetCheckUpQueueUpdateResponse> checkUpQueueUpdateListener = this::handleGetCheckUpQueueUpdateResponse;
+    private final ResponseListener<TodayPatientCountResponse> todayPatientCountListener = this::handleTodayPatientCountResponse;
+    private final ResponseListener<RecheckCountResponse> recheckCountListener = this::handleRecheckCountResponse;
+
+    private void handleGetCheckUpQueueUpdateResponse(GetCheckUpQueueUpdateResponse response) {
+        SwingUtilities.invokeLater(() -> {
+            log.info("Received dashboard queue update from server.");
+            this.patientQueue.clear();
+            if (response.getQueue() != null) {
+                for (String[] patientData : response.getQueue()) {
+                    try {
+                        this.patientQueue.add(new Patient(patientData));
+                    } catch (IllegalArgumentException e) {
+                        log.error("Received malformed patient data for queue: {}", (Object) patientData, e);
+                    }
+                }
+            }
+            updateQueueTable();
+            lastUpdateLabel.setText("Cập nhật lần cuối: " + getCurrentTime());
+            flashComponent(lastUpdateLabel, new Color(16, 185, 129));
+        });
+    }
+
+    private void handleTodayPatientCountResponse(TodayPatientCountResponse response) {
+        SwingUtilities.invokeLater(() -> {
+            log.info("Received today's patient count: {}", response.getTotalPatientsToday());
+            if (todayPatientsLabel != null) {
+                todayPatientsLabel.setText(String.valueOf(response.getTotalPatientsToday()));
+            } else {
+                log.warn("todayPatientsLabel is null, cannot update UI.");
+            }
+        });
+    }
+
+    private void handleRecheckCountResponse(RecheckCountResponse response) {
+        SwingUtilities.invokeLater(() -> {
+            log.info("Received recheck count: {}", response.getRecheckCount());
+            if (recheckPatientsLabel != null) {
+                recheckPatientsLabel.setText(String.valueOf(response.getRecheckCount()));
+            } else {
+                log.warn("recheckPatientsLabel is null, cannot update UI.");
+            }
+        });
+    }
+
+    private void flashComponent(JComponent component, Color flashColor) {
+        final Color originalColor = component.getForeground();
+        component.setForeground(flashColor);
+        Timer flashTimer = new Timer(1000, e -> component.setForeground(originalColor));
+        flashTimer.setRepeats(false);
+        flashTimer.start();
+    }
 
     public DashboardPage(MainFrame mainFrame) {
         this.mainFrame = mainFrame;
         setLayout(new BorderLayout());
         setBackground(new Color(245, 247, 250));
 
-        // --- Navigation Bar ---
         NavBar navBar = new NavBar(mainFrame, "Thống kê");
         add(navBar, BorderLayout.NORTH);
 
-        // --- Main Content Panel ---
         JPanel mainContent = new JPanel();
         mainContent.setLayout(new BorderLayout());
         mainContent.setBorder(BorderFactory.createEmptyBorder(25, 25, 25, 25));
         mainContent.setOpaque(false);
 
-        // Create main sections
         JPanel topSection = createTopSection();
         JPanel centerSection = createCenterSection();
 
@@ -53,24 +120,42 @@ public class DashboardPage extends JPanel {
 
         add(mainContent, BorderLayout.CENTER);
 
-        // Load initial data
         loadDashboardData();
+        startRealTimeClock();
+
+        addAncestorListener(new AncestorListener() {
+            @Override
+            public void ancestorAdded(AncestorEvent event) {
+                ClientHandler.addResponseListener(GetCheckUpQueueUpdateResponse.class, checkUpQueueUpdateListener);
+                ClientHandler.addResponseListener(TodayPatientCountResponse.class, todayPatientCountListener);
+                ClientHandler.addResponseListener(RecheckCountResponse.class, recheckCountListener);
+                log.info("DashboardPage listeners registered. Requesting initial data.");
+                NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetCheckUpQueueUpdateRequest());
+            }
+
+            @Override
+            public void ancestorRemoved(AncestorEvent event) {
+                ClientHandler.deleteListener(GetCheckUpQueueUpdateResponse.class, checkUpQueueUpdateListener);
+                ClientHandler.deleteListener(TodayPatientCountResponse.class, todayPatientCountListener);
+                log.info("DashboardPage listeners removed.");
+            }
+            
+            @Override
+            public void ancestorMoved(AncestorEvent event) { /* Do nothing */ }
+        });
+    }
+
+    private void startRealTimeClock() {
+        realTimeClockTimer = new Timer(1000, e -> updateDateTime());
+        realTimeClockTimer.start();
     }
 
     private JPanel createTopSection() {
         JPanel topSection = new JPanel(new BorderLayout());
         topSection.setOpaque(false);
         topSection.setBorder(BorderFactory.createEmptyBorder(0, 0, 30, 0));
-
-        // Welcome header
-        JPanel headerPanel = createHeaderPanel();
-        
-        // Patient metrics cards
-        JPanel metricsPanel = createMetricsPanel();
-
-        topSection.add(headerPanel, BorderLayout.NORTH);
-        topSection.add(metricsPanel, BorderLayout.CENTER);
-
+        topSection.add(createHeaderPanel(), BorderLayout.NORTH);
+        topSection.add(createMetricsPanel(), BorderLayout.CENTER);
         return topSection;
     }
 
@@ -78,15 +163,12 @@ public class DashboardPage extends JPanel {
         JPanel headerPanel = new JPanel(new BorderLayout());
         headerPanel.setOpaque(false);
         headerPanel.setBorder(BorderFactory.createEmptyBorder(0, 0, 20, 0));
-
         JLabel welcomeLabel = new JLabel("Chào mừng, " + LocalStorage.username);
         welcomeLabel.setFont(new Font("Segoe UI", Font.BOLD, 28));
         welcomeLabel.setForeground(new Color(44, 82, 130));
-
         lastUpdateLabel = new JLabel("Cập nhật lần cuối: " + getCurrentTime());
-        lastUpdateLabel.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        lastUpdateLabel.setFont(new Font("Segoe UI", Font.BOLD, 14));
         lastUpdateLabel.setForeground(new Color(107, 114, 128));
-
         JButton refreshButton = new JButton("Làm mới");
         refreshButton.setFont(new Font("Segoe UI", Font.BOLD, 12));
         refreshButton.setBackground(new Color(59, 130, 246));
@@ -95,61 +177,76 @@ public class DashboardPage extends JPanel {
         refreshButton.setBorder(BorderFactory.createEmptyBorder(8, 16, 8, 16));
         refreshButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         refreshButton.addActionListener(e -> refreshDashboardData());
-
         JPanel leftPanel = new JPanel(new BorderLayout());
         leftPanel.setOpaque(false);
         leftPanel.add(welcomeLabel, BorderLayout.NORTH);
         leftPanel.add(lastUpdateLabel, BorderLayout.SOUTH);
-
         headerPanel.add(leftPanel, BorderLayout.WEST);
         headerPanel.add(refreshButton, BorderLayout.EAST);
-
         return headerPanel;
     }
 
     private JPanel createMetricsPanel() {
         JPanel metricsPanel = new JPanel(new GridLayout(1, 4, 20, 0));
         metricsPanel.setOpaque(false);
-
-        // Patient metrics cards with specific titles
-        String[] cardTitles = {"Bệnh nhân trong ngày", "Đang đợi khám", "Cần tái khám", "Tổng bệnh nhân"};
+        String[] cardTitles = {"Bệnh nhân trong ngày", "Đang đợi khám", "Cần tái khám", "Ngày giờ hiện tại"};
         Color[] cardColors = {
-            new Color(59, 130, 246),   // Blue - Today's patients
-            new Color(245, 158, 11),   // Orange - Waiting patients  
-            new Color(139, 92, 246),   // Purple - Recheck patients
-            new Color(16, 185, 129)    // Green - Total patients
+                new Color(59, 130, 246), new Color(245, 158, 11),
+                new Color(139, 92, 246), new Color(16, 185, 129)
         };
-        String[] cardIcons = {"👥", "⏳", "🔄", "📊"};
-
-        JLabel[] valueLabels = new JLabel[4];
+        String[] cardIcons = {"👥", "⏳", "🔄", "📅"};
+        JLabel[] valueLabels = new JLabel[3];
 
         for (int i = 0; i < cardTitles.length; i++) {
-            RoundedPanel card = createMetricCard(cardTitles[i], cardColors[i], cardIcons[i]);
-            
-            // Store references to value labels for updating
-            Component[] components = card.getComponents();
-            for (Component comp : components) {
-                if (comp instanceof JPanel) {
-                    Component[] subComps = ((JPanel) comp).getComponents();
-                    for (Component subComp : subComps) {
-                        if (subComp instanceof JLabel && ((JLabel) subComp).getFont().getSize() == 32) {
-                            valueLabels[i] = (JLabel) subComp;
-                            break;
-                        }
+            if (i == 3) {
+                metricsPanel.add(createDateTimeCard(cardTitles[i], cardColors[i], cardIcons[i]));
+            } else {
+                RoundedPanel card = createMetricCard(cardTitles[i], cardColors[i], cardIcons[i]);
+                
+                // --- MODIFIED SECTION START ---   
+                // This logic correctly finds the value label, which is a direct child of the card.
+                for (Component comp : card.getComponents()) {
+                    if (comp instanceof JLabel && ((JLabel) comp).getFont().getSize() == 32) {
+                        valueLabels[i] = (JLabel) comp;
+                        break; // Found the label, exit the inner loop
                     }
                 }
+                // --- MODIFIED SECTION END ---
+                
+                metricsPanel.add(card);
             }
-            
-            metricsPanel.add(card);
         }
 
-        // Store references for updating data
         todayPatientsLabel = valueLabels[0];
         waitingPatientsLabel = valueLabels[1];
         recheckPatientsLabel = valueLabels[2];
-        totalPatientsLabel = valueLabels[3];
-
         return metricsPanel;
+    }
+
+    private RoundedPanel createDateTimeCard(String title, Color color, String icon) {
+        RoundedPanel card = new RoundedPanel(15, color, true);
+        card.setLayout(new BorderLayout());
+        card.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        JPanel topPanel = new JPanel(new BorderLayout());
+        topPanel.setOpaque(false);
+        JLabel iconLabel = new JLabel(icon);
+        iconLabel.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 30));
+        JLabel titleLabel = new JLabel(title);
+        titleLabel.setForeground(Color.WHITE);
+        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        topPanel.add(iconLabel, BorderLayout.WEST);
+        topPanel.add(titleLabel, BorderLayout.CENTER);
+        dateTimeLabel = new JLabel();
+        dateTimeLabel.setForeground(Color.WHITE);
+        dateTimeLabel.setFont(new Font("Segoe UI", Font.BOLD, 22));
+        dateTimeLabel.setHorizontalAlignment(SwingConstants.CENTER);
+        card.add(topPanel, BorderLayout.NORTH);
+        card.add(dateTimeLabel, BorderLayout.CENTER);
+        card.addMouseListener(new MouseAdapter() {
+            public void mouseEntered(MouseEvent e) { card.setBackground(color.darker()); }
+            public void mouseExited(MouseEvent e) { card.setBackground(color); }
+        });
+        return card;
     }
 
     private RoundedPanel createMetricCard(String title, Color color, String icon) {
@@ -157,59 +254,33 @@ public class DashboardPage extends JPanel {
         card.setLayout(new BorderLayout());
         card.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
         card.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-
-        // Icon and title panel
         JPanel topPanel = new JPanel(new BorderLayout());
         topPanel.setOpaque(false);
-
         JLabel iconLabel = new JLabel(icon);
-        iconLabel.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 24));
-
+        iconLabel.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 30));
         JLabel titleLabel = new JLabel(title);
         titleLabel.setForeground(Color.WHITE);
         titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 14));
-
         topPanel.add(iconLabel, BorderLayout.WEST);
         topPanel.add(titleLabel, BorderLayout.CENTER);
-
-        // Value label
         JLabel valueLabel = new JLabel("--");
         valueLabel.setForeground(Color.WHITE);
         valueLabel.setFont(new Font("Segoe UI", Font.BOLD, 32));
         valueLabel.setHorizontalAlignment(SwingConstants.CENTER);
-
         card.add(topPanel, BorderLayout.NORTH);
-        card.add(valueLabel, BorderLayout.CENTER);
-
-        // Add hover effect
+        card.add(valueLabel, BorderLayout.CENTER); // valueLabel is a direct child
         card.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseEntered(MouseEvent e) {
-                card.setBackground(color.darker());
-            }
-
-            @Override
-            public void mouseExited(MouseEvent e) {
-                card.setBackground(color);
-            }
+            public void mouseEntered(MouseEvent e) { card.setBackground(color.darker()); }
+            public void mouseExited(MouseEvent e) { card.setBackground(color); }
         });
-
         return card;
     }
 
     private JPanel createCenterSection() {
         JPanel centerSection = new JPanel(new GridLayout(1, 2, 20, 0));
         centerSection.setOpaque(false);
-
-        // Current queue panel (left side)
-        JPanel queuePanel = createCurrentQueuePanel();
-        
-        // Action buttons panel (right side)
-        JPanel actionsPanel = createActionButtonsPanel();
-
-        centerSection.add(queuePanel);
-        centerSection.add(actionsPanel);
-
+        centerSection.add(createCurrentQueuePanel());
+        centerSection.add(createActionButtonsPanel());
         return centerSection;
     }
 
@@ -217,76 +288,67 @@ public class DashboardPage extends JPanel {
         RoundedPanel panel = new RoundedPanel(15, Color.WHITE, false);
         panel.setLayout(new BorderLayout());
         panel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
-
         JLabel titleLabel = new JLabel("Hàng đợi hiện tại");
         titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 18));
         titleLabel.setForeground(new Color(31, 41, 55));
-
-        // Table for current queue
-        String[] columns = {"STT", "Mã BN", "Họ và Tên", "Loại khám", "Trạng thái"};
+        titleLabel.setBorder(BorderFactory.createEmptyBorder(0, 0, 15, 0));
+        String[] columns = {"STT", "Mã Khám", "Họ và Tên", "Năm sinh", "Loại khám", "Trạng thái"};
         DefaultTableModel tableModel = new DefaultTableModel(columns, 0) {
-            @Override
-            public boolean isCellEditable(int row, int column) {
-                return false;
-            }
+            public boolean isCellEditable(int row, int column) { return false; }
         };
-
         currentQueueTable = new JTable(tableModel);
         currentQueueTable.setRowHeight(35);
         currentQueueTable.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 12));
-        currentQueueTable.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        currentQueueTable.setFont(new Font("Segoe UI", Font.BOLD, 14));
         currentQueueTable.setSelectionBackground(new Color(219, 234, 254));
         currentQueueTable.setGridColor(new Color(229, 231, 235));
-
         JScrollPane tableScroll = new JScrollPane(currentQueueTable);
         tableScroll.setBorder(BorderFactory.createEmptyBorder());
         tableScroll.getViewport().setBackground(Color.WHITE);
-
         panel.add(titleLabel, BorderLayout.NORTH);
-        panel.add(Box.createVerticalStrut(15), BorderLayout.NORTH);
         panel.add(tableScroll, BorderLayout.CENTER);
-
         return panel;
+    }
+
+    private void setQueueTableColumnWidths() {
+        currentQueueTable.getColumnModel().getColumn(0).setPreferredWidth(40);
+        currentQueueTable.getColumnModel().getColumn(1).setPreferredWidth(80);
+        currentQueueTable.getColumnModel().getColumn(2).setPreferredWidth(200);
+        currentQueueTable.getColumnModel().getColumn(3).setPreferredWidth(90);
+        currentQueueTable.getColumnModel().getColumn(4).setPreferredWidth(100);
+        currentQueueTable.getColumnModel().getColumn(5).setPreferredWidth(100);
     }
 
     private JPanel createActionButtonsPanel() {
         RoundedPanel panel = new RoundedPanel(15, Color.WHITE, false);
         panel.setLayout(new BorderLayout());
         panel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
-
         JLabel titleLabel = new JLabel("Thao tác nhanh");
         titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 18));
         titleLabel.setForeground(new Color(31, 41, 55));
-
         JPanel actionsGrid = new JPanel(new GridLayout(2, 2, 15, 15));
         actionsGrid.setOpaque(false);
         actionsGrid.setBorder(BorderFactory.createEmptyBorder(15, 0, 0, 0));
-
-        // 4 specific action buttons
         String[] actionTitles = {"Thêm bệnh nhân", "Gọi bệnh nhân tái khám", "Báo cáo ngày", "Khẩn cấp"};
         String[] actionIcons = {"➕", "📞", "📊", "🚨"};
         Color[] actionColors = {
-            new Color(34, 197, 94),   // Green - Add patient
-            new Color(59, 130, 246),  // Blue - Call recheck patient
-            new Color(168, 85, 247),  // Purple - Daily report
-            new Color(239, 68, 68)    // Red - Emergency
+                new Color(34, 197, 94), new Color(59, 130, 246),
+                new Color(168, 85, 247), new Color(239, 68, 68)
         };
-
         for (int i = 0; i < actionTitles.length; i++) {
             JButton actionButton = createActionButton(actionTitles[i], actionIcons[i], actionColors[i]);
             final int index = i;
             actionButton.addActionListener(e -> handleAction(index));
             actionsGrid.add(actionButton);
         }
-
         panel.add(titleLabel, BorderLayout.NORTH);
         panel.add(actionsGrid, BorderLayout.CENTER);
-
         return panel;
     }
 
     private JButton createActionButton(String title, String icon, Color color) {
         JButton button = new JButton();
+        button.setUI(new RoundedButtonUI(10));
         button.setLayout(new BorderLayout());
         button.setBackground(color);
         button.setForeground(Color.WHITE);
@@ -294,94 +356,84 @@ public class DashboardPage extends JPanel {
         button.setFocusPainted(false);
         button.setBorder(BorderFactory.createEmptyBorder(15, 10, 15, 10));
         button.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-
         JLabel iconLabel = new JLabel(icon);
-        iconLabel.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 20));
+        iconLabel.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 28));
         iconLabel.setForeground(Color.WHITE);
         iconLabel.setHorizontalAlignment(SwingConstants.CENTER);
-
         JLabel titleLabel = new JLabel(title);
         titleLabel.setForeground(Color.WHITE);
         titleLabel.setHorizontalAlignment(SwingConstants.CENTER);
-
         button.add(iconLabel, BorderLayout.CENTER);
         button.add(titleLabel, BorderLayout.SOUTH);
-
-        // Hover effect
         button.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseEntered(MouseEvent e) {
-                button.setBackground(color.darker());
-            }
-
-            @Override
-            public void mouseExited(MouseEvent e) {
-                button.setBackground(color);
-            }
+            public void mouseEntered(MouseEvent e) { button.setBackground(color.darker()); }
+            public void mouseExited(MouseEvent e) { button.setBackground(color); }
         });
-
         return button;
     }
-
+    
     private void loadDashboardData() {
-        // Load metrics with sample data
-        updateMetrics(12, 5, 3, 156);
-        loadCurrentQueue();
+        updateMetrics(3);
+        updateDateTime();
     }
-
-    private void updateMetrics(int todayPatients, int waitingPatients, int recheckPatients, int totalPatients) {
-        if (todayPatientsLabel != null) todayPatientsLabel.setText(String.valueOf(todayPatients));
-        if (waitingPatientsLabel != null) waitingPatientsLabel.setText(String.valueOf(waitingPatients));
+    
+    private void updateMetrics(int recheckPatients) {
         if (recheckPatientsLabel != null) recheckPatientsLabel.setText(String.valueOf(recheckPatients));
-        if (totalPatientsLabel != null) totalPatientsLabel.setText(String.valueOf(totalPatients));
     }
 
-    private void loadCurrentQueue() {
-        DefaultTableModel model = (DefaultTableModel) currentQueueTable.getModel();
-        model.setRowCount(0); // Clear existing data
-
-        // Sample queue data
-        String[][] queueData = {
-            {"1", "BN-00123", "Nguyễn Văn An", "Khám tổng quát", "Đang chờ"},
-            {"2", "BN-00124", "Trần Thị Bình", "Siêu âm", "Đang khám"},
-            {"3", "BN-00125", "Lê Hoàng Cường", "Tái khám", "Đang chờ"},
-            {"4", "BN-00126", "Phạm Thị Dung", "Khám thai", "Đang chờ"},
-            {"5", "BN-00127", "Hoàng Văn Em", "Khám tổng quát", "Đang chờ"}
-        };
-
-        for (String[] row : queueData) {
-            model.addRow(row);
+    private void updateDateTime() {
+        if (dateTimeLabel != null) {
+            LocalDateTime now = LocalDateTime.now();
+            String date = now.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+            String time = now.format(DateTimeFormatter.ofPattern("HH:mm:ss"));
+            dateTimeLabel.setText("<html><div style='text-align: center;'>" + date + "<br>" + time + "</div></html>");
         }
+    }
+
+    private void updateQueueTable() {
+        DefaultTableModel model = (DefaultTableModel) currentQueueTable.getModel();
+        model.setRowCount(0);
+
+        if (patientQueue != null) {
+            for (Patient patient : patientQueue) {
+                Object[] rowData = {
+                        patient.getQueueNumber(),
+                        patient.getCheckupId(),
+                        patient.getCustomerLastName() + " " + patient.getCustomerFirstName(),
+                        DateUtils.extractYearFromTimestamp(patient.getCustomerDob()),
+                        patient.getCheckupType(),
+                        patient.getStatus()
+                };
+                model.addRow(rowData);
+            }
+        }
+        
+        long waitingCount = patientQueue.stream().filter(p -> "CHỜ KHÁM".equals(p.getStatus())).count();
+        if (waitingPatientsLabel != null) {
+            waitingPatientsLabel.setText(String.valueOf(waitingCount));
+        }
+        
+        setQueueTableColumnWidths();
     }
 
     private void refreshDashboardData() {
         lastUpdateLabel.setText("Cập nhật lần cuối: " + getCurrentTime());
-        loadDashboardData();
-        
-        JOptionPane.showMessageDialog(this, 
-            "Đã làm mới dữ liệu thành công!", 
-            "Thông báo", 
-            JOptionPane.INFORMATION_MESSAGE);
+        NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetCheckUpQueueUpdateRequest());
+        JOptionPane.showMessageDialog(this,
+                "Đã gửi yêu cầu làm mới dữ liệu!",
+                "Thông báo",
+                JOptionPane.INFORMATION_MESSAGE);
     }
 
     private void handleAction(int actionIndex) {
-        String[] messages = {
-            "Chuyển đến trang thêm bệnh nhân...",
-            "Gọi bệnh nhân tái khám...", 
-            "Mở báo cáo ngày...",
-            "Kích hoạt chế độ khẩn cấp!"
-        };
-
         switch (actionIndex) {
             case 0: // Add Patient
                 AddDialog addDialog = new AddDialog(mainFrame);
                 addDialog.setVisible(true);
                 break;
             case 1: // Call recheck patient
-                JOptionPane.showMessageDialog(this, 
-                    "Chức năng gọi bệnh nhân tái khám đang được phát triển", 
-                    "Thông báo", 
-                    JOptionPane.INFORMATION_MESSAGE);
+                RecheckUpDialog recheckUpDialog = new RecheckUpDialog(mainFrame);
+                recheckUpDialog.setVisible(true);
                 break;
             case 2: // Daily report
                 JOptionPane.showMessageDialog(this, 
@@ -389,11 +441,8 @@ public class DashboardPage extends JPanel {
                     "Thông báo", 
                     JOptionPane.INFORMATION_MESSAGE);
                 break;
-            case 3: // Emergency
-                JOptionPane.showMessageDialog(this, 
-                    "Chế độ khẩn cấp được kích hoạt!", 
-                    "KHẨN CẤP", 
-                    JOptionPane.WARNING_MESSAGE);
+            case 3:
+                JOptionPane.showMessageDialog(this, "Chế độ khẩn cấp được kích hoạt!", "KHẨN CẤP", JOptionPane.WARNING_MESSAGE);
                 break;
         }
     }

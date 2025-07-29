@@ -37,6 +37,8 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
+import java.time.ZoneId;
+import java.time.LocalDate;
 import java.util.stream.Collectors;
 
 import lombok.extern.slf4j.Slf4j;
@@ -116,7 +118,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                           "from checkup as a\n" +
                           "join customer as c on a.customer_id = c.customer_id\n" +
                           "join Doctor D on a.doctor_id = D.doctor_id\n" +
-                          "where a.status = 'ĐANG KHÁM'"
+                          "where a.status = 'ĐANG KHÁM' or a.status = 'CHỜ KHÁM'"
           );
 
           if (!rs.isBeforeFirst()) {
@@ -185,90 +187,8 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
 
       if (packet instanceof GetCheckUpQueueUpdateRequest) {
         log.debug("Received GetCheckUpQueueUpdateRequest");
-        try {
-          ResultSet rs = statement.executeQuery(
-                  "select a.checkup_id, a.checkup_date, c.customer_last_name, c.customer_first_name,\n" +
-                          "d.doctor_first_name, d.doctor_last_name, a.suggestion, a.diagnosis, a.notes, a.status, a.customer_id, \n" +
-                          "c.customer_number, c.customer_address, a.customer_weight, a.customer_height, c.customer_gender, c.customer_dob, \n" +
-                          "a.checkup_type, a.conclusion, a.reCheckupDate, c.cccd_ddcn, a.heart_beat, a.blood_pressure, c.drive_url, a.doctor_ultrasound_id, a.queue_number\n" +
-                          "from checkup as a\n" +
-                          "join customer as c on a.customer_id = c.customer_id\n" +
-                          "join Doctor D on a.doctor_id = D.doctor_id\n" +
-                          "where a.status = 'ĐANG KHÁM'"
-          );
-
-          if (!rs.isBeforeFirst()) {
-            System.out.println("No data found in the checkup table.");
-            // Also send an empty response to clients so they clear their queues
-            int maxCurId = SessionManager.getMaxSessionId();
-            for (int sessionId = 1; sessionId <= maxCurId; sessionId++) {
-              UserUtil.sendPacket(sessionId, new GetCheckUpQueueUpdateResponse(new String[0][0]));
-            }
-          } else {
-            ArrayList<String> resultList = new ArrayList<>();
-            while (rs.next()) {
-              String checkupId = rs.getString("checkup_id");
-              String checkupDate = rs.getString("checkup_date");
-              long checkupDateLong = Long.parseLong(checkupDate);
-              Timestamp timestamp = new Timestamp(checkupDateLong);
-              Date date = new Date(timestamp.getTime()); // Needed to recode
-              SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy");
-              checkupDate = sdf.format(date);
-              String customerLastName = rs.getString("customer_last_name");
-              String customerFirstName = rs.getString("customer_first_name");
-              String doctorFirstName = rs.getString("doctor_first_name");
-              String doctorLastName = rs.getString("doctor_last_name");
-              String suggestion = rs.getString("suggestion");
-              String diagnosis = rs.getString("diagnosis");
-              String notes = rs.getString("notes");
-              String status = rs.getString("status");
-              String customerId = rs.getString("customer_id");
-              String customerNumber = rs.getString("customer_number");
-              String customerAddress = rs.getString("customer_address");
-              String customerWeight = rs.getString("customer_weight");
-              String customerHeight = rs.getString("customer_height");
-              String customerGender = rs.getString("customer_gender");
-              String customerDob = rs.getString("customer_dob");
-              String checkupType = rs.getString("checkup_type");
-              String conclusion = rs.getString("conclusion");
-              String reCheckupDate = rs.getString("reCheckupDate");
-              String cccdDdcn = rs.getString("cccd_ddcn");
-              String heartBeat = rs.getString("heart_beat");
-              String bloodPressure = rs.getString("blood_pressure");
-              String driveUrl = rs.getString("drive_url");
-              String doctorUltrasoundId = rs.getString("doctor_ultrasound_id");
-              String queueNumber = String.format("%02d", rs.getInt("queue_number"));
-              if (driveUrl == null) {
-                driveUrl = "";
-              }
-              String result = String.join("|", checkupId,
-                      checkupDate, customerLastName, customerFirstName,
-                      doctorLastName + " " + doctorFirstName, suggestion,
-                      diagnosis, notes, status, customerId, customerNumber, customerAddress, customerWeight, customerHeight,
-                      customerGender, customerDob, checkupType, conclusion, reCheckupDate, cccdDdcn, heartBeat, bloodPressure,
-                      driveUrl, doctorUltrasoundId, queueNumber  
-              );
-
-              resultList.add(result);
-
-            }
-
-            String[] resultString = resultList.toArray(new String[0]);
-            String[][] resultArray = new String[resultString.length][];
-            for (int i = 0; i < resultString.length; i++) {
-              resultArray[i] = resultString[i].split("\\|");
-            }
-            //send to all
-            int maxCurId = SessionManager.getMaxSessionId();
-            for (int sessionId = 1; sessionId <= maxCurId; sessionId++) {
-              UserUtil.sendPacket(sessionId, new GetCheckUpQueueUpdateResponse(resultArray));
-            }
-          }
-        } catch (SQLException e) {
-          throw new RuntimeException(e);
-        }
+        broadcastQueueUpdate();
       }
-
 
       // Get general doctor info
       if (packet instanceof GetDoctorGeneralInfo) {
@@ -627,36 +547,30 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
       }
 
       if (packet instanceof GetWardRequest getWardRequest) {
-        log.debug("Received GetWardRequest");
-        try{
+        log.debug("Received GetWardRequest for province {}", getWardRequest.getProvinceId());
+        String sql = "SELECT wards.name FROM wards WHERE province_code = ? ORDER BY wards.name";
 
-          PreparedStatement preparedStatement = Server.connection.prepareStatement(
-                  "SELECT wards.code, wards.name " +
-                          "                          FROM wards " +
-                          "                          WHERE province_code = ? " +
-                          "                          ORDER BY wards.name"
-          );
-          preparedStatement.setString(1, getWardRequest.getProvinceId());
-
-          ResultSet rs = preparedStatement.executeQuery();
-
-
-          if (!rs.isBeforeFirst()) {
-                System.out.println("No data found in the ward table.");
-            } else {
-                ArrayList<String> resultList = new ArrayList<>();
-                resultList.add("Phường/Xã");
-                while (rs.next()) {
-                String wardName = rs.getString("name");
-                resultList.add(wardName);
+        // Use try-with-resources to automatically close resources
+        try (PreparedStatement preparedStatement = Server.connection.prepareStatement(sql)) {
+            preparedStatement.setString(1, getWardRequest.getProvinceId());
+            try (ResultSet rs = preparedStatement.executeQuery()) {
+                if (!rs.isBeforeFirst()) {
+                    System.out.println("No data found in the ward table.");
+                    // Send empty response
+                    UserUtil.sendPacket(currentUser.getSessionId(), new GetWardResponse(new String[]{"Phường/Xã"}));
+                } else {
+                    ArrayList<String> resultList = new ArrayList<>();
+                    resultList.add("Phường/Xã");
+                    while (rs.next()) {
+                        resultList.add(rs.getString("name"));
+                    }
+                    String[] resultString = resultList.toArray(new String[0]);
+                    UserUtil.sendPacket(currentUser.getSessionId(), new GetWardResponse(resultString));
                 }
-
-                String[] resultString = resultList.toArray(new String[0]);
-
-                UserUtil.sendPacket(currentUser.getSessionId(), new GetWardResponse(resultString));
             }
-            } catch (SQLException e) {
-          throw new RuntimeException(e);
+        } catch (SQLException e) {
+            log.error("Error fetching wards for province {}", getWardRequest.getProvinceId(), e);
+            throw new RuntimeException(e);
         }
       }
       if (packet instanceof AddPatientRequest addPatientRequest) {
@@ -754,8 +668,6 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
             log.error("Error updating queue counter", e);
             throw new RuntimeException(e);
           } 
-          // To make it looks better when small number we mod it to 100 so the queue is only 1 to 100
-          queueNumber = (queueNumber % 100) + 1;
           // First query: Insert Checkup
           PreparedStatement checkupStmt = Server.connection.prepareStatement(
                   "INSERT INTO Checkup (customer_id, doctor_id, checkup_type, status, queue_number) VALUES (?, ?, ?, ?, ?)");
@@ -797,6 +709,8 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
 
           // Send immediate response to client
           UserUtil.sendPacket(currentUser.getSessionId(), new AddCheckupResponse(true, "Thêm bệnh nhân thành công", queueNumber));
+          
+          broadcastQueueUpdate();
           
           // Create Google Drive folder asynchronously (don't block the response)
           createCheckupGoogleDriveFolderAsync(generatedCheckupId, addCheckupRequest.getCustomerId());
@@ -1486,6 +1400,45 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         log.info("Sent sync response with {} images for checkupId: {}", imageDatas.size(), checkupId);
       }
       
+      if (packet instanceof GetRecheckUpListRequest getRecheckUpListRequest) {
+        log.debug("Received GetRecheckUpListRequest");
+        try {
+            String sql = "SELECT c.customer_last_name, c.customer_first_name, c.customer_number, ch.reCheckupDate, ch.remind_date, ch.checkup_id " +
+                         "FROM Checkup ch " +
+                         "JOIN Customer c ON ch.customer_id = c.customer_id " +
+                         "WHERE ch.reCheckupDate BETWEEN ? AND ?";
+            
+            long fromDate = System.currentTimeMillis();
+            long toDate = fromDate + (7L * 24 * 60 * 60 * 1000);
+
+            PreparedStatement stmt = Server.connection.prepareStatement(sql);
+            stmt.setLong(1, fromDate);
+            stmt.setLong(2, toDate);
+            
+            ResultSet rs = stmt.executeQuery();
+            
+            List<String[]> results = new ArrayList<>();
+            while (rs.next()) {
+                String[] row = new String[5];
+                row[0] = rs.getString("customer_last_name") + " " + rs.getString("customer_first_name");
+                row[1] = rs.getString("customer_number");
+
+                long recheckTimestamp = rs.getLong("reCheckupDate");
+                long remindTimestamp = rs.getLong("remind_date");
+                SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy");
+                row[2] = sdf.format(new Date(recheckTimestamp));
+                row[3] = sdf.format(new Date(remindTimestamp));
+                row[4] = rs.getString("checkup_id");
+                results.add(row);
+            }
+            
+            UserUtil.sendPacket(currentUser.getSessionId(), new GetRecheckUpListResponse(results.toArray(new String[0][])));
+            
+        } catch (SQLException e) {
+            log.error("Error fetching recheck-up list", e);
+            UserUtil.sendPacket(currentUser.getSessionId(), new ErrorResponse(Error.SQL_EXCEPTION));
+        }
+      }
     }
   }
 
@@ -1889,4 +1842,120 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
       }
     }).start();
   }
+
+  private void broadcastQueueUpdate() {
+    try {
+        // --- EXISTING LOGIC FOR THE QUEUE (UNCHANGED) ---
+        ResultSet rs = statement.executeQuery(
+                "select a.checkup_id, a.checkup_date, c.customer_last_name, c.customer_first_name,\n" +
+                        "d.doctor_first_name, d.doctor_last_name, a.suggestion, a.diagnosis, a.notes, a.status, a.customer_id, \n" +
+                        "c.customer_number, c.customer_address, a.customer_weight, a.customer_height, c.customer_gender, c.customer_dob, \n" +
+                        "a.checkup_type, a.conclusion, a.reCheckupDate, c.cccd_ddcn, a.heart_beat, a.blood_pressure, c.drive_url, a.doctor_ultrasound_id, a.queue_number\n" +
+                        "from checkup as a\n" +
+                        "join customer as c on a.customer_id = c.customer_id\n" +
+                        "join Doctor D on a.doctor_id = D.doctor_id\n" +
+                        "where a.status = 'ĐANG KHÁM' or a.status = 'CHỜ KHÁM'"
+        );
+
+        String[][] resultArray;
+        if (!rs.isBeforeFirst()) {
+            System.out.println("No data found in the checkup table.");
+            resultArray = new String[0][0];
+        } else {
+            // (Your existing code to process the queue results remains here)
+            ArrayList<String> resultList = new ArrayList<>();
+            while (rs.next()) {
+                String checkupId = rs.getString("checkup_id");
+                String checkupDate = rs.getString("checkup_date");
+                long checkupDateLong = Long.parseLong(checkupDate);
+                Timestamp timestamp = new Timestamp(checkupDateLong);
+                Date date = new Date(timestamp.getTime());
+                SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy");
+                checkupDate = sdf.format(date);
+                String customerLastName = rs.getString("customer_last_name");
+                String customerFirstName = rs.getString("customer_first_name");
+                String doctorFirstName = rs.getString("doctor_first_name");
+                String doctorLastName = rs.getString("doctor_last_name");
+                String suggestion = rs.getString("suggestion");
+                String diagnosis = rs.getString("diagnosis");
+                String notes = rs.getString("notes");
+                String status = rs.getString("status");
+                String customerId = rs.getString("customer_id");
+                String customerNumber = rs.getString("customer_number");
+                String customerAddress = rs.getString("customer_address");
+                String customerWeight = rs.getString("customer_weight");
+                String customerHeight = rs.getString("customer_height");
+                String customerGender = rs.getString("customer_gender");
+                String customerDob = rs.getString("customer_dob");
+                String checkupType = rs.getString("checkup_type");
+                String conclusion = rs.getString("conclusion");
+                String reCheckupDate = rs.getString("reCheckupDate");
+                String cccdDdcn = rs.getString("cccd_ddcn");
+                String heartBeat = rs.getString("heart_beat");
+                String bloodPressure = rs.getString("blood_pressure");
+                String driveUrl = rs.getString("drive_url");
+                String doctorUltrasoundId = rs.getString("doctor_ultrasound_id");
+                String queueNumber = String.format("%02d", rs.getInt("queue_number"));
+                if (driveUrl == null) { driveUrl = ""; }
+                String result = String.join("|", checkupId, checkupDate, customerLastName, customerFirstName,
+                        doctorLastName + " " + doctorFirstName, suggestion, diagnosis, notes, status, customerId, customerNumber, customerAddress, customerWeight, customerHeight,
+                        customerGender, customerDob, checkupType, conclusion, reCheckupDate, cccdDdcn, heartBeat, bloodPressure,
+                        driveUrl, doctorUltrasoundId, queueNumber
+                );
+                resultList.add(result);
+            }
+            String[] resultString = resultList.toArray(new String[0]);
+            resultArray = new String[resultString.length][];
+            for (int i = 0; i < resultString.length; i++) {
+                resultArray[i] = resultString[i].split("\\|");
+            }
+        }
+
+        // --- EXISTING LOGIC FOR TODAY'S PATIENT COUNT ---
+        ZoneId zoneId = ZoneId.of("Asia/Ho_Chi_Minh");
+        LocalDate today = LocalDate.now(zoneId);
+        long startOfTodayMillis = today.atStartOfDay(zoneId).toInstant().toEpochMilli();
+        long endOfTodayMillis = today.plusDays(1).atStartOfDay(zoneId).toInstant().toEpochMilli() - 1;
+        String countQuery = String.format(
+            "SELECT COUNT(DISTINCT a.customer_id) as patient_count FROM checkup as a WHERE a.checkup_date >= %d AND a.checkup_date <= %d",
+            startOfTodayMillis, endOfTodayMillis
+        );
+        int totalPatientsToday = 0;
+        ResultSet countRs = statement.executeQuery(countQuery);
+        if (countRs.next()) {
+            totalPatientsToday = countRs.getInt("patient_count");
+        }
+
+        // --- ADDED LOGIC: QUERY FOR TODAY'S RE-CHECKUP COUNT ---
+        String recheckQuery = String.format(
+            "SELECT COUNT(*) as recheck_count FROM checkup WHERE reCheckupDate >= %d AND reCheckupDate <= %d",
+            startOfTodayMillis, endOfTodayMillis
+        );
+        int totalRecheckToday = 0;
+        ResultSet recheckRs = statement.executeQuery(recheckQuery);
+        if (recheckRs.next()) {
+            totalRecheckToday = recheckRs.getInt("recheck_count");
+        }
+        
+        // --- SEND ALL RESPONSES TO ALL CLIENTS ---
+        int maxCurId = SessionManager.getMaxSessionId();
+        for (int sessionId = 1; sessionId <= maxCurId; sessionId++) {
+            // Send the queue update response
+            UserUtil.sendPacket(sessionId, new GetCheckUpQueueUpdateResponse(resultArray));
+            
+            // Send the patient count response
+            UserUtil.sendPacket(sessionId, new TodayPatientCountResponse(totalPatientsToday));
+            
+            // Send the new re-checkup count response
+            UserUtil.sendPacket(sessionId, new RecheckCountResponse(totalRecheckToday));
+        }
+        log.info("send checkup queue update response to all clients");
+        log.info("send today patient count response to all clients");
+        log.info("send recheck count response to all clients");
+
+    } catch (SQLException e) {
+        throw new RuntimeException(e);
+    }
+  }
+
 }

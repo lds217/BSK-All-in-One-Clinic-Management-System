@@ -32,6 +32,7 @@ import java.util.Properties;
 @Slf4j
 public class AddDialog extends JDialog {
     private static final Logger log = LoggerFactory.getLogger(AddDialog.class);
+    // --- Left Panel (Input Form) ---
     private JTextField patientNameField;
     private JTextField patientYearField;
     private JTextField patientIdField;
@@ -40,24 +41,32 @@ public class AddDialog extends JDialog {
     private JComboBox patientGenderField;
     private JComboBox wardComboBox, provinceComboBox;
     private JTextField customerAddressField;
+    private JDatePickerImpl dobPicker;
+
+    // --- Right Panel (Search & Table) ---
+    private JTextField searchNameField; // Dedicated search field
+    private JTextField searchPhoneField; // Dedicated search field
     private DefaultTableModel patientTableModel;
     private JTable patientTable;
     private String[] patientColumns = {"Mã BN", "Tên Bệnh Nhân", "Năm sinh", "Số điện thoại" ,"Địa chỉ"};
     private String[][] patientData;
+    
+    // --- Checkup & Action Buttons ---
+    private JComboBox<DoctorItem> doctorComboBox;
+    private JComboBox<String> checkupTypeComboBox;
+    JButton saveButton;
+    private JButton addPatientButton;
+    private JButton clearButton;
+    
+    // --- State & Listeners ---
     private final ResponseListener<GetRecentPatientResponse> getRecentPatientResponseListener = this::getRecentPatientHandler;
     private final ResponseListener<GetWardResponse> wardResponseListener = this::handleGetWardResponse;
     private final ResponseListener<AddPatientResponse> addPatientResponseListener = this::handleAddPatientResponse;
     private final ResponseListener<AddCheckupResponse> addCheckupResponseListener = this::handleAddCheckupResponse;
-    private JComboBox<DoctorItem> doctorComboBox;
-    private JComboBox<String> checkupTypeComboBox;
-    JButton saveButton;
     private DefaultComboBoxModel<String> wardModel;
-    private JDatePickerImpl dobPicker;
-    private JButton addPatientButton;
-    private JButton clearButton;
     private String targetWard = null;
     
-    // Search and pagination controls (removed search buttons)
+    // --- Pagination ---
     private JSpinner pageSpinner;
     private JLabel paginationLabel;
     private int currentPage = 1;
@@ -65,7 +74,7 @@ public class AddDialog extends JDialog {
     private int totalCount = 0;
     private final int pageSize = 20;
     
-    // Debounce search timers
+    // --- Debounce Search ---
     private Timer nameSearchTimer;
     private Timer phoneSearchTimer;
 
@@ -100,39 +109,48 @@ public class AddDialog extends JDialog {
     
     private void sendPatientSearchRequest(String searchName, String searchPhone, int page) {
         log.info("Sending GetRecentPatientRequest with search: name='{}', phone='{}', page={}", searchName, searchPhone, page);
-        ClientHandler.addResponseListener(GetRecentPatientResponse.class, getRecentPatientResponseListener);
         NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetRecentPatientRequest(searchName, searchPhone, page, pageSize));
     }
 
     private void getRecentPatientHandler(GetRecentPatientResponse response) {
         log.info("Received GetRecentPatientResponse");
-        patientData = response.getPatientData();
-        
-        // Update pagination info
-        currentPage = response.getCurrentPage();
-        totalPages = response.getTotalPages();
-        totalCount = response.getTotalCount();
-        
-        // Update table data
-        patientTableModel.setDataVector(patientData, patientColumns);
-        // Set column widths: id, name, birthyear, sdt, address
-        int[] columnWidths = {60, 180, 70, 120, 300};
-        for (int i = 0; i < columnWidths.length; i++) {
-            patientTable.getColumnModel().getColumn(i).setPreferredWidth(columnWidths[i]);
-        }
-        
-        // Update pagination controls
-        if (pageSpinner != null) {
-            SpinnerNumberModel model = (SpinnerNumberModel) pageSpinner.getModel();
-            model.setMaximum(Math.max(1, totalPages));
-            model.setValue(currentPage);
-            paginationLabel.setText("/ " + totalPages + " (" + totalCount + " bệnh nhân)");
-        }
-        
-        // Clear selection and update button states
-        patientTable.clearSelection();
-        saveButton.setEnabled(false);
-        addPatientButton.setEnabled(true);
+
+        // All UI updates MUST be executed on the Event Dispatch Thread (EDT).
+        // This wrapper ensures the code runs on the correct thread, preventing corruption.
+        SwingUtilities.invokeLater(() -> {
+            patientData = response.getPatientData();
+
+            // Update pagination info
+            currentPage = response.getCurrentPage();
+            totalPages = response.getTotalPages();
+            totalCount = response.getTotalCount();
+
+            // Update table data safely on the EDT
+            patientTableModel.setDataVector(patientData, patientColumns);
+
+            // Set column widths after the model has been safely updated.
+            // This loop is also made safer by checking the actual number of columns.
+            int[] columnWidths = {60, 180, 70, 120, 300};
+            int columnCountInTable = patientTable.getColumnModel().getColumnCount();
+            int columnsToConfigure = Math.min(columnCountInTable, columnWidths.length);
+
+            for (int i = 0; i < columnsToConfigure; i++) {
+                patientTable.getColumnModel().getColumn(i).setPreferredWidth(columnWidths[i]);
+            }
+
+            // Update pagination controls
+            if (pageSpinner != null) {
+                SpinnerNumberModel model = (SpinnerNumberModel) pageSpinner.getModel();
+                model.setMaximum(Math.max(1, totalPages));
+                model.setValue(currentPage);
+                paginationLabel.setText("/ " + totalPages + " (" + totalCount + " bệnh nhân)");
+            }
+
+            // Clear selection and update button states
+            patientTable.clearSelection();
+            saveButton.setEnabled(false);
+            addPatientButton.setEnabled(true);
+        });
     }
 
     private int findProvinceIndex(String province) {
@@ -162,7 +180,7 @@ public class AddDialog extends JDialog {
         ClientHandler.deleteListener(AddPatientResponse.class, addPatientResponseListener);
         ClientHandler.deleteListener(GetRecentPatientResponse.class, getRecentPatientResponseListener);
         ClientHandler.deleteListener(GetWardResponse.class, wardResponseListener);
-        
+
         // Clean up timers
         if (nameSearchTimer != null && nameSearchTimer.isRunning()) {
             nameSearchTimer.stop();
@@ -215,11 +233,12 @@ public class AddDialog extends JDialog {
         });
         
         // Send request to get the latest 20 patients in the database
-        sendGetRecentPatientRequest();
         ClientHandler.addResponseListener(GetWardResponse.class, wardResponseListener);
         ClientHandler.addResponseListener(AddPatientResponse.class, addPatientResponseListener);
         ClientHandler.addResponseListener(AddCheckupResponse.class, addCheckupResponseListener);
+        ClientHandler.addResponseListener(GetRecentPatientResponse.class, getRecentPatientResponseListener);
 
+        sendGetRecentPatientRequest();
         // Add patent table on the right side
         // Add a scroll pane to the table
         patientTableModel = new DefaultTableModel(patientData, patientColumns) {
@@ -518,10 +537,6 @@ public class AddDialog extends JDialog {
         gbc.weightx = 0.0; // Reset weightx for any subsequent components in this panel
         gbc.gridwidth = 1; // Reset gridwidth
 
-
-        // Setup debounce search functionality
-        setupDebounceSearch();
-
         // Province ComboBox Listener
         provinceComboBox.addActionListener(new ActionListener() {
             @Override
@@ -538,9 +553,6 @@ public class AddDialog extends JDialog {
             }
         });
 
-
-        // Ward ComboBox Listener
-    
         inputPanel.setMinimumSize(new Dimension(400, 0));
         
         // Wrap inputPanel in a JScrollPane
@@ -551,6 +563,7 @@ public class AddDialog extends JDialog {
 
         // Create right panel for table and pagination
         JPanel rightPanel = new JPanel(new BorderLayout());
+        rightPanel.add(createSearchPanel(), BorderLayout.NORTH); // Add new search panel
         rightPanel.add(scrollPane, BorderLayout.CENTER);
         
         // Create pagination panel
@@ -598,7 +611,7 @@ public class AddDialog extends JDialog {
             }
             int doctorId = Integer.parseInt(selectedDoctor.getId());
             String selectedCheckupType = (String) checkupTypeComboBox.getSelectedItem();
-            NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new AddCheckupRequest(patientId, doctorId, LocalStorage.userId, selectedCheckupType, "ĐANG KHÁM"));
+            NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new AddCheckupRequest(patientId, doctorId, LocalStorage.userId, selectedCheckupType, "CHỜ KHÁM"));
 
         });
         saveButton.setEnabled(false);
@@ -684,24 +697,18 @@ public class AddDialog extends JDialog {
                 JOptionPane.showMessageDialog(null, "Định dạng ngày không hợp lệ: " + dateText);
             }
         });
-
+        
+        setupDebounceSearch();
+        
         clearButton.addActionListener(e -> {
-            // Stop any ongoing search timers
-            if (nameSearchTimer != null && nameSearchTimer.isRunning()) {
-                nameSearchTimer.stop();
-            }
-            if (phoneSearchTimer != null && phoneSearchTimer.isRunning()) {
-                phoneSearchTimer.stop();
-            }
-            
-            // Clear all fields
+            // Clear all fields on the left
             patientNameField.setText("");
             patientPhoneField.setText("");
             patientIdField.setText("");
             cccdField.setText("");
             customerAddressField.setText("");
             
-            // Reset combo boxes
+            // Reset combo boxes on the left
             patientGenderField.setSelectedIndex(0);
             provinceComboBox.setSelectedIndex(0);
             wardComboBox.setSelectedIndex(0);
@@ -711,12 +718,13 @@ public class AddDialog extends JDialog {
             }
             checkupTypeComboBox.setSelectedIndex(0);
             
-            // Reset targetWard
-            targetWard = null;
-            
             // Clear date picker
             dobPicker.getModel().setValue(null);
             dobPicker.getJFormattedTextField().setText("");
+            
+            // Clear right-side search fields
+            searchNameField.setText("");
+            searchPhoneField.setText("");
             
             // Clear table selection
             patientTable.clearSelection();
@@ -729,15 +737,13 @@ public class AddDialog extends JDialog {
             sendGetRecentPatientRequest();
     });
     
-
-    
     // Add pagination spinner listener
     pageSpinner.addChangeListener(e -> {
         int selectedPage = (Integer) pageSpinner.getValue();
         if (selectedPage != currentPage && selectedPage >= 1 && selectedPage <= totalPages) {
-            // Determine current search parameters
-            String searchName = patientNameField.getText().trim();
-            String searchPhone = patientPhoneField.getText().trim();
+            // Determine current search parameters from the dedicated search fields
+            String searchName = searchNameField.getText().trim();
+            String searchPhone = searchPhoneField.getText().trim();
             searchName = searchName.isEmpty() ? null : searchName;
             searchPhone = searchPhone.isEmpty() ? null : searchPhone;
             
@@ -745,29 +751,25 @@ public class AddDialog extends JDialog {
         }
     });
 }
-
+    
     private void setupDebounceSearch() {
         // Initialize timers for debounce search (1 second delay)
         nameSearchTimer = new Timer(1000, e -> {
-            String searchName = patientNameField.getText().trim();
-            String searchPhone = patientPhoneField.getText().trim();
-            searchName = searchName.isEmpty() ? null : searchName;
-            searchPhone = searchPhone.isEmpty() ? null : searchPhone;
-            sendPatientSearchRequest(searchName, searchPhone, 1);
+            String searchName = searchNameField.getText().trim();
+            String searchPhone = searchPhoneField.getText().trim();
+            sendPatientSearchRequest(searchName.isEmpty() ? null : searchName, searchPhone.isEmpty() ? null : searchPhone, 1);
         });
         nameSearchTimer.setRepeats(false);
 
         phoneSearchTimer = new Timer(1000, e -> {
-            String searchName = patientNameField.getText().trim();
-            String searchPhone = patientPhoneField.getText().trim();
-            searchName = searchName.isEmpty() ? null : searchName;
-            searchPhone = searchPhone.isEmpty() ? null : searchPhone;
-            sendPatientSearchRequest(searchName, searchPhone, 1);
+            String searchName = searchNameField.getText().trim();
+            String searchPhone = searchPhoneField.getText().trim();
+            sendPatientSearchRequest(searchName.isEmpty() ? null : searchName, searchPhone.isEmpty() ? null : searchPhone, 1);
         });
         phoneSearchTimer.setRepeats(false);
 
-        // Add DocumentListener to patientNameField for debounced search
-        patientNameField.getDocument().addDocumentListener(new DocumentListener() {
+        // Add DocumentListener to searchNameField for debounced search
+        searchNameField.getDocument().addDocumentListener(new DocumentListener() {
             @Override
             public void insertUpdate(DocumentEvent e) {
                 resetAndStartTimer(nameSearchTimer);
@@ -784,8 +786,8 @@ public class AddDialog extends JDialog {
             }
         });
 
-        // Add DocumentListener to patientPhoneField for debounced search
-        patientPhoneField.getDocument().addDocumentListener(new DocumentListener() {
+        // Add DocumentListener to searchPhoneField for debounced search
+        searchPhoneField.getDocument().addDocumentListener(new DocumentListener() {
             @Override
             public void insertUpdate(DocumentEvent e) {
                 resetAndStartTimer(phoneSearchTimer);
@@ -808,6 +810,29 @@ public class AddDialog extends JDialog {
             timer.stop();
         }
         timer.start();
+    }
+
+    private JPanel createSearchPanel() {
+        JPanel searchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        searchPanel.setBorder(BorderFactory.createTitledBorder("Tìm kiếm bệnh nhân"));
+
+        searchPanel.add(new JLabel("Tên BN:"));
+        searchNameField = new JTextField(15);
+        searchPanel.add(searchNameField);
+
+        searchPanel.add(new JLabel("SĐT:"));
+        searchPhoneField = new JTextField(10);
+        searchPanel.add(searchPhoneField);
+
+        JButton clearSearchButton = new JButton("Xóa tìm kiếm");
+        clearSearchButton.addActionListener(e -> {
+            searchNameField.setText("");
+            searchPhoneField.setText("");
+            sendGetRecentPatientRequest(); // Fetch initial list
+        });
+        searchPanel.add(clearSearchButton);
+
+        return searchPanel;
     }
 
     private void handleRowSelection(int selectedRow) {
@@ -890,15 +915,27 @@ public class AddDialog extends JDialog {
 
     private void handleAddPatientResponse(AddPatientResponse response) {
         log.info("Received AddPatientResponse");
-        if (response.isSuccess()) {
-            JOptionPane.showMessageDialog(this, "Thêm bệnh nhân thành công");
-            patientIdField.setText(String.valueOf(response.getPatientId()));
-            addPatientButton.setEnabled(false); // Disable add patient button since a patient is now selected
-            saveButton.setEnabled(true); // Enable save button since we now have a patient
-            sendGetRecentPatientRequest();
-        } else {
-            JOptionPane.showMessageDialog(this, response.getMessage());
-        }
+        
+        // This entire block of logic will now be executed on the Swing EDT
+        SwingUtilities.invokeLater(() -> {
+            if (response.isSuccess()) {
+                JOptionPane.showMessageDialog(this, "Thêm bệnh nhân thành công");
+    
+                // Now that the JOptionPane is closed, the connection is still alive.
+                // This packet will be sent successfully.
+                NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetCheckUpQueueUpdateRequest());
+                
+                patientIdField.setText(String.valueOf(response.getPatientId()));
+                addPatientButton.setEnabled(false); // Disable add patient button
+                saveButton.setEnabled(true);      // Enable save button
+                
+                // Refresh the patient list in the dialog
+                sendGetRecentPatientRequest();
+    
+            } else {
+                JOptionPane.showMessageDialog(this, response.getMessage());
+            }
+        });
     }
 
 
