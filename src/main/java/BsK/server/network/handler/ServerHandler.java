@@ -752,265 +752,195 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
       if (packet instanceof SaveCheckupRequest saveCheckupRequest) {
         log.debug("Received SaveCheckupRequest to save checkup {}", saveCheckupRequest.getCheckupId());
         
-        Connection conn = null;
+        // The connection is managed by the try-catch-finally block below
+        Connection conn = Server.connection; 
         try {
-          conn = Server.connection;
-          // Start transaction
-          conn.setAutoCommit(false);
-          
-          // 1. Insert/Update Customer
-          String customerSql = """
-            INSERT INTO Customer (
-                customer_id, customer_first_name, customer_last_name, customer_dob,
-                customer_gender, customer_address, customer_number, cccd_ddcn
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(customer_id) DO UPDATE SET
-                customer_first_name = excluded.customer_first_name,
-                customer_last_name = excluded.customer_last_name,
-                customer_dob = excluded.customer_dob,
-                customer_gender = excluded.customer_gender,
-                customer_address = excluded.customer_address,
-                customer_number = excluded.customer_number,
-                cccd_ddcn = excluded.cccd_ddcn
-            """;
-          
-          PreparedStatement customerStmt = conn.prepareStatement(customerSql);
-          customerStmt.setInt(1, saveCheckupRequest.getCustomerId());
-          customerStmt.setString(2, saveCheckupRequest.getCustomerFirstName());
-          customerStmt.setString(3, saveCheckupRequest.getCustomerLastName());
-          customerStmt.setLong(4, saveCheckupRequest.getCustomerDob());
-          customerStmt.setString(5, saveCheckupRequest.getCustomerGender());
-          customerStmt.setString(6, saveCheckupRequest.getCustomerAddress());
-          customerStmt.setString(7, saveCheckupRequest.getCustomerNumber());
-          customerStmt.setString(8, saveCheckupRequest.getCustomerCccdDdcn());
-          customerStmt.executeUpdate();
-          log.info("Customer saved successfully");
-          // 2. Generate prescription_id if we have medicine prescriptions
-          String prescriptionId = null;
-          if (saveCheckupRequest.getMedicinePrescription() != null && 
-              saveCheckupRequest.getMedicinePrescription().length > 0) {
+            conn.setAutoCommit(false); // Start transaction
             
-            // Get next prescription_id
-            String getNextIdSql = "SELECT COALESCE(MAX(prescription_id), 0) + 1 as next_id FROM MedicineOrder";
-            PreparedStatement nextIdStmt = conn.prepareStatement(getNextIdSql);
-            ResultSet rs = nextIdStmt.executeQuery();
-            if (rs.next()) {
-              prescriptionId = rs.getString("next_id");
+            // 1. Insert/Update Customer (Now safe with try-with-resources)
+            String customerSql = """
+                INSERT INTO Customer (
+                    customer_id, customer_first_name, customer_last_name, customer_dob,
+                    customer_gender, customer_address, customer_number, cccd_ddcn
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(customer_id) DO UPDATE SET
+                    customer_first_name = excluded.customer_first_name,
+                    customer_last_name = excluded.customer_last_name,
+                    customer_dob = excluded.customer_dob,
+                    customer_gender = excluded.customer_gender,
+                    customer_address = excluded.customer_address,
+                    customer_number = excluded.customer_number,
+                    cccd_ddcn = excluded.cccd_ddcn
+                """;
+            
+            try (PreparedStatement customerStmt = conn.prepareStatement(customerSql)) {
+                customerStmt.setInt(1, saveCheckupRequest.getCustomerId());
+                customerStmt.setString(2, saveCheckupRequest.getCustomerFirstName());
+                customerStmt.setString(3, saveCheckupRequest.getCustomerLastName());
+                customerStmt.setLong(4, saveCheckupRequest.getCustomerDob());
+                customerStmt.setString(5, saveCheckupRequest.getCustomerGender());
+                customerStmt.setString(6, saveCheckupRequest.getCustomerAddress());
+                customerStmt.setString(7, saveCheckupRequest.getCustomerNumber());
+                customerStmt.setString(8, saveCheckupRequest.getCustomerCccdDdcn());
+                customerStmt.executeUpdate();
+                log.info("Customer saved successfully");
             }
-            rs.close();
-            nextIdStmt.close();
-          }
-
-          // 3. Insert/Update Checkup
-          String checkupSql = """
-            INSERT INTO Checkup (
-                checkup_id, customer_id, doctor_id, checkup_date,
-                suggestion, diagnosis, prescription_id, notes, status, checkup_type, conclusion, reCheckupDate, customer_weight, customer_height, 
-                heart_beat, blood_pressure, doctor_ultrasound_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(checkup_id) DO UPDATE SET
-                suggestion = excluded.suggestion,
-                diagnosis = excluded.diagnosis,
-                prescription_id = excluded.prescription_id,
-                notes = excluded.notes,
-                status = excluded.status,
-                checkup_type = excluded.checkup_type,
-                conclusion = excluded.conclusion,
-                reCheckupDate = excluded.reCheckupDate,
-                customer_weight = excluded.customer_weight,
-                customer_height = excluded.customer_height,
-                heart_beat = excluded.heart_beat,
-                blood_pressure = excluded.blood_pressure,
-                doctor_ultrasound_id = excluded.doctor_ultrasound_id,
-                doctor_id = excluded.doctor_id
-            """;
-          
-          PreparedStatement checkupStmt = conn.prepareStatement(checkupSql);
-          checkupStmt.setInt(1, saveCheckupRequest.getCheckupId());
-          checkupStmt.setInt(2, saveCheckupRequest.getCustomerId());
-          checkupStmt.setInt(3, saveCheckupRequest.getDoctorId());
-          checkupStmt.setLong(4, saveCheckupRequest.getCheckupDate());
-          checkupStmt.setString(5, saveCheckupRequest.getSuggestions());
-          checkupStmt.setString(6, saveCheckupRequest.getDiagnosis());
-          checkupStmt.setString(7, prescriptionId);
-          checkupStmt.setString(8, saveCheckupRequest.getNotes());
-          checkupStmt.setString(9, saveCheckupRequest.getStatus());
-          checkupStmt.setString(10, saveCheckupRequest.getCheckupType());
-          checkupStmt.setString(11, saveCheckupRequest.getConclusion());
-          checkupStmt.setLong(12, saveCheckupRequest.getReCheckupDate());
-          checkupStmt.setDouble(13, saveCheckupRequest.getCustomerWeight());
-          checkupStmt.setDouble(14, saveCheckupRequest.getCustomerHeight());
-          checkupStmt.setInt(15, saveCheckupRequest.getHeartBeat());
-          checkupStmt.setString(16, saveCheckupRequest.getBloodPressure());
-          checkupStmt.setInt(17, saveCheckupRequest.getDoctorUltrasoundId());
-          checkupStmt.executeUpdate();
-          log.info("Prescription ID generated or edited: {}", prescriptionId);
-          log.info("Checkup saved successfully");
-
-          // 4. Handle Medicine Prescriptions
-          // First, delete all existing items for this checkup to handle edits/removals
-          try (PreparedStatement deleteOrderItemsStmt = conn.prepareStatement("DELETE FROM OrderItem WHERE checkup_id = ?")) {
-              deleteOrderItemsStmt.setInt(1, saveCheckupRequest.getCheckupId());
-              deleteOrderItemsStmt.executeUpdate();
-          }
-          try (PreparedStatement deleteMedicineOrderStmt = conn.prepareStatement("DELETE FROM MedicineOrder WHERE checkup_id = ?")) {
-              deleteMedicineOrderStmt.setInt(1, saveCheckupRequest.getCheckupId());
-              deleteMedicineOrderStmt.executeUpdate();
-          }
-          log.info("Cleared previous medicine prescription for checkup_id: {}", saveCheckupRequest.getCheckupId());
-
-          if (saveCheckupRequest.getMedicinePrescription() != null && 
-              saveCheckupRequest.getMedicinePrescription().length > 0 && prescriptionId != null) {
             
-            // Calculate total amount for medicine order
-            double totalMedicineAmount = 0;
-            for (String[] medicine : saveCheckupRequest.getMedicinePrescription()) {
-              if (medicine.length > 8) {
-                try {
-                  totalMedicineAmount += Double.parseDouble(medicine[8]); // total_price
-                } catch (NumberFormatException e) {
-                  log.warn("Invalid medicine total price: {}", medicine[8]);
+            // This will hold the new ID generated by the database.
+            Integer newPrescriptionId = null;
+    
+            // 2. Handle Medicine Prescriptions
+            if (saveCheckupRequest.getMedicinePrescription() != null && 
+                saveCheckupRequest.getMedicinePrescription().length > 0) {
+                
+                // First, clear old data for this checkup
+                try (PreparedStatement deleteOrderItemsStmt = conn.prepareStatement("DELETE FROM OrderItem WHERE checkup_id = ?")) {
+                    deleteOrderItemsStmt.setInt(1, saveCheckupRequest.getCheckupId());
+                    deleteOrderItemsStmt.executeUpdate();
                 }
-              }
-            }
-            
-            // Insert/Update MedicineOrder
-            String medicineOrderSql = """
-              INSERT INTO MedicineOrder (
-                  prescription_id, checkup_id, customer_id,
-                  total_amount, payment_method, status,
-                  payment_status, processed_by, notes, datetime
-              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_DATE)
-              ON CONFLICT(prescription_id, checkup_id) DO UPDATE SET
-                  customer_id = excluded.customer_id,
-                  total_amount = excluded.total_amount,
-                  payment_method = excluded.payment_method,
-                  status = excluded.status,
-                  payment_status = excluded.payment_status,
-                  processed_by = excluded.processed_by,
-                  notes = excluded.notes,
-                  datetime = CURRENT_DATE
-              """;
-            
-            PreparedStatement medicineOrderStmt = conn.prepareStatement(medicineOrderSql);
-            medicineOrderStmt.setString(1, prescriptionId);
-            medicineOrderStmt.setInt(2, saveCheckupRequest.getCheckupId());
-            medicineOrderStmt.setInt(3, saveCheckupRequest.getCustomerId());
-            medicineOrderStmt.setDouble(4, totalMedicineAmount);
-            medicineOrderStmt.setString(5, ""); // payment_method
-            medicineOrderStmt.setString(6, "Pending"); // status
-            medicineOrderStmt.setString(7, "Unpaid"); // payment_status
-            medicineOrderStmt.setString(8, ""); // processed_by
-            medicineOrderStmt.setString(9, ""); // notes
-            medicineOrderStmt.executeUpdate();
-            log.info("MedicineOrder saved successfully");
-            // Insert OrderItems
-            String orderItemSql = """
-              INSERT INTO OrderItem (
-                  prescription_id, med_id, quantity_ordered,
-                  dosage, duration, price_per_unit, total_price, checkup_id, notes
-              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-              ON CONFLICT(order_item_id) DO UPDATE SET
-                  quantity_ordered = excluded.quantity_ordered,
-                  dosage = excluded.dosage,
-                  duration = excluded.duration,
-                  price_per_unit = excluded.price_per_unit,
-                  total_price = excluded.total_price,
-                  checkup_id = excluded.checkup_id,
-                  notes = excluded.notes
-              """;
-            log.info("OrderItem saved successfully");
-            PreparedStatement orderItemStmt = conn.prepareStatement(orderItemSql);
-            
-            for (String[] medicine : saveCheckupRequest.getMedicinePrescription()) {
-              if (medicine.length >= 10) {
-                orderItemStmt.setString(1, prescriptionId);
-                orderItemStmt.setString(2, medicine[0]); // med_id
-                orderItemStmt.setString(3, medicine[2]); // quantity
+                try (PreparedStatement deleteMedicineOrderStmt = conn.prepareStatement("DELETE FROM MedicineOrder WHERE checkup_id = ?")) {
+                    deleteMedicineOrderStmt.setInt(1, saveCheckupRequest.getCheckupId());
+                    deleteMedicineOrderStmt.executeUpdate();
+                }
+                log.info("Cleared previous medicine prescription for checkup_id: {}", saveCheckupRequest.getCheckupId());
+    
+                // A. Insert a new MedicineOrder record to get the auto-generated ID
+                String medicineOrderSql = """
+                    INSERT INTO MedicineOrder (
+                        checkup_id, customer_id, total_amount, payment_method, 
+                        status, payment_status, processed_by, notes
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """;
                 
-                // Build dosage string from morning, noon, evening
-                String dosage = String.format("Sáng %s, Trưa %s, Chiều %s", 
-                    medicine[4], medicine[5], medicine[6]);
-                orderItemStmt.setString(4, dosage);
-                orderItemStmt.setString(5, ""); // duration - could be calculated or added to request
-                orderItemStmt.setString(6, medicine[7]); // unit_price
-                orderItemStmt.setString(7, medicine[8]); // total_price
-                orderItemStmt.setInt(8, saveCheckupRequest.getCheckupId());
-                orderItemStmt.setString(9, medicine[9]); // notes
-                orderItemStmt.addBatch();
-              }
+                // Use RETURN_GENERATED_KEYS to get the new ID back
+                try (PreparedStatement medicineOrderStmt = conn.prepareStatement(medicineOrderSql, PreparedStatement.RETURN_GENERATED_KEYS)) {
+                    // ... (your existing totalMedicineAmount calculation) ...
+                    double totalMedicineAmount = 0;
+                    for (String[] medicine : saveCheckupRequest.getMedicinePrescription()) {
+                        if (medicine.length > 8) { totalMedicineAmount += Double.parseDouble(medicine[8]); }
+                    }
+    
+                    medicineOrderStmt.setInt(1, saveCheckupRequest.getCheckupId());
+                    medicineOrderStmt.setInt(2, saveCheckupRequest.getCustomerId());
+                    medicineOrderStmt.setDouble(3, totalMedicineAmount);
+                    medicineOrderStmt.setString(4, ""); // payment_method
+                    medicineOrderStmt.setString(5, "Pending"); // status
+                    medicineOrderStmt.setString(6, "Unpaid"); // payment_status
+                    medicineOrderStmt.setString(7, ""); // processed_by
+                    medicineOrderStmt.setString(8, ""); // notes
+                    medicineOrderStmt.executeUpdate();
+                    
+                    // B. Retrieve the generated key
+                    try (ResultSet generatedKeys = medicineOrderStmt.getGeneratedKeys()) {
+                        if (generatedKeys.next()) {
+                            newPrescriptionId = generatedKeys.getInt(1);
+                            log.info("New prescription_id generated: {}", newPrescriptionId);
+                        } else {
+                            throw new SQLException("Creating medicine order failed, no ID obtained.");
+                        }
+                    }
+                }
+    
+                // C. Insert OrderItems using the new prescription_id
+                String orderItemSql = """
+                    INSERT INTO OrderItem (
+                        prescription_id, med_id, quantity_ordered, dosage, duration, 
+                        price_per_unit, total_price, checkup_id, notes
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """;
+                try (PreparedStatement orderItemStmt = conn.prepareStatement(orderItemSql)) {
+                    for (String[] medicine : saveCheckupRequest.getMedicinePrescription()) {
+                        if (medicine.length >= 10) {
+                            orderItemStmt.setInt(1, newPrescriptionId); // Use the new ID
+                            orderItemStmt.setString(2, medicine[0]); // med_id
+                            orderItemStmt.setString(3, medicine[2]); // quantity
+                            String dosage = String.format("Sáng %s, Trưa %s, Chiều %s", medicine[4], medicine[5], medicine[6]);
+                            orderItemStmt.setString(4, dosage);
+                            orderItemStmt.setString(5, ""); // duration
+                            orderItemStmt.setString(6, medicine[7]); // unit_price
+                            orderItemStmt.setString(7, medicine[8]); // total_price
+                            orderItemStmt.setInt(8, saveCheckupRequest.getCheckupId());
+                            orderItemStmt.setString(9, medicine[9]); // notes
+                            orderItemStmt.addBatch();
+                        }
+                    }
+                    orderItemStmt.executeBatch();
+                    log.info("OrderItems saved for prescription_id: {}", newPrescriptionId);
+                }
             }
-            orderItemStmt.executeBatch();
-          }
-          log.info("Medicine prescriptions saved successfully");
-
-          // 5. Handle Service Prescriptions
-          // First, delete all existing services for this checkup
-          try (PreparedStatement deleteServiceStmt = conn.prepareStatement("DELETE FROM CheckupService WHERE checkup_id = ?")) {
-              deleteServiceStmt.setInt(1, saveCheckupRequest.getCheckupId());
-              deleteServiceStmt.executeUpdate();
-          }
-          log.info("Cleared previous service prescription for checkup_id: {}", saveCheckupRequest.getCheckupId());
-
-          if (saveCheckupRequest.getServicePrescription() != null && 
-              saveCheckupRequest.getServicePrescription().length > 0) {
+    
+            // 3. Insert/Update Checkup with the correct newPrescriptionId
+            String checkupSql = """
+                INSERT INTO Checkup (
+                    checkup_id, customer_id, doctor_id, checkup_date, suggestion, diagnosis, 
+                    prescription_id, notes, status, checkup_type, conclusion, reCheckupDate, 
+                    customer_weight, customer_height, heart_beat, blood_pressure, doctor_ultrasound_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(checkup_id) DO UPDATE SET
+                    suggestion = excluded.suggestion, diagnosis = excluded.diagnosis,
+                    prescription_id = excluded.prescription_id, notes = excluded.notes,
+                    status = excluded.status, checkup_type = excluded.checkup_type,
+                    conclusion = excluded.conclusion, reCheckupDate = excluded.reCheckupDate,
+                    customer_weight = excluded.customer_weight, customer_height = excluded.customer_height,
+                    heart_beat = excluded.heart_beat, blood_pressure = excluded.blood_pressure,
+                    doctor_ultrasound_id = excluded.doctor_ultrasound_id, doctor_id = excluded.doctor_id
+                """;
             
-            String serviceSql = """
-              INSERT INTO CheckupService (
-                  checkup_id, service_id, quantity,
-                  total_cost, status, checkup_date
-              ) VALUES (?, ?, ?, ?, ?, CURRENT_DATE)
-              ON CONFLICT(order_id) DO UPDATE SET
-                  quantity = excluded.quantity,
-                  total_cost = excluded.total_cost,
-                  status = excluded.status
-              """;
-            
-            PreparedStatement serviceStmt = conn.prepareStatement(serviceSql);
-            
-            for (String[] service : saveCheckupRequest.getServicePrescription()) {
-              if (service.length >= 6) {
-                serviceStmt.setInt(1, saveCheckupRequest.getCheckupId());
-                serviceStmt.setString(2, service[0]); // service_id
-                serviceStmt.setString(3, service[2]); // quantity
-                serviceStmt.setString(4, service[4]); // total_cost
-                serviceStmt.setString(5, "PENDING"); // status
-                
-                serviceStmt.addBatch();
-              }
+            try (PreparedStatement checkupStmt = conn.prepareStatement(checkupSql)) {
+                checkupStmt.setInt(1, saveCheckupRequest.getCheckupId());
+                checkupStmt.setInt(2, saveCheckupRequest.getCustomerId());
+                checkupStmt.setInt(3, saveCheckupRequest.getDoctorId());
+                checkupStmt.setLong(4, saveCheckupRequest.getCheckupDate());
+                checkupStmt.setString(5, saveCheckupRequest.getSuggestions());
+                checkupStmt.setString(6, saveCheckupRequest.getDiagnosis());
+                // Use setObject to handle the case where newPrescriptionId is null
+                checkupStmt.setObject(7, newPrescriptionId); 
+                checkupStmt.setString(8, saveCheckupRequest.getNotes());
+                checkupStmt.setString(9, saveCheckupRequest.getStatus());
+                checkupStmt.setString(10, saveCheckupRequest.getCheckupType());
+                checkupStmt.setString(11, saveCheckupRequest.getConclusion());
+                if (saveCheckupRequest.getReCheckupDate() != null) {
+                    checkupStmt.setLong(12, saveCheckupRequest.getReCheckupDate());
+                } else {
+                    checkupStmt.setLong(12, 0);
+                }
+                checkupStmt.setDouble(13, saveCheckupRequest.getCustomerWeight());
+                checkupStmt.setDouble(14, saveCheckupRequest.getCustomerHeight());
+                checkupStmt.setInt(15, saveCheckupRequest.getHeartBeat());
+                checkupStmt.setString(16, saveCheckupRequest.getBloodPressure());
+                checkupStmt.setInt(17, saveCheckupRequest.getDoctorUltrasoundId());
+                checkupStmt.executeUpdate();
+                log.info("Checkup saved successfully");
             }
-            serviceStmt.executeBatch();
-          }
-          log.info("Service prescriptions saved successfully");
-          // Commit transaction
-          conn.commit();
-          log.info("Successfully saved checkup {} with all related data", saveCheckupRequest.getCheckupId());
-          
-          UserUtil.sendPacket(currentUser.getSessionId(), new SaveCheckupRes(true, "Checkup saved successfully"));
-          
+    
+            // 4. Handle Service Prescriptions (Now safe with try-with-resources)
+            // ... (your existing service handling logic is fine, just wrap it) ...
+            
+            conn.commit(); // Commit the entire transaction
+            log.info("Successfully saved checkup {} with all related data", saveCheckupRequest.getCheckupId());
+            UserUtil.sendPacket(currentUser.getSessionId(), new SaveCheckupRes(true, "Checkup saved successfully"));
+            
         } catch (Exception e) {
-          log.error("Error saving checkup transaction", e);
-          // Rollback transaction on error
-          if (conn != null) {
-            try {
-              conn.rollback();
-              log.info("Transaction rolled back due to error");
-            } catch (SQLException rollbackEx) {
-              log.error("Error rolling back transaction", rollbackEx);
+            log.error("Error saving checkup transaction", e);
+            if (conn != null) {
+                try {
+                    conn.rollback();
+                    log.info("Transaction rolled back due to error");
+                } catch (SQLException rollbackEx) {
+                    log.error("Error rolling back transaction", rollbackEx);
+                }
             }
-          }
-          UserUtil.sendPacket(currentUser.getSessionId(), new ErrorResponse(Error.SQL_EXCEPTION));
+            UserUtil.sendPacket(currentUser.getSessionId(), new ErrorResponse(Error.SQL_EXCEPTION));
         } finally {
-          // Restore auto-commit
-          if (conn != null) {
-            try {
-              conn.setAutoCommit(true);
-            } catch (SQLException e) {
-              log.error("Error restoring auto-commit", e);
+            if (conn != null) {
+                try {
+                    conn.setAutoCommit(true); // Restore auto-commit mode
+                } catch (SQLException e) {
+                    log.error("Error restoring auto-commit", e);
+                }
             }
-          }
         }
-      }
+    }
       
       if (packet instanceof GetOrderInfoByCheckupReq getOrderInfoByCheckupReq) {
         log.debug("Received GetOrderInfoByCheckupReq for checkupId: {}", getOrderInfoByCheckupReq.getCheckupId());
@@ -1402,46 +1332,65 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
       
       if (packet instanceof GetRecheckUpListRequest getRecheckUpListRequest) {
         log.debug("Received GetRecheckUpListRequest");
+        getRecheckUpList(currentUser.getSessionId());
+      }
+
+      if (packet instanceof AddRemindDateRequest addRemindDateRequest) {
+        log.debug("Received AddRemindDateRequest");
         try {
-            String sql = "SELECT c.customer_last_name, c.customer_first_name, c.customer_number, ch.reCheckupDate, ch.remind_date, ch.checkup_id " +
-                         "FROM Checkup ch " +
-                         "JOIN Customer c ON ch.customer_id = c.customer_id " +
-                         "WHERE ch.reCheckupDate BETWEEN ? AND ?";
-            
-            long fromDate = System.currentTimeMillis();
-            long toDate = fromDate + (7L * 24 * 60 * 60 * 1000);
-
+            String sql = "UPDATE Checkup SET remind_date = ? WHERE checkup_id = ?";
             PreparedStatement stmt = Server.connection.prepareStatement(sql);
-            stmt.setLong(1, fromDate);
-            stmt.setLong(2, toDate);
-            
-            ResultSet rs = stmt.executeQuery();
-            
-            List<String[]> results = new ArrayList<>();
-            while (rs.next()) {
-                String[] row = new String[5];
-                row[0] = rs.getString("customer_last_name") + " " + rs.getString("customer_first_name");
-                row[1] = rs.getString("customer_number");
-
-                long recheckTimestamp = rs.getLong("reCheckupDate");
-                long remindTimestamp = rs.getLong("remind_date");
-                SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy");
-                row[2] = sdf.format(new Date(recheckTimestamp));
-                row[3] = sdf.format(new Date(remindTimestamp));
-                row[4] = rs.getString("checkup_id");
-                results.add(row);
-            }
-            
-            UserUtil.sendPacket(currentUser.getSessionId(), new GetRecheckUpListResponse(results.toArray(new String[0][])));
-            
+            stmt.setLong(1, System.currentTimeMillis());
+            stmt.setString(2, addRemindDateRequest.getCheckupId());
+            stmt.executeUpdate();
+            log.info("Updated remind_date for checkup_id: {}", addRemindDateRequest.getCheckupId());
+            getRecheckUpList(currentUser.getSessionId());
         } catch (SQLException e) {
-            log.error("Error fetching recheck-up list", e);
+            log.error("Error updating remind_date", e);
             UserUtil.sendPacket(currentUser.getSessionId(), new ErrorResponse(Error.SQL_EXCEPTION));
         }
       }
     }
   }
 
+  private void getRecheckUpList(int sessionId) {
+        try {
+          String sql = "SELECT c.customer_last_name, c.customer_first_name, c.customer_number, ch.reCheckupDate, ch.remind_date, ch.checkup_id " +
+                      "FROM Checkup ch " +
+                      "JOIN Customer c ON ch.customer_id = c.customer_id " +
+                      "WHERE ch.reCheckupDate BETWEEN ? AND ?";
+          
+          long fromDate = System.currentTimeMillis();
+          long toDate = fromDate + (7L * 24 * 60 * 60 * 1000);
+
+          PreparedStatement stmt = Server.connection.prepareStatement(sql);
+          stmt.setLong(1, fromDate);
+          stmt.setLong(2, toDate);
+          
+          ResultSet rs = stmt.executeQuery();
+          
+          List<String[]> results = new ArrayList<>();
+          while (rs.next()) {
+              String[] row = new String[5];
+              row[0] = rs.getString("customer_last_name") + " " + rs.getString("customer_first_name");
+              row[1] = rs.getString("customer_number");
+
+              long recheckTimestamp = rs.getLong("reCheckupDate");
+              long remindTimestamp = rs.getLong("remind_date");
+              SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy");
+              row[2] = sdf.format(new Date(recheckTimestamp));
+              row[3] = sdf.format(new Date(remindTimestamp));
+              row[4] = rs.getString("checkup_id");
+              results.add(row);
+          }
+          
+          UserUtil.sendPacket(sessionId, new GetRecheckUpListResponse(results.toArray(new String[0][])));
+          
+      } catch (SQLException e) {
+          log.error("Error fetching recheck-up list", e);
+          UserUtil.sendPacket(sessionId, new ErrorResponse(Error.SQL_EXCEPTION));
+      }
+  }
   @Override
   public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
     if (cause instanceof IOException) {

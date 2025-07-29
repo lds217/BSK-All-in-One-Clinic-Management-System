@@ -265,6 +265,7 @@ public class Server {
     }
 
     public static void main(String[] args) throws InterruptedException, SQLException {
+        log.info("\n____   _____ _  __\n|  _ \\ / ____| |/\n| |_) | (___ | ' /\n|  _ < \\___ \\|  <\n| |_) |____) | . \\\n|____/|_____/|_|\\_\n");
         // Initialize and show server dashboard
         ServerDashboard dashboard = ServerDashboard.getInstance();
         dashboard.setVisible(true);

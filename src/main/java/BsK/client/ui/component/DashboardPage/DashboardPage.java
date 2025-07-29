@@ -163,7 +163,7 @@ public class DashboardPage extends JPanel {
         JPanel headerPanel = new JPanel(new BorderLayout());
         headerPanel.setOpaque(false);
         headerPanel.setBorder(BorderFactory.createEmptyBorder(0, 0, 20, 0));
-        JLabel welcomeLabel = new JLabel("Chào mừng, " + LocalStorage.username);
+        JLabel welcomeLabel = new JLabel("Xin chào, " + LocalStorage.username);
         welcomeLabel.setFont(new Font("Segoe UI", Font.BOLD, 28));
         welcomeLabel.setForeground(new Color(44, 82, 130));
         lastUpdateLabel = new JLabel("Cập nhật lần cuối: " + getCurrentTime());

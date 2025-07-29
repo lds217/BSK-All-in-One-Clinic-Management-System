@@ -2201,6 +2201,7 @@ public class CheckUpPage extends JPanel {
         customerFirstNameField.setText(selectedPatient.getCustomerFirstName());
 
         // Select doctor by name
+        log.info("Selected patient's doctor name: {}", selectedPatient.getDoctorName());
         DoctorItem doctorToSelect = findDoctorByName(selectedPatient.getDoctorName());
         if (doctorToSelect != null) {
             doctorComboBox.setSelectedItem(doctorToSelect);
@@ -2213,7 +2214,8 @@ public class CheckUpPage extends JPanel {
         if (ultrasoundDoctorToSelect != null) {
             ultrasoundDoctorComboBox.setSelectedItem(ultrasoundDoctorToSelect);
         } else if (ultrasoundDoctorComboBox.getItemCount() > 0) {
-            ultrasoundDoctorComboBox.setSelectedIndex(0);
+            // if no ultrasound doctor by default it se to the same doctor as the main doctor
+            ultrasoundDoctorComboBox.setSelectedItem(doctorToSelect);
             log.warn("Ultrasound Doctor '{}' not found in the list for patient selection.", selectedPatient.getDoctorUltrasoundId());
         }
 
@@ -4194,7 +4196,9 @@ public class CheckUpPage extends JPanel {
                         SwingUtilities.invokeLater(() -> {
                             int selectedRow = queueTable.getSelectedRow();
                             if (selectedRow != -1) {
-                                String newlySelectedCheckupId = (String) queueTableModel.getValueAt(selectedRow, 0);
+                                // Convert view index to model index to handle sorting
+                                int modelRow = queueTable.convertRowIndexToModel(selectedRow);
+                                String newlySelectedCheckupId = (String) queueTableModel.getValueAt(modelRow, 1); // Column 1 is Checkup ID
 
                                 // Check for unsaved changes before switching
                                 if (selectedCheckupId != null && !selectedCheckupId.equals(newlySelectedCheckupId) && !saved) {
@@ -4213,8 +4217,8 @@ public class CheckUpPage extends JPanel {
                                         return;
                                     }
                                 }
-                                // Call the parent class's method to handle the selection
-                                CheckUpPage.this.handleRowSelection(getSelectedRow());
+                                // Call the parent class's method to handle the selection with the model row index
+                                CheckUpPage.this.handleRowSelection(modelRow);
                                 // Reset patient name filter when closing dialog after selection
                                 patientNameFilter.setText("");
                                 applyFilters();
@@ -4242,7 +4246,9 @@ public class CheckUpPage extends JPanel {
                     if (selectedRow != -1) {
                         // Simulate the mouse click logic
                         SwingUtilities.invokeLater(() -> {
-                            String newlySelectedCheckupId = (String) queueTableModel.getValueAt(selectedRow, 0);
+                            // Convert view index to model index to handle sorting
+                            int modelRow = queueTable.convertRowIndexToModel(selectedRow);
+                            String newlySelectedCheckupId = (String) queueTableModel.getValueAt(modelRow, 1); // Column 1 is Checkup ID
 
                             // Check for unsaved changes before switching
                             if (selectedCheckupId != null && !selectedCheckupId.equals(newlySelectedCheckupId) && !saved) {
@@ -4253,11 +4259,16 @@ public class CheckUpPage extends JPanel {
                                         JOptionPane.YES_NO_OPTION,
                                         JOptionPane.WARNING_MESSAGE);
                                 if (confirm == JOptionPane.NO_OPTION) {
+                                    // Reselect the previous row visually to avoid confusion
+                                    int previousRow = findRowByCheckupId(selectedCheckupId);
+                                    if (previousRow != -1) {
+                                        queueTable.setRowSelectionInterval(previousRow, previousRow);
+                                    }
                                     return;
                                 }
                             }
-                            // Call the parent class's method to handle the selection
-                            CheckUpPage.this.handleRowSelection(getSelectedRow());
+                            // Call the parent class's method to handle the selection with the model row index
+                            CheckUpPage.this.handleRowSelection(modelRow);
                             // Reset patient name filter when closing dialog after selection
                             patientNameFilter.setText("");
                             applyFilters();
@@ -4447,21 +4458,10 @@ public class CheckUpPage extends JPanel {
          * @return the selected row index in the original patient queue, or -1 if no row is selected.
          */
         public int getSelectedRow() {
-            int selectedRowInTable = queueTable.getSelectedRow();
-            if (selectedRowInTable == -1 || selectedRowInTable >= filteredPatients.size()) {
-                return -1;
+            int selectedRow = queueTable.getSelectedRow();
+            if (selectedRow != -1) {
+                return queueTable.convertRowIndexToModel(selectedRow);
             }
-            
-            // Get the patient from the filtered list
-            Patient selectedPatient = filteredPatients.get(selectedRowInTable);
-            
-            // Find the corresponding index in the original patient queue
-            for (int i = 0; i < patientQueue.size(); i++) {
-                if (patientQueue.get(i).getCheckupId().equals(selectedPatient.getCheckupId())) {
-                    return i;
-                }
-            }
-            
             return -1;
         }
     }

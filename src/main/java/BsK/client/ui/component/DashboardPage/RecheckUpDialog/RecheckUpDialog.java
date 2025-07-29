@@ -13,6 +13,7 @@ import javax.swing.border.EmptyBorder;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.table.DefaultTableModel;
+import javax.swing.table.TableRowSorter;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.net.URLEncoder;
@@ -29,6 +30,8 @@ import BsK.common.packet.req.GetRecheckUpListRequest;
 import BsK.common.packet.res.GetRecheckUpListResponse;
 import BsK.client.network.handler.ResponseListener;
 
+import BsK.common.packet.req.AddRemindDateRequest;
+
 public class RecheckUpDialog extends JDialog {
 
     private JTable recheckTable;
@@ -40,6 +43,8 @@ public class RecheckUpDialog extends JDialog {
     private JTextArea previewMessageArea;
     private JCheckBox includeTemplateCheckbox;
     private JTextArea deepLinkTextArea;
+
+    private int currentCheckUpId = 0;
     
     // NEW: Fields for filtering functionality
     private JComboBox<String> dateFilterComboBox;
@@ -103,7 +108,7 @@ public class RecheckUpDialog extends JDialog {
         JLabel filterLabel = new JLabel("Lọc theo ngày tái khám: ");
         filterLabel.setFont(new Font("Segoe UI", Font.BOLD, 14));
 
-        String[] filterOptions = {"Tất cả", "Hôm nay", "Ngày mai", "Trong 2 ngày tới", "Trong 3 ngày tới", "Trong 1 tuần tới"};
+        String[] filterOptions = {"Hôm nay", "Ngày mai", "Trong 2 ngày tới", "Trong 3 ngày tới", "Trong 1 tuần tới"};
         dateFilterComboBox = new JComboBox<>(filterOptions);
         dateFilterComboBox.setFont(new Font("Segoe UI", Font.PLAIN, 14));
         dateFilterComboBox.addActionListener(e -> filterAndDisplayTableData());
@@ -119,11 +124,17 @@ public class RecheckUpDialog extends JDialog {
     private JPanel createTablePanel() {
         JPanel tablePanel = new JPanel(new BorderLayout());
         tablePanel.setOpaque(false);
-        String[] columnNames = {"Họ và tên", "Số điện thoại", "Ngày tái khám", "Ngày nhắc"};
+        String[] columnNames = {"Họ và tên", "Số điện thoại", "Ngày tái khám", "Ngày nhắc", "ID"};
         tableModel = new DefaultTableModel(columnNames, 0) {
             public boolean isCellEditable(int row, int column) { return false; }
         };
         recheckTable = new JTable(tableModel);
+        recheckTable.setRowSorter(new TableRowSorter<>(tableModel));
+        
+        recheckTable.getColumnModel().getColumn(4).setMinWidth(0);
+        recheckTable.getColumnModel().getColumn(4).setMaxWidth(0);
+        recheckTable.getColumnModel().getColumn(4).setWidth(0);
+
         recheckTable.setRowHeight(30);
         recheckTable.setFont(new Font("Segoe UI", Font.PLAIN, 14));
         recheckTable.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 14));
@@ -230,9 +241,22 @@ public class RecheckUpDialog extends JDialog {
         });
         JButton generateButton = new JButton("Tạo Tin & QR");
         generateButton.setFont(new Font("Segoe UI", Font.BOLD, 12));
-        generateButton.addActionListener(e -> generateMessageAndQr());
+        generateButton.addActionListener(e -> {
+            generateMessageAndQr();
+        });
+        JButton addRemindDateButton = new JButton("Lưu ngày nhắc");
+        addRemindDateButton.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        addRemindDateButton.addActionListener(e -> {
+            if (currentCheckUpId != 0) {
+                NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new AddRemindDateRequest(String.valueOf(currentCheckUpId)));
+            } else {
+                JOptionPane.showMessageDialog(this, "Vui lòng chọn một bệnh nhân.", "Chưa chọn bệnh nhân", JOptionPane.WARNING_MESSAGE);
+            }
+        });
+
         buttonPanel.add(resetButton);
         buttonPanel.add(generateButton);
+        buttonPanel.add(addRemindDateButton);
         rightPanel.add(buttonPanel, BorderLayout.SOUTH);
 
         return rightPanel;
@@ -249,7 +273,7 @@ public class RecheckUpDialog extends JDialog {
 
         String selectedFilter = (String) dateFilterComboBox.getSelectedItem();
         if (selectedFilter == null) {
-             selectedFilter = "Tất cả"; // Default case
+             selectedFilter = "Hôm nay"; // Default case
         }
 
         LocalDate today = LocalDate.now();
@@ -262,9 +286,6 @@ public class RecheckUpDialog extends JDialog {
                 boolean shouldAddRow = false;
 
                 switch (selectedFilter) {
-                    case "Tất cả":
-                        shouldAddRow = true;
-                        break;
                     case "Hôm nay":
                         shouldAddRow = recheckDate.isEqual(today);
                         break;
@@ -289,36 +310,48 @@ public class RecheckUpDialog extends JDialog {
             } catch (DateTimeParseException e) {
                 System.err.println("Could not parse date string: " + dateString);
                 // If the filter is "All", add rows with unparseable dates so they are not lost
-                if ("Tất cả".equals(selectedFilter)) {
+                if ("Hôm nay".equals(selectedFilter)) {
                     tableModel.addRow(row);
                 }
             }
         }
     }
 
+    private int getSelectedModelRow() {
+        int viewRow = recheckTable.getSelectedRow();
+        if (viewRow != -1) {
+            return recheckTable.convertRowIndexToModel(viewRow);
+        }
+        return -1;
+    }
+
     private void handleTableSelectionChange() {
         clearRightPanel();
-        int selectedRow = recheckTable.getSelectedRow();
-        if (selectedRow != -1) {
-            String sdt = (String) tableModel.getValueAt(selectedRow, 1);
+        int modelRow = getSelectedModelRow();
+
+        if (modelRow != -1) {
+            currentCheckUpId = Integer.parseInt((String) tableModel.getValueAt(modelRow, 4));
+            String sdt = (String) tableModel.getValueAt(modelRow, 1);
             sdtDisplayField.setText(sdt);
             updatePreview();
+        } else {
+            currentCheckUpId = 0;
         }
     }
     
     private void updatePreview() {
-        int selectedRow = recheckTable.getSelectedRow();
-        if (selectedRow == -1) {
+        int modelRow = getSelectedModelRow();
+        if (modelRow == -1) {
             templateArea.setText("");
             previewMessageArea.setText("");
             return;
         }
 
-        String patientName = (String) tableModel.getValueAt(selectedRow, 0);
-        String recheckDate = (String) tableModel.getValueAt(selectedRow, 2);
+        String patientName = (String) tableModel.getValueAt(modelRow, 0);
+        String recheckDate = (String) tableModel.getValueAt(modelRow, 2);
         String customContent = contentInputArea.getText();
 
-        String templateText = String.format("Phòng khám Bs.K xin thông báo: Anh/Chị %s có lịch tái khám vào ngày %s.", patientName, recheckDate);
+        String templateText = String.format("Phòng khám Bs.Khắp xin thông báo: Anh/Chị %s có lịch tái khám vào ngày %s.", patientName, recheckDate);
         templateArea.setText(templateText);
 
         String fullMessage;
@@ -331,13 +364,13 @@ public class RecheckUpDialog extends JDialog {
     }
 
     private void generateMessageAndQr() {
-        int selectedRow = recheckTable.getSelectedRow();
-        if (selectedRow == -1) {
+        int modelRow = getSelectedModelRow();
+        if (modelRow == -1) {
             JOptionPane.showMessageDialog(this, "Vui lòng chọn một bệnh nhân.", "Chưa chọn bệnh nhân", JOptionPane.WARNING_MESSAGE);
             return;
         }
 
-        String sdt = (String) tableModel.getValueAt(selectedRow, 1);
+        String sdt = (String) tableModel.getValueAt(modelRow, 1);
         String messageBody = previewMessageArea.getText();
 
         if (messageBody.isEmpty()) {

@@ -107,7 +107,7 @@ public class ServerDashboard extends JFrame {
 
         // Create split pane for logs and network info
         JSplitPane splitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
-        splitPane.setResizeWeight(0.6); // Give more space to the top component
+        splitPane.setResizeWeight(0.1); // Give more space to the top component
 
         // Network Information Panel
         JPanel networkPanel = new JPanel(new BorderLayout());

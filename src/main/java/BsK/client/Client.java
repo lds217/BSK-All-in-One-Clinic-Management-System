@@ -74,6 +74,8 @@ public class Client {
     }
 
     public static void main(String[] args) throws Exception {
+        log.info("\n____   _____ _  __\n|  _ \\ / ____| |/\n| |_) | (___ | ' /\n|  _ < \\___ \\|  <\n| |_) |____) | . \\\n|____/|_____/|_|\\_\n");
+
         var thread = new Thread(() -> {
             // First try to load from external config file
             File externalConfig = new File("config/config.properties");

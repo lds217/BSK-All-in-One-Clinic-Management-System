@@ -1,5 +1,7 @@
 package BsK.client.ui.component.DataDialog;
 
+import BsK.client.ui.component.common.AddDialog.AddDialog;
+
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.table.DefaultTableModel;
@@ -28,6 +30,9 @@ public class DataDialog extends JDialog {
     private int recordsPerPage = 20;
     private int totalRecords = 157;
     
+    private JPanel mainPanel;
+    private JPanel paginationPanel;
+    
     public DataDialog(JFrame parent) {
         super(parent, "Quản Lý Dữ Liệu Khám Bệnh", true);
         initializeDialog();
@@ -41,13 +46,14 @@ public class DataDialog extends JDialog {
         setLayout(new BorderLayout());
         
         // Create main panel with padding
-        JPanel mainPanel = new JPanel(new BorderLayout());
+        mainPanel = new JPanel(new BorderLayout());
         mainPanel.setBorder(new EmptyBorder(20, 20, 20, 20));
         
         // Add components
         mainPanel.add(createControlPanel(), BorderLayout.NORTH);
         mainPanel.add(createDataGridPanel(), BorderLayout.CENTER);
-        mainPanel.add(createPaginationPanel(), BorderLayout.SOUTH);
+        paginationPanel = createPaginationPanel();
+        mainPanel.add(paginationPanel, BorderLayout.SOUTH);
         
         add(mainPanel);
     }
@@ -130,7 +136,8 @@ public class DataDialog extends JDialog {
         
         // Add action listeners
         addNewButton.addActionListener(e -> {
-            JOptionPane.showMessageDialog(this, "Chức năng thêm mới sẽ chuyển đến trang Thăm khám với form trống", "Thông báo", JOptionPane.INFORMATION_MESSAGE);
+            AddDialog addDialog = new AddDialog((Frame) getParent());
+            addDialog.setVisible(true);
         });
         
         exportExcelButton.addActionListener(e -> {
@@ -288,11 +295,11 @@ public class DataDialog extends JDialog {
         resultCountLabel.setText(String.format("Hiển thị %d đến %d của %d kết quả", startRecord, endRecord, totalRecords));
         
         // Update pagination buttons
-        Component parent = firstPageButton.getParent();
-        parent.removeAll();
-        parent.add(createPaginationPanel());
-        parent.revalidate();
-        parent.repaint();
+        mainPanel.remove(paginationPanel);
+        paginationPanel = createPaginationPanel();
+        mainPanel.add(paginationPanel, BorderLayout.SOUTH);
+        mainPanel.revalidate();
+        mainPanel.repaint();
     }
     
     // Custom renderer for action buttons
