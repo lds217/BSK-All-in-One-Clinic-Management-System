@@ -21,6 +21,13 @@ import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.util.Calendar;
 import java.util.Date;
+import BsK.client.ui.component.DataDialog.ExcelExporter;
+import javax.swing.filechooser.FileNameExtensionFilter;
+import java.io.File;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class DataDialog extends JDialog {
 
@@ -38,6 +45,8 @@ public class DataDialog extends JDialog {
     private int totalPages = 1;
     private int recordsPerPage = 20;
     private int totalRecords = 0;
+    private boolean isExporting = false;
+    private File fileForExport = null;
 
     private JPanel mainPanel;
     private JPanel paginationPanel;
@@ -201,7 +210,7 @@ public class DataDialog extends JDialog {
             AddDialog addDialog = new AddDialog((Frame) getParent());
             addDialog.setVisible(true);
         });
-        exportExcelButton.addActionListener(e -> JOptionPane.showMessageDialog(this, "Chức năng xuất Excel đang được phát triển", "Thông báo", JOptionPane.INFORMATION_MESSAGE));
+        exportExcelButton.addActionListener(e -> handleExportToExcel());
         
         filterButton.addActionListener(e -> {
             saveFiltersToLocalStorage(); // <-- SAVE STATE BEFORE FETCHING
@@ -300,6 +309,31 @@ public class DataDialog extends JDialog {
 
     // --- MODIFIED: Process raw data into Patient DTOs and populate table correctly ---
     private void handleGetCheckupDataResponse(GetCheckupDataResponse response) {
+        // --- START OF MODIFICATION ---
+        // Check if we are in export mode
+        if (isExporting) {
+            List<Patient> patientsToExport = new ArrayList<>();
+            if (response.getCheckupData() != null) {
+                for (String[] rowData : response.getCheckupData()) {
+                    patientsToExport.add(new Patient(rowData));
+                }
+            }
+
+            try {
+                ExcelExporter.exportToExcel(patientsToExport, this.fileForExport);
+                JOptionPane.showMessageDialog(this, "Xuất file Excel thành công!\n" + this.fileForExport.getAbsolutePath(), "Thành công", JOptionPane.INFORMATION_MESSAGE);
+            } catch (IOException ex) {
+                JOptionPane.showMessageDialog(this, "Lỗi khi ghi file Excel: " + ex.getMessage(), "Lỗi", JOptionPane.ERROR_MESSAGE);
+            } finally {
+                // Reset the flag and file variable after exporting
+                isExporting = false;
+                fileForExport = null;
+            }
+            return; // IMPORTANT: Stop further execution to avoid updating the UI table
+        }
+        // --- END OF MODIFICATION ---
+
+        // This is your existing code for updating the table for pagination
         SwingUtilities.invokeLater(() -> {
             this.currentPage = response.getCurrentPage();
             this.totalPages = response.getTotalPages();
@@ -344,6 +378,29 @@ public class DataDialog extends JDialog {
         int startRecord = (currentPage - 1) * recordsPerPage + 1;
         int endRecord = Math.min(startRecord + recordsPerPage - 1, totalRecords);
         resultCountLabel.setText(String.format("Hiển thị %d đến %d của %d kết quả", startRecord, endRecord, totalRecords));
+    }
+
+    private void handleExportToExcel() {
+        JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setDialogTitle("Lưu file Excel");
+        fileChooser.setFileFilter(new FileNameExtensionFilter("Excel Workbook (*.xlsx)", "xlsx"));
+        fileChooser.setSelectedFile(new File("DanhSachKhamBenh.xlsx"));
+
+        if (fileChooser.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
+            this.fileForExport = fileChooser.getSelectedFile();
+            // Ensure the file has a .xlsx extension
+            if (!this.fileForExport.getName().toLowerCase().endsWith(".xlsx")) {
+                this.fileForExport = new File(this.fileForExport.getParentFile(), this.fileForExport.getName() + ".xlsx");
+            }
+            
+            // Set the flag to true
+            this.isExporting = true;
+            
+            JOptionPane.showMessageDialog(this, "Đang chuẩn bị dữ liệu để xuất file...", "Thông báo", JOptionPane.INFORMATION_MESSAGE);
+            
+            // Call fetchData with a special page number (-1) to signal "get all"
+            fetchData(-1); 
+        }
     }
 
     private void updatePaginationControls() {

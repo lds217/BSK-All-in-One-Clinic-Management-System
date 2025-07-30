@@ -4,7 +4,7 @@ import BsK.common.packet.Packet;
 import BsK.common.packet.PacketSerializer;
 import BsK.common.packet.req.*;
 import BsK.common.packet.res.*;
-import BsK.common.packet.res.ErrorResponse.Error;
+import BsK.common.Error;
 import BsK.common.entity.Status;
 import BsK.common.util.date.DateUtils;
 import BsK.server.Server;
