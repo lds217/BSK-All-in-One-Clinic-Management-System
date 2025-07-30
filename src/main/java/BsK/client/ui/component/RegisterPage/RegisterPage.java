@@ -26,78 +26,12 @@ public class RegisterPage extends JPanel {
             }
         };
         backgroundPanel.setLayout(new GridBagLayout());
-        GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(10, 10, 10, 10);
-        gbc.gridx = 0;
-        gbc.gridy = 0;
-        gbc.anchor = GridBagConstraints.WEST;
+        
+        JLabel announcementLabel = new JLabel("Hãy liên hệ với Admin để tạo tài khoản");
+        announcementLabel.setForeground(Color.WHITE);
+        announcementLabel.setFont(new Font("Arial", Font.BOLD, 20));
+        backgroundPanel.add(announcementLabel, new GridBagConstraints());
 
-        JLabel promptLabel = new JLabel("Please enter your details:");
-        promptLabel.setForeground(Color.WHITE);
-        promptLabel.setFont(new Font("Arial", Font.BOLD, 20));
-        gbc.gridwidth = 2;
-        backgroundPanel.add(promptLabel, gbc);
-
-        gbc.gridwidth = 1;
-        gbc.gridy++;
-        JLabel usernameLabel = new JLabel("Username:");
-        usernameLabel.setForeground(Color.WHITE);
-        backgroundPanel.add(usernameLabel, gbc);
-
-        gbc.gridx = 1;
-        JTextField usernameField = new JTextField(20);
-        backgroundPanel.add(usernameField, gbc);
-
-        gbc.gridx = 0;
-        gbc.gridy++;
-        JLabel nameLabel = new JLabel("Name:");
-        nameLabel.setForeground(Color.WHITE);
-        backgroundPanel.add(nameLabel, gbc);
-
-        gbc.gridx = 1;
-        JTextField nameField = new JTextField(20);
-        backgroundPanel.add(nameField, gbc);
-
-        gbc.gridx = 0;
-        gbc.gridy++;
-        JLabel passwordLabel = new JLabel("Password:");
-        passwordLabel.setForeground(Color.WHITE);
-        backgroundPanel.add(passwordLabel, gbc);
-
-        gbc.gridx = 1;
-        JPasswordField passwordField = new JPasswordField(20);
-        backgroundPanel.add(passwordField, gbc);
-
-        gbc.gridx = 0;
-        gbc.gridy++;
-        JLabel rePasswordLabel = new JLabel("Re-enter your password:");
-        rePasswordLabel.setForeground(Color.WHITE);
-        backgroundPanel.add(rePasswordLabel, gbc);
-
-        gbc.gridx = 1;
-        JPasswordField rePasswordField = new JPasswordField(20);
-        backgroundPanel.add(rePasswordField, gbc);
-
-        gbc.gridx = 0;
-        gbc.gridy++;
-        JLabel roleLabel = new JLabel("Role:");
-        roleLabel.setForeground(Color.WHITE);
-        backgroundPanel.add(roleLabel, gbc);
-
-        gbc.gridx = 1;
-        String[] roles = {"user", "admin", "doctor", "nurse"};
-        JComboBox<String> roleComboBox = new JComboBox<>(roles);
-        backgroundPanel.add(roleComboBox, gbc);
-
-        gbc.gridy++;
-        JButton loginButton = new JButton("Register");
-        loginButton.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                mainFrame.showPage("LandingPage");
-            }
-        });
-        backgroundPanel.add(loginButton, gbc);
         add(backgroundPanel, BorderLayout.CENTER);
 
         // Back button to return to the landing page
@@ -109,8 +43,5 @@ public class RegisterPage extends JPanel {
             }
         });
         add(backButton, BorderLayout.SOUTH);
-    }
-    public static void main(String[] args) {
-        System.out.println("Working Directory = " + System.getProperty("user.dir"));
     }
 }

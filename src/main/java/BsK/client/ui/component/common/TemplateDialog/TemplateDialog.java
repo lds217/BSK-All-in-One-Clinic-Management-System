@@ -214,7 +214,7 @@ public class TemplateDialog extends JDialog {
         
         // Buttons
         addNewButton = new JButton("Thêm mới");
-        cancelButton = new JButton("Huỷ");
+        cancelButton = new JButton("Làm mới");
         saveButton = new JButton("Lưu");
         deleteButton = new JButton("Xoá");
     }
@@ -334,6 +334,9 @@ public class TemplateDialog extends JDialog {
         infoPanel.add(visibleCheckBox, gbc);
         
         leftPanel.add(infoPanel, BorderLayout.CENTER);
+        
+        saveButton.setEnabled(false);
+        deleteButton.setEnabled(false);
         
         // Template table at bottom
         JPanel tablePanel = new JPanel(new BorderLayout());
@@ -726,9 +729,7 @@ public class TemplateDialog extends JDialog {
         });
         
         cancelButton.addActionListener(e -> {
-            // TODO: Implement cancel functionality
-            log.info("Cancel button clicked");
-            dispose();
+            clearFields();
         });
         
         saveButton.addActionListener(e -> {
@@ -801,6 +802,11 @@ public class TemplateDialog extends JDialog {
         visibleCheckBox.setSelected(!template.isVisible()); // Checkbox is "Ẩn" so inverted logic
         conclusionField.setText(template.getConclusion());
         suggestionField.setText(template.getSuggestion());
+        
+        // Update button states
+        addNewButton.setEnabled(false);
+        saveButton.setEnabled(true);
+        deleteButton.setEnabled(true);
         
         try {
             contentRTFField.setText(""); // Clear previous content
@@ -915,5 +921,13 @@ public class TemplateDialog extends JDialog {
         if (undoManager != null) {
             undoManager.discardAllEdits();
         }
+        
+        // Reset button states
+        addNewButton.setEnabled(true);
+        saveButton.setEnabled(false);
+        deleteButton.setEnabled(false);
+        
+        // Clear table selection
+        templateTable.clearSelection();
     }
 } 

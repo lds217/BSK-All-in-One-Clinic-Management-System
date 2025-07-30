@@ -53,6 +53,7 @@ public class DataDialog extends JDialog {
     // --- Panels for the other tabs
     private MedicineManagementPanel medicinePanel;
     private ServiceManagementPanel servicePanel;
+    private UserManagementPanel userPanel;
 
     public DataDialog(JFrame parent, CheckUpPage checkUpPage) {
         super(parent, "Quản Lý Dữ Liệu", true);
@@ -87,10 +88,13 @@ public class DataDialog extends JDialog {
         medicinePanel = new MedicineManagementPanel();
         tabbedPane.addTab("<html><body style='padding: 5px 10px;'>Quản Lý Thuốc</body></html>", medicinePanel);
 
-        // --- Tab 3: Service Management (Instantiate new panel) ---
-        // *** THIS IS THE CORRECTED PART ***
+        // --- Tab 3: Service Management ---
         servicePanel = new ServiceManagementPanel();
         tabbedPane.addTab("<html><body style='padding: 5px 10px;'>Quản Lý Dịch Vụ</body></html>", servicePanel);
+
+        // --- Tab 4: User Management ---
+        userPanel = new UserManagementPanel();
+        tabbedPane.addTab("<html><body style='padding: 5px 10px;'>Quản Lý Người Dùng</body></html>", userPanel);
 
         add(tabbedPane, BorderLayout.CENTER);
 
@@ -111,6 +115,9 @@ public class DataDialog extends JDialog {
                 // *** THIS NOW WORKS CORRECTLY ***
                 if (servicePanel != null) {
                     servicePanel.cleanup();
+                }
+                if (userPanel != null) {
+                    userPanel.cleanup();
                 }
                 super.windowClosing(e);
             }

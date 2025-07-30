@@ -3,8 +3,7 @@ package BsK.client.ui.component.LoginPage;
 import BsK.client.LocalStorage;
 import BsK.client.network.handler.ClientHandler;
 import BsK.client.ui.component.MainFrame;
-import BsK.common.packet.Packet;
-import BsK.common.packet.PacketSerializer;
+import BsK.client.ui.component.common.RoundedButtonUI;
 import BsK.common.packet.req.ClinicInfoRequest;
 import BsK.common.packet.req.GetDoctorGeneralInfo;
 import BsK.common.packet.req.GetProvinceRequest;
@@ -16,8 +15,6 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 
 @Slf4j
 public class LoginPage extends JPanel {
@@ -39,44 +36,58 @@ public class LoginPage extends JPanel {
             }
         };
         backgroundPanel.setLayout(new GridBagLayout());
+        add(backgroundPanel, BorderLayout.CENTER);
+
+        JPanel formPanel = new JPanel(new GridBagLayout());
+        formPanel.setOpaque(false);
+
         GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(5, 5, 5, 5);
+        gbc.insets = new Insets(10, 10, 4, 10);
         gbc.gridx = 0;
         gbc.gridy = 0;
-        gbc.gridwidth = 2; // Span across two columns
+        gbc.gridwidth = 2;
+        gbc.anchor = GridBagConstraints.CENTER;
 
-        JLabel promptLabel = new JLabel("Vui lòng nhập thông tin chi tiết của bạn:");
+        JLabel promptLabel = new JLabel("Đăng nhập");
         promptLabel.setForeground(Color.WHITE);
-        promptLabel.setFont(new Font("Arial", Font.BOLD, 20));
-        backgroundPanel.add(promptLabel, gbc);
+        promptLabel.setFont(new Font("Arial", Font.BOLD, 32));
+        formPanel.add(promptLabel, gbc);
 
-        gbc.gridwidth = 1; // Reset to default
+        gbc.gridwidth = 1;
         gbc.gridy++;
-        JLabel usernameLabel = new JLabel("Nhập tên đăng nhập:");
+        gbc.anchor = GridBagConstraints.EAST;
+        JLabel usernameLabel = new JLabel("Tên đăng nhập:");
         usernameLabel.setForeground(Color.WHITE);
-        backgroundPanel.add(usernameLabel, gbc);
+        usernameLabel.setFont(new Font("Arial", Font.PLAIN, 14));
+        formPanel.add(usernameLabel, gbc);
 
         gbc.gridx = 1;
+        gbc.anchor = GridBagConstraints.WEST;
         JTextField loginField = new JTextField(20);
-        backgroundPanel.add(loginField, gbc);
+        formPanel.add(loginField, gbc);
 
         gbc.gridx = 0;
         gbc.gridy++;
-        JLabel passwordLabel = new JLabel("Nhập mật khẩu:");
+        gbc.anchor = GridBagConstraints.EAST;
+        JLabel passwordLabel = new JLabel("Mật khẩu:");
         passwordLabel.setForeground(Color.WHITE);
-        backgroundPanel.add(passwordLabel, gbc);
+        passwordLabel.setFont(new Font("Arial", Font.PLAIN, 14));
+        formPanel.add(passwordLabel, gbc);
 
         gbc.gridx = 1;
+        gbc.anchor = GridBagConstraints.WEST;
         JPasswordField passwordField = new JPasswordField(20);
-        backgroundPanel.add(passwordField, gbc);
+        formPanel.add(passwordField, gbc);
 
+        gbc.gridx = 0;
         gbc.gridy++;
+        gbc.gridwidth = 2;
+        gbc.anchor = GridBagConstraints.CENTER;
         JButton loginButton = new JButton("Đăng nhập");
+        loginButton.setUI(new RoundedButtonUI(new Color(13, 110, 253), Color.WHITE, 10));
+        loginButton.setFont(new Font("Arial", Font.BOLD, 14));
 
-        // listener for Password Field to press Enter
-        passwordField.addActionListener(e -> {
-            loginButton.doClick();
-        });
+        passwordField.addActionListener(e -> loginButton.doClick());
 
         loginButton.addActionListener(e -> {
             char[] passwordChars = passwordField.getPassword();
@@ -105,17 +116,19 @@ public class LoginPage extends JPanel {
         });
 
 
-        backgroundPanel.add(loginButton, gbc);
-        add(backgroundPanel, BorderLayout.CENTER);
+        formPanel.add(loginButton, gbc);
+        backgroundPanel.add(formPanel, new GridBagConstraints());
 
 
         JButton backButton = new JButton("Trở về");
-        backButton.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                mainFrame.showPage("LandingPage");
-            }
-        });
-        add(backButton, BorderLayout.SOUTH);
+        backButton.setUI(new RoundedButtonUI(new Color(108, 117, 125), Color.WHITE, 10));
+        backButton.setFont(new Font("Arial", Font.BOLD, 14));
+
+        backButton.addActionListener(e -> mainFrame.showPage("LandingPage"));
+
+        JPanel southPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        southPanel.setOpaque(false);
+        southPanel.add(backButton);
+        add(southPanel, BorderLayout.SOUTH);
     }
 }

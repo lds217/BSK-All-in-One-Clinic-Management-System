@@ -344,7 +344,7 @@ public class DashboardPage extends JPanel {
 
     private JButton createActionButton(String title, String icon, Color color) {
         JButton button = new JButton();
-        button.setUI(new RoundedButtonUI(10));
+        button.setUI(new RoundedButtonUI(color, Color.WHITE, 10));
         button.setLayout(new BorderLayout());
         button.setBackground(color);
         button.setForeground(Color.WHITE);

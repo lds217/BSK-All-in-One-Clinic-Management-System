@@ -41,6 +41,9 @@ public class MedicineManagementPanel extends JPanel {
     private JSpinner morningSpinner, noonSpinner, eveningSpinner;
     private JTextArea noteField;
 
+    // --- Action Buttons ---
+    private JButton btnAdd, btnEdit, btnDelete, btnClear;
+
     // --- Data & State
     private List<Medicine> allMedicines = new ArrayList<>();
     private String selectedMedicineId = null;
@@ -330,10 +333,10 @@ public class MedicineManagementPanel extends JPanel {
 
     private JPanel createMedicineButtonPanel() {
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 5));
-        JButton btnAdd = new JButton("Thêm mới");
-        JButton btnEdit = new JButton("Chỉnh sửa");
-        JButton btnDelete = new JButton("Xoá");
-        JButton btnClear = new JButton("Làm mới");
+        btnAdd = new JButton("Thêm mới");
+        btnEdit = new JButton("Chỉnh sửa");
+        btnDelete = new JButton("Xoá");
+        btnClear = new JButton("Làm mới");
 
         Dimension btnSize = new Dimension(100, 35);
         btnAdd.setPreferredSize(btnSize);
@@ -382,6 +385,10 @@ public class MedicineManagementPanel extends JPanel {
                 JOptionPane.showMessageDialog(this, "Chức năng 'Xoá' cho thuốc ID: " + selectedMedicineId + " sẽ được thực hiện tại đây.", "Thông báo", JOptionPane.INFORMATION_MESSAGE);
             }
         });
+
+        // Initial button states
+        btnEdit.setEnabled(false);
+        btnDelete.setEnabled(false);
 
         return buttonPanel;
     }
@@ -458,6 +465,11 @@ public class MedicineManagementPanel extends JPanel {
         medicineQuantityField.setText(med.getQuantity());
         medicineUnitComboBox.setSelectedItem(med.getUnit());
         medicinePriceField.setText(med.getSellingPrice());
+
+        // Update button states
+        btnAdd.setEnabled(false);
+        btnEdit.setEnabled(true);
+        btnDelete.setEnabled(true);
     }
 
     private void clearMedicineFields() {
@@ -470,6 +482,11 @@ public class MedicineManagementPanel extends JPanel {
         medicinePriceField.setText("");
         medicineTable.clearSelection();
         medicineNameField.requestFocusInWindow();
+
+        // Reset button states
+        btnAdd.setEnabled(true);
+        btnEdit.setEnabled(false);
+        btnDelete.setEnabled(false);
     }
 
     private void filterMedicineTable() {

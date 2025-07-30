@@ -37,6 +37,8 @@ public class ServiceManagementPanel extends JPanel {
     private JTextField totalField;
     private JTextArea noteField;
 
+    private JButton btnAdd, btnEdit, btnDelete, btnClear;
+
     // --- Data & State ---
     private List<Service> allServices = new ArrayList<>();
     private String selectedServiceId = null;
@@ -202,10 +204,10 @@ public class ServiceManagementPanel extends JPanel {
      */
     private JPanel createServiceButtonPanel() {
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 5));
-        JButton btnAdd = new JButton("Thêm mới");
-        JButton btnEdit = new JButton("Chỉnh sửa");
-        JButton btnDelete = new JButton("Xoá");
-        JButton btnClear = new JButton("Làm mới");
+        btnAdd = new JButton("Thêm mới");
+        btnEdit = new JButton("Chỉnh sửa");
+        btnDelete = new JButton("Xoá");
+        btnClear = new JButton("Làm mới");
 
         Dimension btnSize = new Dimension(100, 35);
         btnAdd.setPreferredSize(btnSize);
@@ -254,6 +256,10 @@ public class ServiceManagementPanel extends JPanel {
                 JOptionPane.showMessageDialog(this, "Chức năng 'Xoá' cho dịch vụ ID: " + selectedServiceId + " sẽ được thực hiện tại đây.", "Thông báo", JOptionPane.INFORMATION_MESSAGE);
             }
         });
+
+        // Initial button states
+        btnEdit.setEnabled(false);
+        btnDelete.setEnabled(false);
 
         return buttonPanel;
     }
@@ -332,6 +338,11 @@ public class ServiceManagementPanel extends JPanel {
         priceField.setText(service.getCost());
         noteField.setText(""); // Assuming notes are not stored in the main service entity
         quantitySpinner.setValue(1);
+
+        // Update button states
+        btnAdd.setEnabled(false);
+        btnEdit.setEnabled(true);
+        btnDelete.setEnabled(true);
     }
 
     private void clearServiceFields() {
@@ -343,6 +354,11 @@ public class ServiceManagementPanel extends JPanel {
         quantitySpinner.setValue(1);
         serviceTable.clearSelection();
         serviceNameField.requestFocusInWindow();
+
+        // Reset button states
+        btnAdd.setEnabled(true);
+        btnEdit.setEnabled(false);
+        btnDelete.setEnabled(false);
     }
 
     private void filterServiceTable() {

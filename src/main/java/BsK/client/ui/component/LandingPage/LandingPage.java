@@ -1,11 +1,10 @@
 package BsK.client.ui.component.LandingPage;
 
 import BsK.client.ui.component.MainFrame;
+import BsK.client.ui.component.common.RoundedButtonUI;
 
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 
 public class LandingPage extends JPanel {
     public LandingPage(MainFrame mainFrame) {
@@ -64,8 +63,14 @@ public class LandingPage extends JPanel {
         gbc.gridx = 0;
         gbc.gridy = 0;
 
-        JButton loginButton = new RoundedButton("Login");
-        JButton registerButton = new RoundedButton("Register");
+        JButton loginButton = new JButton("Đăng nhập");
+        loginButton.setUI(new RoundedButtonUI(new Color(0, 0, 0, 0), Color.WHITE, Color.WHITE, 30));
+        loginButton.setFont(new Font("Arial", Font.BOLD, 14));
+
+        JButton registerButton = new JButton("Đăng ký");
+        registerButton.setUI(new RoundedButtonUI(new Color(0, 0, 0, 0), Color.WHITE, Color.WHITE, 30));
+        registerButton.setFont(new Font("Arial", Font.BOLD, 14));
+
 
         // Set the same preferred size for both buttons
         Dimension buttonSize = new Dimension(150, 40);
@@ -80,55 +85,8 @@ public class LandingPage extends JPanel {
         add(rightPanel, BorderLayout.EAST);
 
         // Action listeners for buttons
-        loginButton.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                mainFrame.showPage("LoginPage");
-            }
-        });
+        loginButton.addActionListener(e -> mainFrame.showPage("LoginPage"));
 
-        registerButton.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                mainFrame.showPage("RegisterPage");
-            }
-        });
-    }
-
-    // Custom button class with rounded edges and stroke
-    private static class RoundedButton extends JButton {
-        public RoundedButton(String text) {
-            super(text);
-            setContentAreaFilled(false);
-            setFocusPainted(false);
-            setOpaque(false);
-            setBorderPainted(false); // Ensure the border is not painted
-        }
-
-        @Override
-        protected void paintComponent(Graphics g) {
-            // Do not call super.paintComponent(g) to avoid painting the background
-            Graphics2D g2 = (Graphics2D) g.create();
-            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            g2.setColor(getBackground());
-            g2.fillRoundRect(0, 0, getWidth(), getHeight(), 30, 30);
-            g2.dispose();
-            super.paintComponent(g); // Call super to paint the text
-        }
-
-        @Override
-        protected void paintBorder(Graphics g) {
-            Graphics2D g2 = (Graphics2D) g.create();
-            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            g2.setColor(Color.WHITE);
-            g2.setStroke(new BasicStroke(2));
-            g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 30, 30);
-            g2.dispose();
-        }
-
-        @Override
-        public Insets getInsets() {
-            return new Insets(10, 20, 10, 20);
-        }
+        registerButton.addActionListener(e -> mainFrame.showPage("RegisterPage"));
     }
 }

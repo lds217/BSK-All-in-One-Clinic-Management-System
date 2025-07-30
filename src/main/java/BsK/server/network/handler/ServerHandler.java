@@ -1531,7 +1531,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                       "JOIN Customer c ON ch.customer_id = c.customer_id " +
                       "WHERE ch.reCheckupDate BETWEEN ? AND ?";
           
-          long fromDate = System.currentTimeMillis();
+          long fromDate = LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli();
           long toDate = fromDate + (7L * 24 * 60 * 60 * 1000);
 
           PreparedStatement stmt = Server.connection.prepareStatement(sql);
