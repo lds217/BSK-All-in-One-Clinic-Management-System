@@ -14,6 +14,7 @@ import BsK.client.network.handler.ClientHandler;
 import BsK.client.network.handler.ResponseListener;
 import BsK.common.packet.res.EmergencyResponse;
 import BsK.common.packet.res.ErrorResponse;
+import BsK.common.packet.res.SimpleMessageResponse;
 import lombok.extern.slf4j.Slf4j;
 import javax.swing.Icon;
 
@@ -22,6 +23,8 @@ import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.ActionListener;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 
 @Slf4j
 public class NavBar extends JPanel {
@@ -32,6 +35,7 @@ public class NavBar extends JPanel {
     // Listener for incoming emergency alerts
     private final ResponseListener<EmergencyResponse> emergencyResponseListener = this::handleEmergencyResponse;
     private final ResponseListener<ErrorResponse> errorResponseListener = this::handleErrorResponse;
+    private final ResponseListener<SimpleMessageResponse> navBarMessageListener = this::showNotificationForMessage;
 
     public NavBar(MainFrame mainFrame, String activePageTitle) {
         this.mainFrame = mainFrame;
@@ -40,6 +44,7 @@ public class NavBar extends JPanel {
         ClientHandler.addResponseListener(EmergencyResponse.class, emergencyResponseListener);
         // add error response listener
         ClientHandler.addResponseListener(ErrorResponse.class, errorResponseListener);
+        ClientHandler.addResponseListener(SimpleMessageResponse.class, navBarMessageListener);
         this.setLayout(new BoxLayout(this, BoxLayout.X_AXIS));
         this.setBackground(new Color(240, 240, 240));
         this.setBorder(BorderFactory.createEmptyBorder(5, 25, 5, 25));
@@ -65,7 +70,11 @@ public class NavBar extends JPanel {
         userPanel.setBackground(this.getBackground());
         userPanel.setAlignmentY(Component.CENTER_ALIGNMENT);
 
-        // Add the Emergency button first
+        Component messageButton = createMessageButton();
+        userPanel.add(messageButton);
+        // --- END: NEW MESSAGE BUTTON ---
+
+        // Add the Emergency button
         Component emergencyButton = createEmergencyButton();
         userPanel.add(emergencyButton);
 
@@ -264,6 +273,69 @@ public class NavBar extends JPanel {
         return 0;
     }
 
+    private void showNotificationForMessage(SimpleMessageResponse response) {
+        SwingUtilities.invokeLater(() -> {
+            // Create a borderless window for the notification
+            JWindow notificationWindow = new JWindow(mainFrame);
+            
+            // Create a styled panel for the content
+            JPanel panel = new JPanel(new BorderLayout(10, 5));
+            panel.setBackground(new Color(45, 45, 45));
+            panel.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(new Color(0, 132, 255), 2),
+                BorderFactory.createEmptyBorder(10, 30, 10, 30)
+            ));
+
+            String timestamp = new SimpleDateFormat("HH:mm").format(new Date());
+            String formattedMessage = String.format("[%s] %s: %s\n",
+                    timestamp,
+                    response.getSenderName(),
+                    response.getMessage()
+            );
+            // add message to local storage
+            LocalStorage.chatHistory.add(formattedMessage);
+
+            // Create the message content
+            JLabel titleLabel = new JLabel("Tin nhắn mới từ: " + response.getSenderName());
+            titleLabel.setFont(new Font("Arial", Font.BOLD, 14));
+            titleLabel.setForeground(Color.WHITE);
+
+            JLabel messageLabel = new JLabel(response.getMessage());
+            messageLabel.setFont(new Font("Arial", Font.PLAIN, 12));
+            messageLabel.setForeground(Color.LIGHT_GRAY);
+
+            panel.add(titleLabel, BorderLayout.NORTH);
+            panel.add(messageLabel, BorderLayout.CENTER);
+
+            notificationWindow.add(panel);
+            notificationWindow.pack();
+
+            // Position the notification at the bottom-right of the screen
+            GraphicsEnvironment ge = GraphicsEnvironment.getLocalGraphicsEnvironment();
+            Rectangle screenRect = ge.getMaximumWindowBounds();
+            int x = screenRect.width - notificationWindow.getWidth() - 30;
+            int y = screenRect.height - notificationWindow.getHeight() - 30;
+            notificationWindow.setLocation(x, y);
+
+            notificationWindow.setVisible(true);
+
+            // Use a Timer to automatically close the notification after 5 seconds
+            Timer closeTimer = new Timer(5000, e -> notificationWindow.dispose());
+            closeTimer.setRepeats(false); // Only run once
+            closeTimer.start();
+        });
+    }
+
+    public void disableMessageListener() {
+        ClientHandler.deleteListener(SimpleMessageResponse.class, navBarMessageListener);
+        log.info("NavBar message listener disabled.");
+    }
+
+    public void enableMessageListener() {
+        ClientHandler.addResponseListener(SimpleMessageResponse.class, navBarMessageListener);
+        log.info("NavBar message listener re-enabled.");
+    }
+
     private Component createEmergencyButton() {
         Color emergencyColor = new Color(220, 38, 38);
         RoundedPanel buttonPanel = new RoundedPanel(15, emergencyColor, true);
@@ -361,6 +433,60 @@ public class NavBar extends JPanel {
         return item;
     }
 
+    private Component createMessageButton() {
+        Color messageColor = new Color(150, 150, 150); // Muted gray color
+        RoundedPanel buttonPanel = new RoundedPanel(15, messageColor, true);
+        buttonPanel.setLayout(new BorderLayout(2, 2));
+        buttonPanel.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        buttonPanel.setToolTipText("Tin nhắn"); // Add a tooltip
+
+        // Make the button smaller and square-like
+        buttonPanel.setPreferredSize(new Dimension(55, 55));
+        buttonPanel.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createEmptyBorder(2, 2, 2, 2),
+                BorderFactory.createEmptyBorder(5, 10, 5, 10)
+        ));
+
+        // Create the label without text
+        JLabel buttonLabel = new JLabel();
+        buttonLabel.setHorizontalAlignment(SwingConstants.CENTER);
+        buttonLabel.setOpaque(false);
+
+        try {
+            String iconPath = "src/main/java/BsK/client/ui/assets/icon/chat.png";
+            ImageIcon originalIcon = new ImageIcon(iconPath);
+            // Use a slightly smaller icon
+            Image scaledImage = originalIcon.getImage().getScaledInstance(24, 24, Image.SCALE_SMOOTH);
+            buttonLabel.setIcon(new ImageIcon(scaledImage));
+        } catch (Exception e) {
+            log.error("Error loading icon: chat.png. Using text fallback.");
+            buttonLabel.setText("Msg"); // Fallback text if icon fails
+        }
+
+        buttonPanel.add(buttonLabel, BorderLayout.CENTER);
+
+        buttonPanel.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                // Open the SimpleChatDialog
+                SimpleChatDialog chatDialog = new SimpleChatDialog(mainFrame, NavBar.this);
+                chatDialog.setVisible(true);
+            }
+
+            @Override
+            public void mouseEntered(MouseEvent e) {
+                buttonPanel.setBackground(messageColor.darker());
+            }
+
+            @Override
+            public void mouseExited(MouseEvent e) {
+                buttonPanel.setBackground(messageColor);
+            }
+        });
+
+        return buttonPanel;
+    }
+
     /**
      * Handles the incoming EmergencyResponse. This version is silent and uses a manual
      * dialog creation to ensure the custom close button works correctly.
@@ -433,6 +559,7 @@ public class NavBar extends JPanel {
     public void cleanup() {
         ClientHandler.deleteListener(EmergencyResponse.class, emergencyResponseListener);
         ClientHandler.deleteListener(ErrorResponse.class, errorResponseListener);
-        log.info("EmergencyResponse listener removed from NavBar.");
+        ClientHandler.deleteListener(SimpleMessageResponse.class, navBarMessageListener);
+        log.info("All NavBar listeners removed.");
     }
 }

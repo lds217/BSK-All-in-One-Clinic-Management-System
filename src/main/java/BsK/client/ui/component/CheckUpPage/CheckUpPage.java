@@ -1,5 +1,8 @@
 package BsK.client.ui.component.CheckUpPage;
 
+import java.awt.Desktop;
+import java.net.URI;
+
 import BsK.client.Client;
 import BsK.client.LocalStorage;
 import BsK.client.network.handler.ClientHandler;
@@ -201,6 +204,7 @@ public class CheckUpPage extends JPanel {
     private JButton openQueueButton;
     private JButton addPatientButton;
     private JButton[] actionButtons;
+    private JButton driveButton;
     
     // Template info labels
     private JLabel imageCountValueLabel;
@@ -564,12 +568,50 @@ public class CheckUpPage extends JPanel {
         cccdLabel.setFont(labelFont);
         patientInfoInnerPanel.add(cccdLabel, gbcPatient);
 
-        gbcPatient.gridx = 1; gbcPatient.weightx = 0.4; gbcPatient.gridwidth = 3;
+        gbcPatient.gridx = 1; gbcPatient.weightx = 0.4; gbcPatient.gridwidth = 2; // <-- MODIFIED from 3 to 2
         customerCccdDdcnField = new JTextField(15);
         customerCccdDdcnField.setFont(fieldFont);
         addSelectAllOnFocus(customerCccdDdcnField);
         patientInfoInnerPanel.add(customerCccdDdcnField, gbcPatient);
         gbcPatient.gridwidth = 1; // Reset gridwidth
+
+        // --- START: ADD THE NEW DRIVE BUTTON HERE ---
+        gbcPatient.gridx = 3; gbcPatient.weightx = 0.2; // Add to the right
+        driveButton = new JButton("Drive Bệnh nhân");
+        driveButton.setFont(new Font("Arial", Font.BOLD, 14));
+        driveButton.setBackground(new Color(26, 115, 232)); // Google Blue color
+        driveButton.setForeground(Color.WHITE);
+        driveButton.setFocusPainted(false);
+        driveButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        driveButton.setEnabled(false); // Disabled by default
+        driveButton.setBorder(BorderFactory.createEmptyBorder(8, 15, 8, 15));
+
+        // Load and set the icon
+        try {
+            String iconPath = "src/main/java/BsK/client/ui/assets/icon/google-drive.png";
+            ImageIcon driveIcon = new ImageIcon(new ImageIcon(iconPath).getImage().getScaledInstance(20, 20, Image.SCALE_SMOOTH));
+            driveButton.setIcon(driveIcon);
+        } catch (Exception e) {
+            log.error("Failed to load Google Drive icon", e);
+        }
+
+        // Add action listener to open the URL
+        driveButton.addActionListener(e -> {
+            Patient currentPatient = getCurrentSelectedPatient();
+            if (currentPatient != null && currentPatient.getDriveUrl() != null && !currentPatient.getDriveUrl().isEmpty()) {
+                try {
+                    Desktop.getDesktop().browse(new java.net.URI(currentPatient.getDriveUrl()));
+                } catch (Exception ex) {
+                    log.error("Could not open patient drive URL: {}", currentPatient.getDriveUrl(), ex);
+                    JOptionPane.showMessageDialog(this, "Không thể mở liên kết Drive:\n" + ex.getMessage(), "Lỗi", JOptionPane.ERROR_MESSAGE);
+                }
+            } else {
+                JOptionPane.showMessageDialog(this, "Bệnh nhân này không có liên kết Google Drive.", "Thông báo", JOptionPane.INFORMATION_MESSAGE);
+            }
+        });
+
+        patientInfoInnerPanel.add(driveButton, gbcPatient);
+        // --- END: NEW DRIVE BUTTON CODE ---
 
         // Row 1: Name
         gbcPatient.gridx = 0; gbcPatient.gridy = 1; gbcPatient.weightx = 0.1;
@@ -2097,6 +2139,7 @@ public class CheckUpPage extends JPanel {
                 comp.setEnabled(true);
             }
         }
+        driveButton.setEnabled(true); // <-- ADD THIS LINE
 
         // Reset saved flag for new patient
         saved = true;
@@ -4809,10 +4852,11 @@ public class CheckUpPage extends JPanel {
 
             // Disable all action buttons
             for (Component comp : ((JPanel)((JPanel)rightContainer.getComponent(1))).getComponents()) {
-                if (comp instanceof JButton) {
-                    comp.setEnabled(false);
-                }
+                            if (comp instanceof JButton) {
+                comp.setEnabled(false);
             }
+        }
+        driveButton.setEnabled(false); // <-- ADD THIS LINE
 
             // Clear media view
             if (imageGalleryPanel != null) {

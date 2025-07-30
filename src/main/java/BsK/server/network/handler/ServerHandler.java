@@ -1511,6 +1511,15 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
             log.error("Error processing GetCheckupDataRequest", e);
         }
       }
+      if (packet instanceof SimpleMessageRequest simpleMessageRequest) {
+        log.info("Received SimpleMessageRequest from {}", simpleMessageRequest.getSenderName());
+        SimpleMessageResponse response = new SimpleMessageResponse(simpleMessageRequest.getSenderName(), simpleMessageRequest.getMessage());
+        int maxCurId = SessionManager.getMaxSessionId();
+        for (int sessionId = 1; sessionId <= maxCurId; sessionId++) {
+          UserUtil.sendPacket(sessionId, response);
+        }
+        log.info("Sent SimpleMessageResponse to all sessions");
+      }
     }
 
   }
