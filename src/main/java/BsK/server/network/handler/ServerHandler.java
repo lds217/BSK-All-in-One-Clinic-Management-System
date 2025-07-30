@@ -11,6 +11,7 @@ import BsK.server.Server;
 import BsK.server.ServerDashboard;
 import BsK.server.network.manager.SessionManager;
 import BsK.server.network.util.UserUtil;
+import BsK.server.network.entity.Role;
 import BsK.server.network.entity.User;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
@@ -1350,7 +1351,168 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
             UserUtil.sendPacket(currentUser.getSessionId(), new ErrorResponse(Error.SQL_EXCEPTION));
         }
       }
+      if (packet instanceof EmergencyRequest emergencyRequest) {
+        log.info("Received EmergencyRequest");
+        try {
+          String sql = "SELECT user_name FROM User WHERE user_id = ?";
+          PreparedStatement stmt = Server.connection.prepareStatement(sql);
+          stmt.setInt(1, currentUser.getUserId());
+          ResultSet rs = stmt.executeQuery();
+          String senderName = rs.getString("user_name");
+          int maxCurId = SessionManager.getMaxSessionId();
+          for (int sessionId = 1; sessionId <= maxCurId; sessionId++) {
+            UserUtil.sendPacket(sessionId, new EmergencyResponse(senderName));
+          }
+          log.info("send emergency response to all sessions");
+        } catch (SQLException e) {
+          // if error still send emergency!
+          log.error("Error fetching emergency response", e);
+          int maxCurId = SessionManager.getMaxSessionId();
+          for (int sessionId = 1; sessionId <= maxCurId; sessionId++) {
+            UserUtil.sendPacket(sessionId, new EmergencyResponse("Không xác định"));
+          }
+          log.info("send emergency response to all sessions");
+        }
+      }
+      if (packet instanceof GetCheckupDataRequest getCheckupDataRequest) {
+        if (currentUser.getRole() != Role.ADMIN) {
+          UserUtil.sendPacket(currentUser.getSessionId(), new ErrorResponse(Error.ACCESS_DENIED));
+          return;
+        }
+        log.info("Processing GetCheckupDataRequest for page {} with all info.", getCheckupDataRequest.getPage());
+        try {
+            // --- 1. Base Query Construction (UPDATED to select all fields) ---
+            String baseSelect = "SELECT a.checkup_id, a.checkup_date, c.customer_last_name, c.customer_first_name, " +
+                    "d.doctor_first_name, d.doctor_last_name, a.suggestion, a.diagnosis, a.notes, a.status, a.customer_id, " +
+                    "c.customer_number, c.customer_address, a.customer_weight, a.customer_height, c.customer_gender, c.customer_dob, " +
+                    "a.checkup_type, a.conclusion, a.reCheckupDate, c.cccd_ddcn, a.heart_beat, a.blood_pressure, c.drive_url, a.doctor_ultrasound_id, a.queue_number ";
+            
+            String fromAndJoin = "FROM checkup AS a " +
+                                 "JOIN customer AS c ON a.customer_id = c.customer_id " +
+                                 "JOIN Doctor AS d ON a.doctor_id = d.doctor_id ";
+    
+            // --- 2. Dynamic WHERE Clause (Unchanged) ---
+            StringBuilder whereClause = new StringBuilder();
+            java.util.List<Object> params = new java.util.ArrayList<>();
+            boolean hasWhere = false;
+    
+            if (getCheckupDataRequest.getSearchTerm() != null && !getCheckupDataRequest.getSearchTerm().trim().isEmpty()) {
+                whereClause.append("WHERE (LOWER(c.customer_first_name) LIKE ? OR LOWER(c.customer_last_name) LIKE ? OR " +
+                                   "LOWER(CONCAT(c.customer_last_name, ' ', c.customer_first_name)) LIKE ? OR c.customer_number LIKE ?)");
+                String searchTerm = "%" + getCheckupDataRequest.getSearchTerm().toLowerCase().trim() + "%";
+                params.add(searchTerm); params.add(searchTerm); params.add(searchTerm); params.add(searchTerm);
+                hasWhere = true;
+            }
+    
+            if (getCheckupDataRequest.getFromDate() != null && getCheckupDataRequest.getToDate() != null) {
+                whereClause.append(hasWhere ? " AND " : "WHERE ").append("a.checkup_date BETWEEN ? AND ?");
+                params.add(getCheckupDataRequest.getFromDate());
+                params.add(getCheckupDataRequest.getToDate());
+                hasWhere = true;
+            }
+    
+            if (getCheckupDataRequest.getDoctorId() != null && getCheckupDataRequest.getDoctorId() > 0) {
+                whereClause.append(hasWhere ? " AND " : "WHERE ").append("a.doctor_id = ?");
+                params.add(getCheckupDataRequest.getDoctorId());
+            }
+    
+            // --- 3. Count Total Records (Unchanged) ---
+            String countQuery = "SELECT COUNT(*) " + fromAndJoin + whereClause;
+            PreparedStatement countStmt = Server.connection.prepareStatement(countQuery);
+            for (int i = 0; i < params.size(); i++) {
+                countStmt.setObject(i + 1, params.get(i));
+            }
+            ResultSet countRs = countStmt.executeQuery();
+            int totalRecords = 0;
+            if (countRs.next()) totalRecords = countRs.getInt(1);
+            countRs.close();
+            countStmt.close();
+    
+            // --- 4. Main Data Query with Pagination (Unchanged) ---
+            int pageSize = getCheckupDataRequest.getPageSize();
+            int currentPage = getCheckupDataRequest.getPage();
+            int totalPages = (int) Math.ceil((double) totalRecords / pageSize);
+            int offset = (currentPage - 1) * pageSize;
+    
+            String finalQuery = baseSelect + fromAndJoin + whereClause + " ORDER BY a.checkup_date DESC, a.checkup_id DESC LIMIT ? OFFSET ?";
+            PreparedStatement stmt = Server.connection.prepareStatement(finalQuery);
+            int paramIndex = 1;
+            for (Object param : params) stmt.setObject(paramIndex++, param);
+            stmt.setInt(paramIndex++, pageSize);
+            stmt.setInt(paramIndex, offset);
+            ResultSet rs = stmt.executeQuery();
+    
+            // --- 5. Process ResultSet and Send Response (UPDATED to include all fields) ---
+            java.util.List<String[]> resultList = new java.util.ArrayList<>();
+            while (rs.next()) {
+                // Retrieve all 25 fields for the Patient DTO
+                String checkupId = rs.getString("checkup_id");
+                String checkupDate = String.valueOf(rs.getLong("checkup_date"));
+                String customerLastName = rs.getString("customer_last_name");
+                String customerFirstName = rs.getString("customer_first_name");
+                String doctorName = "BS. " + rs.getString("doctor_last_name") + " " + rs.getString("doctor_first_name");
+                String suggestion = rs.getString("suggestion");
+                String diagnosis = rs.getString("diagnosis");
+                String notes = rs.getString("notes");
+                String status = rs.getString("status");
+                String customerId = rs.getString("customer_id");
+                String customerNumber = rs.getString("customer_number");
+                String customerAddress = rs.getString("customer_address");
+                String customerWeight = String.valueOf(rs.getBigDecimal("customer_weight"));
+                String customerHeight = String.valueOf(rs.getBigDecimal("customer_height"));
+                String customerGender = rs.getString("customer_gender");
+                String customerDob = String.valueOf(rs.getLong("customer_dob"));
+                String checkupType = rs.getString("checkup_type");
+                String conclusion = rs.getString("conclusion");
+                String reCheckupDate = String.valueOf(rs.getLong("reCheckupDate"));
+                String cccdDdcn = rs.getString("cccd_ddcn");
+                String heartBeat = String.valueOf(rs.getInt("heart_beat"));
+                String bloodPressure = rs.getString("blood_pressure");
+                String driveUrl = rs.getString("drive_url");
+                String doctorUltrasoundId = String.valueOf(rs.getInt("doctor_ultrasound_id"));
+                String queueNumber = String.valueOf(rs.getInt("queue_number"));
+    
+                // Add the full data array, handling nulls to prevent client-side errors
+                resultList.add(new String[]{
+                    checkupId != null ? checkupId : "",
+                    checkupDate != null ? checkupDate : "0",
+                    customerLastName != null ? customerLastName : "",
+                    customerFirstName != null ? customerFirstName : "",
+                    doctorName, // Already constructed
+                    suggestion != null ? suggestion : "",
+                    diagnosis != null ? diagnosis : "",
+                    notes != null ? notes : "",
+                    status != null ? status : "",
+                    customerId != null ? customerId : "",
+                    customerNumber != null ? customerNumber : "",
+                    customerAddress != null ? customerAddress : "",
+                    customerWeight != null ? customerWeight : "0.0",
+                    customerHeight != null ? customerHeight : "0.0",
+                    customerGender != null ? customerGender : "",
+                    customerDob != null ? customerDob : "0",
+                    checkupType != null ? checkupType : "",
+                    conclusion != null ? conclusion : "",
+                    reCheckupDate != null ? reCheckupDate : "0",
+                    cccdDdcn != null ? cccdDdcn : "",
+                    heartBeat != null ? heartBeat : "0",
+                    bloodPressure != null ? bloodPressure : "0/0",
+                    driveUrl != null ? driveUrl : "",
+                    doctorUltrasoundId != null ? doctorUltrasoundId : "0",
+                    queueNumber != null ? queueNumber : "0"
+                });
+            }
+            
+            String[][] resultArray = resultList.toArray(new String[0][]);
+            UserUtil.sendPacket(currentUser.getSessionId(), new GetCheckupDataResponse(resultArray, totalRecords, currentPage, totalPages, pageSize));
+            
+            rs.close();
+            stmt.close();
+        } catch (SQLException e) {
+            log.error("Error processing GetCheckupDataRequest", e);
+        }
+      }
     }
+
   }
 
   private void getRecheckUpList(int sessionId) {

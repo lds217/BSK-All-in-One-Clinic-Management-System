@@ -10,6 +10,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import java.util.Date; 
+
 @AllArgsConstructor
 @Data
 public class LocalStorage {
@@ -20,6 +22,11 @@ public class LocalStorage {
     public static String ClinicName = "Phòng khám BSK";
     public static String ClinicAddress = "Số ABC, Đường XYZ, Quận 1, TP.HCM";
     public static String ClinicPhone = "0123456789";
+
+    public static String dataDialogSearchTerm = "";
+    public static Date dataDialogFromDate = new Date(); // Default to today
+    public static Date dataDialogToDate = new Date();   // Default to today
+    public static String dataDialogDoctorName = "Tất cả"; // Default to "All"
 
     public static List<DoctorItem> doctorsName = new ArrayList<>();
     public static String[] provinces = new String[]{};

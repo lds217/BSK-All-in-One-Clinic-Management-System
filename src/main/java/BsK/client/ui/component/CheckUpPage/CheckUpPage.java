@@ -2518,9 +2518,6 @@ public class CheckUpPage extends JPanel {
         });
     }
 
-    private void handleErrorResponse(ErrorResponse response) { 
-        log.error("Error response: {}", response.getError());
-    }
 
     private void handleFreeRoom() {
         int selectedRoomIndex = callRoomComboBox.getSelectedIndex();
@@ -4941,6 +4938,34 @@ public class CheckUpPage extends JPanel {
         return null;
     }
 
+    public void loadPatientByCheckupId(String checkupId) {
+        if (checkupId == null || patientQueue == null) {
+            return;
+        }
+
+        // Find the index of the patient with the matching checkupId in the current queue
+        int patientIndex = -1;
+        for (int i = 0; i < patientQueue.size(); i++) {
+            if (checkupId.equals(patientQueue.get(i).getCheckupId())) {
+                patientIndex = i;
+                break;
+            }
+        }
+
+        if (patientIndex != -1) {
+            // Found the patient, now call the existing handler to load their data
+            final int finalIndex = patientIndex;
+            SwingUtilities.invokeLater(() -> {
+                handleRowSelection(finalIndex);
+            });
+        } else {
+            // Optional: Handle case where patient from database isn't in the live queue
+            JOptionPane.showMessageDialog(this,
+                "Bệnh nhân với mã khám " + checkupId + " không có trong danh sách chờ hiện tại.",
+                "Không Tìm Thấy",
+                JOptionPane.WARNING_MESSAGE);
+        }
+    }
 }
 
 

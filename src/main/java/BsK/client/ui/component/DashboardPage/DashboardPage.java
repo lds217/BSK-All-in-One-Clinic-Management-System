@@ -169,27 +169,18 @@ public class DashboardPage extends JPanel {
         lastUpdateLabel = new JLabel("Cập nhật lần cuối: " + getCurrentTime());
         lastUpdateLabel.setFont(new Font("Segoe UI", Font.BOLD, 14));
         lastUpdateLabel.setForeground(new Color(107, 114, 128));
-        JButton refreshButton = new JButton("Làm mới");
-        refreshButton.setFont(new Font("Segoe UI", Font.BOLD, 12));
-        refreshButton.setBackground(new Color(59, 130, 246));
-        refreshButton.setForeground(Color.WHITE);
-        refreshButton.setFocusPainted(false);
-        refreshButton.setBorder(BorderFactory.createEmptyBorder(8, 16, 8, 16));
-        refreshButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        refreshButton.addActionListener(e -> refreshDashboardData());
         JPanel leftPanel = new JPanel(new BorderLayout());
         leftPanel.setOpaque(false);
         leftPanel.add(welcomeLabel, BorderLayout.NORTH);
         leftPanel.add(lastUpdateLabel, BorderLayout.SOUTH);
         headerPanel.add(leftPanel, BorderLayout.WEST);
-        headerPanel.add(refreshButton, BorderLayout.EAST);
         return headerPanel;
     }
 
     private JPanel createMetricsPanel() {
         JPanel metricsPanel = new JPanel(new GridLayout(1, 4, 20, 0));
         metricsPanel.setOpaque(false);
-        String[] cardTitles = {"Bệnh nhân trong ngày", "Đang đợi khám", "Cần tái khám", "Ngày giờ hiện tại"};
+        String[] cardTitles = {"Bệnh nhân trong ngày", "Đang đợi khám", "Cần tái khám hôm nay", "Ngày giờ hiện tại"};
         Color[] cardColors = {
                 new Color(59, 130, 246), new Color(245, 158, 11),
                 new Color(139, 92, 246), new Color(16, 185, 129)
@@ -203,7 +194,6 @@ public class DashboardPage extends JPanel {
             } else {
                 RoundedPanel card = createMetricCard(cardTitles[i], cardColors[i], cardIcons[i]);
                 
-                // --- MODIFIED SECTION START ---   
                 // This logic correctly finds the value label, which is a direct child of the card.
                 for (Component comp : card.getComponents()) {
                     if (comp instanceof JLabel && ((JLabel) comp).getFont().getSize() == 32) {
@@ -211,7 +201,6 @@ public class DashboardPage extends JPanel {
                         break; // Found the label, exit the inner loop
                     }
                 }
-                // --- MODIFIED SECTION END ---
                 
                 metricsPanel.add(card);
             }
@@ -292,7 +281,11 @@ public class DashboardPage extends JPanel {
         titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 18));
         titleLabel.setForeground(new Color(31, 41, 55));
         titleLabel.setBorder(BorderFactory.createEmptyBorder(0, 0, 15, 0));
-        String[] columns = {"STT", "Mã Khám", "Họ và Tên", "Năm sinh", "Loại khám", "Trạng thái"};
+        
+        // --- MODIFIED SECTION START ---
+        String[] columns = {"STT", "Mã Khám", "Họ và Tên", "Năm sinh", "Bác sĩ", "Loại khám", "Trạng thái"};
+        // --- MODIFIED SECTION END ---
+        
         DefaultTableModel tableModel = new DefaultTableModel(columns, 0) {
             public boolean isCellEditable(int row, int column) { return false; }
         };
@@ -310,14 +303,17 @@ public class DashboardPage extends JPanel {
         return panel;
     }
 
+    // --- MODIFIED SECTION START ---
     private void setQueueTableColumnWidths() {
-        currentQueueTable.getColumnModel().getColumn(0).setPreferredWidth(40);
-        currentQueueTable.getColumnModel().getColumn(1).setPreferredWidth(80);
-        currentQueueTable.getColumnModel().getColumn(2).setPreferredWidth(200);
-        currentQueueTable.getColumnModel().getColumn(3).setPreferredWidth(90);
-        currentQueueTable.getColumnModel().getColumn(4).setPreferredWidth(100);
-        currentQueueTable.getColumnModel().getColumn(5).setPreferredWidth(100);
+        currentQueueTable.getColumnModel().getColumn(0).setPreferredWidth(40);    // STT: small
+        currentQueueTable.getColumnModel().getColumn(1).setPreferredWidth(80);    // Mã Khám: small
+        currentQueueTable.getColumnModel().getColumn(2).setPreferredWidth(180);   // Họ và Tên: biggest
+        currentQueueTable.getColumnModel().getColumn(3).setPreferredWidth(70);    // Năm sinh: small
+        currentQueueTable.getColumnModel().getColumn(4).setPreferredWidth(180);   // Bác sĩ: large
+        currentQueueTable.getColumnModel().getColumn(5).setPreferredWidth(100);   // Loại khám: small
+        currentQueueTable.getColumnModel().getColumn(6).setPreferredWidth(120);   // Trạng thái: small but bigger
     }
+    // --- MODIFIED SECTION END ---
 
     private JPanel createActionButtonsPanel() {
         RoundedPanel panel = new RoundedPanel(15, Color.WHITE, false);
@@ -329,11 +325,11 @@ public class DashboardPage extends JPanel {
         JPanel actionsGrid = new JPanel(new GridLayout(2, 2, 15, 15));
         actionsGrid.setOpaque(false);
         actionsGrid.setBorder(BorderFactory.createEmptyBorder(15, 0, 0, 0));
-        String[] actionTitles = {"Thêm bệnh nhân", "Gọi bệnh nhân tái khám", "Báo cáo ngày", "Khẩn cấp"};
-        String[] actionIcons = {"➕", "📞", "📊", "🚨"};
+        String[] actionTitles = {"Thêm bệnh nhân", "Gọi bệnh nhân tái khám", "Báo cáo ngày", "Quản lý dịch vụ (thuốc)"};
+        String[] actionIcons = {"➕", "📞", "📊", "📋"};
         Color[] actionColors = {
                 new Color(34, 197, 94), new Color(59, 130, 246),
-                new Color(168, 85, 247), new Color(239, 68, 68)
+                new Color(168, 85, 247), new Color(24, 68, 68)
         };
         for (int i = 0; i < actionTitles.length; i++) {
             JButton actionButton = createActionButton(actionTitles[i], actionIcons[i], actionColors[i]);
@@ -396,19 +392,22 @@ public class DashboardPage extends JPanel {
 
         if (patientQueue != null) {
             for (Patient patient : patientQueue) {
+                // --- MODIFIED SECTION START ---
                 Object[] rowData = {
                         patient.getQueueNumber(),
                         patient.getCheckupId(),
                         patient.getCustomerLastName() + " " + patient.getCustomerFirstName(),
                         DateUtils.extractYearFromTimestamp(patient.getCustomerDob()),
+                        patient.getDoctorName(), // Added doctor name
                         patient.getCheckupType(),
                         patient.getStatus()
                 };
+                // --- MODIFIED SECTION END ---
                 model.addRow(rowData);
             }
         }
         
-        long waitingCount = patientQueue.stream().filter(p -> "CHỜ KHÁM".equals(p.getStatus())).count();
+        long waitingCount = patientQueue.stream().filter(p -> "CHỜ KHÁM".equals(p.getStatus())).count() ;
         if (waitingPatientsLabel != null) {
             waitingPatientsLabel.setText(String.valueOf(waitingCount));
         }
@@ -416,14 +415,6 @@ public class DashboardPage extends JPanel {
         setQueueTableColumnWidths();
     }
 
-    private void refreshDashboardData() {
-        lastUpdateLabel.setText("Cập nhật lần cuối: " + getCurrentTime());
-        NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetCheckUpQueueUpdateRequest());
-        JOptionPane.showMessageDialog(this,
-                "Đã gửi yêu cầu làm mới dữ liệu!",
-                "Thông báo",
-                JOptionPane.INFORMATION_MESSAGE);
-    }
 
     private void handleAction(int actionIndex) {
         switch (actionIndex) {
@@ -437,12 +428,12 @@ public class DashboardPage extends JPanel {
                 break;
             case 2: // Daily report
                 JOptionPane.showMessageDialog(this, 
-                    "Chức năng báo cáo ngày đang được phát triển", 
-                    "Thông báo", 
-                    JOptionPane.INFORMATION_MESSAGE);
+                        "Chức năng báo cáo ngày đang được phát triển", 
+                        "Thông báo", 
+                        JOptionPane.INFORMATION_MESSAGE);
                 break;
             case 3:
-                JOptionPane.showMessageDialog(this, "Chế độ khẩn cấp được kích hoạt!", "KHẨN CẤP", JOptionPane.WARNING_MESSAGE);
+                JOptionPane.showMessageDialog(this, "Chế độ khẩn cấp được kích hoạt!", "DỊCH VỤ", JOptionPane.WARNING_MESSAGE);
                 break;
         }
     }

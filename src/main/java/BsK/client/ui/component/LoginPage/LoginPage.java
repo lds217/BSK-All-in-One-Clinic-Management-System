@@ -94,6 +94,7 @@ public class LoginPage extends JPanel {
             NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new ClinicInfoRequest()); // Request clinic info
             NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetDoctorGeneralInfo()); // Request doctor info
             NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetProvinceRequest()); // Request province info
+            ClientHandler.deleteListener(ErrorResponse.class);
             mainFrame.showPage("DashboardPage");
         });
 

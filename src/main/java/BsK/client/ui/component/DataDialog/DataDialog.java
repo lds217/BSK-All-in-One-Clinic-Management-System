@@ -1,6 +1,15 @@
 package BsK.client.ui.component.DataDialog;
 
+import BsK.client.LocalStorage;
+import BsK.client.network.handler.ClientHandler;
+import BsK.client.network.handler.ResponseListener;
 import BsK.client.ui.component.common.AddDialog.AddDialog;
+import BsK.common.entity.DoctorItem;
+import BsK.common.entity.Patient;
+import BsK.common.packet.req.GetCheckupDataRequest;
+import BsK.common.packet.res.GetCheckupDataResponse;
+import BsK.common.util.network.NetworkUtil;
+import BsK.client.ui.component.CheckUpPage.CheckUpPage;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -8,13 +17,13 @@ import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableCellRenderer;
 import javax.swing.table.TableColumn;
 import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.text.SimpleDateFormat;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
+import java.util.Calendar;
 import java.util.Date;
 
 public class DataDialog extends JDialog {
-    
+
     private JTextField searchField;
     private JComboBox<String> doctorComboBox;
     private JSpinner fromDateSpinner;
@@ -22,50 +31,98 @@ public class DataDialog extends JDialog {
     private JTable dataTable;
     private DefaultTableModel tableModel;
     private JLabel resultCountLabel;
-    private JButton prevPageButton, nextPageButton, firstPageButton, lastPageButton;
-    private JLabel currentPageLabel;
-    
+
+    private final ResponseListener<GetCheckupDataResponse> dataResponseListener = this::handleGetCheckupDataResponse;
+
     private int currentPage = 1;
-    private int totalPages = 8;
+    private int totalPages = 1;
     private int recordsPerPage = 20;
-    private int totalRecords = 157;
-    
+    private int totalRecords = 0;
+
     private JPanel mainPanel;
     private JPanel paginationPanel;
-    
-    public DataDialog(JFrame parent) {
+    private CheckUpPage checkUpPageInstance; // <-- ADD THIS FIELD
+
+    // --- MODIFIED CONSTRUCTOR ---
+    public DataDialog(JFrame parent, CheckUpPage checkUpPage) {
         super(parent, "Quản Lý Dữ Liệu Khám Bệnh", true);
+        this.checkUpPageInstance = checkUpPage; // Store the instance
+
         initializeDialog();
-        loadFakeData();
+        setupNetworking();
+        fetchData(1);
     }
-    
+
     private void initializeDialog() {
         setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
         setSize(1200, 800);
         setLocationRelativeTo(getParent());
         setLayout(new BorderLayout());
-        
-        // Create main panel with padding
+
         mainPanel = new JPanel(new BorderLayout());
         mainPanel.setBorder(new EmptyBorder(20, 20, 20, 20));
-        
-        // Add components
+
         mainPanel.add(createControlPanel(), BorderLayout.NORTH);
         mainPanel.add(createDataGridPanel(), BorderLayout.CENTER);
-        paginationPanel = createPaginationPanel();
-        mainPanel.add(paginationPanel, BorderLayout.SOUTH);
+
+        paginationPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 10));
+                mainPanel.add(paginationPanel, BorderLayout.SOUTH);
         
         add(mainPanel);
+        loadFiltersFromLocalStorage(); // <-- CALL THE NEW METHOD HERE
     }
     
+    // --- ADD THIS NEW METHOD ---
+    private void loadFiltersFromLocalStorage() {
+        // Load search term, handling placeholder text
+        if (LocalStorage.dataDialogSearchTerm == null || LocalStorage.dataDialogSearchTerm.isEmpty()) {
+            searchField.setText("Tìm theo tên bệnh nhân, mã bệnh nhân...");
+            searchField.setForeground(Color.GRAY);
+        } else {
+            searchField.setText(LocalStorage.dataDialogSearchTerm);
+            searchField.setForeground(Color.BLACK);
+        }
+
+        // Load dates, providing a default if null
+        if (LocalStorage.dataDialogFromDate != null) {
+            fromDateSpinner.setValue(LocalStorage.dataDialogFromDate);
+        } else {
+            fromDateSpinner.setValue(new Date());
+        }
+
+        if (LocalStorage.dataDialogToDate != null) {
+            toDateSpinner.setValue(LocalStorage.dataDialogToDate);
+        } else {
+            toDateSpinner.setValue(new Date());
+        }
+        
+        // Load doctor selection
+        if (LocalStorage.dataDialogDoctorName != null) {
+            doctorComboBox.setSelectedItem(LocalStorage.dataDialogDoctorName);
+        } else {
+            doctorComboBox.setSelectedIndex(0); // Default to "Tất cả"
+        }
+    }
+
+    private void setupNetworking() {
+        ClientHandler.addResponseListener(GetCheckupDataResponse.class, dataResponseListener);
+        this.addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowClosing(WindowEvent e) {
+                // --- MODIFIED: Changed to deleteListener as requested ---
+                ClientHandler.deleteListener(GetCheckupDataResponse.class, dataResponseListener);
+                super.windowClosing(e);
+            }
+        });
+    }
+
+
+
     private JPanel createControlPanel() {
         JPanel controlPanel = new JPanel(new BorderLayout());
         controlPanel.setBorder(BorderFactory.createTitledBorder("Tìm kiếm và Lọc dữ liệu"));
-        
-        // Top row with search and main action buttons
+
         JPanel topRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 10));
-        
-        // Search field
         searchField = new JTextField("Tìm theo tên bệnh nhân, mã bệnh nhân...", 25);
         searchField.setForeground(Color.GRAY);
         searchField.addFocusListener(new java.awt.event.FocusAdapter() {
@@ -82,25 +139,25 @@ public class DataDialog extends JDialog {
                 }
             }
         });
-        
+
         JButton filterButton = new JButton("Lọc");
         filterButton.setBackground(new Color(51, 135, 204));
         filterButton.setForeground(Color.WHITE);
         filterButton.setPreferredSize(new Dimension(80, 30));
-        
+
         JButton clearFilterButton = new JButton("Xóa bộ lọc");
         clearFilterButton.setPreferredSize(new Dimension(100, 30));
-        
+
         JButton exportExcelButton = new JButton("Xuất Excel");
         exportExcelButton.setBackground(new Color(66, 157, 21));
         exportExcelButton.setForeground(Color.WHITE);
         exportExcelButton.setPreferredSize(new Dimension(100, 30));
-        
+
         JButton addNewButton = new JButton("+ Thêm mới");
         addNewButton.setBackground(new Color(200, 138, 16));
         addNewButton.setForeground(Color.WHITE);
         addNewButton.setPreferredSize(new Dimension(120, 30));
-        
+
         topRow.add(new JLabel("🔍"));
         topRow.add(searchField);
         topRow.add(filterButton);
@@ -108,66 +165,71 @@ public class DataDialog extends JDialog {
         topRow.add(Box.createHorizontalStrut(20));
         topRow.add(exportExcelButton);
         topRow.add(addNewButton);
-        
-        // Bottom row with advanced filters
+
         JPanel bottomRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 5));
-        
         bottomRow.add(new JLabel("Từ ngày:"));
         fromDateSpinner = new JSpinner(new SpinnerDateModel());
         fromDateSpinner.setEditor(new JSpinner.DateEditor(fromDateSpinner, "dd/MM/yyyy"));
         fromDateSpinner.setPreferredSize(new Dimension(100, 25));
         bottomRow.add(fromDateSpinner);
-        
+
         bottomRow.add(new JLabel("Đến ngày:"));
         toDateSpinner = new JSpinner(new SpinnerDateModel());
         toDateSpinner.setEditor(new JSpinner.DateEditor(toDateSpinner, "dd/MM/yyyy"));
         toDateSpinner.setPreferredSize(new Dimension(100, 25));
         bottomRow.add(toDateSpinner);
-        
+
         bottomRow.add(Box.createHorizontalStrut(20));
         bottomRow.add(new JLabel("Bác sĩ:"));
-        String[] doctors = {"Tất cả", "BS. Nguyễn Thiên Phúc", "BS. Trần Minh Anh", "BS. Lê Hoàng Nam", "BS. Phạm Thị Lan"};
-        doctorComboBox = new JComboBox<>(doctors);
+        
+        // --- MODIFIED: Use DoctorItem from LocalStorage ---
+        doctorComboBox = new JComboBox<>();
+        // Add "Tất cả" option first
+        doctorComboBox.addItem("Tất cả");
+        // Add doctors from LocalStorage
+        for (DoctorItem doctor : LocalStorage.doctorsName) {
+            doctorComboBox.addItem(doctor.getName());
+        }
+        doctorComboBox.setSelectedIndex(0); // Default to "Tất cả"
         doctorComboBox.setPreferredSize(new Dimension(150, 25));
         bottomRow.add(doctorComboBox);
-        
+
         controlPanel.add(topRow, BorderLayout.NORTH);
         controlPanel.add(bottomRow, BorderLayout.SOUTH);
-        
-        // Add action listeners
+
         addNewButton.addActionListener(e -> {
             AddDialog addDialog = new AddDialog((Frame) getParent());
             addDialog.setVisible(true);
         });
+        exportExcelButton.addActionListener(e -> JOptionPane.showMessageDialog(this, "Chức năng xuất Excel đang được phát triển", "Thông báo", JOptionPane.INFORMATION_MESSAGE));
         
-        exportExcelButton.addActionListener(e -> {
-            JOptionPane.showMessageDialog(this, "Chức năng xuất Excel đang được phát triển", "Thông báo", JOptionPane.INFORMATION_MESSAGE);
+        filterButton.addActionListener(e -> {
+            saveFiltersToLocalStorage(); // <-- SAVE STATE BEFORE FETCHING
+            fetchData(1);
         });
-        
-        filterButton.addActionListener(e -> applyFilters());
-        clearFilterButton.addActionListener(e -> clearFilters());
-        
+        clearFilterButton.addActionListener(e -> {
+            clearFilters();
+            fetchData(1);
+        });
+
         return controlPanel;
     }
-    
+
     private JPanel createDataGridPanel() {
         JPanel gridPanel = new JPanel(new BorderLayout());
-        
-        // Result count label
-        resultCountLabel = new JLabel("Hiển thị 1 đến 20 của 157 kết quả");
+        resultCountLabel = new JLabel("Đang tải dữ liệu...");
         resultCountLabel.setBorder(new EmptyBorder(10, 0, 10, 0));
         resultCountLabel.setFont(new Font("Arial", Font.PLAIN, 12));
         gridPanel.add(resultCountLabel, BorderLayout.NORTH);
-        
-        // Create table
-        String[] columnNames = {"STT", "Mã BN", "Họ và Tên", "Ngày khám", "Bác sĩ khám", "Kết luận", "Hành động"};
+
+        // --- MODIFIED: Added more columns for better data visibility ---
+        String[] columnNames = {"STT", "Mã BN", "Họ và Tên", "Năm sinh", "Giới tính", "Ngày khám", "Bác sĩ khám", "Chẩn đoán", "Kết luận", "Hành động"};
         tableModel = new DefaultTableModel(columnNames, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
-                return column == 6; // Only actions column is editable
+                return column == 9; // Action column is now at index 9
             }
         };
-        
         dataTable = new JTable(tableModel);
         dataTable.setRowHeight(35);
         dataTable.setFont(new Font("Arial", Font.PLAIN, 12));
@@ -175,156 +237,229 @@ public class DataDialog extends JDialog {
         dataTable.getTableHeader().setBackground(new Color(240, 240, 240));
         dataTable.setSelectionBackground(new Color(230, 240, 255));
         
-        // Set column widths
+        // --- MODIFIED: Adjusted column widths for the new layout ---
         TableColumn column;
-        int[] columnWidths = {50, 80, 150, 100, 130, 200, 120};
+        int[] columnWidths = {40, 80, 150, 80, 60, 100, 130, 150, 200, 120};
         for (int i = 0; i < columnWidths.length; i++) {
             column = dataTable.getColumnModel().getColumn(i);
             column.setPreferredWidth(columnWidths[i]);
         }
-        
-        // Custom renderer for actions column
+
         dataTable.getColumn("Hành động").setCellRenderer(new ActionButtonRenderer());
-        dataTable.getColumn("Hành động").setCellEditor(new ActionButtonEditor());
+        dataTable.getColumn("Hành động").setCellEditor(new ActionButtonEditor(this));
         
         JScrollPane scrollPane = new JScrollPane(dataTable);
-        scrollPane.setBorder(BorderFactory.createLoweredBevelBorder());
         gridPanel.add(scrollPane, BorderLayout.CENTER);
-        
         return gridPanel;
     }
-    
-    private JPanel createPaginationPanel() {
-        JPanel paginationPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 10));
+
+    private void fetchData(int page) {
+        String searchTerm = searchField.getText();
+        if (searchTerm.equals("Tìm theo tên bệnh nhân, mã bệnh nhân...")) {
+            searchTerm = null;
+        }
+
+        Date fromDate = (Date) fromDateSpinner.getValue();
+        Date toDate = (Date) toDateSpinner.getValue();
+
+        Calendar cal = Calendar.getInstance();
+        cal.setTime(fromDate);
+        cal.set(Calendar.HOUR_OF_DAY, 0);
+        cal.set(Calendar.MINUTE, 0);
+        cal.set(Calendar.SECOND, 0);
+        long fromTimestamp = cal.getTimeInMillis();
+
+        cal.setTime(toDate);
+        cal.set(Calendar.HOUR_OF_DAY, 23);
+        cal.set(Calendar.MINUTE, 59);
+        cal.set(Calendar.SECOND, 59);
+        long toTimestamp = cal.getTimeInMillis();
+
+        String selectedDoctor = (String) doctorComboBox.getSelectedItem();
+        Integer doctorId = null;
         
-        firstPageButton = new JButton("<<");
-        prevPageButton = new JButton("<");
-        nextPageButton = new JButton(">");
-        lastPageButton = new JButton(">>");
+        // --- MODIFIED: Get correct doctor ID from LocalStorage ---
+        if (selectedDoctor != null && !selectedDoctor.equals("Tất cả")) {
+            for (DoctorItem doctor : LocalStorage.doctorsName) {
+                if (doctor.getName().equals(selectedDoctor)) {
+                    try {
+                        doctorId = Integer.parseInt(doctor.getId());
+                    } catch (NumberFormatException e) {
+                        System.err.println("Invalid doctor ID format: " + doctor.getId());
+                    }
+                    break;
+                }
+            }
+        }
+
+        GetCheckupDataRequest request = new GetCheckupDataRequest(searchTerm, fromTimestamp, toTimestamp, doctorId, page, recordsPerPage);
+        NetworkUtil.sendPacket(ClientHandler.ctx.channel(), request);
         
-        currentPageLabel = new JLabel("1");
+        resultCountLabel.setText("Đang tải dữ liệu cho trang " + page + "...");
+    }
+
+    // --- MODIFIED: Process raw data into Patient DTOs and populate table correctly ---
+    private void handleGetCheckupDataResponse(GetCheckupDataResponse response) {
+        SwingUtilities.invokeLater(() -> {
+            this.currentPage = response.getCurrentPage();
+            this.totalPages = response.getTotalPages();
+            this.totalRecords = response.getTotalRecords();
+            this.recordsPerPage = response.getPageSize();
+
+            tableModel.setRowCount(0);
+            if (response.getCheckupData() != null) {
+                int stt = (currentPage - 1) * recordsPerPage + 1;
+                for (String[] rowData : response.getCheckupData()) {
+                    try {
+                        Patient patient = new Patient(rowData);
+                        String[] tableRow = {
+                            String.valueOf(stt++),
+                            patient.getCustomerId(), // Correctly use customerId for "Mã BN"
+                            patient.getCustomerLastName() + " " + patient.getCustomerFirstName(),
+                            patient.getCustomerDob(),
+                            patient.getCustomerGender(),
+                            patient.getCheckupDate(),
+                            patient.getDoctorName(),
+                            patient.getDiagnosis(),
+                            patient.getConclusion(),
+                            "" // Action column placeholder
+                        };
+                        tableModel.addRow(tableRow);
+                    } catch (IllegalArgumentException e) {
+                        System.err.println("Skipping row due to invalid data: " + e.getMessage());
+                    }
+                }
+            }
+            
+            updateResultCountLabel();
+            updatePaginationControls();
+        });
+    }
+
+    private void updateResultCountLabel() {
+        if (totalRecords == 0) {
+            resultCountLabel.setText("Không tìm thấy kết quả nào.");
+            return;
+        }
+        int startRecord = (currentPage - 1) * recordsPerPage + 1;
+        int endRecord = Math.min(startRecord + recordsPerPage - 1, totalRecords);
+        resultCountLabel.setText(String.format("Hiển thị %d đến %d của %d kết quả", startRecord, endRecord, totalRecords));
+    }
+
+    private void updatePaginationControls() {
+        paginationPanel.removeAll();
         
-        firstPageButton.setPreferredSize(new Dimension(40, 30));
-        prevPageButton.setPreferredSize(new Dimension(40, 30));
-        nextPageButton.setPreferredSize(new Dimension(40, 30));
-        lastPageButton.setPreferredSize(new Dimension(40, 30));
+        JButton firstPageButton = new JButton("<<");
+        firstPageButton.addActionListener(e -> fetchData(1));
+        firstPageButton.setEnabled(currentPage > 1);
+
+        JButton prevPageButton = new JButton("<");
+        prevPageButton.addActionListener(e -> fetchData(currentPage - 1));
+        prevPageButton.setEnabled(currentPage > 1);
         
         paginationPanel.add(firstPageButton);
         paginationPanel.add(prevPageButton);
+
+        int startPage = Math.max(1, currentPage - 2);
+        int endPage = Math.min(totalPages, currentPage + 2);
+
+        if (startPage > 1) {
+            paginationPanel.add(new JLabel("..."));
+        }
         
-        // Add page numbers
-        for (int i = 1; i <= Math.min(5, totalPages); i++) {
+        for (int i = startPage; i <= endPage; i++) {
             JButton pageButton = new JButton(String.valueOf(i));
-            pageButton.setPreferredSize(new Dimension(40, 30));
             if (i == currentPage) {
                 pageButton.setBackground(new Color(51, 135, 204));
                 pageButton.setForeground(Color.WHITE);
             }
             final int pageNum = i;
-            pageButton.addActionListener(e -> goToPage(pageNum));
+            pageButton.addActionListener(e -> fetchData(pageNum));
             paginationPanel.add(pageButton);
         }
-        
-        if (totalPages > 5) {
-            paginationPanel.add(new JLabel("..."));
-            JButton lastPageNumButton = new JButton(String.valueOf(totalPages));
-            lastPageNumButton.setPreferredSize(new Dimension(40, 30));
-            final int lastPage = totalPages;
-            lastPageNumButton.addActionListener(e -> goToPage(lastPage));
-            paginationPanel.add(lastPageNumButton);
+
+        if (endPage < totalPages) {
+             paginationPanel.add(new JLabel("..."));
         }
+        
+        JButton nextPageButton = new JButton(">");
+        nextPageButton.addActionListener(e -> fetchData(currentPage + 1));
+        nextPageButton.setEnabled(currentPage < totalPages);
+        
+        JButton lastPageButton = new JButton(">>");
+        lastPageButton.addActionListener(e -> fetchData(totalPages));
+        lastPageButton.setEnabled(currentPage < totalPages);
         
         paginationPanel.add(nextPageButton);
         paginationPanel.add(lastPageButton);
-        
-        // Add navigation listeners
-        firstPageButton.addActionListener(e -> goToPage(1));
-        prevPageButton.addActionListener(e -> goToPage(Math.max(1, currentPage - 1)));
-        nextPageButton.addActionListener(e -> goToPage(Math.min(totalPages, currentPage + 1)));
-        lastPageButton.addActionListener(e -> goToPage(totalPages));
-        
-        return paginationPanel;
+
+        paginationPanel.revalidate();
+        paginationPanel.repaint();
     }
     
-    private void loadFakeData() {
-        String[][] fakeData = {
-            {"1", "BN-00123", "Nguyễn Văn An", "28/07/2025", "BS. Thiên Phúc", "Viêm họng", ""},
-            {"2", "BN-00122", "Trần Thị Bình", "27/07/2025", "BS. Minh Anh", "Sốt siêu vi", ""},
-            {"3", "BN-00121", "Lê Hoàng Cường", "27/07/2025", "BS. Thiên Phúc", "Đau dạ dày", ""},
-            {"4", "BN-00120", "Phạm Thị Dung", "26/07/2025", "BS. Minh Anh", "Khám tổng quát", ""},
-            {"5", "BN-00119", "Hoàng Văn Em", "26/07/2025", "BS. Thiên Phúc", "Viêm phế quản", ""},
-            {"6", "BN-00118", "Ngô Thị Phương", "25/07/2025", "BS. Hoàng Nam", "Đau đầu mãn tính", ""},
-            {"7", "BN-00117", "Võ Minh Quang", "25/07/2025", "BS. Minh Anh", "Tăng huyết áp", ""},
-            {"8", "BN-00116", "Đặng Thị Hoa", "24/07/2025", "BS. Thiên Phúc", "Tiểu đường type 2", ""},
-            {"9", "BN-00115", "Bùi Văn Inh", "24/07/2025", "BS. Thị Lan", "Viêm gan B", ""},
-            {"10", "BN-00114", "Lý Thị Kim", "23/07/2025", "BS. Minh Anh", "Khám thai 20 tuần", ""},
-            {"11", "BN-00113", "Trương Văn Long", "23/07/2025", "BS. Thiên Phúc", "Viêm dạ dày", ""},
-            {"12", "BN-00112", "Phan Thị Mai", "22/07/2025", "BS. Hoàng Nam", "Rối loạn lipid máu", ""},
-            {"13", "BN-00111", "Nguyễn Minh Nam", "22/07/2025", "BS. Thị Lan", "Viêm khớp", ""},
-            {"14", "BN-00110", "Cao Thị Oanh", "21/07/2025", "BS. Minh Anh", "Bệnh tim mạch", ""},
-            {"15", "BN-00109", "Đinh Văn Phúc", "21/07/2025", "BS. Thiên Phúc", "Hen suyễn", ""},
-            {"16", "BN-00108", "Lưu Thị Quỳnh", "20/07/2025", "BS. Hoàng Nam", "Viêm amidan", ""},
-            {"17", "BN-00107", "Tô Văn Rạng", "20/07/2025", "BS. Thị Lan", "Đau lưng mãn tính", ""},
-            {"18", "BN-00106", "Huỳnh Thị Sang", "19/07/2025", "BS. Minh Anh", "Viêm ruột thừa", ""},
-            {"19", "BN-00105", "Vũ Văn Tâm", "19/07/2025", "BS. Thiên Phúc", "Suy thận mãn", ""},
-            {"20", "BN-00104", "Phạm Gia Hân", "22/07/2025", "BS. Minh Anh", "Khám tổng quát", ""}
-        };
-        
-        for (String[] row : fakeData) {
-            tableModel.addRow(row);
+    // --- ADD THIS NEW METHOD TO THE DataDialog CLASS ---
+    private void saveFiltersToLocalStorage() {
+        String searchTerm = searchField.getText();
+        // Don't save the placeholder text
+        if (searchTerm.equals("Tìm theo tên bệnh nhân, mã bệnh nhân...")) {
+            LocalStorage.dataDialogSearchTerm = "";
+        } else {
+            LocalStorage.dataDialogSearchTerm = searchTerm;
         }
+        
+        LocalStorage.dataDialogFromDate = (Date) fromDateSpinner.getValue();
+        LocalStorage.dataDialogToDate = (Date) toDateSpinner.getValue();
+        LocalStorage.dataDialogDoctorName = (String) doctorComboBox.getSelectedItem();
     }
-    
-    private void applyFilters() {
-        JOptionPane.showMessageDialog(this, "Chức năng lọc dữ liệu đang được phát triển", "Thông báo", JOptionPane.INFORMATION_MESSAGE);
-    }
-    
+
     private void clearFilters() {
+        // Reset UI components
         searchField.setText("Tìm theo tên bệnh nhân, mã bệnh nhân...");
         searchField.setForeground(Color.GRAY);
-        doctorComboBox.setSelectedIndex(0);
-        fromDateSpinner.setValue(new Date());
-        toDateSpinner.setValue(new Date());
-    }
-    
-    private void goToPage(int page) {
-        currentPage = page;
-        // Update result count label
-        int startRecord = (currentPage - 1) * recordsPerPage + 1;
-        int endRecord = Math.min(currentPage * recordsPerPage, totalRecords);
-        resultCountLabel.setText(String.format("Hiển thị %d đến %d của %d kết quả", startRecord, endRecord, totalRecords));
+        doctorComboBox.setSelectedIndex(0); // Defaults to "Tất cả"
         
-        // Update pagination buttons
-        mainPanel.remove(paginationPanel);
-        paginationPanel = createPaginationPanel();
-        mainPanel.add(paginationPanel, BorderLayout.SOUTH);
-        mainPanel.revalidate();
-        mainPanel.repaint();
+        Date today = new Date();
+        fromDateSpinner.setValue(today);
+        toDateSpinner.setValue(today);
+
+        // --- ADD THIS PART TO RESET LOCALSTORAGE ---
+        LocalStorage.dataDialogSearchTerm = "";
+        LocalStorage.dataDialogFromDate = today;
+        LocalStorage.dataDialogToDate = today;
+        LocalStorage.dataDialogDoctorName = "Tất cả";
+    }
+
+    private ImageIcon createIcon(String path, int width, int height) {
+        java.net.URL imgURL = getClass().getResource(path);
+        if (imgURL != null) {
+            return new ImageIcon(new ImageIcon(imgURL).getImage().getScaledInstance(width, height, Image.SCALE_SMOOTH));
+        }
+        System.err.println("Couldn't find file: " + path);
+        return null;
     }
     
-    // Custom renderer for action buttons
     class ActionButtonRenderer extends JPanel implements TableCellRenderer {
-        private JButton viewButton, editButton, deleteButton;
-        
+        private JButton editButton, deleteButton;
+
         public ActionButtonRenderer() {
             setLayout(new FlowLayout(FlowLayout.CENTER, 2, 2));
-            viewButton = new JButton("👁️");
-            editButton = new JButton("✏️");
-            deleteButton = new JButton("🗑️");
-            
-            viewButton.setPreferredSize(new Dimension(30, 25));
+
+
+            ImageIcon editIcon = createIcon("/BsK/client/ui/assets/icon/edit.png", 16, 16);
+            editButton = new JButton(editIcon);
+            ImageIcon deleteIcon = createIcon("/BsK/client/ui/assets/icon/delete.png", 16, 16);
+            deleteButton = new JButton(deleteIcon);
+
             editButton.setPreferredSize(new Dimension(30, 25));
             deleteButton.setPreferredSize(new Dimension(30, 25));
-            
-            viewButton.setToolTipText("Xem");
+
             editButton.setToolTipText("Sửa");
             deleteButton.setToolTipText("Xóa");
-            
-            add(viewButton);
+
             add(editButton);
             add(deleteButton);
         }
-        
+
         @Override
         public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
             if (isSelected) {
@@ -336,62 +471,59 @@ public class DataDialog extends JDialog {
         }
     }
     
-    // Custom editor for action buttons
     class ActionButtonEditor extends DefaultCellEditor {
         private JPanel panel;
-        private JButton viewButton, editButton, deleteButton;
-        
-        public ActionButtonEditor() {
+        private JButton editButton, deleteButton;
+
+        public ActionButtonEditor(JDialog parentDialog) {
             super(new JCheckBox());
             panel = new JPanel(new FlowLayout(FlowLayout.CENTER, 2, 2));
-            
-            viewButton = new JButton("👁️");
-            editButton = new JButton("✏️");
-            deleteButton = new JButton("🗑️");
-            
-            viewButton.setPreferredSize(new Dimension(30, 25));
+
+
+            ImageIcon editIcon = createIcon("/BsK/client/ui/assets/icon/edit.png", 16, 16);
+            editButton = new JButton(editIcon);
+            ImageIcon deleteIcon = createIcon("/BsK/client/ui/assets/icon/delete.png", 16, 16);
+            deleteButton = new JButton(deleteIcon);
+
             editButton.setPreferredSize(new Dimension(30, 25));
             deleteButton.setPreferredSize(new Dimension(30, 25));
-            
-            viewButton.addActionListener(e -> {
-                int row = dataTable.getSelectedRow();
-                String patientId = (String) tableModel.getValueAt(row, 1);
-                JOptionPane.showMessageDialog(DataDialog.this, "Xem thông tin bệnh nhân: " + patientId, "Xem", JOptionPane.INFORMATION_MESSAGE);
-                fireEditingStopped();
-            });
-            
+
             editButton.addActionListener(e -> {
-                int row = dataTable.getSelectedRow();
-                String patientId = (String) tableModel.getValueAt(row, 1);
-                JOptionPane.showMessageDialog(DataDialog.this, "Chỉnh sửa thông tin bệnh nhân: " + patientId, "Sửa", JOptionPane.INFORMATION_MESSAGE);
+                int row = dataTable.convertRowIndexToModel(dataTable.getSelectedRow());
+                String checkupId = (String) tableModel.getValueAt(row, 1);
+
+                if (checkUpPageInstance != null) {
+                    checkUpPageInstance.loadPatientByCheckupId(checkupId);
+                }
+                
+                parentDialog.dispose();
                 fireEditingStopped();
             });
-            
+
             deleteButton.addActionListener(e -> {
                 int row = dataTable.getSelectedRow();
                 String patientId = (String) tableModel.getValueAt(row, 1);
-                int result = JOptionPane.showConfirmDialog(DataDialog.this, 
-                    "Bạn có chắc chắn muốn xóa phiếu khám của bệnh nhân " + patientId + " không?", 
-                    "Xác nhận xóa", 
-                    JOptionPane.YES_NO_OPTION,
-                    JOptionPane.WARNING_MESSAGE);
+                int result = JOptionPane.showConfirmDialog(parentDialog,
+                        "Bạn có chắc chắn muốn xóa phiếu khám của bệnh nhân " + patientId + " không?",
+                        "Xác nhận xóa",
+                        JOptionPane.YES_NO_OPTION,
+                        JOptionPane.WARNING_MESSAGE);
                 if (result == JOptionPane.YES_OPTION) {
                     tableModel.removeRow(row);
-                    JOptionPane.showMessageDialog(DataDialog.this, "Đã xóa phiếu khám thành công!", "Thông báo", JOptionPane.INFORMATION_MESSAGE);
+                    JOptionPane.showMessageDialog(parentDialog, "Đã xóa phiếu khám thành công!", "Thông báo", JOptionPane.INFORMATION_MESSAGE);
                 }
                 fireEditingStopped();
             });
-            
-            panel.add(viewButton);
+
             panel.add(editButton);
             panel.add(deleteButton);
         }
-        
+
         @Override
         public Component getTableCellEditorComponent(JTable table, Object value, boolean isSelected, int row, int column) {
             return panel;
         }
-        
+
         @Override
         public Object getCellEditorValue() {
             return "";
