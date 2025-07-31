@@ -32,9 +32,7 @@ public class ServiceManagementPanel extends JPanel {
 
     // --- Input Fields (Left Side) ---
     private JTextField serviceNameField;
-    private JSpinner quantitySpinner;
     private JTextField priceField;
-    private JTextField totalField;
     private JTextArea noteField;
 
     private JButton btnAdd, btnEdit, btnDelete, btnClear;
@@ -113,6 +111,7 @@ public class ServiceManagementPanel extends JPanel {
         gbc.weightx = 0.0;
         gbc.weighty = 0.0;
 
+        // --- Tên dịch vụ ---
         gbc.gridy = 0;
         gbc.gridx = 0;
         JLabel nameLabel = new JLabel("Tên dịch vụ:");
@@ -129,50 +128,24 @@ public class ServiceManagementPanel extends JPanel {
         gbc.gridwidth = 1;
         gbc.weightx = 0.0;
 
+        // --- Đơn giá ---
         gbc.gridy++;
         gbc.gridx = 0;
-        JLabel quantityLabel = new JLabel("Số lượng:");
-        quantityLabel.setFont(labelFont);
-        serviceInfoPanel.add(quantityLabel, gbc);
-
-        gbc.gridx = 1;
-        gbc.weightx = 0.5;
-        quantitySpinner = new JSpinner(new SpinnerNumberModel(1, 1, 100, 1));
-        quantitySpinner.setFont(textFont);
-        quantitySpinner.setPreferredSize(new Dimension(80, 30));
-        serviceInfoPanel.add(quantitySpinner, gbc);
-        gbc.weightx = 0.0;
-
-        gbc.gridx = 2;
         JLabel priceLabel = new JLabel("Đơn giá (VNĐ):");
         priceLabel.setFont(labelFont);
         serviceInfoPanel.add(priceLabel, gbc);
 
-        gbc.gridx = 3;
-        gbc.weightx = 0.5;
+        gbc.gridx = 1;
+        gbc.gridwidth = 3;
+        gbc.weightx = 1.0;
         priceField = new JTextField(10);
         priceField.setFont(textFont);
         priceField.setPreferredSize(textFieldSize);
         serviceInfoPanel.add(priceField, gbc);
-        gbc.weightx = 0.0;
-
-        gbc.gridy++;
-        gbc.gridx = 0;
-        JLabel totalLabel = new JLabel("Thành tiền (VNĐ):");
-        totalLabel.setFont(labelFont);
-        serviceInfoPanel.add(totalLabel, gbc);
-
-        gbc.gridx = 1;
-        gbc.gridwidth = 3;
-        gbc.weightx = 1.0;
-        totalField = new JTextField(10);
-        totalField.setFont(textFont);
-        totalField.setPreferredSize(textFieldSize);
-        totalField.setEditable(false);
-        serviceInfoPanel.add(totalField, gbc);
         gbc.gridwidth = 1;
         gbc.weightx = 0.0;
 
+        // --- Ghi chú ---
         gbc.gridy = 0;
         gbc.gridx = 0;
         gbc.anchor = GridBagConstraints.NORTHWEST;
@@ -293,9 +266,9 @@ public class ServiceManagementPanel extends JPanel {
                 String serviceId = (String) serviceTableModel.getValueAt(viewRow, 0);
                 
                 allServices.stream()
-                    .filter(service -> service.getId().equals(serviceId))
-                    .findFirst()
-                    .ifPresent(this::populateServiceFields);
+                        .filter(service -> service.getId().equals(serviceId))
+                        .findFirst()
+                        .ifPresent(this::populateServiceFields);
             }
         });
 
@@ -337,7 +310,6 @@ public class ServiceManagementPanel extends JPanel {
         serviceNameField.setText(service.getName());
         priceField.setText(service.getCost());
         noteField.setText(""); // Assuming notes are not stored in the main service entity
-        quantitySpinner.setValue(1);
 
         // Update button states
         btnAdd.setEnabled(false);
@@ -349,9 +321,7 @@ public class ServiceManagementPanel extends JPanel {
         selectedServiceId = null;
         serviceNameField.setText("");
         priceField.setText("");
-        totalField.setText("");
         noteField.setText("");
-        quantitySpinner.setValue(1);
         serviceTable.clearSelection();
         serviceNameField.requestFocusInWindow();
 

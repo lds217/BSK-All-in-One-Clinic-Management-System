@@ -182,6 +182,10 @@ public class DataDialog extends JDialog {
 
         JButton clearFilterButton = new JButton("Xóa bộ lọc");
         clearFilterButton.setPreferredSize(new Dimension(100, 30));
+        
+        // --- NEW BUTTON ---
+        JButton getAllButton = new JButton("Lấy tất cả");
+        getAllButton.setPreferredSize(new Dimension(100, 30));
 
         JButton exportExcelButton = new JButton("Xuất Excel");
         exportExcelButton.setBackground(new Color(66, 157, 21));
@@ -197,6 +201,7 @@ public class DataDialog extends JDialog {
         topRow.add(searchField);
         topRow.add(filterButton);
         topRow.add(clearFilterButton);
+        topRow.add(getAllButton); // --- ADDED BUTTON TO PANEL ---
         topRow.add(Box.createHorizontalStrut(20));
         topRow.add(exportExcelButton);
         topRow.add(addNewButton);
@@ -244,6 +249,19 @@ public class DataDialog extends JDialog {
         clearFilterButton.addActionListener(e -> {
             clearFilters();
             fetchData(1);
+        });
+        
+        // --- ACTION LISTENER FOR THE NEW BUTTON ---
+        getAllButton.addActionListener(e -> {
+            // Create a request with null for all filter parameters.
+            // The server is designed to interpret nulls as "no filter".
+            GetCheckupDataRequest request = new GetCheckupDataRequest(null, null, null, null, 1, recordsPerPage);
+            
+            // Send the request
+            NetworkUtil.sendPacket(ClientHandler.ctx.channel(), request);
+
+            // Update the label to give user feedback
+            resultCountLabel.setText("Đang tải tất cả dữ liệu...");
         });
 
         return controlPanel;

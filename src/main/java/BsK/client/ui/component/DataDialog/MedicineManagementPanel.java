@@ -34,10 +34,8 @@ public class MedicineManagementPanel extends JPanel {
     private JTextField medicineNameField;
     private JTextField medicineCompanyField;
     private JTextArea medicineDescriptionField;
-    private JTextField medicineQuantityField;
-    private JComboBox<String> medicineUnitComboBox;
+    private JTextField medicineUnitField;
     private JTextField medicinePriceField;
-    private JTextField totalField;
     private JSpinner morningSpinner, noonSpinner, eveningSpinner;
     private JTextArea noteField;
 
@@ -126,7 +124,6 @@ public class MedicineManagementPanel extends JPanel {
         medicineCompanyField = new JTextField(20);
         medicineCompanyField.setFont(textFont);
         medicineCompanyField.setPreferredSize(textFieldSize);
-        medicineCompanyField.setEditable(false);
         medicineInfoPanel.add(medicineCompanyField, gbc);
         gbc.weightx = 0.0;
 
@@ -144,7 +141,6 @@ public class MedicineManagementPanel extends JPanel {
         medicineDescriptionField.setFont(textFont);
         medicineDescriptionField.setLineWrap(true);
         medicineDescriptionField.setWrapStyleWord(true);
-        medicineDescriptionField.setEditable(false);
         JScrollPane descriptionScrollPane = new JScrollPane(medicineDescriptionField);
         descriptionScrollPane.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED);
         medicineInfoPanel.add(descriptionScrollPane, gbc);
@@ -153,43 +149,15 @@ public class MedicineManagementPanel extends JPanel {
         mainGbc.gridx = 0; mainGbc.gridy = 0;
         mainInputPanel.add(medicineInfoPanel, mainGbc);
 
-        // --- Sub-Panel 2: Quantity & Price ---
+        // --- Sub-Panel 2: Unit & Price (Simplified) ---
         JPanel quantityPricePanel = new JPanel(new GridBagLayout());
         quantityPricePanel.setBorder(BorderFactory.createTitledBorder(
-                BorderFactory.createEtchedBorder(), "Số lượng & Giá",
+                BorderFactory.createEtchedBorder(), "Đơn vị & Giá",
                 TitledBorder.LEADING, TitledBorder.TOP,
                 titleFont, new Color(50, 50, 50)
         ));
 
         gbc.gridy = 0;
-        gbc.gridx = 0;
-        JLabel quantityLabel = new JLabel("Số lượng:");
-        quantityLabel.setFont(labelFont);
-        quantityPricePanel.add(quantityLabel, gbc);
-
-        gbc.gridx = 1;
-        gbc.weightx = 0.5;
-        JSpinner quantitySpinner = new JSpinner(new SpinnerNumberModel(1, 1, 100, 1));
-        quantitySpinner.setFont(textFont);
-        quantitySpinner.setPreferredSize(new Dimension(80, 30));
-        quantityPricePanel.add(quantitySpinner, gbc);
-
-        gbc.gridx = 2;
-        gbc.weightx = 0.0;
-        JLabel quantityLeftLabel = new JLabel("Còn lại:");
-        quantityLeftLabel.setFont(labelFont);
-        quantityPricePanel.add(quantityLeftLabel, gbc);
-
-        gbc.gridx = 3;
-        gbc.weightx = 0.5;
-        medicineQuantityField = new JTextField(5);
-        medicineQuantityField.setFont(textFont);
-        medicineQuantityField.setPreferredSize(textFieldSize);
-        medicineQuantityField.setEditable(false);
-        quantityPricePanel.add(medicineQuantityField, gbc);
-        gbc.weightx = 0.0;
-
-        gbc.gridy++;
         gbc.gridx = 0;
         JLabel unitLabel = new JLabel("ĐVT:");
         unitLabel.setFont(labelFont);
@@ -197,12 +165,10 @@ public class MedicineManagementPanel extends JPanel {
 
         gbc.gridx = 1;
         gbc.weightx = 0.5;
-        String[] units = {"Viên", "Vỉ", "Hộp", "Chai", "Tuýp", "Gói"};
-        medicineUnitComboBox = new JComboBox<>(units);
-        medicineUnitComboBox.setFont(textFont);
-        medicineUnitComboBox.setPreferredSize(textFieldSize);
-        medicineUnitComboBox.setEnabled(false);
-        quantityPricePanel.add(medicineUnitComboBox, gbc);
+        medicineUnitField = new JTextField(10);
+        medicineUnitField.setFont(textFont);
+        medicineUnitField.setPreferredSize(textFieldSize);
+        quantityPricePanel.add(medicineUnitField, gbc);
 
         gbc.gridx = 2;
         gbc.weightx = 0.0;
@@ -215,27 +181,9 @@ public class MedicineManagementPanel extends JPanel {
         medicinePriceField = new JTextField(10);
         medicinePriceField.setFont(textFont);
         medicinePriceField.setPreferredSize(textFieldSize);
-        medicinePriceField.setEditable(false);
         quantityPricePanel.add(medicinePriceField, gbc);
         gbc.weightx = 0.0;
-
-        gbc.gridy++;
-        gbc.gridx = 0;
-        JLabel totalLabel = new JLabel("Thành tiền (VNĐ):");
-        totalLabel.setFont(labelFont);
-        quantityPricePanel.add(totalLabel, gbc);
-
-        gbc.gridx = 1;
-        gbc.gridwidth = 3;
-        gbc.weightx = 1.0;
-        totalField = new JTextField(10);
-        totalField.setFont(textFont);
-        totalField.setPreferredSize(textFieldSize);
-        totalField.setEditable(false);
-        quantityPricePanel.add(totalField, gbc);
-        gbc.gridwidth = 1;
-        gbc.weightx = 0.0;
-
+        
         mainGbc.gridx = 0; mainGbc.gridy = 1;
         mainInputPanel.add(quantityPricePanel, mainGbc);
 
@@ -462,8 +410,7 @@ public class MedicineManagementPanel extends JPanel {
         medicineNameField.setText(med.getName());
         medicineCompanyField.setText(med.getCompany());
         medicineDescriptionField.setText(med.getDescription());
-        medicineQuantityField.setText(med.getQuantity());
-        medicineUnitComboBox.setSelectedItem(med.getUnit());
+        medicineUnitField.setText(med.getUnit());
         medicinePriceField.setText(med.getSellingPrice());
 
         // Update button states
@@ -477,8 +424,7 @@ public class MedicineManagementPanel extends JPanel {
         medicineNameField.setText("");
         medicineCompanyField.setText("");
         medicineDescriptionField.setText("");
-        medicineQuantityField.setText("");
-        medicineUnitComboBox.setSelectedIndex(0);
+        medicineUnitField.setText("");
         medicinePriceField.setText("");
         medicineTable.clearSelection();
         medicineNameField.requestFocusInWindow();
