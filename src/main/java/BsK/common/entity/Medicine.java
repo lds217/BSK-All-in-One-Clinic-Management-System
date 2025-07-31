@@ -17,7 +17,7 @@ public class Medicine {
     private String description;
     private String unit;
     private String sellingPrice;
-    private String preferenceNote;
+    private String preferredNote;
     private String supplement; // 0: no, 1: yes
     private String deleted; // 0: no, 1: yes
 
@@ -35,7 +35,7 @@ public class Medicine {
         this.description = data[3];
         this.unit = data[4];
         this.sellingPrice = data[5];
-        this.preferenceNote = data[6];
+        this.preferredNote = data[6];
         this.supplement = data[7];
         this.deleted = data[8];
     }
@@ -45,6 +45,6 @@ public class Medicine {
      * @return String array representation of Medicine
      */
     public String[] toStringArray() {
-        return new String[]{id, name, company, description, unit, sellingPrice, preferenceNote, supplement, deleted};
+        return new String[]{id, name, company, description, unit, sellingPrice, preferredNote, supplement, deleted};
     }
 } 

@@ -6,6 +6,6 @@ import lombok.Data;
 
 @Data
 @AllArgsConstructor
-public class GetAllUserRequest implements Packet {
-
+public class GetAllUserInfoRequest implements Packet {
+    
 }

@@ -7,6 +7,7 @@ import BsK.client.ui.component.common.RoundedButtonUI;
 import BsK.client.ui.component.common.RoundedPanel;
 import BsK.client.ui.component.common.AddDialog.AddDialog;
 import BsK.client.ui.component.DashboardPage.RecheckUpDialog.RecheckUpDialog;
+import BsK.client.ui.component.DashboardPage.DataViewerDialog.DataViewerDialog;
 import BsK.client.network.handler.ClientHandler;
 import BsK.client.network.handler.ResponseListener;
 import BsK.common.entity.Patient;
@@ -432,8 +433,10 @@ public class DashboardPage extends JPanel {
                         "Thông báo", 
                         JOptionPane.INFORMATION_MESSAGE);
                 break;
-            case 3:
-                JOptionPane.showMessageDialog(this, "Chế độ khẩn cấp được kích hoạt!", "DỊCH VỤ", JOptionPane.WARNING_MESSAGE);
+            case 3: // View Medicine and Service Data
+                // --- MODIFIED LINE ---
+                DataViewerDialog dataViewerDialog = new DataViewerDialog(mainFrame);
+                dataViewerDialog.setVisible(true);
                 break;
         }
     }

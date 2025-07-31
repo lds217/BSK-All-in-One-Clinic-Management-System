@@ -36,6 +36,10 @@ public class User {
                   role = Role.valueOf(rs.getString("role_name"));
                   userId = rs.getInt("user_id");
                   // Update the client connection with the new role
+                  Boolean deleted = rs.getBoolean("deleted");
+                  if (deleted) {
+                    role = Role.GUEST;
+                  }
                   SessionManager.updateUserRole(channel.id().asLongText(), role.toString(), userId);
               }
           }

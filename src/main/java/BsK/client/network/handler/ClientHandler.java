@@ -6,12 +6,7 @@ import BsK.client.ui.handler.UIHandler;
 import BsK.common.entity.DoctorItem;
 import BsK.common.packet.Packet;
 import BsK.common.packet.PacketSerializer;
-import BsK.common.packet.req.GetDoctorGeneralInfo;
-import BsK.common.packet.req.GetMedInfoRequest;
-import BsK.common.packet.req.GetProvinceRequest;
-import BsK.common.packet.req.LoginRequest;
 import BsK.common.packet.res.*;
-import BsK.common.util.network.NetworkUtil;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.codec.http.websocketx.*;
@@ -19,20 +14,11 @@ import io.netty.handler.timeout.IdleState;
 import io.netty.handler.timeout.IdleStateEvent;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 import lombok.extern.slf4j.Slf4j;
-import org.w3c.dom.Text;
-import BsK.client.ui.component.CheckUpPage.AddDialog.AddDialog;
-import BsK.client.ui.component.CheckUpPage.CheckUpPage;
-import BsK.client.ui.component.LoginPage.LoginPage;
-import BsK.client.ui.component.MainFrame;
-import BsK.common.packet.res.GetDoctorGeneralInfoResponse;
-import BsK.common.packet.res.GetMedInfoResponse;
-import BsK.common.packet.res.GetOrderInfoByCheckupRes;
 
 @Slf4j
 public class ClientHandler extends SimpleChannelInboundHandler<TextWebSocketFrame> {

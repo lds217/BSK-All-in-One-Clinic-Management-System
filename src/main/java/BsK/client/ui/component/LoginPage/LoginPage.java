@@ -79,13 +79,43 @@ public class LoginPage extends JPanel {
         JPasswordField passwordField = new JPasswordField(20);
         formPanel.add(passwordField, gbc);
 
+        // --- BUTTON PANEL START ---
         gbc.gridx = 0;
         gbc.gridy++;
         gbc.gridwidth = 2;
         gbc.anchor = GridBagConstraints.CENTER;
+        gbc.insets = new Insets(20, 10, 10, 10); // Add top margin
+
+        JPanel buttonContainer = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 0));
+        buttonContainer.setOpaque(false);
+
+        // --- Back Button (Secondary Style) ---
+        JButton backButton = new JButton("Trở về");
+        backButton.setForeground(Color.WHITE);
+        // Style: Transparent background with a white border
+        backButton.setUI(new RoundedButtonUI(new Color(0, 0, 0, 0), Color.WHITE, Color.WHITE, 10));
+        backButton.setFont(new Font("Arial", Font.BOLD, 14));
+        backButton.addActionListener(e -> mainFrame.showPage("LandingPage"));
+
+        // --- Login Button (Primary Style, copied from LandingPage) ---
+        Color primaryBlueText = new Color(13, 110, 253);
         JButton loginButton = new JButton("Đăng nhập");
-        loginButton.setUI(new RoundedButtonUI(new Color(13, 110, 253), Color.WHITE, 10));
+        loginButton.setForeground(primaryBlueText);
+        loginButton.setUI(new RoundedButtonUI(Color.WHITE, primaryBlueText, 10)); // White background
         loginButton.setFont(new Font("Arial", Font.BOLD, 14));
+
+        Dimension buttonSize = new Dimension(120, 40);
+        loginButton.setPreferredSize(buttonSize);
+        backButton.setPreferredSize(buttonSize);
+
+        buttonContainer.add(backButton);
+        buttonContainer.add(loginButton);
+
+        formPanel.add(buttonContainer, gbc);
+        // --- BUTTON PANEL END ---
+
+        backgroundPanel.add(formPanel, new GridBagConstraints());
+
 
         passwordField.addActionListener(e -> loginButton.doClick());
 
@@ -97,14 +127,13 @@ public class LoginPage extends JPanel {
             NetworkUtil.sendPacket(ClientHandler.ctx.channel(), loginRequest);
         });
 
-
         ClientHandler.addResponseListener(LoginSuccessResponse.class, response -> {
             log.info("Login successful, UserId: {}, Role: {}", response.getUserId(), response.getRole());
             LocalStorage.username = loginField.getText();
             LocalStorage.userId = response.getUserId();
-            NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new ClinicInfoRequest()); // Request clinic info
-            NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetDoctorGeneralInfo()); // Request doctor info
-            NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetProvinceRequest()); // Request province info
+            NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new ClinicInfoRequest());
+            NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetDoctorGeneralInfo());
+            NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetProvinceRequest());
             ClientHandler.deleteListener(ErrorResponse.class);
             mainFrame.showPage("DashboardPage");
         });
@@ -114,21 +143,5 @@ public class LoginPage extends JPanel {
             SwingUtilities.invokeLater(() -> JOptionPane.showMessageDialog(this,
                     "Đăng nhập thất bại: " + response.getError(), "Lỗi", JOptionPane.ERROR_MESSAGE));
         });
-
-
-        formPanel.add(loginButton, gbc);
-        backgroundPanel.add(formPanel, new GridBagConstraints());
-
-
-        JButton backButton = new JButton("Trở về");
-        backButton.setUI(new RoundedButtonUI(new Color(108, 117, 125), Color.WHITE, 10));
-        backButton.setFont(new Font("Arial", Font.BOLD, 14));
-
-        backButton.addActionListener(e -> mainFrame.showPage("LandingPage"));
-
-        JPanel southPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        southPanel.setOpaque(false);
-        southPanel.add(backButton);
-        add(southPanel, BorderLayout.SOUTH);
     }
 }

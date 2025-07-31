@@ -63,14 +63,18 @@ public class LandingPage extends JPanel {
         gbc.gridx = 0;
         gbc.gridy = 0;
 
+        // --- BUTTONS UPDATED ---
+        Color primaryBlueText = new Color(13, 110, 253);
+
         JButton loginButton = new JButton("Đăng nhập");
-        loginButton.setUI(new RoundedButtonUI(new Color(0, 0, 0, 0), Color.WHITE, Color.WHITE, 30));
+        loginButton.setForeground(primaryBlueText); // Set text color
+        loginButton.setUI(new RoundedButtonUI(Color.WHITE, primaryBlueText, 10)); // White background
         loginButton.setFont(new Font("Arial", Font.BOLD, 14));
 
         JButton registerButton = new JButton("Đăng ký");
-        registerButton.setUI(new RoundedButtonUI(new Color(0, 0, 0, 0), Color.WHITE, Color.WHITE, 30));
+        registerButton.setForeground(primaryBlueText); // Set text color
+        registerButton.setUI(new RoundedButtonUI(Color.WHITE, primaryBlueText, 10)); // White background
         registerButton.setFont(new Font("Arial", Font.BOLD, 14));
-
 
         // Set the same preferred size for both buttons
         Dimension buttonSize = new Dimension(150, 40);
@@ -86,7 +90,6 @@ public class LandingPage extends JPanel {
 
         // Action listeners for buttons
         loginButton.addActionListener(e -> mainFrame.showPage("LoginPage"));
-
         registerButton.addActionListener(e -> mainFrame.showPage("RegisterPage"));
     }
 }

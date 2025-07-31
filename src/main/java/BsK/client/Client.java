@@ -1,7 +1,6 @@
 package BsK.client;
 
 import BsK.client.network.handler.ClientHandler;
-import BsK.client.ui.handler.UIHandler;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelInitializer;

@@ -441,7 +441,7 @@ public class MedicineManagementPanel extends JPanel {
                 TitledBorder.LEFT, TitledBorder.TOP, new Font("Arial", Font.BOLD, 14)));
 
         // --- Table Setup ---
-        String[] medicineColumns = {"ID", "Tên thuốc", "Bổ sung", "Trạng thái"};
+        String[] medicineColumns = {"ID", "Tên thuốc", "Đơn vị", "Giá", "Bổ sung","Chú thích", "Trạng thái"};
         medicineTableModel = new DefaultTableModel(medicineColumns, 0) {
             @Override
             public boolean isCellEditable(int row, int column) { return false; }
@@ -555,7 +555,10 @@ public class MedicineManagementPanel extends JPanel {
                 medicineTableModel.addRow(new Object[]{
                         med.getId(),
                         med.getName(),
+                        med.getUnit(),
+                        med.getSellingPrice(),
                         supplementStatus,
+                        med.getPreferredNote(),
                         deletedStatus
                 });
             }

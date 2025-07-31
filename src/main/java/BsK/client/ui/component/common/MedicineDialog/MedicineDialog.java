@@ -725,7 +725,7 @@ public class MedicineDialog extends JDialog {
 
         quantitySpinner.setValue(1);
 
-        String preferenceNote = medicine.getPreferenceNote();
+        String preferenceNote = medicine.getPreferredNote();
         if (preferenceNote != null && !preferenceNote.trim().isEmpty()) {
             String[] parts = preferenceNote.split(",", 4);
             try {

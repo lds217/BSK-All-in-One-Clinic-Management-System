@@ -1,9 +1,7 @@
 package BsK.client.ui.component.CheckUpPage;
 
 import java.awt.Desktop;
-import java.net.URI;
 
-import BsK.client.Client;
 import BsK.client.LocalStorage;
 import BsK.client.network.handler.ClientHandler;
 import BsK.client.network.handler.ResponseListener;
@@ -31,12 +29,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.jdatepicker.impl.JDatePanelImpl;
 import org.jdatepicker.impl.JDatePickerImpl;
 import org.jdatepicker.impl.UtilDateModel;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
 import javax.swing.border.TitledBorder;
-import javax.swing.border.Border;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.RowSorter;
 import javax.swing.SortOrder;
@@ -53,7 +48,6 @@ import javax.imageio.IIOImage;
 import javax.imageio.stream.ImageOutputStream;
 import java.awt.*;
 import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.KeyEvent;
@@ -64,8 +58,6 @@ import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.awt.datatransfer.*;
 import java.text.DecimalFormat;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
@@ -84,15 +76,10 @@ import java.nio.file.WatchKey;
 import java.nio.file.WatchEvent;
 import java.nio.file.StandardWatchEventKinds;
 import java.nio.file.FileSystems;
-import javax.imageio.ImageIO;
 import javax.swing.JColorChooser;
 
 // Webcam imports
 import com.github.sarxos.webcam.Webcam;
-import com.github.sarxos.webcam.WebcamDiscoveryEvent;
-import com.github.sarxos.webcam.WebcamDiscoveryListener;
-import com.github.sarxos.webcam.WebcamEvent;
-import com.github.sarxos.webcam.WebcamListener;
 import com.github.sarxos.webcam.WebcamPanel;
 import com.github.sarxos.webcam.WebcamResolution;
 
@@ -100,9 +87,6 @@ import com.github.sarxos.webcam.WebcamResolution;
 import org.bytedeco.javacv.FFmpegFrameRecorder;
 import org.bytedeco.javacv.Frame;
 import org.bytedeco.javacv.Java2DFrameConverter;
-import org.bytedeco.javacv.OpenCVFrameConverter;
-import org.bytedeco.opencv.opencv_core.IplImage;
-import static org.bytedeco.opencv.global.opencv_core.cvFlip;
 
 // Java imports for concurrent tasks
 import java.util.concurrent.CompletableFuture;
@@ -111,11 +95,9 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeUnit;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
-import javax.swing.JFrame;
 import javax.swing.JTextPane;
 import javax.swing.JToolBar;
 import javax.swing.text.StyledEditorKit;
@@ -123,11 +105,9 @@ import javax.swing.text.rtf.RTFEditorKit;
 import javax.swing.text.MutableAttributeSet;
 import javax.swing.text.SimpleAttributeSet;
 import javax.swing.text.StyleConstants;
-import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
 import java.io.ByteArrayOutputStream;
 import java.io.ByteArrayInputStream;
-import java.io.OutputStream;
 import java.io.InputStream;
 import java.io.StringReader;
 
@@ -139,23 +119,14 @@ import net.sf.jasperreports.view.JasperViewer;
 // --- End JasperReports Imports ---
 
 // Add new imports
-import BsK.common.entity.PatientHistory;
 import BsK.common.packet.req.GetPatientHistoryRequest;
 import BsK.common.packet.res.GetPatientHistoryResponse;
 import BsK.common.packet.req.SaveCheckupRequest;
-import BsK.common.packet.req.SearchAllRole;
-import BsK.common.packet.req.SearchAllUser;
 import BsK.common.packet.req.UploadCheckupImageRequest;
 import BsK.common.packet.req.UploadCheckupPdfRequest;
-import BsK.common.packet.res.AddCheckupResponse;
-import BsK.common.packet.res.AddPatientResponse;
-import BsK.common.packet.res.RegisterSuccessResponse;
-import BsK.common.packet.res.SaveCheckupRes;
 import BsK.common.packet.res.UploadCheckupImageResponse;
 import BsK.common.packet.res.UploadCheckupPdfResponse;
 import BsK.common.util.date.DateUtils;
-import java.awt.event.FocusAdapter;
-import java.awt.event.FocusEvent;
 import javax.swing.text.JTextComponent;
 
 @Slf4j
@@ -226,10 +197,8 @@ public class CheckUpPage extends JPanel {
     private List<File> selectedImagesForPrint = new ArrayList<>();
 
     // New member variables for Supersonic View
-    private JPanel supersonicViewPanelGlobal;
     private JPanel imageGalleryPanel; // Displays thumbnails
     private JScrollPane imageGalleryScrollPane;
-    private JLabel webcamFeedLabel; // Placeholder for webcam feed
     private JComboBox<String> webcamDeviceComboBox;
     private JButton webcamRefreshButton;
     private JButton takePictureButton;
@@ -1077,7 +1046,7 @@ public class CheckUpPage extends JPanel {
         // addSelectAllOnFocus(notesField); // Do NOT select all for notes field
         
         // Set default font and size
-        notesField.setFont(new Font("Times New Roman", Font.PLAIN, 16));
+        notesField.setFont(new Font("Arial", Font.PLAIN, 16));
         
         // Set up RTF editor kit with proper character encoding
         RTFEditorKit rtfKit = new RTFEditorKit();
@@ -1088,7 +1057,7 @@ public class CheckUpPage extends JPanel {
         doc.putProperty("IgnoreCharsetDirective", Boolean.TRUE);
         
         // Set up empty default template
-        String defaultTemplate = "{\\rtf1\\ansi\\ansicpg1252\\deff0\\deflang1033{\\fonttbl{\\f0\\fnil\\fcharset163 Times New Roman;}}\n" +
+        String defaultTemplate = "{\\rtf1\\ansi\\ansicpg1252\\deff0\\deflang1033{\\fonttbl{\\f0\\fnil\\fcharset163 Arial;}}\n" +
                                "{\\colortbl ;\\red0\\green0\\blue0;}\n" +
                                "\\viewkind4\\uc1\\pard\\cf1\\f0\\fs32\\par}";
         setRtfContentFromString(defaultTemplate);
@@ -1103,7 +1072,7 @@ public class CheckUpPage extends JPanel {
         });
 
         // Set default RTF template with proper Vietnamese character support
-        String defaultRtfTemplate = "{\\rtf1\\ansi\\ansicpg1252\\deff0\\deflang1033{\\fonttbl{\\f0\\fnil\\fcharset163 Times New Roman;}}\n" +
+        String defaultRtfTemplate = "{\\rtf1\\ansi\\ansicpg1252\\deff0\\deflang1033{\\fonttbl{\\f0\\fnil\\fcharset163 Arial;}}\n" +
                                   "{\\colortbl ;\\red0\\green0\\blue0;}\n" +
                                   "\\viewkind4\\uc1\\pard\\cf1\\f0\\fs32\\par}";
         try {
@@ -1143,9 +1112,9 @@ public class CheckUpPage extends JPanel {
         underlineButton.setToolTipText("Gạch chân (Ctrl+U)");
 
         // Font family selector
-        String[] fontFamilies = {"Arial", "Times New Roman", "Verdana", "Courier New", "Tahoma", "Calibri"};
+        String[] fontFamilies = {"Arial", "Arial", "Verdana", "Courier New", "Tahoma", "Calibri"};
         JComboBox<String> fontFamilyComboBox = new JComboBox<>(fontFamilies);
-        fontFamilyComboBox.setSelectedItem("Times New Roman"); // Match default font of notesField
+        fontFamilyComboBox.setSelectedItem("Arial"); // Match default font of notesField
         fontFamilyComboBox.setFont(new Font("Arial", Font.PLAIN, 14));
         fontFamilyComboBox.setToolTipText("Phông chữ");
         fontFamilyComboBox.setPreferredSize(new Dimension(140, 25));
@@ -1236,7 +1205,7 @@ public class CheckUpPage extends JPanel {
             BorderFactory.createEtchedBorder(),
             "Đề nghị",
             TitledBorder.LEADING, TitledBorder.TOP,
-            new Font("Arial", Font.BOLD, 12), // Smaller font
+            new Font("Arial", Font.BOLD, 16), 
             new Color(50, 50, 50)
         ));
         suggestionField = new JTextArea(2, 10); // Further reduced to 2 rows
@@ -1322,11 +1291,11 @@ public class CheckUpPage extends JPanel {
             BorderFactory.createEtchedBorder(),
             "Chẩn đoán",
             TitledBorder.LEADING, TitledBorder.TOP,
-            new Font("Arial", Font.BOLD, 12), // Smaller font
+            new Font("Arial", Font.BOLD, 16), 
             new Color(50, 50, 50)
         ));
         diagnosisField = new JTextArea(3, 20); // Reduced rows
-        diagnosisField.setFont(new Font("Arial", Font.PLAIN, 14)); // Slightly smaller font
+        diagnosisField.setFont(new Font("Arial", Font.BOLD, 16)); // Slightly smaller font
         diagnosisField.setLineWrap(true);
         diagnosisField.setWrapStyleWord(true);
         addSelectAllOnFocus(diagnosisField);
@@ -1338,11 +1307,11 @@ public class CheckUpPage extends JPanel {
             BorderFactory.createEtchedBorder(),
             "Kết luận",
             TitledBorder.LEADING, TitledBorder.TOP,
-            new Font("Arial", Font.BOLD, 12), // Smaller font
+            new Font("Arial", Font.BOLD, 16), 
             new Color(50, 50, 50)
         ));
         conclusionField = new JTextArea(3, 20); // Reduced rows
-        conclusionField.setFont(new Font("Arial", Font.PLAIN, 14)); // Slightly smaller font
+        conclusionField.setFont(new Font("Arial", Font.BOLD, 16)); // Slightly smaller font
         conclusionField.setLineWrap(true);
         conclusionField.setWrapStyleWord(true);
         addSelectAllOnFocus(conclusionField);
@@ -1356,7 +1325,7 @@ public class CheckUpPage extends JPanel {
 
         // Create split pane for left and right panels
         JSplitPane contentSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, leftPanel, rightPanel);
-        contentSplitPane.setResizeWeight(1.0); // Give maximum weight to the left panel
+        contentSplitPane.setResizeWeight(0.85); // Give maximum weight to the left panel
         contentSplitPane.setDividerSize(3); // Make divider even smaller
         contentSplitPane.setBorder(null);
         contentSplitPane.setOneTouchExpandable(true); // Add one-touch expand/collapse buttons
@@ -2282,7 +2251,7 @@ public class CheckUpPage extends JPanel {
             } else {
                 // If it's plain text, convert to RTF
                 StringBuilder rtfContent = new StringBuilder();
-                rtfContent.append("{\\rtf1\\ansi\\ansicpg1252\\deff0\\deflang1033{\\fonttbl{\\f0\\fnil\\fcharset163 Times New Roman;}}\n");
+                rtfContent.append("{\\rtf1\\ansi\\ansicpg1252\\deff0\\deflang1033{\\fonttbl{\\f0\\fnil\\fcharset163 Arial;}}\n");
                 rtfContent.append("{\\colortbl ;\\red0\\green0\\blue0;}\n");
                 rtfContent.append("\\viewkind4\\uc1\\pard\\cf1\\f0\\fs32 ");
                 rtfContent.append(notes.replace("\n", "\\par "));
@@ -2291,7 +2260,7 @@ public class CheckUpPage extends JPanel {
             }
         } else {
             // Clear the notes field
-            setRtfContentFromString("{\\rtf1\\ansi\\ansicpg1252\\deff0\\deflang1033{\\fonttbl{\\f0\\fnil\\fcharset163 Times New Roman;}}\\viewkind4\\uc1\\pard\\f0\\fs32\\par}");
+            setRtfContentFromString("{\\rtf1\\ansi\\ansicpg1252\\deff0\\deflang1033{\\fonttbl{\\f0\\fnil\\fcharset163 Arial;}}\\viewkind4\\uc1\\pard\\f0\\fs32\\par}");
         }
         
         statusComboBox.setSelectedItem(selectedPatient.getStatus());
@@ -4526,7 +4495,7 @@ public class CheckUpPage extends JPanel {
                     
                     // Convert plain text to RTF with proper Vietnamese encoding
                     StringBuilder rtfContent = new StringBuilder();
-                    rtfContent.append("{\\rtf1\\ansi\\ansicpg1252\\deff0\\deflang1033{\\fonttbl{\\f0\\fnil\\fcharset163 Times New Roman;}}\n");
+                    rtfContent.append("{\\rtf1\\ansi\\ansicpg1252\\deff0\\deflang1033{\\fonttbl{\\f0\\fnil\\fcharset163 Arial;}}\n");
                     rtfContent.append("{\\colortbl ;\\red0\\green0\\blue0;}\n");
                     rtfContent.append("\\viewkind4\\uc1\\pard\\cf1\\f0\\fs32 ");
                     
@@ -4812,7 +4781,7 @@ public class CheckUpPage extends JPanel {
             suggestionField.setText("");
             diagnosisField.setText("");
             conclusionField.setText("");
-            setRtfContentFromString("{\\rtf1\\ansi\\ansicpg1252\\deff0\\deflang1033{\\fonttbl{\\f0\\fnil\\fcharset163 Times New Roman;}}\\viewkind4\\uc1\\pard\\f0\\fs32\\par}"); // Clear notes
+            setRtfContentFromString("{\\rtf1\\ansi\\ansicpg1252\\deff0\\deflang1033{\\fonttbl{\\f0\\fnil\\fcharset163 Arial;}}\\viewkind4\\uc1\\pard\\f0\\fs32\\par}"); // Clear notes
             customerCccdDdcnField.setText("");
             
             // Clear target address values

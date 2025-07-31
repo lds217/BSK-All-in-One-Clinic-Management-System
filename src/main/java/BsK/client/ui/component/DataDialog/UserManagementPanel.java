@@ -1,6 +1,15 @@
 package BsK.client.ui.component.DataDialog;
 
+import BsK.client.network.handler.ClientHandler;
+import BsK.client.network.handler.ResponseListener;
+import BsK.common.entity.User;
+import BsK.common.packet.req.AddUserRequest;
+import BsK.common.packet.req.EditUserRequest;
+import BsK.common.packet.req.GetAllUserInfoRequest;
+import BsK.common.packet.res.GetAllUserInfoResponse;
+import BsK.common.util.network.NetworkUtil;
 import BsK.common.util.text.TextUtils;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -8,15 +17,11 @@ import javax.swing.border.TitledBorder;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.table.DefaultTableModel;
-import javax.swing.text.AbstractDocument;
-import javax.swing.text.AttributeSet;
-import javax.swing.text.BadLocationException;
-import javax.swing.text.DocumentFilter;
 import java.awt.*;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 
+@Slf4j
 public class UserManagementPanel extends JPanel {
 
     // --- UI Components ---
@@ -25,26 +30,28 @@ public class UserManagementPanel extends JPanel {
     private JTextField userSearchField;
 
     // --- Input Fields ---
-    private JTextField userIdField;
     private JTextField usernameField;
-    private JTextField firstNameField;
-    private JTextField lastNameField;
     private JPasswordField passwordField;
+    private JTextField lastNameField;
+    private JTextField firstNameField;
     private JComboBox<String> roleComboBox;
-    private JButton btnAdd, btnEdit, btnDelete, btnClear;
+    private JCheckBox chkIsDeleted;
+    private boolean isPasswordVisible = false; // State for password visibility
+
+    // --- Action Buttons ---
+    private JButton btnAdd, btnEdit, btnClear;
 
     // --- Data & State ---
     private List<User> allUsers = new ArrayList<>();
-    private User selectedUser = null;
+    private String selectedUserId = null;
 
-    // A simple record to hold user data locally
-    private record User(String id, String username, String password, String firstName, String lastName, String role) {}
+    // --- Networking ---
+    private final ResponseListener<GetAllUserInfoResponse> getAllUserInfoListener = this::handleGetAllUserInfoResponse;
 
     public UserManagementPanel() {
         super(new BorderLayout(10, 10));
         initComponents();
-        createFakeData();
-        filterUserTable(); // Initial population
+        setupNetworking();
     }
 
     private void initComponents() {
@@ -53,164 +60,158 @@ public class UserManagementPanel extends JPanel {
         this.add(createUserListPanel(), BorderLayout.CENTER);
     }
 
-    private void createFakeData() {
-        allUsers.add(new User(UUID.randomUUID().toString().substring(0, 8), "admin_user", "password123", "Admin", "Super", "ADMIN"));
-        allUsers.add(new User(UUID.randomUUID().toString().substring(0, 8), "doctor_phil", "pass", "Phil", "McGraw", "USER"));
-        allUsers.add(new User(UUID.randomUUID().toString().substring(0, 8), "nurse_jane", "pass", "Jane", "Doe", "USER"));
+    private void setupNetworking() {
+        ClientHandler.addResponseListener(GetAllUserInfoResponse.class, getAllUserInfoListener);
+        NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetAllUserInfoRequest());
     }
 
     private JPanel createUserInputPanel() {
         JPanel mainInputPanel = new JPanel(new GridBagLayout());
-        mainInputPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
-        GridBagConstraints mainGbc = new GridBagConstraints();
-        mainGbc.fill = GridBagConstraints.HORIZONTAL;
-        mainGbc.anchor = GridBagConstraints.NORTHWEST;
-        mainGbc.insets = new Insets(5, 5, 5, 5);
-        mainGbc.weightx = 1.0;
-        mainGbc.gridx = 0;
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.anchor = GridBagConstraints.NORTH;
+        gbc.insets = new Insets(0, 0, 10, 0);
+        gbc.weightx = 1.0;
 
-        Font titleFont = new Font("Arial", Font.BOLD, 14);
-        Font labelFont = new Font("Arial", Font.BOLD, 13);
-        Font textFont = new Font("Arial", Font.PLAIN, 13);
-        Dimension textFieldSize = new Dimension(100, 30);
-
-        // --- User Details Panel ---
-        JPanel detailsPanel = new JPanel(new GridBagLayout());
-        detailsPanel.setBorder(BorderFactory.createTitledBorder(
+        // --- User Info Panel ---
+        JPanel userInfoPanel = new JPanel(new GridBagLayout());
+        userInfoPanel.setBorder(BorderFactory.createTitledBorder(
                 BorderFactory.createEtchedBorder(), "Thông tin người dùng",
-                TitledBorder.LEADING, TitledBorder.TOP, titleFont, new Color(50, 50, 50)
+                TitledBorder.LEADING, TitledBorder.TOP,
+                new Font("Arial", Font.BOLD, 14), new Color(50, 50, 50)
         ));
+        addFormFields(userInfoPanel);
+        gbc.gridy = 0;
+        mainInputPanel.add(userInfoPanel, gbc);
+
+        // --- Button Panel ---
+        gbc.gridy = 1;
+        mainInputPanel.add(createButtonPanel(), gbc);
+
+        // --- Filler ---
+        gbc.gridy = 2;
+        gbc.weighty = 1.0;
+        mainInputPanel.add(new JPanel(), gbc);
+
+        return mainInputPanel;
+    }
+
+    private void addFormFields(JPanel panel) {
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.fill = GridBagConstraints.HORIZONTAL;
         gbc.anchor = GridBagConstraints.WEST;
         gbc.insets = new Insets(5, 5, 5, 5);
+        gbc.weightx = 1.0;
 
-        // User ID (Row 0)
+        // --- Row 0: Username ---
         gbc.gridy = 0;
         gbc.gridx = 0;
-        gbc.weightx = 0.2; // Label column width
-        JLabel userIdLabel = new JLabel("UserID:");
-        userIdLabel.setFont(labelFont);
-        detailsPanel.add(userIdLabel, gbc);
-
+        gbc.weightx = 0;
+        panel.add(new JLabel("Tên đăng nhập:"), gbc);
         gbc.gridx = 1;
-        gbc.weightx = 0.8; // Field column width
-        userIdField = new JTextField();
-        userIdField.setEditable(false);
-        userIdField.setFont(textFont);
-        userIdField.setPreferredSize(textFieldSize);
-        detailsPanel.add(userIdField, gbc);
+        gbc.weightx = 1;
+        usernameField = new JTextField(15);
+        panel.add(usernameField, gbc);
 
-        // Username (Row 1)
+        // --- Row 1: Password with View Button ---
         gbc.gridy++;
         gbc.gridx = 0;
-        JLabel usernameLabel = new JLabel("Username:");
-        usernameLabel.setFont(labelFont);
-        detailsPanel.add(usernameLabel, gbc);
-
+        gbc.weightx = 0;
+        panel.add(new JLabel("Mật khẩu:"), gbc);
         gbc.gridx = 1;
-        usernameField = new JTextField();
-        usernameField.setFont(textFont);
-        usernameField.setPreferredSize(textFieldSize);
-        ((AbstractDocument) usernameField.getDocument()).setDocumentFilter(new DocumentFilter() {
-            @Override
-            public void replace(FilterBypass fb, int offset, int length, String text, AttributeSet attrs) throws BadLocationException {
-                super.replace(fb, offset, length, text.toLowerCase().replaceAll("[^a-z0-9_]", ""), attrs);
+        gbc.weightx = 1;
+        panel.add(createPasswordPanel(), gbc); // Use a helper method to create the composite panel
+
+        // --- Row 2: Last Name ---
+        gbc.gridy++;
+        gbc.gridx = 0;
+        gbc.weightx = 0;
+        panel.add(new JLabel("Họ:"), gbc);
+        gbc.gridx = 1;
+        gbc.weightx = 1;
+        lastNameField = new JTextField(15);
+        panel.add(lastNameField, gbc);
+
+        // --- Row 3: First Name ---
+        gbc.gridy++;
+        gbc.gridx = 0;
+        gbc.weightx = 0;
+        panel.add(new JLabel("Tên:"), gbc);
+        gbc.gridx = 1;
+        gbc.weightx = 1;
+        firstNameField = new JTextField(15);
+        panel.add(firstNameField, gbc);
+
+        // --- Row 4: Role ---
+        gbc.gridy++;
+        gbc.gridx = 0;
+        gbc.weightx = 0;
+        panel.add(new JLabel("Vai trò:"), gbc);
+        gbc.gridx = 1;
+        gbc.weightx = 1;
+        roleComboBox = new JComboBox<>(new String[]{"ADMIN", "DOCTOR", "STAFF"});
+        panel.add(roleComboBox, gbc);
+    }
+
+    private JPanel createPasswordPanel() {
+        JPanel passwordPanel = new JPanel(new BorderLayout(5, 0));
+        passwordField = new JPasswordField(15);
+        
+        JButton viewPasswordButton = new JButton();
+        try {
+            ImageIcon viewIcon = new ImageIcon("src/main/java/BsK/client/ui/assets/icon/view.png");
+            Image scaledImage = viewIcon.getImage().getScaledInstance(20, 20, Image.SCALE_SMOOTH);
+            viewPasswordButton.setIcon(new ImageIcon(scaledImage));
+        } catch (Exception e) {
+            log.error("Could not load view icon", e);
+            viewPasswordButton.setText("👁️"); // Fallback emoji
+        }
+
+        viewPasswordButton.setPreferredSize(new Dimension(30, 30));
+        viewPasswordButton.setOpaque(false);
+        viewPasswordButton.setContentAreaFilled(false);
+        viewPasswordButton.setBorderPainted(false);
+        viewPasswordButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
+
+        viewPasswordButton.addActionListener(e -> {
+            isPasswordVisible = !isPasswordVisible; // Toggle the state
+            if (isPasswordVisible) {
+                passwordField.setEchoChar((char) 0); // Show password
+            } else {
+                passwordField.setEchoChar('•'); // Hide password
             }
         });
-        detailsPanel.add(usernameField, gbc);
 
-        // First Name (Row 2)
-        gbc.gridy++;
-        gbc.gridx = 0;
-        JLabel firstNameLabel = new JLabel("Họ:");
-        firstNameLabel.setFont(labelFont);
-        detailsPanel.add(firstNameLabel, gbc);
-
-        gbc.gridx = 1;
-        firstNameField = new JTextField();
-        firstNameField.setFont(textFont);
-        firstNameField.setPreferredSize(textFieldSize);
-        detailsPanel.add(firstNameField, gbc);
-
-        // Last Name (Row 3)
-        gbc.gridy++;
-        gbc.gridx = 0;
-        JLabel lastNameLabel = new JLabel("Tên:");
-        lastNameLabel.setFont(labelFont);
-        detailsPanel.add(lastNameLabel, gbc);
-        
-        gbc.gridx = 1;
-        lastNameField = new JTextField();
-        lastNameField.setFont(textFont);
-        lastNameField.setPreferredSize(textFieldSize);
-        detailsPanel.add(lastNameField, gbc);
-
-        // Role (Row 4)
-        gbc.gridy++;
-        gbc.gridx = 0;
-        JLabel roleLabel = new JLabel("Vai trò:");
-        roleLabel.setFont(labelFont);
-        detailsPanel.add(roleLabel, gbc);
-
-        gbc.gridx = 1;
-        roleComboBox = new JComboBox<>(new String[]{"USER", "ADMIN"});
-        roleComboBox.setFont(textFont);
-        roleComboBox.setPreferredSize(textFieldSize);
-        detailsPanel.add(roleComboBox, gbc);
-
-        // Password (Row 5)
-        gbc.gridy++;
-        gbc.gridx = 0;
-        JLabel passwordLabel = new JLabel("Mật khẩu:");
-        passwordLabel.setFont(labelFont);
-        detailsPanel.add(passwordLabel, gbc);
-
-        gbc.gridx = 1;
-        passwordField = new JPasswordField();
-        passwordField.setFont(textFont);
-        passwordField.setPreferredSize(textFieldSize);
-        detailsPanel.add(passwordField, gbc);
-
-        mainGbc.gridy = 0;
-        mainInputPanel.add(detailsPanel, mainGbc);
-
-        mainGbc.gridy = 1;
-        mainInputPanel.add(createButtonPanel(), mainGbc);
-
-        mainGbc.gridy = 2;
-        mainGbc.weighty = 1.0; // Filler to push content up
-        mainInputPanel.add(new JPanel(), mainGbc);
-        
-        return mainInputPanel;
+        passwordPanel.add(passwordField, BorderLayout.CENTER);
+        passwordPanel.add(viewPasswordButton, BorderLayout.EAST);
+        return passwordPanel;
     }
 
     private JPanel createButtonPanel() {
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 5));
         btnAdd = new JButton("Thêm mới");
         btnEdit = new JButton("Chỉnh sửa");
-        btnDelete = new JButton("Xoá");
         btnClear = new JButton("Làm mới");
+        chkIsDeleted = new JCheckBox("Xoá (Ẩn)");
+        chkIsDeleted.setFont(new Font("Arial", Font.BOLD, 13));
 
         Dimension btnSize = new Dimension(100, 35);
         btnAdd.setPreferredSize(btnSize);
         btnEdit.setPreferredSize(btnSize);
-        btnDelete.setPreferredSize(btnSize);
         btnClear.setPreferredSize(btnSize);
 
+        buttonPanel.add(chkIsDeleted);
         buttonPanel.add(btnAdd);
         buttonPanel.add(btnEdit);
-        buttonPanel.add(btnDelete);
         buttonPanel.add(btnClear);
 
+        // Button Actions
         btnClear.addActionListener(e -> clearUserFields());
-        btnAdd.addActionListener(e -> handleAddUser());
-        btnEdit.addActionListener(e -> handleEditUser());
-        btnDelete.addActionListener(e -> handleDeleteUser());
+        btnAdd.addActionListener(e -> addUser());
+        btnEdit.addActionListener(e -> editUser());
 
-        // Initial state
         btnEdit.setEnabled(false);
-        btnDelete.setEnabled(false);
+        chkIsDeleted.setEnabled(false);
 
         return buttonPanel;
     }
@@ -218,142 +219,171 @@ public class UserManagementPanel extends JPanel {
     private JPanel createUserListPanel() {
         JPanel listPanel = new JPanel(new BorderLayout(10, 10));
         listPanel.setBorder(BorderFactory.createTitledBorder(
-                BorderFactory.createEtchedBorder(), "Danh sách người dùng",
-                TitledBorder.LEFT, TitledBorder.TOP, new Font("Arial", Font.BOLD, 14)));
+            BorderFactory.createEtchedBorder(), "Danh Sách Người Dùng",
+            TitledBorder.LEFT, TitledBorder.TOP, new Font("Arial", Font.BOLD, 14))
+        );
 
-        // Search Panel
-        JPanel searchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        searchPanel.add(new JLabel("Tìm theo username:"));
-        userSearchField = new JTextField(25);
-        userSearchField.getDocument().addDocumentListener(new DocumentListener() {
-            @Override public void insertUpdate(DocumentEvent e) { filterUserTable(); }
-            @Override public void removeUpdate(DocumentEvent e) { filterUserTable(); }
-            @Override public void changedUpdate(DocumentEvent e) { filterUserTable(); }
-        });
-        searchPanel.add(userSearchField);
-        listPanel.add(searchPanel, BorderLayout.NORTH);
-
-        // Table
-        String[] userColumns = {"UserID", "Username", "Họ", "Tên", "Vai trò"};
+        String[] userColumns = {"ID", "Tên đăng nhập", "Họ và Tên", "Vai trò", "Trạng thái"};
         userTableModel = new DefaultTableModel(userColumns, 0) {
-            @Override public boolean isCellEditable(int row, int column) { return false; }
+            @Override
+            public boolean isCellEditable(int row, int column) { return false; }
         };
         userTable = new JTable(userTableModel);
         userTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        userTable.setFont(new Font("Arial", Font.PLAIN, 12));
         userTable.setRowHeight(28);
         userTable.getSelectionModel().addListSelectionListener(e -> {
             if (!e.getValueIsAdjusting() && userTable.getSelectedRow() != -1) {
                 int viewRow = userTable.getSelectedRow();
                 String userId = (String) userTableModel.getValueAt(viewRow, 0);
-                selectedUser = allUsers.stream().filter(u -> u.id().equals(userId)).findFirst().orElse(null);
-                if (selectedUser != null) {
-                    populateUserFields(selectedUser);
-                }
+                allUsers.stream()
+                        .filter(user -> user.getId().equals(userId))
+                        .findFirst()
+                        .ifPresent(this::populateUserFields);
             }
         });
+
+        JPanel searchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        searchPanel.add(new JLabel("Tìm kiếm người dùng:"));
+        userSearchField = new JTextField(25);
+        searchPanel.add(userSearchField);
+        userSearchField.getDocument().addDocumentListener(new DocumentListener() {
+            @Override public void insertUpdate(DocumentEvent e) { filterUserTable(); }
+            @Override public void removeUpdate(DocumentEvent e) { filterUserTable(); }
+            @Override public void changedUpdate(DocumentEvent e) { filterUserTable(); }
+        });
+
+        listPanel.add(searchPanel, BorderLayout.NORTH);
         listPanel.add(new JScrollPane(userTable), BorderLayout.CENTER);
+
         return listPanel;
     }
 
+    private void handleGetAllUserInfoResponse(GetAllUserInfoResponse response) {
+        SwingUtilities.invokeLater(() -> {
+            allUsers.clear();
+            if (response != null && response.getUserInfo() != null) {
+                for (String[] userData : response.getUserInfo()) {
+                    allUsers.add(new User(userData));
+                }
+            }
+            filterUserTable();
+        });
+    }
+
     private void filterUserTable() {
-        String filterText = userSearchField.getText().trim().toLowerCase();
+        String filterText = userSearchField.getText().trim();
+        String lowerCaseFilterText = TextUtils.removeAccents(filterText.toLowerCase());
         userTableModel.setRowCount(0);
+
         for (User user : allUsers) {
-            if (filterText.isEmpty() || user.username().toLowerCase().contains(filterText)) {
-                userTableModel.addRow(new Object[]{user.id(), user.username(), user.firstName(), user.lastName(), user.role()});
+            String fullName = user.getLastName() + " " + user.getFirstName();
+            if (filterText.isEmpty() ||
+                TextUtils.removeAccents(user.getUserName().toLowerCase()).contains(lowerCaseFilterText) ||
+                TextUtils.removeAccents(fullName.toLowerCase()).contains(lowerCaseFilterText))
+            {
+                String status = "0".equals(user.getDeleted()) ? "Hoạt động" : "Đã ẩn";
+                userTableModel.addRow(new Object[]{
+                        user.getId(),
+                        user.getUserName(),
+                        fullName,
+                        user.getRole(),
+                        status
+                });
             }
         }
     }
 
     private void populateUserFields(User user) {
-        userIdField.setText(user.id());
-        usernameField.setText(user.username());
-        firstNameField.setText(user.firstName());
-        lastNameField.setText(user.lastName());
-        roleComboBox.setSelectedItem(user.role());
-        passwordField.setText("");
-        passwordField.setEnabled(false);
+        if (user == null) return;
+        selectedUserId = user.getId();
+        usernameField.setText(user.getUserName());
+        lastNameField.setText(user.getLastName());
+        firstNameField.setText(user.getFirstName());
+        roleComboBox.setSelectedItem(user.getRole());
+        chkIsDeleted.setSelected("1".equals(user.getDeleted()));
+
+        // --- Password field population ---
+        isPasswordVisible = false; // Reset visibility state
+        passwordField.setEchoChar('•'); // Ensure it's hidden
+        passwordField.setText(user.getPassword()); // Populate with actual password
+
         btnAdd.setEnabled(false);
         btnEdit.setEnabled(true);
-        btnDelete.setEnabled(true);
+        chkIsDeleted.setEnabled(true);
     }
 
     private void clearUserFields() {
-        selectedUser = null;
-        userIdField.setText("(Tự động)");
+        selectedUserId = null;
         usernameField.setText("");
-        firstNameField.setText("");
         lastNameField.setText("");
+        firstNameField.setText("");
         roleComboBox.setSelectedIndex(0);
+        chkIsDeleted.setSelected(false);
+        
+        // --- Clear password and reset visibility ---
+        isPasswordVisible = false;
+        passwordField.setEchoChar('•');
         passwordField.setText("");
-        passwordField.setEnabled(true);
+        
         userTable.clearSelection();
+        usernameField.requestFocusInWindow();
+
         btnAdd.setEnabled(true);
         btnEdit.setEnabled(false);
-        btnDelete.setEnabled(false);
-        usernameField.requestFocusInWindow();
+        chkIsDeleted.setEnabled(false);
     }
 
-    private void handleAddUser() {
-        String username = usernameField.getText().trim();
+    private void addUser() {
+        String userName = usernameField.getText().trim();
         String password = new String(passwordField.getPassword());
-        if (username.isEmpty() || password.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "Username và Mật khẩu không được để trống.", "Lỗi", JOptionPane.ERROR_MESSAGE);
+        if (userName.isEmpty() || password.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Tên đăng nhập và mật khẩu không được để trống.", "Lỗi", JOptionPane.ERROR_MESSAGE);
             return;
         }
-        if (allUsers.stream().anyMatch(u -> u.username().equals(username))) {
-            JOptionPane.showMessageDialog(this, "Username đã tồn tại.", "Lỗi", JOptionPane.ERROR_MESSAGE);
-            return;
-        }
-        User newUser = new User(
-                UUID.randomUUID().toString().substring(0, 8),
-                username,
-                password, // In a real app, hash this!
-                firstNameField.getText().trim(),
+
+        AddUserRequest request = new AddUserRequest(
+                userName,
+                password,
                 lastNameField.getText().trim(),
-                (String) roleComboBox.getSelectedItem()
+                firstNameField.getText().trim(),
+                (String) roleComboBox.getSelectedItem(),
+                false // New users are never deleted by default
         );
-        allUsers.add(newUser);
-        filterUserTable();
+        NetworkUtil.sendPacket(ClientHandler.ctx.channel(), request);
+        JOptionPane.showMessageDialog(this, "Yêu cầu thêm người dùng '" + userName + "' đã được gửi.", "Thành công", JOptionPane.INFORMATION_MESSAGE);
         clearUserFields();
-        JOptionPane.showMessageDialog(this, "Thêm người dùng thành công!", "Thông báo", JOptionPane.INFORMATION_MESSAGE);
     }
 
-    private void handleEditUser() {
-        if (selectedUser == null) return;
-        // Find the user in the list and update them
-        for (int i = 0; i < allUsers.size(); i++) {
-            if (allUsers.get(i).id().equals(selectedUser.id())) {
-                User updatedUser = new User(
-                        selectedUser.id(),
-                        usernameField.getText().trim(),
-                        selectedUser.password(), // Keep original password
-                        firstNameField.getText().trim(),
-                        lastNameField.getText().trim(),
-                        (String) roleComboBox.getSelectedItem()
-                );
-                allUsers.set(i, updatedUser);
-                break;
-            }
+    private void editUser() {
+        if (selectedUserId == null) {
+            JOptionPane.showMessageDialog(this, "Vui lòng chọn người dùng để chỉnh sửa.", "Lỗi", JOptionPane.ERROR_MESSAGE);
+            return;
         }
-        filterUserTable();
+        String userName = usernameField.getText().trim();
+        if (userName.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Tên đăng nhập không được để trống.", "Lỗi", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        // Only send a password if the field is not empty, otherwise send empty string
+        String password = new String(passwordField.getPassword());
+        
+        EditUserRequest request = new EditUserRequest(
+                selectedUserId,
+                userName,
+                password, // Server should handle if this is empty (i.e., don't change password)
+                lastNameField.getText().trim(),
+                firstNameField.getText().trim(),
+                (String) roleComboBox.getSelectedItem(),
+                chkIsDeleted.isSelected()
+        );
+        NetworkUtil.sendPacket(ClientHandler.ctx.channel(), request);
+        JOptionPane.showMessageDialog(this, "Yêu cầu cập nhật người dùng '" + userName + "' đã được gửi.", "Thành công", JOptionPane.INFORMATION_MESSAGE);
         clearUserFields();
-        JOptionPane.showMessageDialog(this, "Cập nhật thành công!", "Thông báo", JOptionPane.INFORMATION_MESSAGE);
     }
-
-    private void handleDeleteUser() {
-        if (selectedUser == null) return;
-        int choice = JOptionPane.showConfirmDialog(this,
-                "Bạn có chắc chắn muốn xóa người dùng '" + selectedUser.username() + "' không?",
-                "Xác nhận xóa", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
-        if (choice == JOptionPane.YES_OPTION) {
-            allUsers.removeIf(u -> u.id().equals(selectedUser.id()));
-            filterUserTable();
-            clearUserFields();
-        }
-    }
-
+    
     public void cleanup() {
-        // No listeners to clean up yet, but good practice to have.
+        ClientHandler.deleteListener(GetAllUserInfoResponse.class, getAllUserInfoListener);
     }
 }

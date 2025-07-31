@@ -1545,43 +1545,92 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         }
       }
 
-      if (packet instanceof GetAllUserRequest getAllUserRequest) {
+      if (packet instanceof GetAllUserInfoRequest getAllUserRequest) {
         if (!currentUser.getRole().equals(Role.ADMIN)) {
           UserUtil.sendPacket(currentUser.getSessionId(), new ErrorResponse(Error.ACCESS_DENIED));
           return;
         }
         log.info("Received GetAllUserRequest");
-        // getAllUser(currentUser.getSessionId());
+        getAllUser(currentUser.getSessionId());
+      }
+
+      if (packet instanceof AddUserRequest addUserRequest) {
+        if (!currentUser.getRole().equals(Role.ADMIN)) {
+          UserUtil.sendPacket(currentUser.getSessionId(), new ErrorResponse(Error.ACCESS_DENIED));
+          return;
+        }
+        try {
+          String sql = "INSERT INTO User (user_name, password, last_name, first_name, role_name, deleted) VALUES (?, ?, ?, ?, ?, ?)";
+          PreparedStatement stmt = Server.connection.prepareStatement(sql);
+          stmt.setString(1, addUserRequest.getUserName());
+          stmt.setString(2, addUserRequest.getPassword());
+          stmt.setString(3, addUserRequest.getLastName());
+          stmt.setString(4, addUserRequest.getFirstName());
+          stmt.setString(5, addUserRequest.getRole());
+          stmt.setBoolean(6, addUserRequest.getDeleted());
+          stmt.executeUpdate();
+          log.info("Added user: {}", addUserRequest.getUserName());
+          getAllUser(currentUser.getSessionId());
+        } catch (SQLException e) {
+          log.error("Error adding user", e);
+          UserUtil.sendPacket(currentUser.getSessionId(), new ErrorResponse(Error.SQL_EXCEPTION));
       }
     }
 
+    if (packet instanceof EditUserRequest editUserRequest) {
+      if (!currentUser.getRole().equals(Role.ADMIN)) {
+        UserUtil.sendPacket(currentUser.getSessionId(), new ErrorResponse(Error.ACCESS_DENIED));
+        return;
+      }
+      try {
+        String sql = "UPDATE User SET user_name = ?, password = ?, last_name = ?, first_name = ?, role_name = ?, deleted = ? WHERE user_id = ?";
+        PreparedStatement stmt = Server.connection.prepareStatement(sql);
+        stmt.setString(1, editUserRequest.getUserName());
+        stmt.setString(2, editUserRequest.getPassword());
+        stmt.setString(3, editUserRequest.getLastName());
+        stmt.setString(4, editUserRequest.getFirstName());
+        stmt.setString(5, editUserRequest.getRole());
+        stmt.setBoolean(6, editUserRequest.getDeleted());
+        stmt.setString(7, editUserRequest.getId());
+        stmt.executeUpdate();
+        log.info("Updated user: {}", editUserRequest.getUserName());
+        getAllUser(currentUser.getSessionId());
+      } catch (SQLException e) {
+        log.error("Error updating user", e);
+        UserUtil.sendPacket(currentUser.getSessionId(), new ErrorResponse(Error.SQL_EXCEPTION));
+      }  
+    }
   }
+}
 
-  // private void getAllUser(int sessionId) {
-  //   try {
-  //     String sql = "SELECT user_id, user_name, last_name, first_name, role FROM User";
-  //     PreparedStatement stmt = Server.connection.prepareStatement(sql);
-  //     ResultSet rs = stmt.executeQuery();
-  //     ArrayList<String> resultList = new ArrayList<>();
-  //     while (rs.next()) {
-  //       String userId = rs.getString("user_id");
-  //       String userName = rs.getString("user_name");
-  //       String lastName = rs.getString("last_name");
-  //       String firstName = rs.getString("first_name");
-  //       String role = rs.getString("role");
-  //       String result = String.join("|", userId, userName, lastName, firstName, role);
-  //       resultList.add(result);
-  //     }
-  //     String[] resultString = resultList.toArray(new String[0]);
-  //     String[][] resultArray = new String[resultString.length][];
-  //     for (int i = 0; i < resultString.length; i++) {
-  //       resultArray[i] = resultString[i].split("\\|");
-  //     }
-  //     UserUtil.sendPacket(sessionId, new GetAllUserResponse(resultArray));
-  //   } catch (SQLException e) {
-  //     throw new RuntimeException(e);
-  //   }
-  // }
+
+  private void getAllUser(int sessionId) {
+    try {
+        String sql = "SELECT user_id, user_name, last_name, password, first_name, role_name, deleted FROM User";
+      PreparedStatement stmt = Server.connection.prepareStatement(sql);
+      ResultSet rs = stmt.executeQuery();
+      ArrayList<String> resultList = new ArrayList<>();
+      while (rs.next()) {
+        String userId = rs.getString("user_id");
+        String userName = rs.getString("user_name");
+        String lastName = rs.getString("last_name");
+        String firstName = rs.getString("first_name");
+        String password = rs.getString("password");
+        String role = rs.getString("role_name");
+        String deleted = rs.getString("deleted");
+        String result = String.join("|", userId, userName, lastName, firstName, password, role, deleted);
+        resultList.add(result);
+      }
+      String[] resultString = resultList.toArray(new String[0]);
+      String[][] resultArray = new String[resultString.length][];
+      for (int i = 0; i < resultString.length; i++) {
+        resultArray[i] = resultString[i].split("\\|");
+      }
+      UserUtil.sendPacket(sessionId, new GetAllUserInfoResponse(resultArray));
+    } catch (SQLException e) {
+      throw new RuntimeException(e);
+    }
+  }
 
   private void getSerInfo(int sessionId) {
     try {
