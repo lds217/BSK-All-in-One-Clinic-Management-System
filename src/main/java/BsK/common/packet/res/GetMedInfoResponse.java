@@ -30,7 +30,7 @@ public class GetMedInfoResponse implements Packet {
         List<Medicine> result = new ArrayList<>();
         if (medInfo != null) {
             for (String[] data : medInfo) {
-                if (data.length >= 7) {
+                if (data.length >= 9) {
                     result.add(new Medicine(data));
                 }
             }

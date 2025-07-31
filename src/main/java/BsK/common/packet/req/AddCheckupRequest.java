@@ -8,9 +8,9 @@ import lombok.Data;
 @Data
 @AllArgsConstructor
 public class AddCheckupRequest implements Packet {
-    int customerId;
-    int doctorId;
-    int processedById;
-    String checkupType;
-    String status;
+    private int customerId;
+    private int doctorId;
+    private int processedById;
+    private String checkupType;
+    private String status;
 }

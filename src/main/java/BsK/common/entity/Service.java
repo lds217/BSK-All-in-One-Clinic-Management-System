@@ -14,18 +14,20 @@ public class Service {
     private String id;
     private String name;
     private String cost;
+    private String deleted; // 0: no, 1: yes
 
     /**
      * Constructor to create Service from array data
      * @param data Array of service data from backend
      */
     public Service(String[] data) {
-        if (data.length < 3) {
-            throw new IllegalArgumentException("Service data array must contain at least 3 elements");
+        if (data.length < 4) {
+            throw new IllegalArgumentException("Service data array must contain at least 4 elements");
         }
         this.id = data[0];
         this.name = data[1];
         this.cost = data[2];
+        this.deleted = data[3];
     }
 
     /**
@@ -33,6 +35,6 @@ public class Service {
      * @return String array representation of Service
      */
     public String[] toStringArray() {
-        return new String[]{id, name, cost};
+        return new String[]{id, name, cost, deleted};
     }
 } 

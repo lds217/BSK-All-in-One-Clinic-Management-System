@@ -8,8 +8,8 @@ import lombok.Data;
 @Data
 @AllArgsConstructor
 public class CallPatientRequest implements Packet {
-    int roomId;
-    int patientId;
-    String queueNumber;
-    Status status;
+    private int roomId;
+    private int patientId;
+    private String queueNumber;
+    private Status status;
 }

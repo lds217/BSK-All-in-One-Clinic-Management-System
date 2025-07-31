@@ -281,13 +281,6 @@ public class ServiceDialog extends JDialog {
                 return false;
             }
         };
-        // serviceTable = new JTable(tableModel); // This line is removed
-        // serviceTable.setFont(new Font("Arial", Font.PLAIN, 14)); // This line is removed
-        // serviceTable.setRowHeight(25); // This line is removed
-        // serviceTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION); // This line is removed
-        // serviceTable.setAutoCreateRowSorter(true); // This line is removed
-        // JScrollPane serviceTableScrollPane = new JScrollPane(serviceTable); // This line is removed
-        // serviceTableScrollPane.setPreferredSize(new Dimension(550, 250)); // This line is removed
 
         suggestionTableModel = new DefaultTableModel(new String[0][0], serviceColumns) {
             @Override
@@ -450,7 +443,7 @@ public class ServiceDialog extends JDialog {
                 } else {
                      if (e.getKeyCode() == KeyEvent.VK_ENTER) {
                         handleExactMatch();
-                    }
+                     }
                 }
             }
         });
@@ -526,9 +519,13 @@ public class ServiceDialog extends JDialog {
         String lowerCaseFilterText = TextUtils.removeAccents(filterText.toLowerCase());
 
         for (Service service : services) {
-            if (filterText.isEmpty() || TextUtils.removeAccents(service.getName().toLowerCase()).contains(lowerCaseFilterText)) {
+            // Check if the service is not deleted and matches the filter text
+            if ("0".equals(service.getDeleted()) && 
+                (filterText.isEmpty() || TextUtils.removeAccents(service.getName().toLowerCase()).contains(lowerCaseFilterText))) {
+                
                 filteredServices.add(service);
-                filteredDisplayData.add(service.toStringArray());
+                // Create a 3-element array for display, excluding the 'deleted' status
+                filteredDisplayData.add(new String[]{service.getId(), service.getName(), service.getCost()});
             }
         }
 
@@ -580,7 +577,8 @@ public class ServiceDialog extends JDialog {
         String normalizedSearchName = TextUtils.removeAccents(searchName.toLowerCase());
 
         for (Service service : services) {
-            if (TextUtils.removeAccents(service.getName().toLowerCase()).equals(normalizedSearchName)) {
+            // Also check the deleted flag here for consistency
+            if ("0".equals(service.getDeleted()) && TextUtils.removeAccents(service.getName().toLowerCase()).equals(normalizedSearchName)) {
                 foundService = service;
                 break;
             }
@@ -655,7 +653,8 @@ public class ServiceDialog extends JDialog {
             String normalizedSearchName = TextUtils.removeAccents(searchName.toLowerCase());
 
             for (Service service : services) {
-                if (TextUtils.removeAccents(service.getName().toLowerCase()).equals(normalizedSearchName)) {
+                // Also check the deleted flag here
+                if ("0".equals(service.getDeleted()) && TextUtils.removeAccents(service.getName().toLowerCase()).equals(normalizedSearchName)) {
                     foundService = service;
                     break;
                 }

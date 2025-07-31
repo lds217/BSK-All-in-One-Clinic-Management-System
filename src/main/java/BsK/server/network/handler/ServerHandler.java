@@ -301,78 +301,12 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
 
       if (packet instanceof GetMedInfoRequest getMedInfoRequest) {
         log.debug("Received GetMedInfoRequest");
-        try {
-          ResultSet rs = statement.executeQuery(
-                  "select med_id, med_name, med_company, med_description, quantity, med_unit, med_selling_price, preference_note, supplement\n" +
-                          "    from Medicine"
-          );
-
-          if (!rs.isBeforeFirst()) {
-            System.out.println("No data found in the medicine table.");
-          } else {
-            ArrayList<String> resultList = new ArrayList<>();
-            while (rs.next()) {
-                String medId = rs.getString("med_id");
-                String medName = rs.getString("med_name");
-                String medCompany = rs.getString("med_company");
-                String medDescription = rs.getString("med_description");
-                String quantity = rs.getString("quantity");
-                String medUnit = rs.getString("med_unit");
-                String medSellingPrice = rs.getString("med_selling_price");
-                String preferenceNote = rs.getString("preference_note");
-                String supplement = rs.getString("supplement");
-
-
-                String result = String.join("|",medId, medName, medCompany, medDescription, quantity, medUnit,
-                        medSellingPrice, preferenceNote != null ? preferenceNote : "", supplement != null ? supplement : "0");
-                resultList.add(result);
-            }
-
-            String[] resultString = resultList.toArray(new String[0]);
-            String[][] resultArray = new String[resultString.length][];
-            for (int i = 0; i < resultString.length; i++) {
-              resultArray[i] = resultString[i].split("\\|", -1);
-            }
-
-            UserUtil.sendPacket(currentUser.getSessionId(), new GetMedInfoResponse(resultArray));
-          }
-        } catch (SQLException e) {
-          throw new RuntimeException(e);
-        }
+        getMedInfo(currentUser.getSessionId());
       }
 
       if (packet instanceof GetSerInfoRequest getSerInfoRequest) {
         log.debug("Received GetSerInfoRequest");
-        try {
-          ResultSet rs = statement.executeQuery(
-                  "select service_id, service_name, service_cost\n" +
-                          "    from Service"
-          );
-
-          if (!rs.isBeforeFirst()) {
-            System.out.println("No data found in the service table.");
-          } else {
-            ArrayList<String> resultList = new ArrayList<>();
-            while (rs.next()) {
-              String serId = rs.getString("service_id");
-              String serName = rs.getString("service_name");
-              String serPrice = rs.getString("service_cost");
-
-              String result = String.join("|", serId, serName, serPrice);
-              resultList.add(result);
-            }
-
-            String[] resultString = resultList.toArray(new String[0]);
-            String[][] resultArray = new String[resultString.length][];
-            for (int i = 0; i < resultString.length; i++) {
-              resultArray[i] = resultString[i].split("\\|");
-            }
-
-            UserUtil.sendPacket(currentUser.getSessionId(), new GetSerInfoResponse(resultArray));
-          }
-        } catch (SQLException e) {
-          throw new RuntimeException(e);
-        }
+        getSerInfo(currentUser.getSessionId());
       }
 
       if (packet instanceof ClinicInfoRequest clinicInfoRequest) {
@@ -1520,8 +1454,207 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         }
         log.info("Sent SimpleMessageResponse to all sessions");
       }
+      if (packet instanceof AddMedicineRequest addMedicineRequest) {
+        if (!currentUser.getRole().equals(Role.ADMIN)) {
+          UserUtil.sendPacket(currentUser.getSessionId(), new ErrorResponse(Error.ACCESS_DENIED));
+          return;
+        }
+        log.info("Received AddMedRequest");
+        try {
+          String sql = "INSERT INTO Medicine (med_name, med_company, med_description, med_unit, med_selling_price, preference_note, supplement, deleted) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+          PreparedStatement stmt = Server.connection.prepareStatement(sql);
+          stmt.setString(1, addMedicineRequest.getName());
+          stmt.setString(2, addMedicineRequest.getCompany());
+          stmt.setString(3, addMedicineRequest.getDescription());
+          stmt.setString(4, addMedicineRequest.getUnit());
+          stmt.setDouble(5, addMedicineRequest.getPrice());
+          stmt.setString(6, addMedicineRequest.getPreferedNote());
+          stmt.setBoolean(7, addMedicineRequest.getSupplement());
+          stmt.setBoolean(8, addMedicineRequest.getDeleted());
+          stmt.executeUpdate();
+          log.info("Added medicine: {}", addMedicineRequest.getName());
+          getMedInfo(currentUser.getSessionId());
+        } catch (SQLException e) {
+          log.error("Error adding medicine", e);
+          UserUtil.sendPacket(currentUser.getSessionId(), new ErrorResponse(Error.SQL_EXCEPTION));
+        }
+      }
+      if (packet instanceof EditMedicineRequest editMedicineRequest) {
+        if (!currentUser.getRole().equals(Role.ADMIN)) {
+          UserUtil.sendPacket(currentUser.getSessionId(), new ErrorResponse(Error.ACCESS_DENIED));
+          return;
+        }
+        log.info("Received EditMedRequest");
+        try {
+          String sql = "UPDATE Medicine SET med_name = ?, med_company = ?, med_description = ?, med_unit = ?, med_selling_price = ?, preference_note = ?, supplement = ?, deleted = ? WHERE med_id = ?";
+          PreparedStatement stmt = Server.connection.prepareStatement(sql);
+          stmt.setString(1, editMedicineRequest.getName());
+          stmt.setString(2, editMedicineRequest.getCompany());
+          stmt.setString(3, editMedicineRequest.getDescription());
+          stmt.setString(4, editMedicineRequest.getUnit());
+          stmt.setDouble(5, editMedicineRequest.getPrice());
+          stmt.setString(6, editMedicineRequest.getPreferedNote());
+          stmt.setBoolean(7, editMedicineRequest.getSupplement());
+          stmt.setBoolean(8, editMedicineRequest.getDeleted());
+          stmt.setString(9, editMedicineRequest.getId());
+          stmt.executeUpdate();
+          log.info("Updated medicine: {}", editMedicineRequest.getName());
+          getMedInfo(currentUser.getSessionId());
+        } catch (SQLException e) {
+          log.error("Error updating medicine", e);
+          UserUtil.sendPacket(currentUser.getSessionId(), new ErrorResponse(Error.SQL_EXCEPTION));
+        }
+      }
+      if (packet instanceof AddServiceRequest addServiceRequest) {
+        if (!currentUser.getRole().equals(Role.ADMIN)) {
+          UserUtil.sendPacket(currentUser.getSessionId(), new ErrorResponse(Error.ACCESS_DENIED));
+          return;
+        }
+        try {
+          String sql = "INSERT INTO Service (service_name, service_cost, deleted) VALUES (?, ?, ?)";
+          PreparedStatement stmt = Server.connection.prepareStatement(sql);
+          stmt.setString(1, addServiceRequest.getName());
+          stmt.setDouble(2, addServiceRequest.getPrice());
+          stmt.setBoolean(3, addServiceRequest.getDeleted());
+          stmt.executeUpdate();
+          log.info("Added service: {}", addServiceRequest.getName());
+          getSerInfo(currentUser.getSessionId());
+        } catch (SQLException e) {
+          log.error("Error adding service", e);
+          UserUtil.sendPacket(currentUser.getSessionId(), new ErrorResponse(Error.SQL_EXCEPTION));
+        }
+      }
+      if (packet instanceof EditServiceRequest editServiceRequest) {
+        if (!currentUser.getRole().equals(Role.ADMIN)) {
+          UserUtil.sendPacket(currentUser.getSessionId(), new ErrorResponse(Error.ACCESS_DENIED));
+          return;
+        }
+        try {
+          String sql = "UPDATE Service SET service_name = ?, service_cost = ?, deleted = ? WHERE service_id = ?";
+          PreparedStatement stmt = Server.connection.prepareStatement(sql);
+          stmt.setString(1, editServiceRequest.getName());
+          stmt.setDouble(2, editServiceRequest.getPrice());
+          stmt.setBoolean(3, editServiceRequest.getDeleted());
+          stmt.setString(4, editServiceRequest.getId());
+          stmt.executeUpdate();
+          log.info("Updated service: {}", editServiceRequest.getName());
+          getSerInfo(currentUser.getSessionId());
+        } catch (SQLException e) {
+          log.error("Error updating service", e);
+          UserUtil.sendPacket(currentUser.getSessionId(), new ErrorResponse(Error.SQL_EXCEPTION));
+        }
+      }
+
+      if (packet instanceof GetAllUserRequest getAllUserRequest) {
+        if (!currentUser.getRole().equals(Role.ADMIN)) {
+          UserUtil.sendPacket(currentUser.getSessionId(), new ErrorResponse(Error.ACCESS_DENIED));
+          return;
+        }
+        log.info("Received GetAllUserRequest");
+        // getAllUser(currentUser.getSessionId());
+      }
     }
 
+  }
+
+  // private void getAllUser(int sessionId) {
+  //   try {
+  //     String sql = "SELECT user_id, user_name, last_name, first_name, role FROM User";
+  //     PreparedStatement stmt = Server.connection.prepareStatement(sql);
+  //     ResultSet rs = stmt.executeQuery();
+  //     ArrayList<String> resultList = new ArrayList<>();
+  //     while (rs.next()) {
+  //       String userId = rs.getString("user_id");
+  //       String userName = rs.getString("user_name");
+  //       String lastName = rs.getString("last_name");
+  //       String firstName = rs.getString("first_name");
+  //       String role = rs.getString("role");
+  //       String result = String.join("|", userId, userName, lastName, firstName, role);
+  //       resultList.add(result);
+  //     }
+  //     String[] resultString = resultList.toArray(new String[0]);
+  //     String[][] resultArray = new String[resultString.length][];
+  //     for (int i = 0; i < resultString.length; i++) {
+  //       resultArray[i] = resultString[i].split("\\|");
+  //     }
+  //     UserUtil.sendPacket(sessionId, new GetAllUserResponse(resultArray));
+  //   } catch (SQLException e) {
+  //     throw new RuntimeException(e);
+  //   }
+  // }
+
+  private void getSerInfo(int sessionId) {
+    try {
+      ResultSet rs = statement.executeQuery(
+              "select service_id, service_name, service_cost, deleted\n" +
+                      "    from Service"
+      );
+
+      if (!rs.isBeforeFirst()) {
+        System.out.println("No data found in the service table.");
+      } else {
+        ArrayList<String> resultList = new ArrayList<>();
+        while (rs.next()) {
+          String serId = rs.getString("service_id");
+          String serName = rs.getString("service_name");
+          String serPrice = rs.getString("service_cost");
+          String deleted = rs.getString("deleted");
+
+          String result = String.join("|", serId, serName, serPrice, deleted);
+          resultList.add(result);
+        }
+
+        String[] resultString = resultList.toArray(new String[0]);
+        String[][] resultArray = new String[resultString.length][];
+        for (int i = 0; i < resultString.length; i++) {
+          resultArray[i] = resultString[i].split("\\|");
+        }
+
+        UserUtil.sendPacket(sessionId, new GetSerInfoResponse(resultArray));
+      }
+    } catch (SQLException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  private void getMedInfo(int sessionId) {
+    try {
+      ResultSet rs = statement.executeQuery(
+              "select med_id, med_name, med_company, med_description, med_unit, med_selling_price, preference_note, supplement, deleted\n" +
+                      "    from Medicine"
+      );
+
+      if (!rs.isBeforeFirst()) {
+        System.out.println("No data found in the medicine table.");
+      } else {
+        ArrayList<String> resultList = new ArrayList<>();
+        while (rs.next()) {
+            String medId = rs.getString("med_id");
+            String medName = rs.getString("med_name");
+            String medCompany = rs.getString("med_company");
+            String medDescription = rs.getString("med_description");
+            String medUnit = rs.getString("med_unit");
+            String medSellingPrice = rs.getString("med_selling_price");
+            String preferenceNote = rs.getString("preference_note");
+            String supplement = rs.getString("supplement");
+            String deleted = rs.getString("deleted");
+
+            String result = String.join("|",medId, medName, medCompany, medDescription, medUnit,
+                    medSellingPrice, preferenceNote != null ? preferenceNote : "", supplement != null ? supplement : "0", deleted);
+            resultList.add(result);
+        }
+
+        String[] resultString = resultList.toArray(new String[0]);
+        String[][] resultArray = new String[resultString.length][];
+        for (int i = 0; i < resultString.length; i++) {
+          resultArray[i] = resultString[i].split("\\|", -1);
+        }
+
+        UserUtil.sendPacket(sessionId, new GetMedInfoResponse(resultArray));
+      }
+    } catch (SQLException e) {
+      throw new RuntimeException(e);
+    }
   }
 
   private void getRecheckUpList(int sessionId) {

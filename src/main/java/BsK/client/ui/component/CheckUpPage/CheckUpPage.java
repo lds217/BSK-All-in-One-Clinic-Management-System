@@ -10,11 +10,11 @@ import BsK.client.network.handler.ResponseListener;
 import BsK.client.ui.component.common.AddDialog.AddDialog;
 import BsK.client.ui.component.common.HistoryViewDialog.HistoryViewDialog;
 import BsK.client.ui.component.common.MedicineDialog.MedicineDialog;
-import BsK.client.ui.component.common.PrintDialog.MedicineInvoice;
-import BsK.client.ui.component.common.PrintDialog.UltrasoundResult;
 import BsK.client.ui.component.common.ServiceDialog.ServiceDialog;
 import BsK.client.ui.component.common.TemplateDialog.TemplateDialog;
 import BsK.client.ui.component.MainFrame;
+import BsK.client.ui.component.CheckUpPage.PrintDialog.MedicineInvoice;
+import BsK.client.ui.component.CheckUpPage.PrintDialog.UltrasoundResult;
 import BsK.client.ui.component.common.DateLabelFormatter;
 import BsK.client.ui.component.common.NavBar;
 import BsK.client.ui.component.common.RoundedPanel;
@@ -1909,8 +1909,8 @@ public class CheckUpPage extends JPanel {
                         ultrasoundDoctorNameForPrint,
                         datePicker.getJFormattedTextField().getText(),
                         TextUtils.scaleRtfFontSize(getRtfContentAsString()),
-                        conclusionField.getText(),
-                        suggestionField.getText(),
+                        conclusionField.getText() == null ? "" : conclusionField.getText(),
+                        suggestionField.getText() == null ? "" : suggestionField.getText(),
                         recheckupDatePicker.getJFormattedTextField().getText(),
                         selectedImagesForPrint,
                         (String) orientationComboBox.getSelectedItem(), // Use selected orientation
@@ -1941,7 +1941,7 @@ public class CheckUpPage extends JPanel {
                 // }
                 String statusToSavePrint = (String) statusComboBox.getSelectedItem();
                 handleSave();
-                afterSaveActions(statusToSavePrint, "Đã lưu. Đang gửi lệnh in...");
+                
 
                 // Step 4: Finally, show print dialog with the pre-made object.
                 try {
@@ -1952,7 +1952,8 @@ public class CheckUpPage extends JPanel {
                 }
 
                 // Step 5: Upload PDF to backend after successful print dialog
-                uploadPdfToBackend(ultrasoundResultPrint, "ultrasound_result");
+                uploadPdfToBackend(ultrasoundResultPrint, "ultrasound_result", checkupIdField.getText());
+                afterSaveActions(statusToSavePrint, "Đã lưu. Đang gửi lệnh in...");
                 break;
             case "loupe": // This case now handles "Lưu & Xem"
                 // Step 1: Validate conditions first.
@@ -1990,8 +1991,8 @@ public class CheckUpPage extends JPanel {
                         ultrasoundDoctorNameForView,
                         datePicker.getJFormattedTextField().getText(),
                         TextUtils.scaleRtfFontSize(getRtfContentAsString()),
-                        conclusionField.getText(),
-                        suggestionField.getText(),
+                        conclusionField.getText() == null ? "" : conclusionField.getText(),
+                        suggestionField.getText() == null ? "" : suggestionField.getText(),
                         recheckupDatePicker.getJFormattedTextField().getText(),
                         selectedImagesForPrint,
                         (String) orientationComboBox.getSelectedItem(), // Use selected orientation
@@ -2019,13 +2020,14 @@ public class CheckUpPage extends JPanel {
                 // NO automatic status change for "Lưu & Xem"
                 String statusToSaveView = (String) statusComboBox.getSelectedItem();
                 handleSave();
-                afterSaveActions(statusToSaveView, "Đã lưu. Đang tạo bản xem trước...");
+                
 
                 // Step 4: Finally, show the viewer with the pre-made object.
                 JasperViewer.viewReport(jasperPrintToView, false);
 
                 // Step 5: Upload PDF to backend after successful view
-                uploadPdfToBackend(ultrasoundResultView, "ultrasound_result");
+                uploadPdfToBackend(ultrasoundResultView, "ultrasound_result", checkupIdField.getText());
+                afterSaveActions(statusToSaveView, "Đã lưu. Đang tạo bản xem trước...");
                 break;
         }
     }
@@ -3692,11 +3694,7 @@ public class CheckUpPage extends JPanel {
      * @param ultrasoundResult The UltrasoundResult object to export as PDF
      * @param pdfType The type of PDF ("ultrasound_result" or "medserinvoice")
      */
-    private void uploadPdfToBackend(UltrasoundResult ultrasoundResult, String pdfType) {
-        if (currentCheckupIdForMedia == null) {
-            log.warn("No current checkup ID for PDF upload");
-            return;
-        }
+    private void uploadPdfToBackend(UltrasoundResult ultrasoundResult, String pdfType, String checkupId) {
 
         // Run PDF export and upload in background thread to avoid blocking UI
         CompletableFuture.runAsync(() -> {
@@ -3709,17 +3707,17 @@ public class CheckUpPage extends JPanel {
                 
                 // Create and send upload request
                 UploadCheckupPdfRequest request = new UploadCheckupPdfRequest(
-                    currentCheckupIdForMedia,
+                    checkupId,
                     pdfBytes,
                     fileName,
                     pdfType
                 );
                 
                 NetworkUtil.sendPacket(ClientHandler.ctx.channel(), request);
-                log.info("Sent PDF upload request for checkup: {}, type: {}", currentCheckupIdForMedia, pdfType);
+                log.info("Sent PDF upload request for checkup: {}, type: {}", checkupId, pdfType);
                 
             } catch (Exception e) {
-                log.error("Failed to export or upload PDF for checkup: {}", currentCheckupIdForMedia, e);
+                log.error("Failed to export or upload PDF for checkup: {}", checkupId, e);
                 SwingUtilities.invokeLater(() -> {
                     JOptionPane.showMessageDialog(this,
                         "Lỗi khi tạo hoặc tải PDF: " + e.getMessage(),

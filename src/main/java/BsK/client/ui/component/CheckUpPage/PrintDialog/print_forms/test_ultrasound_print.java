@@ -1,4 +1,4 @@
-package BsK.client.ui.component.common.PrintDialog.print_forms;
+package BsK.client.ui.component.CheckUpPage.PrintDialog.print_forms;
 
 import net.sf.jasperreports.engine.JREmptyDataSource;
 import net.sf.jasperreports.engine.JasperReport;

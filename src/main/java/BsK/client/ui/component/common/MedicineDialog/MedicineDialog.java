@@ -37,15 +37,14 @@ public class MedicineDialog extends JDialog {
     private JTextField medicineCompanyField;
     private JTextArea medicineDescriptionField;
     private JSpinner quantitySpinner;
-    private JTextField quantityLeftField;
     private JComboBox<String> UnitComboBox;
     private JTextField priceField;
     private JTextField totalField;
     private JSpinner morningSpinner, noonSpinner, eveningSpinner;
     private JTextArea noteField;
     private DefaultTableModel tableModel, selectedTableModel;
-    private String[] medcineColumns = {"ID", "Tên thuốc", "Công ty", "Mô tả", "Tồn kho", "ĐVT", "Giá"};
-    private String[] suggestionColumns = {"Tên thuốc", "Tồn kho", "ĐVT", "Giá", "Supplement"};
+    private String[] medcineColumns = {"ID", "Tên thuốc", "Công ty", "Mô tả", "ĐVT", "Giá"};
+    private String[] suggestionColumns = {"Tên thuốc", "ĐVT", "Giá", "Supplement"};
     private String[][] medicineData;
     private final ResponseListener<GetMedInfoResponse> getMedInfoResponseListener = this::getMedInfoHandler;
     private TableColumnModel columnModel;
@@ -280,18 +279,6 @@ public class MedicineDialog extends JDialog {
 
         gbc.gridx = 2;
         gbc.weightx = 0.0;
-        JLabel quantityLeftLabel = new JLabel("Còn lại:");
-        quantityLeftLabel.setFont(labelFont);
-        quantityPricePanel.add(quantityLeftLabel, gbc);
-
-        gbc.gridx = 3;
-        gbc.weightx = 0.5;
-        quantityLeftField = new JTextField(5);
-        quantityLeftField.setFont(textFont);
-        quantityLeftField.setPreferredSize(textFieldSize);
-        quantityLeftField.setEditable(false);
-        quantityPricePanel.add(quantityLeftField, gbc);
-        gbc.weightx = 0.0;
 
         gbc.gridy++;
         gbc.gridx = 0;
@@ -416,7 +403,6 @@ public class MedicineDialog extends JDialog {
         suggestionPopup.setLayout(new BorderLayout());
         suggestionPopup.add(suggestionScrollPane, BorderLayout.CENTER);
         suggestionPopup.setFocusable(false);
-
 
         String[] selectedColumnNames = {"ID", "Tên thuốc", "SL", "ĐVT", "Sáng", "Trưa", "Chiều", "Đơn giá", "Thành tiền", "Ghi chú", "Supplement"};
         selectedTableModel = new DefaultTableModel(new String[][]{}, selectedColumnNames) {
@@ -561,7 +547,7 @@ public class MedicineDialog extends JDialog {
                 } else {
                      if (e.getKeyCode() == KeyEvent.VK_ENTER) {
                         handleExactMatch();
-                    }
+                     }
                 }
             }
         });
@@ -601,10 +587,10 @@ public class MedicineDialog extends JDialog {
             // If there are changes but no items selected, show a confirmation
             if (medicinePrescription == null || medicinePrescription.length == 0) {
                 int choice = JOptionPane.showConfirmDialog(this, 
-                    "Bạn đã xóa tất cả thuốc khỏi đơn. Bạn có muốn lưu thay đổi này không?", 
-                    "Xác nhận", 
-                    JOptionPane.YES_NO_OPTION, 
-                    JOptionPane.QUESTION_MESSAGE);
+                        "Bạn đã xóa tất cả thuốc khỏi đơn. Bạn có muốn lưu thay đổi này không?", 
+                        "Xác nhận", 
+                        JOptionPane.YES_NO_OPTION, 
+                        JOptionPane.QUESTION_MESSAGE);
                 if (choice != JOptionPane.YES_OPTION) {
                     return;
                 }
@@ -644,13 +630,15 @@ public class MedicineDialog extends JDialog {
         String lowerCaseFilterText = TextUtils.removeAccents(filterText.toLowerCase());
 
         for (Medicine med : medicines) {
-            if (filterText.isEmpty() || TextUtils.removeAccents(med.getName().toLowerCase()).contains(lowerCaseFilterText)) {
+            // Check if the medicine is not deleted and matches the filter text
+            if ("0".equals(med.getDeleted()) && 
+                (filterText.isEmpty() || TextUtils.removeAccents(med.getName().toLowerCase()).contains(lowerCaseFilterText))) {
+                
                 filteredMedicines.add(med);
                 // Show "Có" if supplement is "1", otherwise "Không"
                 String isSupplementText = "1".equals(med.getSupplement()) ? "Có" : "Không";
                 filteredDisplayData.add(new String[]{
                         med.getName(),
-                        med.getQuantity(),
                         med.getUnit(),
                         med.getSellingPrice(),
                         isSupplementText
@@ -677,17 +665,15 @@ public class MedicineDialog extends JDialog {
             medicineNameField.requestFocusInWindow();
         } else {
             suggestionPopup.setVisible(false);
-            // clearInputFields(); // Don't clear fields if the user is typing
         }
     }
 
     private void resizeSuggestionTableColumns() {
         columnModel = suggestionTable.getColumnModel();
         columnModel.getColumn(0).setPreferredWidth(180); // Tên thuốc
-        columnModel.getColumn(1).setPreferredWidth(50);  // Tồn kho
-        columnModel.getColumn(2).setPreferredWidth(50);  // ĐVT
-        columnModel.getColumn(3).setPreferredWidth(70);  // Giá
-        columnModel.getColumn(4).setPreferredWidth(70);  // Supplement
+        columnModel.getColumn(1).setPreferredWidth(60);  // ĐVT
+        columnModel.getColumn(2).setPreferredWidth(70);  // Giá
+        columnModel.getColumn(3).setPreferredWidth(70);  // Supplement
     }
     
     private void handleMedicineTableRowSelection(int viewRow) {
@@ -709,7 +695,8 @@ public class MedicineDialog extends JDialog {
         String normalizedSearchName = TextUtils.removeAccents(searchName.toLowerCase());
 
         for (Medicine med : medicines) {
-            if (TextUtils.removeAccents(med.getName().toLowerCase()).equals(normalizedSearchName)) {
+            // Also check the deleted flag here for consistency
+            if ("0".equals(med.getDeleted()) && TextUtils.removeAccents(med.getName().toLowerCase()).equals(normalizedSearchName)) {
                 foundMedicine = med;
                 break;
             }
@@ -733,7 +720,6 @@ public class MedicineDialog extends JDialog {
 
         medicineCompanyField.setText(medicine.getCompany());
         medicineDescriptionField.setText(medicine.getDescription());
-        quantityLeftField.setText(medicine.getQuantity());
         UnitComboBox.setSelectedItem(medicine.getUnit());
         priceField.setText(medicine.getSellingPrice());
 
@@ -771,7 +757,6 @@ public class MedicineDialog extends JDialog {
         // Don't clear the name field as the user is typing in it
         medicineCompanyField.setText("");
         medicineDescriptionField.setText("");
-        quantityLeftField.setText("");
         UnitComboBox.setSelectedIndex(0);
         priceField.setText("");
         totalField.setText("");
@@ -810,32 +795,27 @@ public class MedicineDialog extends JDialog {
         // Prioritize selection from the popup table if it's open and has a selection
         if (suggestionPopup.isVisible() && selectedRowInSuggestionTable != -1) {
             selectedMedicine = filteredMedicines.get(suggestionTable.convertRowIndexToModel(selectedRowInSuggestionTable));
-            medicineId = selectedMedicine.getId();
-            name = selectedMedicine.getName();
-            unit = selectedMedicine.getUnit();
-            currentPrice = selectedMedicine.getSellingPrice();
         } else {
             // Otherwise, try to find an exact match from the text field
             String normalizedSearchName = TextUtils.removeAccents(searchName.toLowerCase());
-
             for (Medicine med : medicines) {
-                if (TextUtils.removeAccents(med.getName().toLowerCase()).equals(normalizedSearchName)) {
+                // Also check the deleted flag here
+                if ("0".equals(med.getDeleted()) && TextUtils.removeAccents(med.getName().toLowerCase()).equals(normalizedSearchName)) {
                     selectedMedicine = med;
                     break;
                 }
             }
-            
-            if (selectedMedicine == null) {
-                JOptionPane.showMessageDialog(this, "Không tìm thấy thuốc khớp với: '" + searchName + "'. Vui lòng chọn từ danh sách gợi ý.", "Lỗi", JOptionPane.ERROR_MESSAGE);
-                return;
-            }
-            medicineId = selectedMedicine.getId();
-            name = selectedMedicine.getName(); 
-            unit = selectedMedicine.getUnit(); 
-            currentPrice = selectedMedicine.getSellingPrice();
         }
         
-        // Get supplement status
+        if (selectedMedicine == null) {
+            JOptionPane.showMessageDialog(this, "Không tìm thấy thuốc khớp với: '" + searchName + "'. Vui lòng chọn từ danh sách gợi ý.", "Lỗi", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        medicineId = selectedMedicine.getId();
+        name = selectedMedicine.getName();
+        unit = selectedMedicine.getUnit();
+        currentPrice = selectedMedicine.getSellingPrice();
         supplement = selectedMedicine.getSupplement();
 
         int quantity = (Integer) quantitySpinner.getValue();
@@ -862,9 +842,9 @@ public class MedicineDialog extends JDialog {
     }
 
     private void removeSelectedMedicine() {
-            int selectedRow = chosenMedicineTable.getSelectedRow();
-            if (selectedRow != -1) {
-                selectedTableModel.removeRow(selectedRow);
+        int selectedRow = chosenMedicineTable.getSelectedRow();
+        if (selectedRow != -1) {
+            selectedTableModel.removeRow(selectedRow);
         } else {
             JOptionPane.showMessageDialog(this, "Vui lòng chọn một thuốc từ bảng dưới để xóa.", "Chưa chọn thuốc", JOptionPane.WARNING_MESSAGE);
         }

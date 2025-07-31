@@ -9,11 +9,11 @@ import lombok.extern.slf4j.Slf4j;
 @AllArgsConstructor
 @Data
 public class AddPatientRequest implements Packet {
-    String patientFirstName;
-    String patientLastName;
-    long patientDob;
-    String patientPhone;
-    String patientAddress;
-    String patientGender;
-    String patientCccdDdcn;
+    private String patientFirstName;
+    private String patientLastName;
+    private long patientDob;
+    private String patientPhone;
+    private String patientAddress;
+    private String patientGender;
+    private String patientCccdDdcn;
 }

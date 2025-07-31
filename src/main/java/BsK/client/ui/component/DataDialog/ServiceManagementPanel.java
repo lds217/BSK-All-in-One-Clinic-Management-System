@@ -3,6 +3,8 @@ package BsK.client.ui.component.DataDialog;
 import BsK.client.network.handler.ClientHandler;
 import BsK.client.network.handler.ResponseListener;
 import BsK.common.entity.Service;
+import BsK.common.packet.req.AddServiceRequest;
+import BsK.common.packet.req.EditServiceRequest;
 import BsK.common.packet.req.GetSerInfoRequest;
 import BsK.common.packet.res.GetSerInfoResponse;
 import BsK.common.util.network.NetworkUtil;
@@ -14,7 +16,6 @@ import javax.swing.border.TitledBorder;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.table.DefaultTableModel;
-import javax.swing.table.TableRowSorter;
 import java.awt.*;
 import java.util.ArrayList;
 import java.util.List;
@@ -33,9 +34,10 @@ public class ServiceManagementPanel extends JPanel {
     // --- Input Fields (Left Side) ---
     private JTextField serviceNameField;
     private JTextField priceField;
-    private JTextArea noteField;
+    private JCheckBox chkIsDeleted; // Checkbox for soft delete
 
-    private JButton btnAdd, btnEdit, btnDelete, btnClear;
+    // --- Action Buttons ---
+    private JButton btnAdd, btnEdit, btnClear;
 
     // --- Data & State ---
     private List<Service> allServices = new ArrayList<>();
@@ -88,20 +90,11 @@ public class ServiceManagementPanel extends JPanel {
         mainGbc.gridy = 0;
         mainInputPanel.add(serviceInfoPanel, mainGbc);
 
-        JPanel notePanel = new JPanel(new GridBagLayout());
-        notePanel.setBorder(BorderFactory.createTitledBorder(
-                BorderFactory.createEtchedBorder(), "Ghi chú",
-                javax.swing.border.TitledBorder.LEADING, javax.swing.border.TitledBorder.TOP,
-                titleFont, new Color(50, 50, 50)
-        ));
         mainGbc.gridy = 1;
-        mainInputPanel.add(notePanel, mainGbc);
-
-        mainGbc.gridy = 2;
         mainInputPanel.add(createServiceButtonPanel(), mainGbc);
 
-        mainGbc.gridy = 3;
-        mainGbc.weighty = 1.0;
+        mainGbc.gridy = 2;
+        mainGbc.weighty = 1.0; // Pushes content to the top
         mainInputPanel.add(new JPanel(), mainGbc);
 
         GridBagConstraints gbc = new GridBagConstraints();
@@ -119,91 +112,87 @@ public class ServiceManagementPanel extends JPanel {
         serviceInfoPanel.add(nameLabel, gbc);
 
         gbc.gridx = 1;
-        gbc.gridwidth = 3;
         gbc.weightx = 1.0;
         serviceNameField = new JTextField(20);
         serviceNameField.setFont(textFont);
         serviceNameField.setPreferredSize(textFieldSize);
         serviceInfoPanel.add(serviceNameField, gbc);
-        gbc.gridwidth = 1;
-        gbc.weightx = 0.0;
 
         // --- Đơn giá ---
         gbc.gridy++;
         gbc.gridx = 0;
+        gbc.weightx = 0.0;
         JLabel priceLabel = new JLabel("Đơn giá (VNĐ):");
         priceLabel.setFont(labelFont);
         serviceInfoPanel.add(priceLabel, gbc);
 
         gbc.gridx = 1;
-        gbc.gridwidth = 3;
         gbc.weightx = 1.0;
         priceField = new JTextField(10);
         priceField.setFont(textFont);
         priceField.setPreferredSize(textFieldSize);
         serviceInfoPanel.add(priceField, gbc);
-        gbc.gridwidth = 1;
-        gbc.weightx = 0.0;
-
-        // --- Ghi chú ---
-        gbc.gridy = 0;
-        gbc.gridx = 0;
-        gbc.anchor = GridBagConstraints.NORTHWEST;
-        JLabel noteLabel = new JLabel("Ghi chú:");
-        noteLabel.setFont(labelFont);
-        notePanel.add(noteLabel, gbc);
-        gbc.anchor = GridBagConstraints.WEST;
-
-        gbc.gridx = 1;
-        gbc.weightx = 1.0;
-        gbc.weighty = 1.0;
-        gbc.fill = GridBagConstraints.BOTH;
-        noteField = new JTextArea(3, 20);
-        noteField.setFont(textFont);
-        noteField.setLineWrap(true);
-        noteField.setWrapStyleWord(true);
-        JScrollPane noteScrollPane = new JScrollPane(noteField);
-        noteScrollPane.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED);
-        notePanel.add(noteScrollPane, gbc);
-        gbc.fill = GridBagConstraints.HORIZONTAL;
-        gbc.weightx = 0.0;
-        gbc.weighty = 0.0;
 
         return mainInputPanel;
     }
 
     /**
-     * Creates the panel containing the "Thêm", "Sửa", "Xóa", "Làm mới" buttons.
+     * Creates the panel containing the action buttons and checkboxes.
      */
     private JPanel createServiceButtonPanel() {
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 5));
         btnAdd = new JButton("Thêm mới");
         btnEdit = new JButton("Chỉnh sửa");
-        btnDelete = new JButton("Xoá");
         btnClear = new JButton("Làm mới");
+        chkIsDeleted = new JCheckBox("Ẩn (Xoá)");
+        chkIsDeleted.setFont(new Font("Arial", Font.BOLD, 13));
 
         Dimension btnSize = new Dimension(100, 35);
         btnAdd.setPreferredSize(btnSize);
         btnEdit.setPreferredSize(btnSize);
-        btnDelete.setPreferredSize(btnSize);
         btnClear.setPreferredSize(btnSize);
 
+        // --- Component Order Changed Here ---
+        buttonPanel.add(chkIsDeleted);
         buttonPanel.add(btnAdd);
         buttonPanel.add(btnEdit);
-        buttonPanel.add(btnDelete);
         buttonPanel.add(btnClear);
 
         // Button Actions
         btnClear.addActionListener(e -> clearServiceFields());
 
         btnAdd.addActionListener(e -> {
-            String name = serviceNameField.getText();
-            if (name.trim().isEmpty()) {
+            String name = serviceNameField.getText().trim();
+            if (name.isEmpty()) {
                 JOptionPane.showMessageDialog(this, "Tên dịch vụ không được để trống.", "Lỗi", JOptionPane.ERROR_MESSAGE);
+                serviceNameField.requestFocusInWindow();
                 return;
             }
-            // TODO: Implement Add Service network request
-            JOptionPane.showMessageDialog(this, "Chức năng 'Thêm mới' cho dịch vụ '" + name + "' sẽ được thực hiện tại đây.", "Thông báo", JOptionPane.INFORMATION_MESSAGE);
+            String priceText = priceField.getText().trim();
+            if (priceText.isEmpty()) {
+                JOptionPane.showMessageDialog(this, "Giá dịch vụ không được để trống.", "Lỗi", JOptionPane.ERROR_MESSAGE);
+                priceField.requestFocusInWindow();
+                return;
+            }
+
+            Double price;
+            try {
+                price = Double.parseDouble(priceText);
+                if (price < 0) {
+                    JOptionPane.showMessageDialog(this, "Giá dịch vụ không được là số âm.", "Lỗi", JOptionPane.ERROR_MESSAGE);
+                    return;
+                }
+            } catch (NumberFormatException nfe) {
+                JOptionPane.showMessageDialog(this, "Giá dịch vụ phải là một con số hợp lệ.", "Lỗi", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            Boolean deleted = false; // New services are active by default
+            AddServiceRequest request = new AddServiceRequest(name, price, deleted);
+            NetworkUtil.sendPacket(ClientHandler.ctx.channel(), request);
+
+            JOptionPane.showMessageDialog(this, "Yêu cầu thêm dịch vụ '" + name + "' đã được gửi.", "Thành công", JOptionPane.INFORMATION_MESSAGE);
+            clearServiceFields();
         });
 
         btnEdit.addActionListener(e -> {
@@ -211,28 +200,40 @@ public class ServiceManagementPanel extends JPanel {
                 JOptionPane.showMessageDialog(this, "Vui lòng chọn một dịch vụ để chỉnh sửa.", "Chưa chọn dịch vụ", JOptionPane.WARNING_MESSAGE);
                 return;
             }
-            // TODO: Implement Edit Service network request
-            String name = serviceNameField.getText();
-            JOptionPane.showMessageDialog(this, "Chức năng 'Chỉnh sửa' cho dịch vụ ID: " + selectedServiceId + " (" + name + ") sẽ được thực hiện tại đây.", "Thông báo", JOptionPane.INFORMATION_MESSAGE);
-        });
-
-        btnDelete.addActionListener(e -> {
-            if (selectedServiceId == null) {
-                JOptionPane.showMessageDialog(this, "Vui lòng chọn một dịch vụ để xóa.", "Chưa chọn dịch vụ", JOptionPane.WARNING_MESSAGE);
+            String name = serviceNameField.getText().trim();
+            if (name.isEmpty()) {
+                JOptionPane.showMessageDialog(this, "Tên dịch vụ không được để trống.", "Lỗi", JOptionPane.ERROR_MESSAGE);
                 return;
             }
-            int choice = JOptionPane.showConfirmDialog(this,
-                    "Bạn có chắc chắn muốn xóa dịch vụ '" + serviceNameField.getText() + "' không?",
-                    "Xác nhận xóa", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
-            if (choice == JOptionPane.YES_OPTION) {
-                // TODO: Implement Delete Service network request
-                JOptionPane.showMessageDialog(this, "Chức năng 'Xoá' cho dịch vụ ID: " + selectedServiceId + " sẽ được thực hiện tại đây.", "Thông báo", JOptionPane.INFORMATION_MESSAGE);
+            String priceText = priceField.getText().trim();
+            if (priceText.isEmpty()) {
+                JOptionPane.showMessageDialog(this, "Giá dịch vụ không được để trống.", "Lỗi", JOptionPane.ERROR_MESSAGE);
+                return;
             }
+
+            Double price;
+            try {
+                price = Double.parseDouble(priceText);
+                if (price < 0) {
+                    JOptionPane.showMessageDialog(this, "Giá dịch vụ không được là số âm.", "Lỗi", JOptionPane.ERROR_MESSAGE);
+                    return;
+                }
+            } catch (NumberFormatException nfe) {
+                JOptionPane.showMessageDialog(this, "Giá dịch vụ phải là một con số hợp lệ.", "Lỗi", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            Boolean deleted = chkIsDeleted.isSelected();
+            EditServiceRequest request = new EditServiceRequest(selectedServiceId, name, price, deleted);
+            NetworkUtil.sendPacket(ClientHandler.ctx.channel(), request);
+
+            JOptionPane.showMessageDialog(this, "Yêu cầu chỉnh sửa dịch vụ '" + name + "' đã được gửi.", "Thành công", JOptionPane.INFORMATION_MESSAGE);
+            clearServiceFields();
         });
 
         // Initial button states
         btnEdit.setEnabled(false);
-        btnDelete.setEnabled(false);
+        chkIsDeleted.setEnabled(false);
 
         return buttonPanel;
     }
@@ -247,7 +248,7 @@ public class ServiceManagementPanel extends JPanel {
                 TitledBorder.LEFT, TitledBorder.TOP, new Font("Arial", Font.BOLD, 14)));
 
         // Table
-        String[] serviceColumns = {"ID", "Tên dịch vụ", "Đơn giá (VNĐ)"};
+        String[] serviceColumns = {"ID", "Tên dịch vụ", "Đơn giá (VNĐ)", "Trạng thái"};
         serviceTableModel = new DefaultTableModel(serviceColumns, 0) {
             @Override
             public boolean isCellEditable(int row, int column) { return false; }
@@ -261,10 +262,9 @@ public class ServiceManagementPanel extends JPanel {
 
         serviceTable.getSelectionModel().addListSelectionListener(e -> {
             if (!e.getValueIsAdjusting() && serviceTable.getSelectedRow() != -1) {
-                // IMPORTANT: We need to find the original index from the 'allServices' list
                 int viewRow = serviceTable.getSelectedRow();
                 String serviceId = (String) serviceTableModel.getValueAt(viewRow, 0);
-                
+
                 allServices.stream()
                         .filter(service -> service.getId().equals(serviceId))
                         .findFirst()
@@ -309,26 +309,28 @@ public class ServiceManagementPanel extends JPanel {
         selectedServiceId = service.getId();
         serviceNameField.setText(service.getName());
         priceField.setText(service.getCost());
-        noteField.setText(""); // Assuming notes are not stored in the main service entity
+
+        // Update checkbox state
+        chkIsDeleted.setSelected("1".equals(service.getDeleted()));
 
         // Update button states
         btnAdd.setEnabled(false);
         btnEdit.setEnabled(true);
-        btnDelete.setEnabled(true);
+        chkIsDeleted.setEnabled(true);
     }
 
     private void clearServiceFields() {
         selectedServiceId = null;
         serviceNameField.setText("");
         priceField.setText("");
-        noteField.setText("");
+        chkIsDeleted.setSelected(false);
         serviceTable.clearSelection();
         serviceNameField.requestFocusInWindow();
 
         // Reset button states
         btnAdd.setEnabled(true);
         btnEdit.setEnabled(false);
-        btnDelete.setEnabled(false);
+        chkIsDeleted.setEnabled(false);
     }
 
     private void filterServiceTable() {
@@ -339,10 +341,12 @@ public class ServiceManagementPanel extends JPanel {
 
         for (Service service : allServices) {
             if (filterText.isEmpty() || TextUtils.removeAccents(service.getName().toLowerCase()).contains(lowerCaseFilterText)) {
+                String status = "0".equals(service.getDeleted()) ? "Đang bán" : "Đã ẩn";
                 serviceTableModel.addRow(new Object[]{
                         service.getId(),
                         service.getName(),
-                        service.getCost()
+                        service.getCost(),
+                        status
                 });
             }
         }

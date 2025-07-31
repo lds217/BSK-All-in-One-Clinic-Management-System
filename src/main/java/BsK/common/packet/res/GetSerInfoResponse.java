@@ -30,7 +30,7 @@ public class GetSerInfoResponse implements Packet {
         List<Service> result = new ArrayList<>();
         if (serInfo != null) {
             for (String[] data : serInfo) {
-                if (data.length >= 3) {
+                if (data.length >= 4) {
                     result.add(new Service(data));
                 }
             }

@@ -1,8 +1,7 @@
-package BsK.client.ui.component.common.PrintDialog;
+package BsK.client.ui.component.CheckUpPage.PrintDialog;
 
 import BsK.client.LocalStorage;
-import BsK.client.ui.component.common.PrintDialog.print_forms.InvoiceItem;
-
+import BsK.client.ui.component.CheckUpPage.PrintDialog.print_forms.InvoiceItem;
 // JasperReports imports
 import net.sf.jasperreports.engine.*;
 import net.sf.jasperreports.engine.data.JRBeanCollectionDataSource;
