@@ -116,7 +116,8 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                           "from checkup as a\n" +
                           "join customer as c on a.customer_id = c.customer_id\n" +
                           "join Doctor D on a.doctor_id = D.doctor_id\n" +
-                          "where a.status = 'ĐANG KHÁM' or a.status = 'CHỜ KHÁM'"
+                          "where a.checkup_date >= CAST(strftime('%s', date('now', 'start of day')) AS INTEGER) * 1000\n" +
+                          "AND a.checkup_date < CAST(strftime('%s', date('now', 'start of day', '+1 day')) AS INTEGER) * 1000"
           );
 
           if (!rs.isBeforeFirst()) {
@@ -310,7 +311,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         log.debug("Received ClinicInfoRequest");
         try {
           ResultSet rs = statement.executeQuery(
-                  "select name, address, phone\n" +
+                  "select name, address, phone, prefix\n" +
                           "    from Clinic"
           );
 
@@ -320,8 +321,9 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                 String clinicName = rs.getString("name");
                 String clinicAddress = rs.getString("address");
                 String clinicPhone = rs.getString("phone");
+                String clinicPrefix = rs.getString("prefix");
 
-                UserUtil.sendPacket(currentUser.getSessionId(), new ClinicInfoResponse(clinicName, clinicAddress, clinicPhone));
+                UserUtil.sendPacket(currentUser.getSessionId(), new ClinicInfoResponse(clinicName, clinicAddress, clinicPhone, clinicPrefix));
             }
         }
         catch (SQLException e) {
@@ -566,107 +568,113 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
       }
 
       if (packet instanceof AddCheckupRequest addCheckupRequest) {
-        log.debug("Received AddCheckupRequest to add patient{}", addCheckupRequest.getCustomerId());
+        log.debug("Received AddCheckupRequest to add for customer {}", addCheckupRequest.getCustomerId());
+        
+        // Khai báo các biến ID ở ngoài khối try để có thể sử dụng sau này
+        int generatedCheckupId = 0;
+        int queueNumber = 0;
+    
         try {
-          // Disable auto-commit
-          Server.connection.setAutoCommit(false);
-
-          int queueNumber = 0;
-          // Use a transaction to ensure atomic operations
-          try {
-              // First, try to update an existing counter for today
-              try (PreparedStatement updateStmt = Server.connection.prepareStatement(
-                      "UPDATE DailyQueueCounter SET current_count = current_count + 1 " +
-                      "WHERE date = date('now', 'localtime') RETURNING current_count")) {
-                  ResultSet rs = updateStmt.executeQuery();
-                  if (rs.next()) {
-                      // Update successful, get the new value
-                      queueNumber = rs.getInt(1);
-                  } else {
-                      // No row for today exists yet, insert one
-                      try (PreparedStatement insertStmt = Server.connection.prepareStatement(
-                              "INSERT INTO DailyQueueCounter (date, current_count) VALUES (date('now', 'localtime'), 1) " +
-                              "RETURNING current_count")) {
-                          ResultSet insertRs = insertStmt.executeQuery();
-                          if (insertRs.next()) {
-                              queueNumber = insertRs.getInt(1); // Should be 1
-                          } else {
-                              throw new SQLException("Failed to insert new queue counter");
-                          }
-                      }
-                  }
-              }
-          } catch (SQLException e) {
-            log.error("Error updating queue counter", e);
-            throw new RuntimeException(e);
-          } 
-          // First query: Insert Checkup
-          PreparedStatement checkupStmt = Server.connection.prepareStatement(
-                  "INSERT INTO Checkup (customer_id, doctor_id, checkup_type, status, queue_number) VALUES (?, ?, ?, ?, ?)");
-          checkupStmt.setInt(1, addCheckupRequest.getCustomerId());
-          checkupStmt.setInt(2, addCheckupRequest.getDoctorId());
-          checkupStmt.setString(3, addCheckupRequest.getCheckupType());
-          checkupStmt.setString(4, addCheckupRequest.getStatus());
-          checkupStmt.setInt(5, queueNumber);
-          checkupStmt.executeUpdate();
-
-          // Second query: Insert MedicineOrder
-          PreparedStatement medOrderStmt = Server.connection.prepareStatement(
-                  "INSERT INTO MedicineOrder (checkup_id, customer_id, processed_by) VALUES (last_insert_rowid(), ?, ?)");
-          medOrderStmt.setInt(1, addCheckupRequest.getCustomerId());
-          medOrderStmt.setInt(2, addCheckupRequest.getProcessedById());
-          medOrderStmt.executeUpdate();
-
-          // Third query: Update Checkup
-
-          PreparedStatement updateStmt = Server.connection.prepareStatement(
-                  "UPDATE Checkup SET prescription_id = last_insert_rowid() WHERE checkup_id = (SELECT MAX(checkup_id) FROM Checkup WHERE customer_id = ?)");
-          updateStmt.setInt(1, addCheckupRequest.getCustomerId());
-          updateStmt.executeUpdate();
-
-          // Get the generated checkup ID safely
-          int generatedCheckupId = 0;
-          PreparedStatement getCheckupIdStmt = Server.connection.prepareStatement(
-                  "SELECT MAX(checkup_id) FROM Checkup WHERE customer_id = ?");
-          getCheckupIdStmt.setInt(1, addCheckupRequest.getCustomerId());
-          ResultSet checkupIdRs = getCheckupIdStmt.executeQuery();
-          if (checkupIdRs.next()) {
-            generatedCheckupId = checkupIdRs.getInt(1);
-          }
-          getCheckupIdStmt.close();
-          checkupIdRs.close();
-
-          // Commit the transaction
-          Server.connection.commit();
-
-          // Send immediate response to client
-          UserUtil.sendPacket(currentUser.getSessionId(), new AddCheckupResponse(true, "Thêm bệnh nhân thành công", queueNumber));
-          
-          broadcastQueueUpdate();
-          
-          // Create Google Drive folder asynchronously (don't block the response)
-          createCheckupGoogleDriveFolderAsync(generatedCheckupId, addCheckupRequest.getCustomerId());
+            // Bắt đầu một transaction
+            Server.connection.setAutoCommit(false);
+    
+            // --- 1. LẤY SỐ THỨ TỰ (QUEUE NUMBER) MỘT CÁCH AN TOÀN ---
+            // Sử dụng UPSERT (INSERT ON CONFLICT) để đảm bảo thao tác là nguyên tử
+            String queueSql = "INSERT INTO DailyQueueCounter (date, current_count) " +
+                              "VALUES (date('now', 'localtime'), 1) " +
+                              "ON CONFLICT(date) DO UPDATE SET current_count = current_count + 1 " +
+                              "RETURNING current_count";
+            
+            try (PreparedStatement queueStmt = Server.connection.prepareStatement(queueSql)) {
+                ResultSet rs = queueStmt.executeQuery();
+                if (rs.next()) {
+                    queueNumber = rs.getInt(1);
+                } else {
+                    throw new SQLException("Failed to get or update queue number.");
+                }
+            }
+    
+            // --- 2. CHÈN VÀO BẢNG CHECKUP VÀ LẤY LẠI CHECKUP_ID ---
+            String checkupSql = "INSERT INTO Checkup (customer_id, doctor_id, checkup_type, status, queue_number) VALUES (?, ?, ?, ?, ?)";
+            try (PreparedStatement checkupStmt = Server.connection.prepareStatement(checkupSql, Statement.RETURN_GENERATED_KEYS)) {
+                checkupStmt.setInt(1, addCheckupRequest.getCustomerId());
+                checkupStmt.setInt(2, addCheckupRequest.getDoctorId());
+                checkupStmt.setString(3, addCheckupRequest.getCheckupType());
+                checkupStmt.setString(4, addCheckupRequest.getStatus());
+                checkupStmt.setInt(5, queueNumber);
+                checkupStmt.executeUpdate();
+    
+                // Lấy checkup_id vừa được tạo ra một cách an toàn
+                try (ResultSet generatedKeys = checkupStmt.getGeneratedKeys()) {
+                    if (generatedKeys.next()) {
+                        generatedCheckupId = generatedKeys.getInt(1);
+                    } else {
+                        throw new SQLException("Creating checkup failed, no ID obtained.");
+                    }
+                }
+            }
+    
+            // --- 3. CHÈN VÀO BẢNG MEDICINEORDER VÀ LẤY LẠI PRESCRIPTION_ID ---
+            int generatedPrescriptionId = 0;
+            String medOrderSql = "INSERT INTO MedicineOrder (checkup_id, customer_id, processed_by) VALUES (?, ?, ?)";
+            try (PreparedStatement medOrderStmt = Server.connection.prepareStatement(medOrderSql, Statement.RETURN_GENERATED_KEYS)) {
+                medOrderStmt.setInt(1, generatedCheckupId); // Sử dụng ID đã lấy được
+                medOrderStmt.setInt(2, addCheckupRequest.getCustomerId());
+                medOrderStmt.setInt(3, addCheckupRequest.getProcessedById());
+                medOrderStmt.executeUpdate();
+    
+                // Lấy prescription_id vừa được tạo ra một cách an toàn
+                try (ResultSet generatedKeys = medOrderStmt.getGeneratedKeys()) {
+                    if (generatedKeys.next()) {
+                        generatedPrescriptionId = generatedKeys.getInt(1);
+                    } else {
+                        throw new SQLException("Creating medicine order failed, no ID obtained.");
+                    }
+                }
+            }
+    
+            // --- 4. CẬP NHẬT BẢNG CHECKUP VỚI PRESCRIPTION_ID ---
+            String updateSql = "UPDATE Checkup SET prescription_id = ? WHERE checkup_id = ?";
+            try (PreparedStatement updateStmt = Server.connection.prepareStatement(updateSql)) {
+                updateStmt.setInt(1, generatedPrescriptionId); // Sử dụng ID đã lấy được
+                updateStmt.setInt(2, generatedCheckupId);      // Sử dụng ID đã lấy được
+                updateStmt.executeUpdate();
+            }
+    
+            // Nếu tất cả các bước thành công, commit transaction
+            Server.connection.commit();
+    
+            // Gửi phản hồi thành công về cho client
+            UserUtil.sendPacket(currentUser.getSessionId(), new AddCheckupResponse(true, "Thêm bệnh nhân thành công", queueNumber));
+            
+            // Broadcast cập nhật hàng chờ cho các client khác
+            broadcastQueueUpdate();
+            
+            // Tạo thư mục Google Drive bất đồng bộ (không làm chậm phản hồi)
+            // generatedCheckupId bây giờ đã có giá trị chính xác
+            createCheckupGoogleDriveFolderAsync(generatedCheckupId, addCheckupRequest.getCustomerId());
+    
+        } catch (SQLException e) {
+            log.error("SQLException during AddCheckupRequest, rolling back transaction.", e);
+            try {
+                // Rollback nếu có lỗi
+                Server.connection.rollback();
+            } catch (SQLException rollbackEx) {
+                log.error("Error during rollback", rollbackEx);
+            }
+            String errorMessage = e.getMessage();
+            UserUtil.sendPacket(currentUser.getSessionId(), new AddCheckupResponse(false, "Lỗi Server: " + errorMessage, -1));
+            // Không cần throw RuntimeException nữa để server không bị sập
+            
+        } finally {
+            try {
+                // Luôn luôn reset auto-commit về true
+                Server.connection.setAutoCommit(true);
+            } catch (SQLException e) {
+                log.error("Error resetting auto-commit", e);
+            }
         }
-        catch (SQLException e) {
-          try {
-            // Rollback on error
-            Server.connection.rollback();
-          } catch (SQLException rollbackEx) {
-            log.error("Error during rollback", rollbackEx);
-          }
-          String errorMessage = e.getMessage();
-          UserUtil.sendPacket(currentUser.getSessionId(), new AddCheckupResponse(false, "Lỗi: " + errorMessage, -1));
-          throw new RuntimeException(e);
-        }
-        finally {
-          try {
-            // Reset auto-commit
-            Server.connection.setAutoCommit(true);
-          } catch (SQLException e) {
-            log.error("Error resetting auto-commit", e);
-          }
-        }
-      }
+    }
 
       if (packet instanceof CallPatientRequest callPatientRequest) {
         log.debug("Received CallPatientRequest to call patient checkup_id: {}", callPatientRequest.getPatientId());
@@ -894,7 +902,8 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                   OI.price_per_unit,
                   OI.total_price,
                   OI.notes,
-                  M.supplement
+                  M.supplement,
+                  M.route
               FROM OrderItem OI
               JOIN Medicine M ON OI.med_id = M.med_id
               WHERE OI.checkup_id = ?
@@ -905,7 +914,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
           
           ArrayList<String[]> medList = new ArrayList<>();
           while(medRs.next()) {
-            String[] med = new String[11];
+            String[] med = new String[12];
             med[0] = medRs.getString("med_id");
             med[1] = medRs.getString("med_name");
             med[2] = medRs.getString("quantity_ordered");
@@ -933,6 +942,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
             med[8] = medRs.getString("total_price");
             med[9] = medRs.getString("notes");
             med[10] = medRs.getString("supplement");
+            med[11] = medRs.getString("route");
             medList.add(med);
           }
           medicinePrescription = medList.toArray(new String[0][]);
@@ -1458,7 +1468,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         }
         log.info("Received AddMedRequest");
         try {
-          String sql = "INSERT INTO Medicine (med_name, med_company, med_description, med_unit, med_selling_price, preferred_note, supplement, deleted) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+          String sql = "INSERT INTO Medicine (med_name, med_company, med_description, med_unit, med_selling_price, preferred_note, supplement, deleted, route) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
           PreparedStatement stmt = Server.connection.prepareStatement(sql);
           stmt.setString(1, addMedicineRequest.getName());
           stmt.setString(2, addMedicineRequest.getCompany());
@@ -1468,6 +1478,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
           stmt.setString(6, addMedicineRequest.getPreferredNote());
           stmt.setBoolean(7, addMedicineRequest.getSupplement());
           stmt.setBoolean(8, addMedicineRequest.getDeleted());
+          stmt.setString(9, addMedicineRequest.getRoute());
           stmt.executeUpdate();
           log.info("Added medicine: {}", addMedicineRequest.getName());
           getMedInfo(currentUser.getSessionId());
@@ -1483,7 +1494,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         }
         log.info("Received EditMedRequest");
         try {
-          String sql = "UPDATE Medicine SET med_name = ?, med_company = ?, med_description = ?, med_unit = ?, med_selling_price = ?, preferred_note = ?, supplement = ?, deleted = ? WHERE med_id = ?";
+          String sql = "UPDATE Medicine SET med_name = ?, med_company = ?, med_description = ?, med_unit = ?, med_selling_price = ?, preferred_note = ?, supplement = ?, deleted = ?, route = ? WHERE med_id = ?";
           PreparedStatement stmt = Server.connection.prepareStatement(sql);
           stmt.setString(1, editMedicineRequest.getName());
           stmt.setString(2, editMedicineRequest.getCompany());
@@ -1493,7 +1504,8 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
           stmt.setString(6, editMedicineRequest.getPreferredNote());
           stmt.setBoolean(7, editMedicineRequest.getSupplement());
           stmt.setBoolean(8, editMedicineRequest.getDeleted());
-          stmt.setString(9, editMedicineRequest.getId());
+          stmt.setString(9, editMedicineRequest.getRoute());
+          stmt.setString(10, editMedicineRequest.getId());
           stmt.executeUpdate();
           log.info("Updated medicine: {}", editMedicineRequest.getName());
           getMedInfo(currentUser.getSessionId());
@@ -1666,7 +1678,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
   private void getMedInfo(int sessionId) {
     try {
       ResultSet rs = statement.executeQuery(
-              "select med_id, med_name, med_company, med_description, med_unit, med_selling_price, preferred_note, supplement, deleted\n" +
+              "select med_id, med_name, med_company, med_description, med_unit, med_selling_price, preferred_note, supplement, deleted, route\n" +
                       "    from Medicine"
       );
 
@@ -1684,9 +1696,10 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
             String preferredNote = rs.getString("preferred_note");
             String supplement = rs.getString("supplement");
             String deleted = rs.getString("deleted");
+            String route = rs.getString("route");
 
             String result = String.join("|",medId, medName, medCompany, medDescription, medUnit,
-                    medSellingPrice, preferredNote != null ? preferredNote : "", supplement != null ? supplement : "0", deleted);
+                    medSellingPrice, preferredNote != null ? preferredNote : "", supplement != null ? supplement : "0", deleted, route);
             resultList.add(result);
         }
 
@@ -2156,7 +2169,8 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                         "from checkup as a\n" +
                         "join customer as c on a.customer_id = c.customer_id\n" +
                         "join Doctor D on a.doctor_id = D.doctor_id\n" +
-                        "where a.status = 'ĐANG KHÁM' or a.status = 'CHỜ KHÁM'"
+                        "where a.checkup_date >= CAST(strftime('%s', date('now', 'start of day')) AS INTEGER) * 1000\n" +
+                        "AND a.checkup_date < CAST(strftime('%s', date('now', 'start of day', '+1 day')) AS INTEGER) * 1000"
         );
 
         String[][] resultArray;

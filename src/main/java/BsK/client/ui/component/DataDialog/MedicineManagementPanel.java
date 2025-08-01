@@ -37,12 +37,13 @@ public class MedicineManagementPanel extends JPanel {
     private JTextField medicineNameField;
     private JTextField medicineCompanyField;
     private JTextArea medicineDescriptionField;
+    private JTextField routeField; // --- ADDED --- Field for Route of Administration
     private JTextField medicineUnitField;
     private JTextField medicinePriceField;
     private JSpinner morningSpinner, noonSpinner, eveningSpinner;
     private JTextArea noteField;
-    private JCheckBox chkIsDeleted;     // Checkbox for soft delete
-    private JCheckBox chkIsSupplement;  // Checkbox for supplement status
+    private JCheckBox chkIsDeleted;      // Checkbox for soft delete
+    private JCheckBox chkIsSupplement;   // Checkbox for supplement status
 
     // --- Action Buttons ---
     private JButton btnAdd, btnEdit, btnClear;
@@ -150,6 +151,22 @@ public class MedicineManagementPanel extends JPanel {
         descriptionScrollPane.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED);
         medicineInfoPanel.add(descriptionScrollPane, gbc);
         gbc.weightx = 0.0;
+
+        // --- ADDED: Route of Administration Field ---
+        gbc.gridy++;
+        gbc.gridx = 0;
+        JLabel routeLabel = new JLabel("Đường dùng:");
+        routeLabel.setFont(labelFont);
+        medicineInfoPanel.add(routeLabel, gbc);
+
+        gbc.gridx = 1;
+        gbc.weightx = 1.0;
+        routeField = new JTextField(20);
+        routeField.setFont(textFont);
+        routeField.setPreferredSize(textFieldSize);
+        medicineInfoPanel.add(routeField, gbc);
+        gbc.weightx = 0.0;
+        // --- END ADDED ---
 
         mainGbc.gridx = 0; mainGbc.gridy = 0;
         mainInputPanel.add(medicineInfoPanel, mainGbc);
@@ -331,6 +348,7 @@ public class MedicineManagementPanel extends JPanel {
             // 2. Gather data from all other fields
             String company = medicineCompanyField.getText().trim();
             String description = medicineDescriptionField.getText().trim();
+            String route = routeField.getText().trim(); // --- ADDED ---
             String unit = medicineUnitField.getText().trim();
             Boolean isSupplement = chkIsSupplement.isSelected();
             Boolean isDeleted = false; // New medicines are active by default
@@ -352,13 +370,13 @@ public class MedicineManagementPanel extends JPanel {
 
             // 4. Construct the special 'preferredNote' string
             String preferredNote = morningSpinner.getValue().toString() + ","
-                                + noonSpinner.getValue().toString() + ","
-                                + eveningSpinner.getValue().toString() + ","
-                                + noteField.getText().trim();
+                                 + noonSpinner.getValue().toString() + ","
+                                 + eveningSpinner.getValue().toString() + ","
+                                 + noteField.getText().trim();
 
             // 5. Create the request packet and send it to the server
-            // IMPORTANT: Assumes your AddMedicineRequest packet is updated to include 'supplement'
-            AddMedicineRequest request = new AddMedicineRequest(name, company, description, unit, price, preferredNote, isSupplement, isDeleted);
+            // --- UPDATED ---: Added 'route' to the request constructor
+            AddMedicineRequest request = new AddMedicineRequest(name, company, description, unit, price, preferredNote, isSupplement, isDeleted, route);
             NetworkUtil.sendPacket(ClientHandler.ctx.channel(), request);
 
             // 6. Provide feedback and reset the form
@@ -393,6 +411,7 @@ public class MedicineManagementPanel extends JPanel {
             String id = selectedMedicineId;
             String company = medicineCompanyField.getText().trim();
             String description = medicineDescriptionField.getText().trim();
+            String route = routeField.getText().trim(); // --- ADDED ---
             String unit = medicineUnitField.getText().trim();
             Boolean isSupplement = chkIsSupplement.isSelected();
             Boolean isDeleted = chkIsDeleted.isSelected();
@@ -414,13 +433,13 @@ public class MedicineManagementPanel extends JPanel {
 
             // 5. Construct the 'preferredNote' string
             String preferredNote = morningSpinner.getValue().toString() + ","
-                                + noonSpinner.getValue().toString() + ","
-                                + eveningSpinner.getValue().toString() + ","
-                                + noteField.getText().trim();
+                                 + noonSpinner.getValue().toString() + ","
+                                 + eveningSpinner.getValue().toString() + ","
+                                 + noteField.getText().trim();
 
             // 6. Create the request packet and send it
-            // IMPORTANT: Assumes your EditMedicineRequest packet is updated to include 'supplement'
-            EditMedicineRequest request = new EditMedicineRequest(id, name, company, description, unit, price, preferredNote, isSupplement, isDeleted);
+            // --- UPDATED ---: Added 'route' to the request constructor
+            EditMedicineRequest request = new EditMedicineRequest(id, name, company, description, unit, price, preferredNote, isSupplement, isDeleted, route);
             NetworkUtil.sendPacket(ClientHandler.ctx.channel(), request);
 
             // 7. Provide user feedback and clear the form
@@ -507,6 +526,7 @@ public class MedicineManagementPanel extends JPanel {
         medicineNameField.setText(med.getName());
         medicineCompanyField.setText(med.getCompany());
         medicineDescriptionField.setText(med.getDescription());
+        routeField.setText(med.getRoute()); // --- ADDED ---
         medicineUnitField.setText(med.getUnit());
         medicinePriceField.setText(med.getSellingPrice());
 
@@ -552,6 +572,7 @@ public class MedicineManagementPanel extends JPanel {
         medicineNameField.setText("");
         medicineCompanyField.setText("");
         medicineDescriptionField.setText("");
+        routeField.setText(""); // --- ADDED ---
         medicineUnitField.setText("");
         medicinePriceField.setText("");
         

@@ -20,6 +20,7 @@ public class Medicine {
     private String preferredNote;
     private String supplement; // 0: no, 1: yes
     private String deleted; // 0: no, 1: yes
+    private String route;
 
     /**
      * Constructor to create Medicine from array data
@@ -38,6 +39,7 @@ public class Medicine {
         this.preferredNote = data[6];
         this.supplement = data[7];
         this.deleted = data[8];
+        this.route = data[9];
     }
 
     /**
@@ -45,6 +47,6 @@ public class Medicine {
      * @return String array representation of Medicine
      */
     public String[] toStringArray() {
-        return new String[]{id, name, company, description, unit, sellingPrice, preferredNote, supplement, deleted};
+        return new String[]{id, name, company, description, unit, sellingPrice, preferredNote, supplement, deleted, route};
     }
 } 

@@ -15,4 +15,5 @@ public class AddMedicineRequest implements Packet{
     private String preferredNote;
     private Boolean supplement;
     private Boolean deleted;
+    private String route;
 }

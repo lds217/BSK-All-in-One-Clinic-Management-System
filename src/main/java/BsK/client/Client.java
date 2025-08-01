@@ -136,6 +136,15 @@ public class Client {
                 log.info("Using default auto change status: {}", LocalStorage.autoChangeStatusToFinished);
             }
             
+            //load projectPath
+            String projectPath = config.getProperty("app.project_path");
+            if (projectPath != null && !projectPath.trim().isEmpty()) {
+                LocalStorage.pathToProject = projectPath.trim();
+                log.info("Using configured project path: {}", projectPath);
+            } else {
+                log.info("Using default project path: {}", LocalStorage.pathToProject);
+            }
+            
             // Use defaults if not configured
             if (portStr != null) {
                 int port = Integer.parseInt(portStr);

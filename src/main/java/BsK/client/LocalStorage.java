@@ -22,8 +22,11 @@ public class LocalStorage {
     public static String ClinicName = "Phòng khám BSK";
     public static String ClinicAddress = "Số ABC, Đường XYZ, Quận 1, TP.HCM";
     public static String ClinicPhone = "0123456789";
+    public static String ClinicPrefix = "BSK";
+    
     public static List<String> chatHistory = new ArrayList<>();
-
+    public static String pathToProject = "";
+    
     public static String dataDialogSearchTerm = "";
     public static Date dataDialogFromDate = new Date(); // Default to today
     public static Date dataDialogToDate = new Date();   // Default to today

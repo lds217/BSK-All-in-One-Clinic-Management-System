@@ -18,17 +18,18 @@ import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableColumnModel;
 import java.awt.*;
 import java.awt.event.*;
-import java.text.NumberFormat; // --- ADD THIS IMPORT ---
+import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale; // --- ADD THIS IMPORT ---
+import java.util.Locale;
 
 @Slf4j
 public class MedicineDialog extends JDialog {
     private JTextField medicineNameField;
     private JTextField medicineCompanyField;
     private JTextArea medicineDescriptionField;
+    private JTextField routeField; // --- ADDED ---
     private JCheckBox chkIsSupplement; // The new checkbox
     private JSpinner quantitySpinner;
     private JComboBox<String> UnitComboBox;
@@ -258,6 +259,23 @@ public class MedicineDialog extends JDialog {
         medicineInfoPanel.add(descriptionScrollPane, gbc);
         gbc.weightx = 0.0;
         
+        // --- ADDED: Route of Administration Field ---
+        gbc.gridy++;
+        gbc.gridx = 0;
+        JLabel routeLabel = new JLabel("Đường dùng:");
+        routeLabel.setFont(labelFont);
+        medicineInfoPanel.add(routeLabel, gbc);
+
+        gbc.gridx = 1;
+        gbc.weightx = 1.0;
+        routeField = new JTextField(20);
+        routeField.setFont(textFont);
+        routeField.setPreferredSize(textFieldSize);
+        routeField.setEditable(false);
+        medicineInfoPanel.add(routeField, gbc);
+        gbc.weightx = 0.0;
+        // --- END ADDED ---
+        
         gbc.gridy++;
         gbc.gridx = 0;
         gbc.gridwidth = 2;
@@ -408,10 +426,12 @@ public class MedicineDialog extends JDialog {
         suggestionPopup.add(suggestionScrollPane, BorderLayout.CENTER);
         suggestionPopup.setFocusable(false);
 
-        String[] selectedColumnNames = {"ID", "Tên thuốc", "SL", "ĐVT", "Sáng", "Trưa", "Chiều", "Đơn giá", "Thành tiền", "Ghi chú", "Supplement"};
+        // --- UPDATED: Added "Đường dùng" column ---
+        String[] selectedColumnNames = {"ID", "Tên thuốc", "SL", "ĐVT", "Sáng", "Trưa", "Chiều", "Đơn giá", "Thành tiền", "Ghi chú", "Supplement", "Đường dùng"};
         selectedTableModel = new DefaultTableModel(new String[][]{}, selectedColumnNames) {
             @Override
             public boolean isCellEditable(int row, int column) {
+                // Allow editing Quantity, Dosage, and Note
                 return column == 2 || column == 4 || column == 5 || column == 6 || column == 9;
             }
         };
@@ -603,8 +623,9 @@ public class MedicineDialog extends JDialog {
             logger.info("Prescription saved.");
             if (medicinePrescription != null) {
                 for (String[] row : medicinePrescription) {
-                    logger.info("Med: ID={}, Name={}, Qty={}, Unit={}, M={}, N={}, E={}, Price={}, Total={}, Note={}", 
-                            row[0], row[1], row[2], row[3], row[4], row[5], row[6], row[7], row[8], row[9]);
+                    // --- UPDATED: Logged the new 'route' field ---
+                    logger.info("Med: ID={}, Name={}, Qty={}, Unit={}, M={}, N={}, E={}, Price={}, Total={}, Note={}, Supp={}, Route={}",
+                            row[0], row[1], row[2], row[3], row[4], row[5], row[6], row[7], row[8], row[9], row[10], row[11]);
                 }
             }
             dispose();
@@ -724,6 +745,7 @@ public class MedicineDialog extends JDialog {
 
         medicineCompanyField.setText(medicine.getCompany());
         medicineDescriptionField.setText(medicine.getDescription());
+        routeField.setText(medicine.getRoute()); // --- ADDED ---
         UnitComboBox.setSelectedItem(medicine.getUnit());
         priceField.setText(medicine.getSellingPrice());
 
@@ -764,6 +786,7 @@ public class MedicineDialog extends JDialog {
         // Don't clear the name field as the user is typing in it
         medicineCompanyField.setText("");
         medicineDescriptionField.setText("");
+        routeField.setText(""); // --- ADDED ---
         UnitComboBox.setSelectedIndex(0);
         priceField.setText("");
         totalField.setText("");
@@ -800,7 +823,7 @@ public class MedicineDialog extends JDialog {
     private void addSelectedMedicine() {
         int selectedRowInSuggestionTable = suggestionTable.getSelectedRow();
         
-        String medicineId, name, unit, currentPrice, supplement;
+        String medicineId, name, unit, currentPrice, supplement, route; // --- UPDATED ---
         String searchName = medicineNameField.getText().trim();
 
         if (searchName.isEmpty()) {
@@ -835,6 +858,7 @@ public class MedicineDialog extends JDialog {
         unit = selectedMedicine.getUnit();
         currentPrice = selectedMedicine.getSellingPrice();
         supplement = selectedMedicine.getSupplement();
+        route = selectedMedicine.getRoute(); // --- ADDED ---
 
         int quantity = (Integer) quantitySpinner.getValue();
         int morningVal = (Integer) morningSpinner.getValue();
@@ -848,8 +872,8 @@ public class MedicineDialog extends JDialog {
             return;
         }
         
-        // Include supplement information
-        selectedTableModel.addRow(new Object[]{medicineId, name, quantity, unit, morningVal, noonVal, eveningVal, currentPrice, totalAmount, note, supplement});
+        // --- UPDATED: Add 'route' to the table row data ---
+        selectedTableModel.addRow(new Object[]{medicineId, name, quantity, unit, morningVal, noonVal, eveningVal, currentPrice, totalAmount, note, supplement, route});
         
         // Clear fields for next entry
         isProgrammaticallySettingMedicineNameField = true;
@@ -874,22 +898,27 @@ public class MedicineDialog extends JDialog {
             medicinePrescription = new String[0][0];
             return;
         }
-        medicinePrescription = new String[rowCount][11];
+        // --- UPDATED: Array size changed from 11 to 12 ---
+        medicinePrescription = new String[rowCount][12];
         for (int i = 0; i < rowCount; i++) {
-            medicinePrescription[i][0] = selectedTableModel.getValueAt(i, 0).toString();
-            medicinePrescription[i][1] = selectedTableModel.getValueAt(i, 1).toString();
-            medicinePrescription[i][2] = selectedTableModel.getValueAt(i, 2).toString();
-            medicinePrescription[i][3] = selectedTableModel.getValueAt(i, 3).toString();
-            medicinePrescription[i][4] = selectedTableModel.getValueAt(i, 4).toString();
-            medicinePrescription[i][5] = selectedTableModel.getValueAt(i, 5).toString();
-            medicinePrescription[i][6] = selectedTableModel.getValueAt(i, 6).toString();
-            medicinePrescription[i][7] = selectedTableModel.getValueAt(i, 7).toString();
-            medicinePrescription[i][8] = selectedTableModel.getValueAt(i, 8).toString();
-            medicinePrescription[i][9] = selectedTableModel.getValueAt(i, 9).toString();
+            medicinePrescription[i][0] = selectedTableModel.getValueAt(i, 0).toString(); // ID
+            medicinePrescription[i][1] = selectedTableModel.getValueAt(i, 1).toString(); // Tên
+            medicinePrescription[i][2] = selectedTableModel.getValueAt(i, 2).toString(); // SL
+            medicinePrescription[i][3] = selectedTableModel.getValueAt(i, 3).toString(); // ĐVT
+            medicinePrescription[i][4] = selectedTableModel.getValueAt(i, 4).toString(); // Sáng
+            medicinePrescription[i][5] = selectedTableModel.getValueAt(i, 5).toString(); // Trưa
+            medicinePrescription[i][6] = selectedTableModel.getValueAt(i, 6).toString(); // Chiều
+            medicinePrescription[i][7] = selectedTableModel.getValueAt(i, 7).toString(); // Đơn giá
+            medicinePrescription[i][8] = selectedTableModel.getValueAt(i, 8).toString(); // Thành tiền
+            medicinePrescription[i][9] = selectedTableModel.getValueAt(i, 9).toString(); // Ghi chú
             
             // Get supplement value (0/1) or default to "0" if null
             Object supplementObj = selectedTableModel.getValueAt(i, 10);
-            medicinePrescription[i][10] = (supplementObj != null) ? supplementObj.toString() : "0";
+            medicinePrescription[i][10] = (supplementObj != null) ? supplementObj.toString() : "0"; // Supplement
+            
+            // --- ADDED: Get route value ---
+            Object routeObj = selectedTableModel.getValueAt(i, 11);
+            medicinePrescription[i][11] = (routeObj != null) ? routeObj.toString() : ""; // Đường dùng
         }
     }
 
@@ -958,7 +987,8 @@ public class MedicineDialog extends JDialog {
                 if (prescription != null && prescription.length > 0) {
                     System.out.println("Prescription obtained:");
                     for (String[] item : prescription) {
-                        System.out.println(String.format("ID:%s, Name:%s, Qty:%s, Unit:%s, M:%s, N:%s, E:%s, Price:%s, Total:%s, Note:%s", 
+                        // --- UPDATED: Test printout format ---
+                        System.out.println(String.format("ID:%s, Name:%s, Qty:%s, Unit:%s, M:%s, N:%s, E:%s, Price:%s, Total:%s, Note:%s, Supp:%s, Route:%s",
                                 (Object[]) item));
                     }
                 } else {

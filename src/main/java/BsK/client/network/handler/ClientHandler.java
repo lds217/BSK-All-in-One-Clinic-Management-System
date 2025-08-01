@@ -66,6 +66,7 @@ public class ClientHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         LocalStorage.ClinicName = clinicInfoResponse.getClinicName();
         LocalStorage.ClinicAddress = clinicInfoResponse.getClinicAddress();
         LocalStorage.ClinicPhone = clinicInfoResponse.getClinicPhone();
+        LocalStorage.ClinicPrefix = clinicInfoResponse.getClinicPrefix();
         return;
       }
 

@@ -13,6 +13,7 @@ public class InvoiceItem {
     private String dosage;
     private String amount;
     private Double unitPrice;
+    private String medRoute;
     private String medNote;
 
     // --- Service Fields ---
@@ -26,21 +27,21 @@ public class InvoiceItem {
     private String supNote;
     private String supDosage;
     private String supAmount;
-    private Double supUnitPrice;
-
+    private String supRoute;
     // Private constructor to be used by factory methods
     private InvoiceItem() {}
 
     // --- Factory Methods ---
 
-    public static InvoiceItem createMedicine(String medName, String dosage, String amount) {
+    public static InvoiceItem createMedicine(String medName, String medNote, String dosage, String route, String amount) {
         InvoiceItem item = new InvoiceItem();
         item.type = "MED";
         item.medName = medName;
         item.dosage = dosage;
+        item.medRoute = route;
         item.amount = amount;
         item.unitPrice = 0.0;
-        item.medNote = "";
+        item.medNote = medNote;
         return item;
     }
 
@@ -54,14 +55,14 @@ public class InvoiceItem {
         return item;
     }
 
-    public static InvoiceItem createSupplement(String supName, String supNote, String supDosage, String supAmount, Double supUnitPrice) {
+    public static InvoiceItem createSupplement(String supName, String supNote, String supDosage, String supAmount, String supRoute) {
         InvoiceItem item = new InvoiceItem();
         item.type = "SUP";
         item.supName = supName;
         item.supNote = supNote;
         item.supDosage = supDosage;
         item.supAmount = supAmount;
-        item.supUnitPrice = supUnitPrice;
+        item.supRoute = supRoute;
         return item;
     }
 
@@ -71,6 +72,7 @@ public class InvoiceItem {
     public String getType() { return type; }
     public String getMedName() { return medName; }
     public String getDosage() { return dosage; }
+    public String getMedRoute() { return medRoute; }
     public String getAmount() { return amount; }
     public Double getUnitPrice() { return unitPrice; }
     public String getMedNote() { return medNote; }
@@ -82,5 +84,5 @@ public class InvoiceItem {
     public String getSupNote() { return supNote; }
     public String getSupDosage() { return supDosage; }
     public String getSupAmount() { return supAmount; }
-    public Double getSupUnitPrice() { return supUnitPrice; }
+    public String getSupRoute() { return supRoute; }
 } 

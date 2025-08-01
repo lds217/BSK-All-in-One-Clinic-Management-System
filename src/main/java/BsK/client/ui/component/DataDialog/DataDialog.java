@@ -530,9 +530,9 @@ public class DataDialog extends JDialog {
         public ActionButtonRenderer() {
             setLayout(new FlowLayout(FlowLayout.CENTER, 2, 2));
 
-            ImageIcon editIcon = createIcon("/BsK/client/ui/assets/icon/edit.png", 16, 16);
+            ImageIcon editIcon = createIcon("src/main/java/BsK/client/ui/assets/icon/edit.png", 16, 16);
             editButton = new JButton(editIcon);
-            ImageIcon deleteIcon = createIcon("/BsK/client/ui/assets/icon/delete.png", 16, 16);
+            ImageIcon deleteIcon = createIcon("src/main/java/BsK/client/ui/assets/icon/delete.png", 16, 16);
             deleteButton = new JButton(deleteIcon);
 
             editButton.setPreferredSize(new Dimension(30, 25));
@@ -564,9 +564,9 @@ public class DataDialog extends JDialog {
             super(new JCheckBox());
             panel = new JPanel(new FlowLayout(FlowLayout.CENTER, 2, 2));
 
-            ImageIcon editIcon = createIcon("/BsK/client/ui/assets/icon/edit.png", 16, 16);
+            ImageIcon editIcon = createIcon("src/main/java/BsK/client/ui/assets/icon/edit.png", 16, 16);
             editButton = new JButton(editIcon);
-            ImageIcon deleteIcon = createIcon("/BsK/client/ui/assets/icon/delete.png", 16, 16);
+            ImageIcon deleteIcon = createIcon("src/main/java/BsK/client/ui/assets/icon/delete.png", 16, 16);
             deleteButton = new JButton(deleteIcon);
 
             editButton.setPreferredSize(new Dimension(30, 25));

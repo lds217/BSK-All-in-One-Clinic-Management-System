@@ -12,4 +12,5 @@ public class ClinicInfoResponse implements Packet {
     private String clinicName;
     private String clinicAddress;
     private String clinicPhone;
+    private String clinicPrefix;
 }

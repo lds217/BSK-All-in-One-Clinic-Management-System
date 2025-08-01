@@ -173,9 +173,9 @@ public class UltrasoundResult {
     public JasperPrint createJasperPrint() throws JRException, IOException {
         String jrxmlPath;
         if ("Dọc".equalsIgnoreCase(this.printType)) {
-            jrxmlPath = System.getProperty("user.dir") + "/src/main/java/BsK/client/ui/component/CheckUpPage/PrintDialog/print_forms/ultrasoundresult_potrait.jrxml";
+            jrxmlPath = LocalStorage.pathToProject + "/src/main/java/BsK/client/ui/component/CheckUpPage/PrintDialog/print_forms/ultrasoundresult_potrait.jrxml";
         } else {
-            jrxmlPath = System.getProperty("user.dir") + "/src/main/java/BsK/client/ui/component/CheckUpPage/PrintDialog/print_forms/ultrasoundresult.jrxml";
+            jrxmlPath =LocalStorage.pathToProject + "/src/main/java/BsK/client/ui/component/CheckUpPage/PrintDialog/print_forms/ultrasoundresult.jrxml";
         }
         
         log.info("Using JRXML template: {}", jrxmlPath);
@@ -187,6 +187,7 @@ public class UltrasoundResult {
             parameters.put(JRParameter.REPORT_LOCALE, new Locale("vi", "VN"));
             
             // Populate all the string parameters
+            parameters.put("clinicPrefix", LocalStorage.ClinicPrefix != null ? LocalStorage.ClinicPrefix : "");
             parameters.put("clinicName", convertNullToEmpty(LocalStorage.ClinicName, "Phòng khám BSK"));
             parameters.put("clinicAddress", convertNullToEmpty(LocalStorage.ClinicAddress, "Địa chỉ phòng khám"));
             parameters.put("clinicPhone", convertNullToEmpty(LocalStorage.ClinicPhone, "SĐT phòng khám"));
@@ -200,16 +201,16 @@ public class UltrasoundResult {
             parameters.put("barcodeNumber", this.checkupId);
 
             // RTF and plain text content
-            parameters.put("checkupNote", this.rtfContent);
-            parameters.put("checkupConclusion", this.conclusion);
-            parameters.put("checkupSuggestion", this.suggestion);
-            parameters.put("reCheckupDate", this.recheckupDate);
+            parameters.put("checkupNote", this.rtfContent != null ? this.rtfContent : "");
+            parameters.put("checkupConclusion", this.conclusion != null ? this.conclusion : "");
+            parameters.put("checkupSuggestion", this.suggestion != null ? this.suggestion : "");
+            parameters.put("reCheckupDate", this.recheckupDate != null ? this.recheckupDate : "");
             
             // Vitals data
-            parameters.put("checkupHeight", this.customerHeight);
-            parameters.put("checkupWeight", this.customerWeight);
-            parameters.put("checkupHeartBeat", this.heartRate);
-            parameters.put("checkupBloodPressure", this.bloodPressure);
+            parameters.put("checkupHeight", this.customerHeight != null ? this.customerHeight : "");
+            parameters.put("checkupWeight", this.customerWeight != null ? this.customerWeight : "");
+            parameters.put("checkupHeartBeat", this.heartRate != null ? this.heartRate : "");
+            parameters.put("checkupBloodPressure", this.bloodPressure != null ? this.bloodPressure : "");
 
             // Template title
             parameters.put("templateTitle", this.templateTitle);
@@ -226,7 +227,7 @@ public class UltrasoundResult {
             int numberOfImages = this.selectedImages.size();
             parameters.put("numberImage", numberOfImages);
             
-            String projectDir = System.getProperty("user.dir");
+            String projectDir = LocalStorage.pathToProject;
             parameters.put("logoImage", projectDir + "/src/main/java/BsK/client/ui/assets/icon/logo.jpg");
 
             for (int i = 0; i < 6; i++) {
@@ -362,7 +363,7 @@ public class UltrasoundResult {
         }
 
         Paragraph clinicInfo = new Paragraph()
-                .add(new Text(LocalStorage.ClinicName + "\n").setFont(boldFont).setFontSize(10))
+                .add(new Text(LocalStorage.ClinicPrefix + " " + LocalStorage.ClinicName + "\n").setFont(boldFont).setFontSize(10))
                 .add(new Text("Địa chỉ: " + LocalStorage.ClinicAddress + "\n").setFontSize(8))
                 .add(new Text("Điện thoại: " + LocalStorage.ClinicPhone).setFontSize(8))
                 .setFont(font);

@@ -149,7 +149,7 @@ public class UserManagementPanel extends JPanel {
         panel.add(new JLabel("Vai trò:"), gbc);
         gbc.gridx = 1;
         gbc.weightx = 1;
-        roleComboBox = new JComboBox<>(new String[]{"ADMIN", "DOCTOR", "STAFF"});
+        roleComboBox = new JComboBox<>(new String[]{"ADMIN", "USER"});
         panel.add(roleComboBox, gbc);
     }
 

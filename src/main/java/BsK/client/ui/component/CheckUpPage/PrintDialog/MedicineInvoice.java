@@ -29,6 +29,7 @@ import java.text.DecimalFormat;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.util.concurrent.CompletableFuture;
+import java.io.IOException;
 
 public class MedicineInvoice{
 
@@ -44,10 +45,9 @@ public class MedicineInvoice{
     private String date;
     private String id;
     private String driveURL;
-    private String[][] med; // Name, Quantity, Price
-    private String[][] services; // Name, Quantity, Price
-    private String[][] supplements; // Name, Quantity, Price
-    private static final DecimalFormat vndFormatter = new DecimalFormat("#,##0");
+    private String[][] med; // Prescription data for medicines
+    private String[][] services; // Prescription data for services
+    private String[][] supplements; // Prescription data for supplements
 
     public CompletableFuture<byte[]> generatePdfBytesAsync() {
         return CompletableFuture.supplyAsync(() -> {
@@ -62,105 +62,9 @@ public class MedicineInvoice{
         });
     }
 
-    public static void main(String[] args) {
-        SwingUtilities.invokeLater(() -> {
-            JFrame frame = new JFrame("Medicine Invoice Test");
-            frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-            frame.setSize(600, 400);
-            frame.setLayout(new GridLayout(3, 2, 10, 10));
-
-            // Test Case 1: Only Medicines
-            JButton medicineOnlyButton = new JButton("Only Medicines");
-            medicineOnlyButton.addActionListener(e -> new MedicineInvoice("1001", "Nguyễn Văn A", "01/01/1990", "0123456789",
-                    "Nam", "123 Đường ABC, Quận XYZ, TP HCM", "Bác sĩ XYZ", "Sốt cao",
-                    "Nghỉ ngơi nhiều, uống nhiều nước", "https://example.com/drive1",
-                    new String[][]{
-                            {"1", "Paracetamol", "2 viên", "viên", "1", "2", "1", "5000", "10000", "Uống sau ăn"}
-                    },
-                    new String[][]{}, // No services
-                    new String[][]{} // No supplements
-            ).createDialog(frame));
-
-            // Test Case 2: Only Services
-            JButton serviceOnlyButton = new JButton("Only Services");
-            serviceOnlyButton.addActionListener(e -> new MedicineInvoice("1002", "Trần Thị B", "15/05/1985", "0987654321",
-                    "Nữ", "456 Đường DEF, Quận ABC, TP HCM", "Bác sĩ ABC", "Khám tổng quát",
-                    "Theo dõi định kỳ", "https://example.com/drive2",
-                    new String[][]{}, // No medicines
-                    new String[][] {
-                        {"1", "Khám tổng quát", "1", "150000", "150000", "Kiểm tra sức khỏe tổng quát"},
-                        {"2", "Xét nghiệm máu", "1", "80000", "80000", "Xét nghiệm công thức máu"}
-                    },
-                    new String[][]{} // No supplements
-            ).createDialog(frame));
-
-            // Test Case 3: Only Supplements
-            JButton supplementOnlyButton = new JButton("Only Supplements");
-            supplementOnlyButton.addActionListener(e -> new MedicineInvoice("1003", "Lê Văn C", "20/12/1992", "0456789123",
-                    "Nam", "789 Đường GHI, Quận DEF, TP HCM", "Bác sĩ DEF", "Tư vấn dinh dưỡng",
-                    "Bổ sung vitamin và khoáng chất", "https://example.com/drive3",
-                    new String[][]{}, // No medicines
-                    new String[][]{}, // No services
-                    new String[][] {
-                        {"1", "Vitamin D3", "1", "viên", "1 viên/ngày sau ăn sáng", "30 viên", "2000", "60000", "Bổ sung vitamin D"},
-                        {"2", "Omega 3", "2", "viên", "2 viên/ngày sau ăn", "60 viên", "1500", "90000", "Bổ sung dầu cá"}
-                    }
-            ).createDialog(frame));
-
-            // Test Case 4: Medicines + Services (No Supplements)
-            JButton medServiceButton = new JButton("Medicines + Services");
-            medServiceButton.addActionListener(e -> new MedicineInvoice("1004", "Phạm Thị D", "10/03/1988", "0789123456",
-                    "Nữ", "321 Đường JKL, Quận GHI, TP HCM", "Bác sĩ GHI", "Viêm họng",
-                    "Điều trị kháng sinh và theo dõi", "https://example.com/drive4",
-                    new String[][]{
-                            {"1", "Amoxicillin", "1 vỉ", "viên", "1", "1", "0", "20000", "20000", "Uống trước ăn 30 phút"}
-                    },
-                    new String[][] {
-                        {"1", "Khám tai mũi họng", "1", "100000", "100000", "Khám chuyên khoa"}
-                    },
-                    new String[][]{} // No supplements
-            ).createDialog(frame));
-
-            // Test Case 5: All Three Categories
-            JButton allCategoriesButton = new JButton("All Categories");
-            allCategoriesButton.addActionListener(e -> new MedicineInvoice("1005", "Hoàng Văn E", "25/07/1990", "0654321987",
-                    "Nam", "654 Đường MNO, Quận JKL, TP HCM", "Bác sĩ JKL", "Kiểm tra sức khỏe định kỳ",
-                    "Tổng quát + bổ sung dinh dưỡng", "https://example.com/drive5",
-                    new String[][]{
-                            {"1", "Vitamin C", "1 hộp", "viên", "1", "0", "0", "10000", "10000", "Uống buổi sáng"}
-                    },
-                    new String[][] {
-                        {"1", "Khám tổng quát", "1", "150000", "150000", "Kiểm tra sức khỏe tổng quát"}
-                    },
-                    new String[][] {
-                        {"1", "Calcium 500mg", "1 lọ", "viên", "1 viên/ngày sau ăn tối", "30 viên", "2500", "75000", "Bổ sung canxi"}
-                    }
-            ).createDialog(frame));
-
-            // Test Case 6: Empty Invoice (No data)
-            JButton emptyButton = new JButton("Empty Invoice");
-            emptyButton.addActionListener(e -> new MedicineInvoice("1006", "Võ Thị F", "05/11/1995", "0321654987",
-                    "Nữ", "987 Đường PQR, Quận MNO, TP HCM", "Bác sĩ MNO", "Tư vấn y tế",
-                    "Chỉ tư vấn, không kê đơn", null,
-                    new String[][]{}, // No medicines
-                    new String[][]{}, // No services
-                    new String[][]{} // No supplements
-            ).createDialog(frame));
-
-            frame.add(medicineOnlyButton);
-            frame.add(serviceOnlyButton);
-            frame.add(supplementOnlyButton);
-            frame.add(medServiceButton);
-            frame.add(allCategoriesButton);
-            frame.add(emptyButton);
-
-            frame.setVisible(true);
-        });
-    }
-
     public MedicineInvoice(String id, String patientName, String patientDOB, String patientPhone,
-                               String patientGender, String patientAddress, String doctorName, String diagnosis,
-                               String notes, String driveURL, String[][] med, String[][] services, String[][] supplements) {
+                           String patientGender, String patientAddress, String doctorName, String diagnosis,
+                           String notes, String driveURL, String[][] med, String[][] services, String[][] supplements) {
         this.id = id;
         this.patientName = patientName;
         this.patientDOB = patientDOB;
@@ -185,13 +89,15 @@ public class MedicineInvoice{
     }
 
 
+    private JasperPrint jasperPrint; // Store JasperPrint for reuse
+
     /**
      * Shows the invoice directly in JasperViewer without creating a custom dialog
      */
     public void showDirectJasperViewer() {
         try {
-            String pdfPath = "medical_invoice.pdf";
-            generatePdf(pdfPath);
+            // This method now only fills the report and shows the viewer
+            fillJasperPrint();
             // Use the constructor to prevent the application from closing
             JasperViewer viewer = new JasperViewer(jasperPrint, false);
             viewer.setVisible(true);
@@ -241,7 +147,7 @@ public class MedicineInvoice{
         dialog.add(scrollPane, BorderLayout.CENTER);
         dialog.add(buttonPanel, BorderLayout.SOUTH);
 
-        String pdfPath = "medical_invoice.pdf";
+        String pdfPath = "temp_medical_invoice.pdf"; // Use a temporary file name
         try {
             generatePdf(pdfPath);
             displayPdfInLabel(pdfPath, pdfViewer);
@@ -255,21 +161,20 @@ public class MedicineInvoice{
             try {
                 JFileChooser fileChooser = new JFileChooser();
                 fileChooser.setDialogTitle("Save PDF As");
-                fileChooser.setSelectedFile(new File("medical_invoice.pdf"));
+                // Suggest a file name based on patient name and date
+                fileChooser.setSelectedFile(new File(patientName.replace(" ", "_") + "_invoice_" + date.replace("/", "-") + ".pdf"));
                 int userSelection = fileChooser.showSaveDialog(dialog);
 
                 if (userSelection == JFileChooser.APPROVE_OPTION) {
                     File fileToSave = fileChooser.getSelectedFile();
-                    File generatedFile = new File(pdfPath);
-                    try (InputStream in = new FileInputStream(generatedFile);
-                         OutputStream out = new FileOutputStream(fileToSave)) {
-                        byte[] buffer = new byte[1024];
-                        int bytesRead;
-                        while ((bytesRead = in.read(buffer)) != -1) {
-                            out.write(buffer, 0, bytesRead);
-                        }
-                        JOptionPane.showMessageDialog(dialog, "PDF saved: " + fileToSave.getAbsolutePath());
+                    // Ensure the file has a .pdf extension
+                    if (!fileToSave.getName().toLowerCase().endsWith(".pdf")) {
+                        fileToSave = new File(fileToSave.getAbsolutePath() + ".pdf");
                     }
+                    
+                    // Export the already generated JasperPrint object to the chosen file
+                    JasperExportManager.exportReportToPdfFile(jasperPrint, fileToSave.getAbsolutePath());
+                    JOptionPane.showMessageDialog(dialog, "PDF saved: " + fileToSave.getAbsolutePath());
                 }
             } catch (Exception ex) {
                 ex.printStackTrace();
@@ -300,8 +205,6 @@ public class MedicineInvoice{
         dialog.setVisible(true);
     }
 
-    private JasperPrint jasperPrint; // Store JasperPrint for reuse
-
     private byte[] generatePdfBytes() throws Exception {
         try {
             // This method is almost identical to generatePdf, but exports to a byte array
@@ -329,181 +232,129 @@ public class MedicineInvoice{
      * Common method to fill the JasperPrint object with data and parameters.
      * This avoids code duplication between generating a file and a byte array.
      */
-    private void fillJasperPrint() throws JRException, FileNotFoundException {
-        // Only fill if it hasn't been filled already
+    private void fillJasperPrint() throws JRException, IOException {
         if (jasperPrint != null) {
             return;
         }
-            // 1. Create data sources for medicines, services, and supplements
-            java.util.List<InvoiceItem> medicines = new ArrayList<>();
-            java.util.List<InvoiceItem> serviceItems = new ArrayList<>();
-            java.util.List<InvoiceItem> supplementItems = new ArrayList<>();
 
-            // Convert medicine data to InvoiceItem objects
+        java.util.List<InvoiceItem> medicineItems = new ArrayList<>();
+        java.util.List<InvoiceItem> serviceItems = new ArrayList<>();
+        java.util.List<InvoiceItem> supplementItems = new ArrayList<>();
+
         if (med != null) {
             for (String[] medicine : med) {
-                    if (medicine != null && medicine.length >= 10) {
-                        try {
-                            String dosageInfo = String.format("S: %s, T: %s, C: %s", 
-                                medicine[4] != null ? medicine[4] : "0", 
-                                medicine[5] != null ? medicine[5] : "0", 
-                                medicine[6] != null ? medicine[6] : "0");
-                            String amount = medicine[2] + " " + medicine[3];
-                            
-                            medicines.add(InvoiceItem.createMedicine(
-                                medicine[1] != null ? medicine[1] : "",  // medName
-                                dosageInfo,  // dosage
-                                amount  // amount
-                            ));
-                        } catch (NumberFormatException e) {
-                            System.err.println("Error parsing medicine data: " + e.getMessage());
-                        }
+                if (medicine != null && medicine.length >= 12) {
+                    try {
+                        String medName = medicine[1];
+                        String amount = medicine[2] + " " + medicine[3];
+                        String dosageInfo = String.format("S: %s, T: %s, C: %s", medicine[4], medicine[5], medicine[6]);
+                        String note = medicine[9];
+                        String route = medicine[11];
+                        
+                        // Call signature: (Tên, Ghi chú, Liều dùng, Đường dùng, Số lượng)
+                        medicineItems.add(InvoiceItem.createMedicine(medName, note, dosageInfo, route, amount));
+                    } catch (Exception e) {
+                        System.err.println("Error parsing medicine data row: " + java.util.Arrays.toString(medicine) + " | Error: " + e.getMessage());
                     }
                 }
             }
+        }
 
-            // Convert service data to InvoiceItem objects
-            if (services != null) {
+        if (services != null) {
             for (String[] service : services) {
-                    if (service != null && service.length >= 5) {
-                        try {
-                            serviceItems.add(InvoiceItem.createService(
-                                service[1] != null ? service[1] : "",  // serName
-                                service.length > 5 && service[5] != null ? service[5] : "",  // serNote
-                                service[2] != null ? Integer.parseInt(service[2]) : 0,  // serAmount
-                                service[3] != null ? Double.parseDouble(service[3]) : 0.0  // serUnitPrice
-                            ));
-                        } catch (NumberFormatException e) {
-                            System.err.println("Error parsing service data: " + e.getMessage());
-                        }
+                if (service != null && service.length >= 5) {
+                    try {
+                        serviceItems.add(InvoiceItem.createService(
+                            service[1], 
+                            service.length > 5 ? service[5] : "", 
+                            Integer.parseInt(service[2]), 
+                            Double.parseDouble(service[3])
+                        ));
+                    } catch (NumberFormatException e) {
+                        System.err.println("Error parsing service data: " + e.getMessage());
                     }
                 }
             }
+        }
 
-            // Convert supplement data to InvoiceItem objects
-            if (supplements != null) {
-                for (String[] supplement : supplements) {
-                    if (supplement != null && supplement.length >= 10) {
-                        try {
-                            String dosageInfo = String.format("S: %s, T: %s, C: %s",
-                                    supplement[4] != null ? supplement[4] : "0",
-                                    supplement[5] != null ? supplement[5] : "0",
-                                    supplement[6] != null ? supplement[6] : "0");
-
-                            String amount = supplement[2] + " " + supplement[3]; // Quantity + Unit
-
-                            supplementItems.add(InvoiceItem.createSupplement(
-                                supplement[1] != null ? supplement[1] : "",  // supName
-                                supplement[9] != null ? supplement[9] : "",  // supNote
-                                dosageInfo,  // supDosage
-                                amount,  // supAmount
-                                0.0  // supUnitPrice, since it's not displayed for supplements
-                            ));
-                        } catch (Exception e) {
-                            System.err.println("Error parsing supplement data: " + e.getMessage());
-                        }
+        if (supplements != null) {
+            for (String[] supplement : supplements) {
+                if (supplement != null && supplement.length >= 12) {
+                    try {
+                        String supName = supplement[1];
+                        String amount = supplement[2] + " " + supplement[3];
+                        String dosageInfo = String.format("S: %s, T: %s, C: %s", supplement[4], supplement[5], supplement[6]);
+                        String supNote = supplement[9];
+                        String supRoute = supplement[11];
+                        
+                        // --- CORRECTED THIS LINE ---
+                        // Swapped 'amount' and 'supRoute' to match the method signature in InvoiceItem.java
+                        // Call signature: (Tên, Ghi chú, Liều dùng, Số lượng, Đường dùng)
+                        supplementItems.add(InvoiceItem.createSupplement(supName, supNote, dosageInfo, amount, supRoute));
+                        
+                    } catch (Exception e) {
+                         System.err.println("Error parsing supplement data row: " + java.util.Arrays.toString(supplement) + " | Error: " + e.getMessage());
                     }
                 }
             }
+        }
 
-            // Create data sources
-            JRBeanCollectionDataSource medicineDS = new JRBeanCollectionDataSource(medicines);
-            JRBeanCollectionDataSource serviceDS = new JRBeanCollectionDataSource(serviceItems);
-            JRBeanCollectionDataSource supplementDS = new JRBeanCollectionDataSource(supplementItems);
+        JRBeanCollectionDataSource medicineDS = new JRBeanCollectionDataSource(medicineItems);
+        JRBeanCollectionDataSource serviceDS = new JRBeanCollectionDataSource(serviceItems);
+        JRBeanCollectionDataSource supplementDS = new JRBeanCollectionDataSource(supplementItems);
 
-            // 2. Create parameters map
-            java.util.Map<String, Object> parameters = new java.util.HashMap<>();
-            
-            // Data sources
-            parameters.put("medicineDS", medicineDS);
-            parameters.put("serviceDS", serviceDS);
-            parameters.put("supplementDS", supplementDS);
+        java.util.Map<String, Object> parameters = new java.util.HashMap<>();
+        
+        parameters.put("medicineDS", medicineDS);
+        parameters.put("serviceDS", serviceDS);
+        parameters.put("supplementDS", supplementDS);
+        parameters.put(JRParameter.REPORT_LOCALE, new java.util.Locale("vi", "VN"));
+        parameters.put("patientName", patientName != null ? patientName : "");
+        parameters.put("patientDOB", patientDOB != null ? patientDOB : "");
+        parameters.put("patientGender", patientGender != null ? patientGender : "");
+        parameters.put("patientAddress", patientAddress != null ? patientAddress : "");
+        parameters.put("clinicPrefix", LocalStorage.ClinicPrefix != null ? LocalStorage.ClinicPrefix : "");
+        parameters.put("clinicName", LocalStorage.ClinicName != null ? LocalStorage.ClinicName : "");
+        parameters.put("clinicPhone", LocalStorage.ClinicPhone != null ? LocalStorage.ClinicPhone : "");
+        parameters.put("clinicAddress", LocalStorage.ClinicAddress != null ? LocalStorage.ClinicAddress : "");
+        parameters.put("doctorName", doctorName != null ? doctorName : "");
+        parameters.put("checkupDate", date != null ? date : "");
+        parameters.put("patientDiagnos", diagnosis != null ? diagnosis : "");
+        parameters.put("checkupNote", notes != null ? notes : "");
+        parameters.put("barcodeNumber", id != null ? id : "");
+        parameters.put("driveURL", driveURL != null ? driveURL : "");
+        parameters.put("logoImage", LocalStorage.pathToProject + "/src/main/java/BsK/client/ui/assets/icon/logo.jpg");
+        parameters.put("hasMedicines", !medicineItems.isEmpty());
+        parameters.put("hasServices", !serviceItems.isEmpty());
+        parameters.put("hasSupplements", !supplementItems.isEmpty());
 
-            // Set locale for Vietnamese formatting
-            parameters.put(JRParameter.REPORT_LOCALE, new java.util.Locale("vi", "VN"));
+        String resourcePath = "/BsK/client/ui/component/CheckUpPage/PrintDialog/print_forms/medserinvoice.jrxml";
+        try (InputStream inputStream = MedicineInvoice.class.getResourceAsStream(resourcePath)) {
+            if (inputStream == null) {
 
-            // Patient information
-            parameters.put("patientName", patientName != null ? patientName : "");
-            parameters.put("patientDOB", patientDOB != null ? patientDOB : "");
-            parameters.put("patientGender", patientGender != null ? patientGender : "");
-            parameters.put("patientAddress", patientAddress != null ? patientAddress : "");
-
-            // Clinic information
-            parameters.put("clinicName", LocalStorage.ClinicName != null ? LocalStorage.ClinicName : "");
-            parameters.put("clinicPhone", LocalStorage.ClinicPhone != null ? LocalStorage.ClinicPhone : "");
-            parameters.put("clinicAddress", LocalStorage.ClinicAddress != null ? LocalStorage.ClinicAddress : "");
-
-            // Doctor and medical information
-            parameters.put("doctorName", doctorName != null ? doctorName : "");
-            parameters.put("checkupDate", date != null ? date : "");
-            parameters.put("patientDiagnos", diagnosis != null ? diagnosis : "");
-            parameters.put("checkupNote", notes != null ? notes : "");
-
-            // Barcode
-            parameters.put("barcodeNumber", id != null ? id : "");
-            
-            // Drive URL for QR Code
-            parameters.put("driveURL", driveURL != null ? driveURL : "");
-
-            // Logo image path
-            String logoPath = System.getProperty("user.dir") + "/src/main/java/BsK/client/ui/assets/icon/logo.jpg";
-            parameters.put("logoImage", logoPath);
-
-            // Add conditional parameters to check if data sources have data
-            parameters.put("hasMedicines", medicines != null && !medicines.isEmpty());
-            parameters.put("hasServices", serviceItems != null && !serviceItems.isEmpty());
-            parameters.put("hasSupplements", supplementItems != null && !supplementItems.isEmpty());
-
-            // 3. Load and compile the JRXML template
-            String jrxmlPath = System.getProperty("user.dir") + "/src/main/java/BsK/client/ui/component/CheckUpPage/PrintDialog/print_forms/medserinvoice.jrxml";
-            java.io.InputStream inputStream = new java.io.FileInputStream(new java.io.File(jrxmlPath));
-
+                throw new FileNotFoundException("Không thể tìm thấy tệp mẫu Jasper report trong classpath: " + resourcePath);
+            }
             JasperDesign jasperDesign = JRXmlLoader.load(inputStream);
             JasperReport jasperReport = JasperCompileManager.compileReport(jasperDesign);
-
-            // 4. Fill the report with data
             jasperPrint = JasperFillManager.fillReport(jasperReport, parameters, new JREmptyDataSource());
+        }
     }
 
     private void displayPdfInLabel(String pdfPath, JPanel pdfPanel) throws Exception {
         PDDocument document = PDDocument.load(new File(pdfPath));
         PDFRenderer pdfRenderer = new PDFRenderer(document);
 
-        // Create a panel to hold all pages
-        pdfPanel.setLayout(new BoxLayout(pdfPanel, BoxLayout.Y_AXIS)); // Stack pages vertically
+        pdfPanel.setLayout(new BoxLayout(pdfPanel, BoxLayout.Y_AXIS));
 
-        // Render each page and add it to the pdfPanel
         for (int i = 0; i < document.getNumberOfPages(); i++) {
-            BufferedImage image = pdfRenderer.renderImageWithDPI(i, 150); // Adjust DPI as needed
-
-            // Scale the image to a smaller size (e.g., 50% of the original size)
-            int scaledWidth = image.getWidth() / 2;  // Make it half of the original width
-            int scaledHeight = image.getHeight() / 2; // Make it half of the original height
-
-            // Scale the image using getScaledInstance
-            java.awt.Image scaledImage = image.getScaledInstance(scaledWidth, scaledHeight, java.awt.Image.SCALE_SMOOTH);
-
-            // Create an ImageIcon from the scaled image
-            ImageIcon icon = new ImageIcon(scaledImage);
-
-            // Create a label for the image and add it to the panel
+            BufferedImage image = pdfRenderer.renderImageWithDPI(i, 150);
+            ImageIcon icon = new ImageIcon(image);
             JLabel pageLabel = new JLabel(icon);
             pdfPanel.add(pageLabel);
         }
         document.close();
-        // Put the panel inside a JScrollPane to make it scrollable
-        JScrollPane scrollPane = new JScrollPane(pdfPanel);
-        scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_ALWAYS);
-        scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED); // Added for horizontal scroll if needed
-
-        // Increase scroll sensitivity
-        JScrollBar verticalScrollBar = scrollPane.getVerticalScrollBar();
-        verticalScrollBar.setUnitIncrement(20); // Increase for finer control, adjust as needed
-        verticalScrollBar.setBlockIncrement(100); // Increase for page-like scrolling, adjust as needed
-
-        // Assuming `dialog` is the parent component
-        dialog.add(scrollPane, BorderLayout.CENTER);
-        dialog.validate();
+        
+        dialog.revalidate();
         dialog.repaint();
     }
 
@@ -514,39 +365,31 @@ public class MedicineInvoice{
             printerJob.setJobName("Print Medicine Invoice");
 
             if (printerJob.printDialog()) {
-                printerJob.setPrintable(new Printable() {
-                    @Override
-                    public int print(Graphics graphics, PageFormat pageFormat, int pageIndex) throws PrinterException {
-                        if (pageIndex >= document.getNumberOfPages()) {
-                            return NO_SUCH_PAGE;
-                        }
-
-                        Graphics2D g2 = (Graphics2D) graphics;
-                        g2.translate(pageFormat.getImageableX(), pageFormat.getImageableY());
-
-                        try {
-                            PDFRenderer pdfRenderer = new PDFRenderer(document);
-                            BufferedImage pageImage = pdfRenderer.renderImageWithDPI(pageIndex, 300); // Render at 300 DPI
-
-                            double pageWidth = pageImage.getWidth();
-                            double pageHeight = pageImage.getHeight();
-
-                            double scaleX = pageFormat.getImageableWidth() / pageWidth;
-                            double scaleY = pageFormat.getImageableHeight() / pageHeight;
-                            double scale = Math.min(scaleX, scaleY);
-
-                            g2.scale(scale, scale);
-                            g2.drawImage(pageImage, 0, 0, null);
-
-                        } catch (IOException e) {
-                            e.printStackTrace();
-                            return NO_SUCH_PAGE;
-                        }
-
-                        return PAGE_EXISTS;
+                printerJob.setPrintable((graphics, pageFormat, pageIndex) -> {
+                    if (pageIndex >= document.getNumberOfPages()) {
+                        return Printable.NO_SUCH_PAGE;
                     }
-                });
 
+                    Graphics2D g2 = (Graphics2D) graphics;
+                    g2.translate(pageFormat.getImageableX(), pageFormat.getImageableY());
+
+                    try {
+                        PDFRenderer pdfRenderer = new PDFRenderer(document);
+                        BufferedImage pageImage = pdfRenderer.renderImageWithDPI(pageIndex, 300);
+
+                        double scale = Math.min(pageFormat.getImageableWidth() / pageImage.getWidth(),
+                                                pageFormat.getImageableHeight() / pageImage.getHeight());
+                        
+                        g2.scale(scale, scale);
+                        g2.drawImage(pageImage, 0, 0, null);
+
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                        return Printable.NO_SUCH_PAGE;
+                    }
+
+                    return Printable.PAGE_EXISTS;
+                });
 
                 printerJob.print();
                 System.out.println("Printing completed.");
