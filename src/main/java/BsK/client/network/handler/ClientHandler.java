@@ -49,7 +49,6 @@ public class ClientHandler extends SimpleChannelInboundHandler<TextWebSocketFram
 
   @Override
   protected void channelRead0(ChannelHandlerContext ctx, TextWebSocketFrame frame) {
-    log.debug("Received message: {}", frame.text());
     var packet = PacketSerializer.GSON.fromJson(frame.text(), Packet.class);
 
     if (packet != null) {

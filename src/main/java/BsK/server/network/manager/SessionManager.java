@@ -46,13 +46,19 @@ public class SessionManager {
 
   public static int onUserLogin(Channel channel) {
     int sessionId = SESSION_ID.incrementAndGet();
-    var user = new User(channel, sessionId);
+    String channelId = channel.id().asLongText();
+    var user = CHANNEL_TO_USER_MAP.get(channelId);
+    if(user == null) {
+      user = new User(channel, sessionId);
+      CHANNEL_TO_USER_MAP.put(channelId, user);
+    } else {
+      user.setSessionId(sessionId);
+      user.setChannel(channel);
+    } 
     var connection = new ClientConnection(channel, sessionId);
     
-    String channelId = channel.id().asLongText();
     SESSION_ID_MAP.put(sessionId, channelId);
     CHANNEL_SESSION_ID_MAP.put(channelId, sessionId);
-    CHANNEL_TO_USER_MAP.put(channelId, user);
     CHANNEL_TO_CONNECTION_MAP.put(channelId, connection);
     
     return sessionId;
@@ -60,10 +66,12 @@ public class SessionManager {
 
   public static void onUserDisconnect(Channel channel) {
     String channelId = channel.id().asLongText();
-    int sessionId = CHANNEL_SESSION_ID_MAP.remove(channelId);
-    SESSION_ID_MAP.remove(sessionId);
-    CHANNEL_TO_USER_MAP.remove(channelId);
-    CHANNEL_TO_CONNECTION_MAP.remove(channelId);
+    var user = CHANNEL_TO_USER_MAP.get(channelId);
+    if(user != null && user.getUserId() != -1) {
+      int oldSessionId = CHANNEL_SESSION_ID_MAP.remove(channelId);
+      SESSION_ID_MAP.remove(oldSessionId);
+      CHANNEL_TO_CONNECTION_MAP.remove(channelId);
+    }
   }
 
   public static void updateUserRole(String channelId, String role, int userId) {

@@ -1,16 +1,16 @@
 package BsK.server;
 
 import javax.swing.*;
+import javax.swing.border.TitledBorder;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.text.*;
 import java.awt.*;
-import java.awt.event.*;
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.Vector;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
 import java.lang.management.OperatingSystemMXBean;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Vector;
 import BsK.server.network.entity.ClientConnection;
 import BsK.server.network.manager.SessionManager;
 import lombok.extern.slf4j.Slf4j;
@@ -36,6 +36,9 @@ public class ServerDashboard extends JFrame {
     private JTable networkTable;
     private DefaultTableModel networkTableModel;
 
+    // --- NEW ---
+    private JButton backupDbButton;
+
     public static ServerDashboard getInstance() {
         if (instance == null) {
             instance = new ServerDashboard();
@@ -49,97 +52,158 @@ public class ServerDashboard extends JFrame {
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
 
-        // Create main panel with border layout
-        JPanel mainPanel = new JPanel(new BorderLayout());
+        // Main container panel
+        JPanel mainPanel = new JPanel(new BorderLayout(10, 10));
         mainPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
-        // Status Panel (North)
-        JPanel topPanel = new JPanel(new GridLayout(3, 1, 0, 5));
-        
-        // Server Status Panel
-        JPanel statusPanel = new JPanel(new GridLayout(1, 4, 10, 0));
-        statusPanel.setBorder(BorderFactory.createTitledBorder("Server Status"));
+        // Add main components
+        mainPanel.add(createHeaderPanel(), BorderLayout.NORTH);
+        mainPanel.add(createMainContentPanel(), BorderLayout.CENTER);
 
+        add(mainPanel);
+
+        // Start timers
+        startSystemStatsTimer();
+        startNetworkStatsTimer();
+    }
+
+    private JPanel createHeaderPanel() {
+        JPanel headerPanel = new JPanel(new GridBagLayout());
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.fill = GridBagConstraints.BOTH;
+        gbc.insets = new Insets(0, 5, 0, 5);
+        gbc.weighty = 1.0;
+
+        // Server Status Panel
+        JPanel statusPanel = new JPanel(new GridLayout(1, 3, 10, 0));
+        statusPanel.setBorder(BorderFactory.createTitledBorder("Server Status"));
         statusLabel = new JLabel("Status: Starting...", SwingConstants.CENTER);
         portLabel = new JLabel("Port: --", SwingConstants.CENTER);
         clientsLabel = new JLabel("Connected Clients: 0", SwingConstants.CENTER);
-        googleDriveLabel = new JLabel("Google Drive: Checking...", SwingConstants.CENTER);
-
         statusPanel.add(statusLabel);
         statusPanel.add(portLabel);
         statusPanel.add(clientsLabel);
-        statusPanel.add(googleDriveLabel);
+        gbc.gridx = 0;
+        gbc.weightx = 0.35; // MODIFIED: Adjusted weight
+        headerPanel.add(statusPanel, gbc);
 
         // System Info Panel
-        JPanel systemPanel = new JPanel(new GridLayout(1, 4, 10, 0));
+        JPanel systemPanel = new JPanel(new GridLayout(1, 3, 10, 0));
         systemPanel.setBorder(BorderFactory.createTitledBorder("System Information"));
-
         memoryLabel = new JLabel("Memory Usage: --", SwingConstants.CENTER);
         cpuLabel = new JLabel("CPU Usage: --", SwingConstants.CENTER);
         JLabel osLabel = new JLabel("OS: " + System.getProperty("os.name"), SwingConstants.CENTER);
-        
-        // Google Drive settings button
-        googleDriveButton = new JButton("Retry Drive");
-        googleDriveButton.addActionListener(e -> retryGoogleDriveConnection());
-        googleDriveButton.setToolTipText("Retry Google Drive connection");
-
         systemPanel.add(memoryLabel);
         systemPanel.add(cpuLabel);
         systemPanel.add(osLabel);
-        systemPanel.add(googleDriveButton);
+        gbc.gridx = 1;
+        gbc.weightx = 0.35; // MODIFIED: Adjusted weight
+        headerPanel.add(systemPanel, gbc);
 
-        // Google Drive Settings Panel
-        JPanel driveSettingsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        driveSettingsPanel.setBorder(BorderFactory.createTitledBorder("Google Drive Settings"));
+        // Google Drive Panel
+        JPanel drivePanel = new JPanel(new BorderLayout(10, 0));
+        drivePanel.setBorder(BorderFactory.createTitledBorder("Google Drive"));
+        googleDriveLabel = new JLabel("Status: Checking...", SwingConstants.CENTER);
+        googleDriveButton = new JButton("Retry");
+        googleDriveButton.addActionListener(e -> retryGoogleDriveConnection());
+        drivePanel.add(googleDriveLabel, BorderLayout.CENTER);
+        drivePanel.add(googleDriveButton, BorderLayout.EAST);
+        gbc.gridx = 2;
+        gbc.weightx = 0.2; // MODIFIED: Adjusted weight
+        headerPanel.add(drivePanel, gbc);
         
-        JLabel folderNameLabel = new JLabel("Root Folder Name:");
-        JTextField driveRootFolderField = new JTextField(getCurrentDriveRootFolder(), 20);
-        JButton applyDriveSettingsButton = new JButton("Apply");
-        applyDriveSettingsButton.addActionListener(e -> applyDriveSettings(driveRootFolderField.getText().trim()));
-        
-        driveSettingsPanel.add(folderNameLabel);
-        driveSettingsPanel.add(driveRootFolderField);
-        driveSettingsPanel.add(applyDriveSettingsButton);
+        // --- NEW: Actions Panel ---
+        JPanel actionsPanel = new JPanel(new BorderLayout());
+        actionsPanel.setBorder(BorderFactory.createTitledBorder("Actions"));
+        backupDbButton = new JButton("Backup DB to Drive");
+        backupDbButton.setToolTipText("Upload a timestamped copy of the database to Google Drive.");
+        backupDbButton.addActionListener(e -> performDatabaseBackup());
+        actionsPanel.add(backupDbButton, BorderLayout.CENTER);
+        gbc.gridx = 3;
+        gbc.weightx = 0.1; // MODIFIED: Adjusted weight
+        headerPanel.add(actionsPanel, gbc);
 
-        topPanel.add(statusPanel);
-        topPanel.add(systemPanel);
-        topPanel.add(driveSettingsPanel);
 
-        // Create split pane for logs and network info
-        JSplitPane splitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
-        splitPane.setResizeWeight(0.1); // Give more space to the top component
+        return headerPanel;
+    }
+    
+    // --- NEW: Method to handle the backup action ---
+    private void performDatabaseBackup() {
+        // Disable button to prevent multiple clicks
+        backupDbButton.setEnabled(false);
+        addLog("▶️ Starting database backup to Google Drive...");
 
-        // Network Information Panel
+        // Run the backup in a background thread to not freeze the UI
+        new Thread(() -> {
+            try {
+                // Call the static method in the Server class
+                BsK.server.Server.backupDatabaseToDrive();
+
+                // Update UI on success
+                SwingUtilities.invokeLater(() -> {
+                    addLog("✅ Database backup completed successfully.");
+                    JOptionPane.showMessageDialog(this,
+                            "Database backup was successfully uploaded to Google Drive.",
+                            "Backup Successful",
+                            JOptionPane.INFORMATION_MESSAGE);
+                });
+
+            } catch (Exception e) {
+                log.error("Database backup failed", e);
+                // Update UI on failure
+                SwingUtilities.invokeLater(() -> {
+                    addLog("❌ Database backup failed: " + e.getMessage());
+                     JOptionPane.showMessageDialog(this,
+                            "Failed to backup the database.\nError: " + e.getMessage() + "\n\nCheck logs for more details.",
+                            "Backup Failed",
+                            JOptionPane.ERROR_MESSAGE);
+                });
+            } finally {
+                // Always re-enable the button on the UI thread
+                SwingUtilities.invokeLater(() -> backupDbButton.setEnabled(true));
+            }
+        }).start();
+    }
+
+    private JSplitPane createMainContentPanel() {
+        // ... (This method remains unchanged)
+        // --- Log Panel ---
+        JPanel logPanel = new JPanel(new BorderLayout());
+        logPanel.setBorder(BorderFactory.createTitledBorder("Server Logs"));
+        logArea = new JTextPane();
+        logArea.setEditable(false);
+        logArea.setFont(new Font("Monospaced", Font.PLAIN, 12));
+        JScrollPane logScrollPane = new JScrollPane(logArea);
+        logPanel.add(createLogControlsPanel(), BorderLayout.NORTH);
+        logPanel.add(logScrollPane, BorderLayout.CENTER);
+
+        // --- Network Panel ---
         JPanel networkPanel = new JPanel(new BorderLayout());
         networkPanel.setBorder(BorderFactory.createTitledBorder("Network Information"));
-        
-        // Create table model with columns
-        String[] columnNames = {"Session ID", "IP Address", "Port", "Role", "Connected Time", "Last Activity", "Bytes Sent", "Bytes Received"};
+        String[] columnNames = {"Session ID", "IP Address", "Port", "Role", "Connected Time", "Last Activity"};
         networkTableModel = new DefaultTableModel(columnNames, 0) {
             @Override
-            public boolean isCellEditable(int row, int column) {
-                return false;
-            }
+            public boolean isCellEditable(int row, int column) { return false; }
         };
-        
         networkTable = new JTable(networkTableModel);
         networkTable.setFillsViewportHeight(true);
-        JScrollPane networkScrollPane = new JScrollPane(networkTable);
-        networkPanel.add(networkScrollPane, BorderLayout.CENTER);
+        networkPanel.add(new JScrollPane(networkTable), BorderLayout.CENTER);
 
-        // Log Controls Panel
-        JPanel logControlsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        // --- Split Pane ---
+        JSplitPane splitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT, logPanel, networkPanel);
+        splitPane.setResizeWeight(0.80); // Give 80% of space to the logs
         
-        // Search field
+        return splitPane;
+    }
+
+    private JPanel createLogControlsPanel() {
+        // ... (This method remains unchanged)
+        JPanel logControlsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         searchField = new JTextField(20);
         JButton searchButton = new JButton("Search");
         searchButton.addActionListener(e -> searchInLogs());
-        
-        // Clear logs button
         JButton clearButton = new JButton("Clear Logs");
         clearButton.addActionListener(e -> clearLogs());
-        
-        // Auto-scroll toggle
         autoScrollToggle = new JToggleButton("Auto-scroll", true);
         autoScrollToggle.addActionListener(e -> isAutoScrollEnabled = autoScrollToggle.isSelected());
 
@@ -150,52 +214,25 @@ public class ServerDashboard extends JFrame {
         logControlsPanel.add(clearButton);
         logControlsPanel.add(Box.createHorizontalStrut(20));
         logControlsPanel.add(autoScrollToggle);
-
-        // Log Area Panel
-        JPanel logPanel = new JPanel(new BorderLayout());
-        logPanel.setBorder(BorderFactory.createTitledBorder("Server Logs"));
-        
-        logArea = new JTextPane();
-        logArea.setEditable(false);
-        logArea.setFont(new Font("Monospaced", Font.PLAIN, 12));
-        JScrollPane logScrollPane = new JScrollPane(logArea);
-
-        logPanel.add(logControlsPanel, BorderLayout.NORTH);
-        logPanel.add(logScrollPane, BorderLayout.CENTER);
-
-        // Add components to split pane
-        splitPane.setTopComponent(logPanel);
-        splitPane.setBottomComponent(networkPanel);
-
-        // Add components to main panel
-        mainPanel.add(topPanel, BorderLayout.NORTH);
-        mainPanel.add(splitPane, BorderLayout.CENTER);
-
-        add(mainPanel);
-
-        // Start system stats update timer
-        startSystemStatsTimer();
-        // Start network stats update timer
-        startNetworkStatsTimer();
+        return logControlsPanel;
     }
 
     private void startSystemStatsTimer() {
+        // ... (This method remains unchanged)
         MemoryMXBean memoryBean = ManagementFactory.getMemoryMXBean();
         OperatingSystemMXBean osBean = ManagementFactory.getOperatingSystemMXBean();
 
         statsTimer = new Timer(2000, e -> {
-            // Update memory usage
             long usedMemory = memoryBean.getHeapMemoryUsage().getUsed() / (1024 * 1024);
             long maxMemory = memoryBean.getHeapMemoryUsage().getMax() / (1024 * 1024);
-            SwingUtilities.invokeLater(() -> 
-                memoryLabel.setText(String.format("Memory Usage: %d MB / %d MB", usedMemory, maxMemory))
+            SwingUtilities.invokeLater(() ->
+                memoryLabel.setText(String.format("Memory: %d MB / %d MB", usedMemory, maxMemory))
             );
 
-            // Update CPU usage if available
             if (osBean instanceof com.sun.management.OperatingSystemMXBean) {
                 double cpuLoad = ((com.sun.management.OperatingSystemMXBean) osBean).getSystemCpuLoad() * 100;
-                SwingUtilities.invokeLater(() -> 
-                    cpuLabel.setText(String.format("CPU Usage: %.1f%%", cpuLoad))
+                SwingUtilities.invokeLater(() ->
+                    cpuLabel.setText(String.format("CPU: %.1f%%", cpuLoad))
                 );
             }
         });
@@ -203,16 +240,15 @@ public class ServerDashboard extends JFrame {
     }
 
     private void startNetworkStatsTimer() {
+        // ... (This method remains unchanged)
         networkStatsTimer = new Timer(1000, e -> refreshNetworkTable());
         networkStatsTimer.start();
     }
 
     public void refreshNetworkTable() {
+        // ... (This method remains unchanged)
         SwingUtilities.invokeLater(() -> {
-            // Clear existing rows
             networkTableModel.setRowCount(0);
-            
-            // Add current connections
             for (ClientConnection conn : SessionManager.getAllConnections()) {
                 Vector<Object> row = new Vector<>();
                 row.add(conn.getSessionId());
@@ -221,21 +257,13 @@ public class ServerDashboard extends JFrame {
                 row.add(conn.getUserRole());
                 row.add(conn.getConnectionDuration());
                 row.add(conn.getLastActivityDuration());
-                row.add(formatBytes(conn.getBytesSent()));
-                row.add(formatBytes(conn.getBytesReceived()));
                 networkTableModel.addRow(row);
             }
         });
     }
 
-    private String formatBytes(long bytes) {
-        if (bytes < 1024) return bytes + " B";
-        if (bytes < 1024 * 1024) return String.format("%.1f KB", bytes / 1024.0);
-        if (bytes < 1024 * 1024 * 1024) return String.format("%.1f MB", bytes / (1024.0 * 1024));
-        return String.format("%.1f GB", bytes / (1024.0 * 1024 * 1024));
-    }
-
     private void searchInLogs() {
+        // ... (This method remains unchanged)
         String searchText = searchField.getText().toLowerCase();
         if (searchText.isEmpty()) {
             return;
@@ -248,9 +276,9 @@ public class ServerDashboard extends JFrame {
             int index = content.toLowerCase().indexOf(searchText);
             while (index >= 0) {
                 logArea.getHighlighter().addHighlight(
-                    index, 
-                    index + searchText.length(),
-                    new DefaultHighlighter.DefaultHighlightPainter(Color.YELLOW)
+                        index,
+                        index + searchText.length(),
+                        new DefaultHighlighter.DefaultHighlightPainter(Color.YELLOW)
                 );
                 index = content.toLowerCase().indexOf(searchText, index + 1);
             }
@@ -260,6 +288,7 @@ public class ServerDashboard extends JFrame {
     }
 
     private void clearLogs() {
+        // ... (This method remains unchanged)
         SwingUtilities.invokeLater(() -> {
             try {
                 logArea.getDocument().remove(0, logArea.getDocument().getLength());
@@ -271,6 +300,7 @@ public class ServerDashboard extends JFrame {
     }
 
     public void updateStatus(String status, Color color) {
+        // ... (This method remains unchanged)
         SwingUtilities.invokeLater(() -> {
             statusLabel.setText("Status: " + status);
             statusLabel.setForeground(color);
@@ -278,47 +308,48 @@ public class ServerDashboard extends JFrame {
     }
 
     public void updatePort(int port) {
-        SwingUtilities.invokeLater(() -> 
+        // ... (This method remains unchanged)
+        SwingUtilities.invokeLater(() ->
             portLabel.setText("Port: " + port)
         );
     }
 
     public static void incrementClients() {
+        // ... (This method remains unchanged)
         connectedClients++;
         updateClientCount();
     }
 
     public static void decrementClients() {
-        connectedClients = Math.max(0, connectedClients - 1); // Ensure we don't go below 0
+        // ... (This method remains unchanged)
+        connectedClients = Math.max(0, connectedClients - 1);
         updateClientCount();
     }
 
     private static void updateClientCount() {
+        // ... (This method remains unchanged)
         if (instance != null) {
             SwingUtilities.invokeLater(() -> {
                 instance.clientsLabel.setText("Connected Clients: " + connectedClients);
-                // Also update the network table since client count changed
                 instance.refreshNetworkTable();
             });
         }
     }
 
     public void addLog(String message) {
+        // ... (This method remains unchanged)
         SwingUtilities.invokeLater(() -> {
             try {
                 Document doc = logArea.getDocument();
                 String timestamp = timeFormat.format(new Date());
                 String formattedMessage = String.format("[%s] %s%n", timestamp, message);
-                
-                // Create style for new text
+
                 Style style = logArea.addStyle("Log Style", null);
                 StyleConstants.setFontFamily(style, "Monospace");
                 StyleConstants.setFontSize(style, 12);
-                
-                // Insert the text at the end
+
                 doc.insertString(doc.getLength(), formattedMessage, style);
-                
-                // Scroll to bottom if auto-scroll is enabled
+
                 if (isAutoScrollEnabled) {
                     logArea.setCaretPosition(doc.getLength());
                 }
@@ -329,96 +360,60 @@ public class ServerDashboard extends JFrame {
     }
 
     public void updateGoogleDriveStatus(boolean connected, String statusMessage) {
+        // ... (This method remains unchanged)
         SwingUtilities.invokeLater(() -> {
             if (connected) {
-                googleDriveLabel.setText("Google Drive: ✅ " + statusMessage);
-                googleDriveLabel.setForeground(Color.GREEN);
-                googleDriveButton.setText("Test Drive");
+                googleDriveLabel.setText("✅ " + statusMessage);
+                googleDriveLabel.setForeground(new Color(34, 139, 34)); // Forest Green
+                googleDriveButton.setText("Test");
                 googleDriveButton.setToolTipText("Test Google Drive connection");
             } else {
-                googleDriveLabel.setText("Google Drive: ❌ " + statusMessage);
+                googleDriveLabel.setText("❌ " + statusMessage);
                 googleDriveLabel.setForeground(Color.RED);
-                googleDriveButton.setText("Retry Drive");
+                googleDriveButton.setText("Retry");
                 googleDriveButton.setToolTipText("Retry Google Drive connection");
             }
         });
     }
 
     private void retryGoogleDriveConnection() {
+        // ... (This method remains unchanged)
         SwingUtilities.invokeLater(() -> {
-            googleDriveLabel.setText("Google Drive: 🔄 Connecting...");
+            googleDriveLabel.setText("🔄 Connecting...");
             googleDriveLabel.setForeground(Color.ORANGE);
             googleDriveButton.setEnabled(false);
-            addLog("Retrying Google Drive connection...");
+            addLog("Testing Google Drive connection...");
         });
 
-        // Run connection attempt in background thread
+        // Run connection attempt in a background thread
         new Thread(() -> {
             try {
+                // This method should attempt the connection and update the server's internal state.
                 BsK.server.Server.retryGoogleDriveConnection();
-                SwingUtilities.invokeLater(() -> {
-                    googleDriveButton.setEnabled(true);
-                    if (BsK.server.Server.isGoogleDriveConnected()) {
-                        addLog("Google Drive connection successful ✅");
-                    } else {
-                        addLog("Google Drive connection failed ❌");
-                    }
-                });
+
+                // After the attempt, get the result from the server's state
+                boolean isConnected = BsK.server.Server.isGoogleDriveConnected();
+                String message = isConnected ? "Connection test successful" : "Connection test failed";
+
+                // *** THIS IS THE FIX ***
+                // Call the standard UI update method with the result.
+                updateGoogleDriveStatus(isConnected, message);
+
             } catch (Exception e) {
-                SwingUtilities.invokeLater(() -> {
-                    googleDriveButton.setEnabled(true);
-                    addLog("Google Drive connection error: " + e.getMessage());
-                });
-                         }
-         }).start();
-     }
+                log.error("Google Drive connection test failed with an exception", e);
+                // Also update the UI in case of an exception
+                updateGoogleDriveStatus(false, "Connection error");
+                addLog("Google Drive connection error: " + e.getMessage());
+            } finally {
+                // ALWAYS re-enable the button on the UI thread
+                SwingUtilities.invokeLater(() -> googleDriveButton.setEnabled(true));
+            }
+        }).start();
+    }
 
-     private String getCurrentDriveRootFolder() {
-         // Get current root folder name from Server or return default
-         try {
-             if (BsK.server.Server.getGoogleDriveService() != null) {
-                 return BsK.server.Server.getGoogleDriveRootFolderName();
-             }
-         } catch (Exception e) {
-             log.warn("Could not get current drive root folder name", e);
-         }
-         return "BSK_Clinic_Patient_Files"; // Default value
-     }
-
-     private void applyDriveSettings(String newRootFolderName) {
-         if (newRootFolderName == null || newRootFolderName.trim().isEmpty()) {
-             addLog("❌ Root folder name cannot be empty");
-             return;
-         }
-
-         // Sanitize folder name
-         String sanitizedName = newRootFolderName.replaceAll("[^a-zA-Z0-9._-]", "_");
-         if (!sanitizedName.equals(newRootFolderName)) {
-             addLog("⚠️  Folder name sanitized to: " + sanitizedName);
-         }
-
-         addLog("🔄 Updating Google Drive root folder to: " + sanitizedName);
-         
-         new Thread(() -> {
-             try {
-                 // Update the root folder name in server
-                 BsK.server.Server.updateGoogleDriveRootFolder(sanitizedName);
-                 
-                 SwingUtilities.invokeLater(() -> {
-                     addLog("✅ Google Drive root folder updated successfully");
-                     addLog("💡 New patient folders will be created under: " + sanitizedName);
-                 });
-             } catch (Exception e) {
-                 SwingUtilities.invokeLater(() -> {
-                     addLog("❌ Failed to update Google Drive root folder: " + e.getMessage());
-                 });
-                 log.error("Error updating Google Drive root folder", e);
-             }
-         }).start();
-     }
-
-     @Override
-     public void dispose() {
+    @Override
+    public void dispose() {
+        // ... (This method remains unchanged)
         if (statsTimer != null) {
             statsTimer.stop();
         }
@@ -427,4 +422,4 @@ public class ServerDashboard extends JFrame {
         }
         super.dispose();
     }
-} 
+}

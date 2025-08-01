@@ -464,4 +464,63 @@ public class GoogleDriveServiceOAuth {
         
         return result.getFiles();
     }
+
+    /**
+     * Finds a folder by name within a specific parent folder, or creates it if it doesn't exist.
+     * @param parentFolderId The ID of the parent folder.
+     * @param folderName The name of the folder to find or create.
+     * @return The ID of the found or newly created folder.
+     * @throws IOException if a Google Drive API error occurs.
+     */
+    private String findOrCreateFolder(String parentFolderId, String folderName) throws IOException {
+        // Search for existing folder
+        String query = String.format("name = '%s' and mimeType='application/vnd.google-apps.folder' and '%s' in parents and trashed=false",
+                folderName.replace("'", "\\'"),
+                parentFolderId);
+
+        FileList result = driveService.files().list()
+                .setQ(query)
+                .setSpaces("drive")
+                .setFields("files(id)")
+                .execute();
+
+        if (!result.getFiles().isEmpty()) {
+            String existingFolderId = result.getFiles().get(0).getId();
+            log.info("Found existing folder '{}' (ID: {}) inside parent {}", folderName, existingFolderId, parentFolderId);
+            return existingFolderId;
+        }
+
+        // Create folder if it doesn't exist
+        log.info("Creating new folder '{}' under parent {}", folderName, parentFolderId);
+        return createFolderUnderParent(parentFolderId, folderName);
+    }
+
+
+    // Add this primary backup method inside the GoogleDriveServiceOAuth class
+    /**
+     * Backs up the specified database file to a dedicated backup folder in Google Drive.
+     * The backup filename will be timestamped.
+     * @param dbFile The local database file to upload.
+     * @return The ID of the uploaded file in Google Drive.
+     * @throws IOException if the upload fails.
+     */
+    public String backupDatabaseFile(java.io.File dbFile) throws IOException {
+        // 1. Define the dedicated, private backup folder name
+        String backupFolderName = "_Database_Backups"; // Using underscore to sort it to the top
+
+        // 2. Get or create the backup folder under the main application root folder
+        String backupFolderId = findOrCreateFolder(this.rootFolderId, backupFolderName);
+        log.info("Using database backup folder: {} (ID: {})", backupFolderName, backupFolderId);
+
+        // 3. Create a unique, timestamped filename for the backup
+        String timestamp = new java.text.SimpleDateFormat("yyyy-MM-dd_HH-mm-ss").format(new java.util.Date());
+        String backupFileName = "BSK_Backup_" + timestamp + ".db";
+
+        // 4. Upload the file
+        log.info("Uploading database backup as '{}' to Google Drive...", backupFileName);
+        String fileId = uploadFileToFolder(backupFolderId, dbFile, backupFileName);
+        log.info("✅ Successfully uploaded database backup. File ID: {}", fileId);
+
+        return fileId;
+    }
 } 

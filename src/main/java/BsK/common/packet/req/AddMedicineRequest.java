@@ -12,7 +12,7 @@ public class AddMedicineRequest implements Packet{
     private String description;
     private String unit;
     private Double price;
-    private String preferedNote;
+    private String preferredNote;
     private Boolean supplement;
     private Boolean deleted;
 }

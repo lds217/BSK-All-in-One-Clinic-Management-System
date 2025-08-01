@@ -58,7 +58,6 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
 
   @Override
   protected void channelRead0(ChannelHandlerContext ctx, TextWebSocketFrame frame) {
-    log.debug("Received message: {}", frame.text());
     // Update last activity time for the client
     var connectedUser = SessionManager.getUserByChannel(ctx.channel().id().asLongText());
     if (connectedUser != null) {
@@ -91,19 +90,17 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
       // Tạo user trong database hoặc check exist
       boolean isUserExist = false;
     } else if (packet instanceof LogoutRequest) {
-      var logoutUser = SessionManager.getUserByChannel(ctx.channel().id().asLongText());
+            var logoutUser = SessionManager.getUserByChannel(ctx.channel().id().asLongText());
       if (logoutUser != null) {
         log.info("User {} (Session {}) requested logout.", logoutUser.getUserId(), logoutUser.getSessionId());
-        SessionManager.onUserDisconnect(ctx.channel());
-        // Optionally, you could send a LogoutResponse back to the client if needed,
-        // but since the client navigates away, it might not be processed.
+        logoutUser.resetAuthentication();
       } else {
         log.warn("Received LogoutRequest from a channel with no active user session: {}", ctx.channel().id().asLongText());
       }
     } else {
       // Check if user is authenticated
       var currentUser = SessionManager.getUserByChannel(ctx.channel().id().asLongText());
-      if (!currentUser.isAuthenticated()) {
+      if (currentUser == null || !currentUser.isAuthenticated()) {
         log.warn("Received packet from unauthenticated user: {}", packet);
         return;
       }
@@ -1461,14 +1458,14 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         }
         log.info("Received AddMedRequest");
         try {
-          String sql = "INSERT INTO Medicine (med_name, med_company, med_description, med_unit, med_selling_price, preference_note, supplement, deleted) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+          String sql = "INSERT INTO Medicine (med_name, med_company, med_description, med_unit, med_selling_price, preferred_note, supplement, deleted) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
           PreparedStatement stmt = Server.connection.prepareStatement(sql);
           stmt.setString(1, addMedicineRequest.getName());
           stmt.setString(2, addMedicineRequest.getCompany());
           stmt.setString(3, addMedicineRequest.getDescription());
           stmt.setString(4, addMedicineRequest.getUnit());
           stmt.setDouble(5, addMedicineRequest.getPrice());
-          stmt.setString(6, addMedicineRequest.getPreferedNote());
+          stmt.setString(6, addMedicineRequest.getPreferredNote());
           stmt.setBoolean(7, addMedicineRequest.getSupplement());
           stmt.setBoolean(8, addMedicineRequest.getDeleted());
           stmt.executeUpdate();
@@ -1486,14 +1483,14 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         }
         log.info("Received EditMedRequest");
         try {
-          String sql = "UPDATE Medicine SET med_name = ?, med_company = ?, med_description = ?, med_unit = ?, med_selling_price = ?, preference_note = ?, supplement = ?, deleted = ? WHERE med_id = ?";
+          String sql = "UPDATE Medicine SET med_name = ?, med_company = ?, med_description = ?, med_unit = ?, med_selling_price = ?, preferred_note = ?, supplement = ?, deleted = ? WHERE med_id = ?";
           PreparedStatement stmt = Server.connection.prepareStatement(sql);
           stmt.setString(1, editMedicineRequest.getName());
           stmt.setString(2, editMedicineRequest.getCompany());
           stmt.setString(3, editMedicineRequest.getDescription());
           stmt.setString(4, editMedicineRequest.getUnit());
           stmt.setDouble(5, editMedicineRequest.getPrice());
-          stmt.setString(6, editMedicineRequest.getPreferedNote());
+          stmt.setString(6, editMedicineRequest.getPreferredNote());
           stmt.setBoolean(7, editMedicineRequest.getSupplement());
           stmt.setBoolean(8, editMedicineRequest.getDeleted());
           stmt.setString(9, editMedicineRequest.getId());
@@ -1669,7 +1666,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
   private void getMedInfo(int sessionId) {
     try {
       ResultSet rs = statement.executeQuery(
-              "select med_id, med_name, med_company, med_description, med_unit, med_selling_price, preference_note, supplement, deleted\n" +
+              "select med_id, med_name, med_company, med_description, med_unit, med_selling_price, preferred_note, supplement, deleted\n" +
                       "    from Medicine"
       );
 
@@ -1684,12 +1681,12 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
             String medDescription = rs.getString("med_description");
             String medUnit = rs.getString("med_unit");
             String medSellingPrice = rs.getString("med_selling_price");
-            String preferenceNote = rs.getString("preference_note");
+            String preferredNote = rs.getString("preferred_note");
             String supplement = rs.getString("supplement");
             String deleted = rs.getString("deleted");
 
             String result = String.join("|",medId, medName, medCompany, medDescription, medUnit,
-                    medSellingPrice, preferenceNote != null ? preferenceNote : "", supplement != null ? supplement : "0", deleted);
+                    medSellingPrice, preferredNote != null ? preferredNote : "", supplement != null ? supplement : "0", deleted);
             resultList.add(result);
         }
 
@@ -1768,6 +1765,9 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
             ServerDashboard.getInstance().addLog("Client timed out: Session " + user.getSessionId());
           }
           SessionManager.onUserDisconnect(ctx.channel());
+              if (user != null) {
+        user.resetAuthentication();
+      }
           ctx.channel().close();
         } catch (Exception e) {
           ServerDashboard.getInstance().addLog("Error during client timeout: " + e.getMessage());

@@ -1,11 +1,5 @@
 package BsK.client.ui.component.common.MedicineDialog;
 
-import javax.swing.*;
-import javax.swing.event.DocumentEvent;
-import javax.swing.event.DocumentListener;
-import javax.swing.table.DefaultTableModel;
-import javax.swing.table.TableColumnModel;
-
 import BsK.client.network.handler.ClientHandler;
 import BsK.client.network.handler.ResponseListener;
 import BsK.common.entity.Medicine;
@@ -17,25 +11,25 @@ import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.swing.*;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
+import javax.swing.table.DefaultTableModel;
+import javax.swing.table.TableColumnModel;
 import java.awt.*;
-import java.awt.event.KeyAdapter;
-import java.awt.event.KeyEvent;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
-import java.awt.event.WindowAdapter;
-import java.awt.event.WindowEvent;
+import java.awt.event.*;
+import java.text.NumberFormat; // --- ADD THIS IMPORT ---
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.awt.event.ActionEvent;
-import javax.swing.AbstractAction;
-import javax.swing.KeyStroke;
+import java.util.Locale; // --- ADD THIS IMPORT ---
 
 @Slf4j
 public class MedicineDialog extends JDialog {
     private JTextField medicineNameField;
     private JTextField medicineCompanyField;
     private JTextArea medicineDescriptionField;
+    private JCheckBox chkIsSupplement; // The new checkbox
     private JSpinner quantitySpinner;
     private JComboBox<String> UnitComboBox;
     private JTextField priceField;
@@ -69,10 +63,10 @@ public class MedicineDialog extends JDialog {
     void getMedInfoHandler(GetMedInfoResponse response) {
         logger.info("Received medicine data");
         medicineData = response.getMedInfo();
-        
+
         // Get Medicine objects from the response
         medicines = response.getMedicines();
-        
+
         // We don't need to populate a main table anymore, just have the data ready.
     }
 
@@ -87,7 +81,7 @@ public class MedicineDialog extends JDialog {
         this.originalPrescription = new String[0][0];
         init(parent);
     }
-    
+
     public MedicineDialog(final Frame parent, String[][] existingPrescription) {
         super(parent, "Đơn thuốc", true);
         this.medicinePrescription = existingPrescription != null ? existingPrescription : new String[0][0];
@@ -105,17 +99,17 @@ public class MedicineDialog extends JDialog {
         setSize(1200, 700);
         setLocationRelativeTo(parent);
         setResizable(true);
-        
+
         // UI Fonts and Dimensions
         Font labelFont = new Font("Arial", Font.BOLD, 15);
         Font textFont = new Font("Arial", Font.PLAIN, 15);
         Font titleFont = new Font("Arial", Font.BOLD, 16);
         Dimension textFieldSize = new Dimension(100, 30);
-        
+
         // Ensure modal behavior and proper parent relationship
         setModalityType(Dialog.ModalityType.APPLICATION_MODAL);
         setAlwaysOnTop(false); // Don't force always on top, let modal behavior handle this
-        
+
         // Add window listener to handle minimize/restore events with parent
         addWindowListener(new WindowAdapter() {
             @Override
@@ -124,7 +118,7 @@ public class MedicineDialog extends JDialog {
                     parent.setState(Frame.ICONIFIED);
                 }
             }
-            
+
             @Override
             public void windowDeiconified(WindowEvent e) {
                 if (parent != null && parent.getState() == Frame.ICONIFIED) {
@@ -263,6 +257,16 @@ public class MedicineDialog extends JDialog {
         descriptionScrollPane.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED);
         medicineInfoPanel.add(descriptionScrollPane, gbc);
         gbc.weightx = 0.0;
+        
+        gbc.gridy++;
+        gbc.gridx = 0;
+        gbc.gridwidth = 2;
+        chkIsSupplement = new JCheckBox("Thực phẩm bổ sung");
+        chkIsSupplement.setFont(labelFont);
+        chkIsSupplement.setEnabled(false);
+        chkIsSupplement.setOpaque(false);
+        medicineInfoPanel.add(chkIsSupplement, gbc);
+        gbc.gridwidth = 1;
 
         gbc.gridy = 0;
         gbc.gridx = 0;
@@ -723,18 +727,21 @@ public class MedicineDialog extends JDialog {
         UnitComboBox.setSelectedItem(medicine.getUnit());
         priceField.setText(medicine.getSellingPrice());
 
+        // Update the new checkbox
+        chkIsSupplement.setSelected("1".equals(medicine.getSupplement()));
+
         quantitySpinner.setValue(1);
 
-        String preferenceNote = medicine.getPreferredNote();
-        if (preferenceNote != null && !preferenceNote.trim().isEmpty()) {
-            String[] parts = preferenceNote.split(",", 4);
+        String preferredNote = medicine.getPreferredNote();
+        if (preferredNote != null && !preferredNote.trim().isEmpty()) {
+            String[] parts = preferredNote.split(",", 4);
             try {
                 morningSpinner.setValue(parts.length > 0 ? Integer.parseInt(parts[0].trim()) : 0);
                 noonSpinner.setValue(parts.length > 1 ? Integer.parseInt(parts[1].trim()) : 0);
                 eveningSpinner.setValue(parts.length > 2 ? Integer.parseInt(parts[2].trim()) : 0);
                 noteField.setText(parts.length > 3 ? parts[3].trim() : "");
             } catch (NumberFormatException e) {
-                logger.error("Could not parse preference note: {}", preferenceNote, e);
+                logger.error("Could not parse preferred note: {}", preferredNote, e);
                 // Reset to default values in case of parsing error
                 morningSpinner.setValue(0);
                 noonSpinner.setValue(0);
@@ -742,7 +749,7 @@ public class MedicineDialog extends JDialog {
                 noteField.setText("");
             }
         } else {
-            // No preference note, set default values
+            // No preferred note, set default values
             morningSpinner.setValue(0);
             noonSpinner.setValue(0);
             eveningSpinner.setValue(0);
@@ -760,6 +767,7 @@ public class MedicineDialog extends JDialog {
         UnitComboBox.setSelectedIndex(0);
         priceField.setText("");
         totalField.setText("");
+        chkIsSupplement.setSelected(false); // Reset the checkbox
         quantitySpinner.setValue(1);
         morningSpinner.setValue(0);
         noonSpinner.setValue(0);
@@ -770,9 +778,19 @@ public class MedicineDialog extends JDialog {
     private void updateTotalField() {
         try {
             int quantity = (Integer) quantitySpinner.getValue();
-            if (quantity < 0) { quantitySpinner.setValue(0); quantity = 0; }
+            if (quantity < 0) {
+                quantitySpinner.setValue(0);
+                quantity = 0;
+            }
             double price = priceField.getText().isEmpty() ? 0 : Double.parseDouble(priceField.getText());
-            totalField.setText(String.format("%.0f", quantity * price));
+            double totalValue = quantity * price;
+
+            // Create formatter for Vietnamese locale
+            NumberFormat formatter = NumberFormat.getInstance(new Locale("vi", "VN"));
+
+            // Format the total and set the text
+            totalField.setText(formatter.format(totalValue));
+
         } catch (NumberFormatException e) {
             totalField.setText("Giá trị không hợp lệ");
             logger.error("Error parsing price for total calculation: " + priceField.getText(), e);

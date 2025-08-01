@@ -9,6 +9,7 @@ import BsK.common.packet.req.GetMedInfoRequest;
 import BsK.common.packet.res.GetMedInfoResponse;
 import BsK.common.util.network.NetworkUtil;
 import BsK.common.util.text.TextUtils;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -24,6 +25,7 @@ import java.util.List;
  * A JPanel dedicated to managing medicine inventory (CRUD operations).
  * It handles its own UI, data fetching, and event handling.
  */
+@Slf4j
 public class MedicineManagementPanel extends JPanel {
 
     // --- UI Components ---
@@ -348,15 +350,15 @@ public class MedicineManagementPanel extends JPanel {
                 return;
             }
 
-            // 4. Construct the special 'preferedNote' string
-            String preferedNote = morningSpinner.getValue().toString() + ","
+            // 4. Construct the special 'preferredNote' string
+            String preferredNote = morningSpinner.getValue().toString() + ","
                                 + noonSpinner.getValue().toString() + ","
                                 + eveningSpinner.getValue().toString() + ","
                                 + noteField.getText().trim();
 
             // 5. Create the request packet and send it to the server
             // IMPORTANT: Assumes your AddMedicineRequest packet is updated to include 'supplement'
-            AddMedicineRequest request = new AddMedicineRequest(name, company, description, unit, price, preferedNote, isSupplement, isDeleted);
+            AddMedicineRequest request = new AddMedicineRequest(name, company, description, unit, price, preferredNote, isSupplement, isDeleted);
             NetworkUtil.sendPacket(ClientHandler.ctx.channel(), request);
 
             // 6. Provide feedback and reset the form
@@ -410,15 +412,15 @@ public class MedicineManagementPanel extends JPanel {
                 return;
             }
 
-            // 5. Construct the 'preferedNote' string
-            String preferedNote = morningSpinner.getValue().toString() + ","
+            // 5. Construct the 'preferredNote' string
+            String preferredNote = morningSpinner.getValue().toString() + ","
                                 + noonSpinner.getValue().toString() + ","
                                 + eveningSpinner.getValue().toString() + ","
                                 + noteField.getText().trim();
 
             // 6. Create the request packet and send it
             // IMPORTANT: Assumes your EditMedicineRequest packet is updated to include 'supplement'
-            EditMedicineRequest request = new EditMedicineRequest(id, name, company, description, unit, price, preferedNote, isSupplement, isDeleted);
+            EditMedicineRequest request = new EditMedicineRequest(id, name, company, description, unit, price, preferredNote, isSupplement, isDeleted);
             NetworkUtil.sendPacket(ClientHandler.ctx.channel(), request);
 
             // 7. Provide user feedback and clear the form
@@ -441,7 +443,8 @@ public class MedicineManagementPanel extends JPanel {
                 TitledBorder.LEFT, TitledBorder.TOP, new Font("Arial", Font.BOLD, 14)));
 
         // --- Table Setup ---
-        String[] medicineColumns = {"ID", "Tên thuốc", "Đơn vị", "Giá", "Bổ sung","Chú thích", "Trạng thái"};
+        // --- BUG FIX: Corrected column names to match the data being added ---
+        String[] medicineColumns = {"ID", "Tên thuốc", "Bổ sung", "Trạng thái"};
         medicineTableModel = new DefaultTableModel(medicineColumns, 0) {
             @Override
             public boolean isCellEditable(int row, int column) { return false; }
@@ -511,6 +514,32 @@ public class MedicineManagementPanel extends JPanel {
         chkIsSupplement.setSelected("1".equals(med.getSupplement()));
         chkIsDeleted.setSelected("1".equals(med.getDeleted()));
 
+        // --- PARSE PREFERRED NOTE ---
+        String preferredNote = med.getPreferredNote();
+        if (preferredNote != null && !preferredNote.trim().isEmpty()) {
+            String[] parts = preferredNote.split(",", 4);
+            try {
+                morningSpinner.setValue(parts.length > 0 ? Integer.parseInt(parts[0].trim()) : 0);
+                noonSpinner.setValue(parts.length > 1 ? Integer.parseInt(parts[1].trim()) : 0);
+                eveningSpinner.setValue(parts.length > 2 ? Integer.parseInt(parts[2].trim()) : 0);
+                noteField.setText(parts.length > 3 ? parts[3].trim() : "");
+            } catch (NumberFormatException e) {
+                log.error("Could not parse preferred note: {}", preferredNote, e);
+                // Reset to default values in case of parsing error
+                morningSpinner.setValue(0);
+                noonSpinner.setValue(0);
+                eveningSpinner.setValue(0);
+                noteField.setText("");
+            }
+        } else {
+            // No preferred note, set default values
+            morningSpinner.setValue(0);
+            noonSpinner.setValue(0);
+            eveningSpinner.setValue(0);
+            noteField.setText("");
+        }
+        // --- END PARSING ---
+
         // Update button states
         btnAdd.setEnabled(false);
         btnEdit.setEnabled(true);
@@ -525,6 +554,14 @@ public class MedicineManagementPanel extends JPanel {
         medicineDescriptionField.setText("");
         medicineUnitField.setText("");
         medicinePriceField.setText("");
+        
+        // --- ADDED RESET LOGIC ---
+        morningSpinner.setValue(0);
+        noonSpinner.setValue(0);
+        eveningSpinner.setValue(0);
+        noteField.setText("");
+        // --- END ADD ---
+
         chkIsSupplement.setSelected(false);
         chkIsDeleted.setSelected(false);
         medicineTable.clearSelection();
@@ -555,10 +592,7 @@ public class MedicineManagementPanel extends JPanel {
                 medicineTableModel.addRow(new Object[]{
                         med.getId(),
                         med.getName(),
-                        med.getUnit(),
-                        med.getSellingPrice(),
                         supplementStatus,
-                        med.getPreferredNote(),
                         deletedStatus
                 });
             }

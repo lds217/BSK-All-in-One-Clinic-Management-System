@@ -51,4 +51,11 @@ public class User {
   public boolean isAuthenticated() {
     return role != Role.GUEST;
   }
+
+  public void resetAuthentication() {
+    this.role = Role.GUEST;
+    this.userId = -1; // Or some other indicator of not being logged in
+    SessionManager.updateUserRole(channel.id().asLongText(), this.role.toString(), this.userId);
+    log.info("User session {} has been de-authenticated.", sessionId);
+  }
 }

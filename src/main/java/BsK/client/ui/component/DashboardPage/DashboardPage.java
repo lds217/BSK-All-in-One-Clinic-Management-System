@@ -124,26 +124,11 @@ public class DashboardPage extends JPanel {
         loadDashboardData();
         startRealTimeClock();
 
-        addAncestorListener(new AncestorListener() {
-            @Override
-            public void ancestorAdded(AncestorEvent event) {
-                ClientHandler.addResponseListener(GetCheckUpQueueUpdateResponse.class, checkUpQueueUpdateListener);
-                ClientHandler.addResponseListener(TodayPatientCountResponse.class, todayPatientCountListener);
-                ClientHandler.addResponseListener(RecheckCountResponse.class, recheckCountListener);
-                log.info("DashboardPage listeners registered. Requesting initial data.");
-                NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetCheckUpQueueUpdateRequest());
-            }
-
-            @Override
-            public void ancestorRemoved(AncestorEvent event) {
-                ClientHandler.deleteListener(GetCheckUpQueueUpdateResponse.class, checkUpQueueUpdateListener);
-                ClientHandler.deleteListener(TodayPatientCountResponse.class, todayPatientCountListener);
-                log.info("DashboardPage listeners removed.");
-            }
-            
-            @Override
-            public void ancestorMoved(AncestorEvent event) { /* Do nothing */ }
-        });
+        ClientHandler.addResponseListener(GetCheckUpQueueUpdateResponse.class, checkUpQueueUpdateListener);
+        ClientHandler.addResponseListener(TodayPatientCountResponse.class, todayPatientCountListener);
+        ClientHandler.addResponseListener(RecheckCountResponse.class, recheckCountListener);
+        log.info("DashboardPage listeners registered. Requesting initial data.");
+        NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetCheckUpQueueUpdateRequest());
     }
 
     private void startRealTimeClock() {

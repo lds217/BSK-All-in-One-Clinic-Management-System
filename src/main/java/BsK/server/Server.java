@@ -330,5 +330,31 @@ public class Server {
           parentGroup.shutdownGracefully();
           childGroup.shutdownGracefully();
         }
-      }
     }
+
+    /**
+     * Initiates the backup of the main database file to Google Drive.
+     * This is intended to be called from the ServerDashboard.
+     * @throws IOException if the file cannot be found or the upload fails.
+     */
+    public static void backupDatabaseToDrive() throws IOException {
+        ServerDashboard dashboard = ServerDashboard.getInstance();
+
+        if (!isGoogleDriveConnected() || googleDriveService == null) {
+            dashboard.addLog("❌ Cannot backup database: Google Drive is not connected.");
+            throw new IOException("Google Drive service is not available.");
+        }
+
+        // Define the path to the database
+        String dbPath = "src/main/resources/database/BSK.db";
+        java.io.File dbFile = new java.io.File(dbPath);
+
+        if (!dbFile.exists()) {
+            dashboard.addLog("❌ Cannot backup database: File not found at " + dbPath);
+            throw new IOException("Database file not found: " + dbPath);
+        }
+
+        // Call the service to perform the backup
+        googleDriveService.backupDatabaseFile(dbFile);
+    }   
+}
