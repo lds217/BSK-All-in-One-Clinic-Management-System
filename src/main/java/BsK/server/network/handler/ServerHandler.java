@@ -596,7 +596,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
     
             // --- 2. CHÈN VÀO BẢNG CHECKUP VÀ LẤY LẠI CHECKUP_ID ---
             String checkupSql = "INSERT INTO Checkup (customer_id, doctor_id, checkup_type, status, queue_number) VALUES (?, ?, ?, ?, ?)";
-            try (PreparedStatement checkupStmt = Server.connection.prepareStatement(checkupSql, Statement.RETURN_GENERATED_KEYS)) {
+            try (PreparedStatement checkupStmt = Server.connection.prepareStatement(checkupSql, PreparedStatement.RETURN_GENERATED_KEYS)) {
                 checkupStmt.setInt(1, addCheckupRequest.getCustomerId());
                 checkupStmt.setInt(2, addCheckupRequest.getDoctorId());
                 checkupStmt.setString(3, addCheckupRequest.getCheckupType());
@@ -617,7 +617,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
             // --- 3. CHÈN VÀO BẢNG MEDICINEORDER VÀ LẤY LẠI PRESCRIPTION_ID ---
             int generatedPrescriptionId = 0;
             String medOrderSql = "INSERT INTO MedicineOrder (checkup_id, customer_id, processed_by) VALUES (?, ?, ?)";
-            try (PreparedStatement medOrderStmt = Server.connection.prepareStatement(medOrderSql, Statement.RETURN_GENERATED_KEYS)) {
+            try (PreparedStatement medOrderStmt = Server.connection.prepareStatement(medOrderSql, PreparedStatement.RETURN_GENERATED_KEYS)) {
                 medOrderStmt.setInt(1, generatedCheckupId); // Sử dụng ID đã lấy được
                 medOrderStmt.setInt(2, addCheckupRequest.getCustomerId());
                 medOrderStmt.setInt(3, addCheckupRequest.getProcessedById());
