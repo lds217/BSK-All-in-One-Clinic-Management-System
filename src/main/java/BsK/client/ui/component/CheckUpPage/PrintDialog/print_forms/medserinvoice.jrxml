@@ -17,7 +17,6 @@
 		<field name="medName" class="java.lang.String"/>
 		<field name="dosage" class="java.lang.String"/>
 		<field name="amount" class="java.lang.String"/>
-		<field name="unitPrice" class="java.lang.Double"/>
 		<field name="medNote" class="java.lang.String"/>
 		<field name="serName" class="java.lang.String"/>
 		<field name="serNote" class="java.lang.String"/>
@@ -62,7 +61,7 @@
 	<parameter name="patientName" class="java.lang.String"/>
 	<parameter name="patientDOB" class="java.lang.String"/>
 	<parameter name="clinicAddress" class="java.lang.String"/>
-	<parameter name="logoImage" class="java.lang.String"/>
+	<parameter name="logoImage" class="java.io.InputStream"/>
 	<parameter name="barcodeNumber" class="java.lang.String"/>
 	<parameter name="patientGender" class="java.lang.String"/>
 	<parameter name="hasMedicines" class="java.lang.Boolean"/>
@@ -211,16 +210,16 @@
 			<band height="62">
 				<printWhenExpression><![CDATA[$P{hasSupplements}]]></printWhenExpression>
 				<element kind="component" uuid="71f6b965-7b44-475c-aa38-89e77ce55e87" x="0" y="1" width="555" height="59">
-					<printWhenExpression><![CDATA[$P{hasMedicines}]]></printWhenExpression>
+					<printWhenExpression><![CDATA[$P{hasSupplements}]]></printWhenExpression>
 					<component kind="table">
-						<datasetRun uuid="bddd7b63-0aeb-492a-99ec-561999a49e96" subDataset="med_pre">
-							<dataSourceExpression><![CDATA[$P{medicineDS} == null ? new net.sf.jasperreports.engine.JREmptyDataSource() : $P{medicineDS}]]></dataSourceExpression>
+						<datasetRun uuid="54f95387-084f-440b-ad64-df3ba24f449d" subDataset="med_pre">
+							<dataSourceExpression><![CDATA[$P{supplementDS} == null ? new net.sf.jasperreports.engine.JREmptyDataSource() : $P{supplementDS}]]></dataSourceExpression>
 							<returnValue toVariable="MedicineGrandTotal" fromVariable="medTotal"/>
 						</datasetRun>
 						<column kind="single" uuid="6ecff449-3a01-40a2-a424-cb32c6291fa4" width="350">
 							<columnHeader height="19" rowSpan="1">
 								<element kind="staticText" uuid="3891585b-57df-4552-a45b-87caaa47f731" x="0" y="0" width="350" height="19" fontName="Times New Roman" fontSize="16.0" bold="true" hTextAlign="Left" vTextAlign="Middle">
-									<text><![CDATA[THUỐC]]></text>
+									<text><![CDATA[THỰC PHẨM BỔ SUNG]]></text>
 									<box>
 										<topPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>
 										<leftPen lineWidth="0.0" lineStyle="Solid" lineColor="#000000"/>

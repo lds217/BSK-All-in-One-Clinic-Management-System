@@ -2229,7 +2229,7 @@ public class CheckUpPage extends JPanel {
             log.warn("Doctor '{}' not found in the list for patient selection.", selectedPatient.getDoctorName());
         }
 
-        DoctorItem ultrasoundDoctorToSelect = findDoctorByName(selectedPatient.getDoctorUltrasoundId());
+        DoctorItem ultrasoundDoctorToSelect = findDoctorById(selectedPatient.getDoctorUltrasoundId());
         if (ultrasoundDoctorToSelect != null) {
             ultrasoundDoctorComboBox.setSelectedItem(ultrasoundDoctorToSelect);
         } else if (ultrasoundDoctorComboBox.getItemCount() > 0) {
@@ -4615,7 +4615,19 @@ public class CheckUpPage extends JPanel {
             return;
         }
 
+        Date checkupDate = (Date) datePicker.getModel().getValue();
+        Date dob = (Date) dobPicker.getModel().getValue();
         Date recheckupDate = (Date) recheckupDatePicker.getModel().getValue();
+    
+        // Add validation for the required dates
+        if (checkupDate == null) {
+            JOptionPane.showMessageDialog(this, "Ngày khám không được để trống.", "Thiếu thông tin", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        if (dob == null) {
+            JOptionPane.showMessageDialog(this, "Ngày sinh không được để trống.", "Thiếu thông tin", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
         if (needRecheckupCheckbox.isSelected() && recheckupDate == null) {
             JOptionPane.showMessageDialog(this, "Vui lòng chọn ngày tái khám.", "Thiếu thông tin", JOptionPane.WARNING_MESSAGE);
             return;
@@ -4627,7 +4639,7 @@ public class CheckUpPage extends JPanel {
                 Integer.parseInt(customerIdField.getText()),
                 Integer.parseInt(doctorIdStr),
                 ultrasoundDoctorIdStr != null ? Integer.parseInt(ultrasoundDoctorIdStr) : null,
-                DateUtils.convertToDate(datePicker.getJFormattedTextField().getText()).getTime(),
+                checkupDate.getTime(),
                 suggestionField.getText(),
                 diagnosisField.getText(),
                 getRtfContentAsString(),
@@ -4638,7 +4650,7 @@ public class CheckUpPage extends JPanel {
                 needRecheckupCheckbox.isSelected(),
                 customerFirstNameField.getText(),
                 customerLastNameField.getText(),
-                DateUtils.convertToDate(dobPicker.getJFormattedTextField().getText()).getTime(),
+                dob.getTime(),
                 (String) genderComboBox.getSelectedItem(),
                 customerAddressField.getText() + ", " + (wardComboBox.getSelectedItem() != null ? wardComboBox.getSelectedItem().toString() : "") + ", " + (provinceComboBox.getSelectedItem() != null ? provinceComboBox.getSelectedItem().toString() : ""),
                 customerPhoneField.getText(),
@@ -4952,6 +4964,25 @@ public class CheckUpPage extends JPanel {
             }
         }
         return null;
+    }
+
+    /**
+     * Finds a DoctorItem in the LocalStorage list by their ID.
+     * @param id The ID of the doctor to find.
+     * @return The matching DoctorItem, or null if not found.
+     */
+    private DoctorItem findDoctorById(String id) {
+        // Return null if the ID is invalid or the doctor list is not available
+        if (id == null || id.isEmpty() || id.equals("0") || LocalStorage.doctorsName == null) {
+            return null;
+        }
+        // Loop through the doctors and compare by ID
+        for (DoctorItem doctor : LocalStorage.doctorsName) {
+            if (doctor.getId().equals(id)) {
+                return doctor; // Found a match
+            }
+        }
+        return null; // No match found
     }
 
     public void loadPatientByCheckupId(Patient patient) {

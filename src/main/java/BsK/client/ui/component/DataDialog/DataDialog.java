@@ -26,7 +26,6 @@ import javax.swing.filechooser.FileNameExtensionFilter;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays; // Import Arrays for utility if needed, though not strictly required here
 import java.util.List;
 
 public class DataDialog extends JDialog {
@@ -49,7 +48,7 @@ public class DataDialog extends JDialog {
     private JPanel mainPanel;
     private JPanel paginationPanel;
     private CheckUpPage checkUpPageInstance;
-    private String[][] currentCheckupData; // <<< MODIFIED: Changed type from List<String[]> to String[][]
+    private String[][] currentCheckupData;
     //</editor-fold>
 
     // --- Panels for the other tabs
@@ -352,7 +351,8 @@ public class DataDialog extends JDialog {
             }
 
             try {
-                ExcelExporter.exportToExcel(patientsToExport, this.fileForExport);
+                // <<< MODIFIED: Pass the doctors list to the exporter
+                ExcelExporter.exportToExcel(patientsToExport, LocalStorage.doctorsName, this.fileForExport);
                 JOptionPane.showMessageDialog(this, "Xuất file Excel thành công!\n" + this.fileForExport.getAbsolutePath(), "Thành công", JOptionPane.INFORMATION_MESSAGE);
             } catch (IOException ex) {
                 JOptionPane.showMessageDialog(this, "Lỗi khi ghi file Excel: " + ex.getMessage(), "Lỗi", JOptionPane.ERROR_MESSAGE);
@@ -368,13 +368,11 @@ public class DataDialog extends JDialog {
             this.totalPages = response.getTotalPages();
             this.totalRecords = response.getTotalRecords();
             this.recordsPerPage = response.getPageSize();
-            // This assignment is now correct as both types are String[][]
             this.currentCheckupData = response.getCheckupData(); 
 
             tableModel.setRowCount(0);
             if (this.currentCheckupData != null) {
                 int stt = (currentPage - 1) * recordsPerPage + 1;
-                // Enhanced for-loop works perfectly on a 2D array
                 for (String[] rowData : this.currentCheckupData) {
                     try {
                         Patient patient = new Patient(rowData);
@@ -518,10 +516,15 @@ public class DataDialog extends JDialog {
             setLayout(new FlowLayout(FlowLayout.CENTER, 2, 2));
 
             ImageIcon editIcon = new ImageIcon("src/main/java/BsK/client/ui/assets/icon/edit.png");
-            editIcon.setImage(editIcon.getImage().getScaledInstance(16, 16, Image.SCALE_SMOOTH));
+            if (editIcon.getImage() != null) {
+                 editIcon.setImage(editIcon.getImage().getScaledInstance(16, 16, Image.SCALE_SMOOTH));
+            }
             editButton = new JButton(editIcon);
+
             ImageIcon deleteIcon = new ImageIcon("src/main/java/BsK/client/ui/assets/icon/delete.png");
-            deleteIcon.setImage(deleteIcon.getImage().getScaledInstance(16, 16, Image.SCALE_SMOOTH));
+            if (deleteIcon.getImage() != null) {
+                 deleteIcon.setImage(deleteIcon.getImage().getScaledInstance(16, 16, Image.SCALE_SMOOTH));
+            }
             deleteButton = new JButton(deleteIcon);
 
             editButton.setPreferredSize(new Dimension(30, 25));
@@ -554,10 +557,15 @@ public class DataDialog extends JDialog {
             panel = new JPanel(new FlowLayout(FlowLayout.CENTER, 2, 2));
 
             ImageIcon editIcon = new ImageIcon("src/main/java/BsK/client/ui/assets/icon/edit.png");
-            editIcon.setImage(editIcon.getImage().getScaledInstance(16, 16, Image.SCALE_SMOOTH));
+            if (editIcon.getImage() != null) {
+                editIcon.setImage(editIcon.getImage().getScaledInstance(16, 16, Image.SCALE_SMOOTH));
+            }
             editButton = new JButton(editIcon);
+
             ImageIcon deleteIcon = new ImageIcon("src/main/java/BsK/client/ui/assets/icon/delete.png");
-            deleteIcon.setImage(deleteIcon.getImage().getScaledInstance(16, 16, Image.SCALE_SMOOTH));
+            if (deleteIcon.getImage() != null) {
+                 deleteIcon.setImage(deleteIcon.getImage().getScaledInstance(16, 16, Image.SCALE_SMOOTH));
+            }
             deleteButton = new JButton(deleteIcon);
 
             editButton.setPreferredSize(new Dimension(30, 25));
@@ -572,9 +580,7 @@ public class DataDialog extends JDialog {
                 }
                 int modelRow = dataTable.convertRowIndexToModel(selectedViewRow);
 
-                // <<< MODIFIED: Use .length for array and check index validity
                 if (currentCheckupData != null && modelRow >= 0 && modelRow < currentCheckupData.length) {
-                    // <<< MODIFIED: Use array index access `[modelRow]` instead of `.get()`
                     String[] rowData = currentCheckupData[modelRow];
                     try {
                         Patient selectedPatient = new Patient(rowData);

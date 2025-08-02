@@ -290,7 +290,7 @@ public class MedicineInvoice{
                         // --- CORRECTED THIS LINE ---
                         // Swapped 'amount' and 'supRoute' to match the method signature in InvoiceItem.java
                         // Call signature: (Tên, Ghi chú, Liều dùng, Số lượng, Đường dùng)
-                        supplementItems.add(InvoiceItem.createSupplement(supName, supNote, dosageInfo, amount, supRoute));
+                        supplementItems.add(InvoiceItem.createSupplement(supName, supNote, dosageInfo, supRoute, amount));
                         
                     } catch (Exception e) {
                          System.err.println("Error parsing supplement data row: " + java.util.Arrays.toString(supplement) + " | Error: " + e.getMessage());
@@ -323,11 +323,20 @@ public class MedicineInvoice{
         parameters.put("checkupNote", notes != null ? notes : "");
         parameters.put("barcodeNumber", id != null ? id : "");
         parameters.put("driveURL", driveURL != null ? driveURL : "");
-        parameters.put("logoImage", LocalStorage.pathToProject + "/src/main/java/BsK/client/ui/assets/icon/logo.jpg");
         parameters.put("hasMedicines", !medicineItems.isEmpty());
         parameters.put("hasServices", !serviceItems.isEmpty());
         parameters.put("hasSupplements", !supplementItems.isEmpty());
 
+        String logoPath = "/BsK/client/ui/assets/icon/logo.jpg";
+        // Load the logo as an InputStream
+        InputStream logoStream = MedicineInvoice.class.getResourceAsStream(logoPath);
+        if (logoStream == null) {
+            System.err.println("ERROR: Logo image not found on classpath: " + logoPath);
+            parameters.put("logoImage", null);
+        } else {
+            // Pass the InputStream to the report parameter
+            parameters.put("logoImage", logoStream);
+        }
         String resourcePath = "/BsK/client/ui/component/CheckUpPage/PrintDialog/print_forms/medserinvoice.jrxml";
         try (InputStream inputStream = MedicineInvoice.class.getResourceAsStream(resourcePath)) {
             if (inputStream == null) {

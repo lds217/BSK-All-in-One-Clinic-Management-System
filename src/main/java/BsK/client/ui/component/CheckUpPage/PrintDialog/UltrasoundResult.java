@@ -173,9 +173,9 @@ public class UltrasoundResult {
     public JasperPrint createJasperPrint() throws JRException, IOException {
         String jrxmlPath;
         if ("Dọc".equalsIgnoreCase(this.printType)) {
-            jrxmlPath = LocalStorage.pathToProject + "/src/main/java/BsK/client/ui/component/CheckUpPage/PrintDialog/print_forms/ultrasoundresult_potrait.jrxml";
+            jrxmlPath = System.getProperty("user.dir") + "/src/main/java/BsK/client/ui/component/CheckUpPage/PrintDialog/print_forms/ultrasoundresult_potrait.jrxml";
         } else {
-            jrxmlPath =LocalStorage.pathToProject + "/src/main/java/BsK/client/ui/component/CheckUpPage/PrintDialog/print_forms/ultrasoundresult.jrxml";
+            jrxmlPath = System.getProperty("user.dir") + "/src/main/java/BsK/client/ui/component/CheckUpPage/PrintDialog/print_forms/ultrasoundresult.jrxml";
         }
         
         log.info("Using JRXML template: {}", jrxmlPath);
@@ -209,8 +209,8 @@ public class UltrasoundResult {
             // Vitals data
             parameters.put("checkupHeight", this.customerHeight != null ? this.customerHeight : "");
             parameters.put("checkupWeight", this.customerWeight != null ? this.customerWeight : "");
-            parameters.put("checkupHeartBeat", this.heartRate != null ? this.heartRate : "");
-            parameters.put("checkupBloodPressure", this.bloodPressure != null ? this.bloodPressure : "");
+            parameters.put("checkupHeartBeat", this.heartRate);
+            parameters.put("checkupBloodPressure", this.bloodPressure);
 
             // Template title
             parameters.put("templateTitle", this.templateTitle);
@@ -227,8 +227,7 @@ public class UltrasoundResult {
             int numberOfImages = this.selectedImages.size();
             parameters.put("numberImage", numberOfImages);
             
-            String projectDir = LocalStorage.pathToProject;
-            parameters.put("logoImage", projectDir + "/src/main/java/BsK/client/ui/assets/icon/logo.jpg");
+            parameters.put("logoImage", System.getProperty("user.dir") + "/src/main/java/BsK/client/ui/assets/icon/logo.jpg");
 
             for (int i = 0; i < 6; i++) {
                 if (i < numberOfImages) {

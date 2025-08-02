@@ -109,15 +109,24 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         log.debug("Received GetCheckUpQueueRequest");
         try {
           ResultSet rs = statement.executeQuery(
-                  "select a.checkup_id, a.checkup_date, c.customer_last_name, c.customer_first_name,\n" +
-                          "d.doctor_first_name, d.doctor_last_name, a.suggestion, a.diagnosis, a.notes, a.status, a.customer_id, \n" +
-                          "c.customer_number, c.customer_address, a.customer_weight, a.customer_height, c.customer_gender, c.customer_dob,\n" +
-                          "a.checkup_type, a.conclusion, a.reCheckupDate, c.cccd_ddcn, a.heart_beat, a.blood_pressure, c.drive_url, a.doctor_ultrasound_id, a.queue_number\n" +
-                          "from checkup as a\n" +
-                          "join customer as c on a.customer_id = c.customer_id\n" +
-                          "join Doctor D on a.doctor_id = D.doctor_id\n" +
-                          "where a.checkup_date >= CAST(strftime('%s', date('now', 'start of day')) AS INTEGER) * 1000\n" +
-                          "AND a.checkup_date < CAST(strftime('%s', date('now', 'start of day', '+1 day')) AS INTEGER) * 1000"
+                  """
+                  SELECT
+                      a.checkup_id, a.checkup_date, c.customer_last_name, c.customer_first_name,
+                      d.doctor_first_name, d.doctor_last_name, a.suggestion, a.diagnosis, a.notes,
+                      a.status, a.customer_id, c.customer_number, c.customer_address,
+                      a.customer_weight, a.customer_height, c.customer_gender, c.customer_dob,
+                      a.checkup_type, a.conclusion, a.reCheckupDate, c.cccd_ddcn, a.heart_beat,
+                      a.blood_pressure, c.drive_url, a.doctor_ultrasound_id, a.queue_number
+                  FROM
+                      checkup AS a
+                  JOIN
+                      customer AS c ON a.customer_id = c.customer_id
+                  JOIN
+                      Doctor D ON a.doctor_id = D.doctor_id
+                  WHERE
+                      a.checkup_date >= CAST(strftime('%s', date('now', 'localtime', 'start of day')) AS INTEGER) * 1000
+                  AND
+                      a.checkup_date < CAST(strftime('%s', date('now', 'localtime', 'start of day', '+1 day')) AS INTEGER) * 1000"""
           );
 
           if (!rs.isBeforeFirst()) {
@@ -730,56 +739,58 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
             Integer newPrescriptionId = null;
     
             // 2. Handle Medicine Prescriptions
+              
+            // First, clear old data for this checkup
+            try (PreparedStatement deleteOrderItemsStmt = conn.prepareStatement("DELETE FROM OrderItem WHERE checkup_id = ?")) {
+                deleteOrderItemsStmt.setInt(1, saveCheckupRequest.getCheckupId());
+                deleteOrderItemsStmt.executeUpdate();
+            }
+            try (PreparedStatement deleteMedicineOrderStmt = conn.prepareStatement("DELETE FROM MedicineOrder WHERE checkup_id = ?")) {
+                deleteMedicineOrderStmt.setInt(1, saveCheckupRequest.getCheckupId());
+                deleteMedicineOrderStmt.executeUpdate();
+            }
+            log.info("Cleared previous medicine prescription for checkup_id: {}", saveCheckupRequest.getCheckupId());
+
+            // A. Insert a new MedicineOrder record to get the auto-generated ID
+            String medicineOrderSql = """
+                INSERT INTO MedicineOrder (
+                    checkup_id, customer_id, total_amount, payment_method, 
+                    status, payment_status, processed_by, notes
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """;
+            
+            // Use RETURN_GENERATED_KEYS to get the new ID back
             if (saveCheckupRequest.getMedicinePrescription() != null && 
                 saveCheckupRequest.getMedicinePrescription().length > 0) {
+              try (PreparedStatement medicineOrderStmt = conn.prepareStatement(medicineOrderSql, PreparedStatement.RETURN_GENERATED_KEYS)) {
+                  double totalMedicineAmount = 0;
+                  for (String[] medicine : saveCheckupRequest.getMedicinePrescription()) {
+                      if (medicine.length > 8) { 
+                          totalMedicineAmount += Double.parseDouble(medicine[8]); 
+                      }
+                  }
+
+                  medicineOrderStmt.setInt(1, saveCheckupRequest.getCheckupId());
+                  medicineOrderStmt.setInt(2, saveCheckupRequest.getCustomerId());
+                  medicineOrderStmt.setDouble(3, totalMedicineAmount);
+                  medicineOrderStmt.setString(4, ""); // payment_method
+                  medicineOrderStmt.setString(5, "Pending"); // status
+                  medicineOrderStmt.setString(6, "Unpaid"); // payment_status
+                  medicineOrderStmt.setString(7, ""); // processed_by
+                  medicineOrderStmt.setString(8, ""); // notes
+                  medicineOrderStmt.executeUpdate();
+                  
+                  // B. Retrieve the generated key
+                  try (ResultSet generatedKeys = medicineOrderStmt.getGeneratedKeys()) {
+                      if (generatedKeys.next()) {
+                          newPrescriptionId = generatedKeys.getInt(1);
+                          log.info("New prescription_id generated: {}", newPrescriptionId);
+                      } else {
+                          throw new SQLException("Creating medicine order failed, no ID obtained.");
+                      }
+                  }
+                }
                 
-                // First, clear old data for this checkup
-                try (PreparedStatement deleteOrderItemsStmt = conn.prepareStatement("DELETE FROM OrderItem WHERE checkup_id = ?")) {
-                    deleteOrderItemsStmt.setInt(1, saveCheckupRequest.getCheckupId());
-                    deleteOrderItemsStmt.executeUpdate();
-                }
-                try (PreparedStatement deleteMedicineOrderStmt = conn.prepareStatement("DELETE FROM MedicineOrder WHERE checkup_id = ?")) {
-                    deleteMedicineOrderStmt.setInt(1, saveCheckupRequest.getCheckupId());
-                    deleteMedicineOrderStmt.executeUpdate();
-                }
-                log.info("Cleared previous medicine prescription for checkup_id: {}", saveCheckupRequest.getCheckupId());
-    
-                // A. Insert a new MedicineOrder record to get the auto-generated ID
-                String medicineOrderSql = """
-                    INSERT INTO MedicineOrder (
-                        checkup_id, customer_id, total_amount, payment_method, 
-                        status, payment_status, processed_by, notes
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                    """;
-                
-                // Use RETURN_GENERATED_KEYS to get the new ID back
-                try (PreparedStatement medicineOrderStmt = conn.prepareStatement(medicineOrderSql, PreparedStatement.RETURN_GENERATED_KEYS)) {
-                    // ... (your existing totalMedicineAmount calculation) ...
-                    double totalMedicineAmount = 0;
-                    for (String[] medicine : saveCheckupRequest.getMedicinePrescription()) {
-                        if (medicine.length > 8) { totalMedicineAmount += Double.parseDouble(medicine[8]); }
-                    }
-    
-                    medicineOrderStmt.setInt(1, saveCheckupRequest.getCheckupId());
-                    medicineOrderStmt.setInt(2, saveCheckupRequest.getCustomerId());
-                    medicineOrderStmt.setDouble(3, totalMedicineAmount);
-                    medicineOrderStmt.setString(4, ""); // payment_method
-                    medicineOrderStmt.setString(5, "Pending"); // status
-                    medicineOrderStmt.setString(6, "Unpaid"); // payment_status
-                    medicineOrderStmt.setString(7, ""); // processed_by
-                    medicineOrderStmt.setString(8, ""); // notes
-                    medicineOrderStmt.executeUpdate();
-                    
-                    // B. Retrieve the generated key
-                    try (ResultSet generatedKeys = medicineOrderStmt.getGeneratedKeys()) {
-                        if (generatedKeys.next()) {
-                            newPrescriptionId = generatedKeys.getInt(1);
-                            log.info("New prescription_id generated: {}", newPrescriptionId);
-                        } else {
-                            throw new SQLException("Creating medicine order failed, no ID obtained.");
-                        }
-                    }
-                }
     
                 // C. Insert OrderItems using the new prescription_id
                 String orderItemSql = """
@@ -812,7 +823,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
             // 3. Insert/Update Checkup with the correct newPrescriptionId
             String checkupSql = """
                 INSERT INTO Checkup (
-                    checkup_id, customer_id, doctor_id, checkup_date, suggestion, diagnosis, 
+                    checkup_date, checkup_id, customer_id, doctor_id, suggestion, diagnosis, 
                     prescription_id, notes, status, checkup_type, conclusion, reCheckupDate, 
                     customer_weight, customer_height, heart_beat, blood_pressure, doctor_ultrasound_id
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -823,14 +834,15 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                     conclusion = excluded.conclusion, reCheckupDate = excluded.reCheckupDate,
                     customer_weight = excluded.customer_weight, customer_height = excluded.customer_height,
                     heart_beat = excluded.heart_beat, blood_pressure = excluded.blood_pressure,
-                    doctor_ultrasound_id = excluded.doctor_ultrasound_id, doctor_id = excluded.doctor_id
+                    doctor_ultrasound_id = excluded.doctor_ultrasound_id, doctor_id = excluded.doctor_id,
+                    checkup_date = excluded.checkup_date
                 """;
             
             try (PreparedStatement checkupStmt = conn.prepareStatement(checkupSql)) {
-                checkupStmt.setInt(1, saveCheckupRequest.getCheckupId());
-                checkupStmt.setInt(2, saveCheckupRequest.getCustomerId());
-                checkupStmt.setInt(3, saveCheckupRequest.getDoctorId());
-                checkupStmt.setLong(4, saveCheckupRequest.getCheckupDate());
+                checkupStmt.setLong(1, saveCheckupRequest.getCheckupDate());
+                checkupStmt.setInt(2, saveCheckupRequest.getCheckupId());
+                checkupStmt.setInt(3, saveCheckupRequest.getCustomerId());
+                checkupStmt.setInt(4, saveCheckupRequest.getDoctorId());
                 checkupStmt.setString(5, saveCheckupRequest.getSuggestions());
                 checkupStmt.setString(6, saveCheckupRequest.getDiagnosis());
                 // Use setObject to handle the case where newPrescriptionId is null
@@ -852,9 +864,30 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                 checkupStmt.executeUpdate();
                 log.info("Checkup saved successfully");
             }
-    
-            // 4. Handle Service Prescriptions (Now safe with try-with-resources)
-            // ... (your existing service handling logic is fine, just wrap it) ...
+            
+            // 4. Handle Service Prescriptions 
+            // clear old data
+            try (PreparedStatement deleteServiceStmt = conn.prepareStatement("DELETE FROM CheckupService WHERE checkup_id = ?")) {
+                deleteServiceStmt.setInt(1, saveCheckupRequest.getCheckupId());
+                deleteServiceStmt.executeUpdate();
+            }
+            log.info("Cleared previous service prescription for checkup_id: {}", saveCheckupRequest.getCheckupId());
+            
+            String serviceSql = """
+                INSERT INTO CheckupService (checkup_id, service_id, quantity, total_cost, notes)
+                VALUES (?, ?, ?, ?, ?)
+                """;
+            try (PreparedStatement serviceStmt = conn.prepareStatement(serviceSql)) {
+                for (String[] service : saveCheckupRequest.getServicePrescription()) {
+                    serviceStmt.setInt(1, saveCheckupRequest.getCheckupId());
+                    serviceStmt.setString(2, service[0]);
+                    serviceStmt.setInt(3, Integer.parseInt(service[2]));
+                    serviceStmt.setDouble(4, Double.parseDouble(service[4]));
+                    serviceStmt.setString(5, service[5]);
+                    serviceStmt.executeUpdate();
+                }
+                log.info("Service saved successfully");
+            }
             
             conn.commit(); // Commit the entire transaction
             log.info("Successfully saved checkup {} with all related data", saveCheckupRequest.getCheckupId());
@@ -960,7 +993,8 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                 S.service_name,
                 CS.quantity,
                 S.service_cost,
-                CS.total_cost
+                CS.total_cost,
+                CS.notes
             FROM CheckupService CS
             JOIN Service S ON CS.service_id = S.service_id
             WHERE CS.checkup_id = ?
@@ -977,7 +1011,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
             ser[2] = serRs.getString("quantity");
             ser[3] = serRs.getString("service_cost");
             ser[4] = serRs.getString("total_cost");
-            ser[5] = ""; // Notes - not available in CheckupService table
+            ser[5] = serRs.getString("notes");
             serList.add(ser);
           }
           servicePrescription = serList.toArray(new String[0][]);
@@ -2169,8 +2203,8 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                         "from checkup as a\n" +
                         "join customer as c on a.customer_id = c.customer_id\n" +
                         "join Doctor D on a.doctor_id = D.doctor_id\n" +
-                        "where a.checkup_date >= CAST(strftime('%s', date('now', 'start of day')) AS INTEGER) * 1000\n" +
-                        "AND a.checkup_date < CAST(strftime('%s', date('now', 'start of day', '+1 day')) AS INTEGER) * 1000"
+                        "where a.checkup_date >= CAST(strftime('%s', date('now', 'localtime', 'start of day')) AS INTEGER) * 1000\n" +
+                        "AND a.checkup_date < CAST(strftime('%s', date('now', 'localtime', 'start of day', '+1 day')) AS INTEGER) * 1000"
         );
 
         String[][] resultArray;

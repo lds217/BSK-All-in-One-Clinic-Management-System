@@ -97,7 +97,7 @@ public class MedicineDialog extends JDialog {
 
     private void init(final Frame parent) {
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
-        setSize(1200, 700);
+        setSize(1200, 800);
         setLocationRelativeTo(parent);
         setResizable(true);
 
@@ -249,7 +249,7 @@ public class MedicineDialog extends JDialog {
 
         gbc.gridx = 1;
         gbc.weightx = 1.0;
-        medicineDescriptionField = new JTextArea(3, 20);
+        medicineDescriptionField = new JTextArea(3, 15);
         medicineDescriptionField.setFont(textFont);
         medicineDescriptionField.setLineWrap(true);
         medicineDescriptionField.setWrapStyleWord(true);
@@ -808,11 +808,7 @@ public class MedicineDialog extends JDialog {
             double price = priceField.getText().isEmpty() ? 0 : Double.parseDouble(priceField.getText());
             double totalValue = quantity * price;
 
-            // Create formatter for Vietnamese locale
-            NumberFormat formatter = NumberFormat.getInstance(new Locale("vi", "VN"));
-
-            // Format the total and set the text
-            totalField.setText(formatter.format(totalValue));
+            totalField.setText(String.format("%.0f", totalValue));
 
         } catch (NumberFormatException e) {
             totalField.setText("Giá trị không hợp lệ");

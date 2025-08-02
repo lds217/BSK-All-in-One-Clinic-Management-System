@@ -12,7 +12,6 @@ public class InvoiceItem {
     private String medName;
     private String dosage;
     private String amount;
-    private Double unitPrice;
     private String medRoute;
     private String medNote;
 
@@ -24,10 +23,14 @@ public class InvoiceItem {
 
     // --- Supplement Fields ---
     private String supName;
-    private String supNote;
     private String supDosage;
     private String supAmount;
     private String supRoute;
+    private String supNote;
+
+    
+
+    
     // Private constructor to be used by factory methods
     private InvoiceItem() {}
 
@@ -40,7 +43,6 @@ public class InvoiceItem {
         item.dosage = dosage;
         item.medRoute = route;
         item.amount = amount;
-        item.unitPrice = 0.0;
         item.medNote = medNote;
         return item;
     }
@@ -55,14 +57,14 @@ public class InvoiceItem {
         return item;
     }
 
-    public static InvoiceItem createSupplement(String supName, String supNote, String supDosage, String supAmount, String supRoute) {
+    public static InvoiceItem createSupplement(String supName, String supNote, String supDosage, String supRoute,  String supAmount) {
         InvoiceItem item = new InvoiceItem();
         item.type = "SUP";
         item.supName = supName;
-        item.supNote = supNote;
         item.supDosage = supDosage;
-        item.supAmount = supAmount;
         item.supRoute = supRoute;
+        item.supAmount = supAmount;
+        item.supNote = supNote;
         return item;
     }
 
@@ -74,7 +76,6 @@ public class InvoiceItem {
     public String getDosage() { return dosage; }
     public String getMedRoute() { return medRoute; }
     public String getAmount() { return amount; }
-    public Double getUnitPrice() { return unitPrice; }
     public String getMedNote() { return medNote; }
     public String getSerName() { return serName; }
     public String getSerNote() { return serNote; }
