@@ -2082,13 +2082,18 @@ public class CheckUpPage extends JPanel {
         }
     }
 
-    private void handleRowSelection(int selectedRowInQueue) {
-        if (selectedRowInQueue < 0 || selectedRowInQueue >= patientQueue.size()) {
+    private void handleRowSelection(int selectedRowInQueue, Patient patient) {
+        if ((selectedRowInQueue < 0 || selectedRowInQueue >= patientQueue.size()) && patient == null) {
             log.warn("Selected row index out of bounds: {}", selectedRowInQueue);
             return;
         }
-        
-        Patient selectedPatient = patientQueue.get(selectedRowInQueue);
+        Patient selectedPatient;
+        if (patient != null) {
+            selectedPatient = patient;
+        } else {
+            selectedPatient = patientQueue.get(selectedRowInQueue);
+        }
+
         
         // SAFETY: Clear previous patient IDs IMMEDIATELY when switching patients
         String previousPatientId = currentCheckupIdForMedia;
@@ -4225,7 +4230,7 @@ public class CheckUpPage extends JPanel {
                                     }
                                 }
                                 // Call the parent class's method to handle the selection with the model row index
-                                CheckUpPage.this.handleRowSelection(modelRow);
+                                CheckUpPage.this.handleRowSelection(modelRow, null);
                                 // Reset patient name filter when closing dialog after selection
                                 patientNameFilter.setText("");
                                 applyFilters();
@@ -4275,7 +4280,7 @@ public class CheckUpPage extends JPanel {
                                 }
                             }
                             // Call the parent class's method to handle the selection with the model row index
-                            CheckUpPage.this.handleRowSelection(modelRow);
+                            CheckUpPage.this.handleRowSelection(modelRow, null);
                             // Reset patient name filter when closing dialog after selection
                             patientNameFilter.setText("");
                             applyFilters();
@@ -4949,33 +4954,8 @@ public class CheckUpPage extends JPanel {
         return null;
     }
 
-    public void loadPatientByCheckupId(String checkupId) {
-        if (checkupId == null || patientQueue == null) {
-            return;
-        }
-
-        // Find the index of the patient with the matching checkupId in the current queue
-        int patientIndex = -1;
-        for (int i = 0; i < patientQueue.size(); i++) {
-            if (checkupId.equals(patientQueue.get(i).getCheckupId())) {
-                patientIndex = i;
-                break;
-            }
-        }
-
-        if (patientIndex != -1) {
-            // Found the patient, now call the existing handler to load their data
-            final int finalIndex = patientIndex;
-            SwingUtilities.invokeLater(() -> {
-                handleRowSelection(finalIndex);
-            });
-        } else {
-            // Optional: Handle case where patient from database isn't in the live queue
-            JOptionPane.showMessageDialog(this,
-                "Bệnh nhân với mã khám " + checkupId + " không có trong danh sách chờ hiện tại.",
-                "Không Tìm Thấy",
-                JOptionPane.WARNING_MESSAGE);
-        }
+    public void loadPatientByCheckupId(Patient patient) {
+        handleRowSelection(-1, patient);
     }
 }
 

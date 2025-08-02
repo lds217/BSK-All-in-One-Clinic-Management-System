@@ -26,6 +26,7 @@ import javax.swing.filechooser.FileNameExtensionFilter;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays; // Import Arrays for utility if needed, though not strictly required here
 import java.util.List;
 
 public class DataDialog extends JDialog {
@@ -48,8 +49,9 @@ public class DataDialog extends JDialog {
     private JPanel mainPanel;
     private JPanel paginationPanel;
     private CheckUpPage checkUpPageInstance;
+    private String[][] currentCheckupData; // <<< MODIFIED: Changed type from List<String[]> to String[][]
     //</editor-fold>
-    
+
     // --- Panels for the other tabs
     private MedicineManagementPanel medicinePanel;
     private ServiceManagementPanel servicePanel;
@@ -112,7 +114,6 @@ public class DataDialog extends JDialog {
                 if (medicinePanel != null) {
                     medicinePanel.cleanup();
                 }
-                // *** THIS NOW WORKS CORRECTLY ***
                 if (servicePanel != null) {
                     servicePanel.cleanup();
                 }
@@ -124,7 +125,7 @@ public class DataDialog extends JDialog {
         });
     }
 
-    //<editor-fold desc="Checkup Data Tab Methods (Unchanged)">
+    //<editor-fold desc="Checkup Data Tab Methods (Partially Modified)">
     private void loadFiltersFromLocalStorage() {
         if (LocalStorage.dataDialogSearchTerm == null || LocalStorage.dataDialogSearchTerm.isEmpty()) {
             searchField.setText("Tìm theo tên bệnh nhân, mã bệnh nhân...");
@@ -183,7 +184,6 @@ public class DataDialog extends JDialog {
         JButton clearFilterButton = new JButton("Xóa bộ lọc");
         clearFilterButton.setPreferredSize(new Dimension(100, 30));
         
-        // --- NEW BUTTON ---
         JButton getAllButton = new JButton("Lấy tất cả");
         getAllButton.setPreferredSize(new Dimension(100, 30));
 
@@ -201,7 +201,7 @@ public class DataDialog extends JDialog {
         topRow.add(searchField);
         topRow.add(filterButton);
         topRow.add(clearFilterButton);
-        topRow.add(getAllButton); // --- ADDED BUTTON TO PANEL ---
+        topRow.add(getAllButton);
         topRow.add(Box.createHorizontalStrut(20));
         topRow.add(exportExcelButton);
         topRow.add(addNewButton);
@@ -251,16 +251,9 @@ public class DataDialog extends JDialog {
             fetchData(1);
         });
         
-        // --- ACTION LISTENER FOR THE NEW BUTTON ---
         getAllButton.addActionListener(e -> {
-            // Create a request with null for all filter parameters.
-            // The server is designed to interpret nulls as "no filter".
             GetCheckupDataRequest request = new GetCheckupDataRequest(null, null, null, null, 1, recordsPerPage);
-            
-            // Send the request
             NetworkUtil.sendPacket(ClientHandler.ctx.channel(), request);
-
-            // Update the label to give user feedback
             resultCountLabel.setText("Đang tải tất cả dữ liệu...");
         });
 
@@ -375,11 +368,14 @@ public class DataDialog extends JDialog {
             this.totalPages = response.getTotalPages();
             this.totalRecords = response.getTotalRecords();
             this.recordsPerPage = response.getPageSize();
+            // This assignment is now correct as both types are String[][]
+            this.currentCheckupData = response.getCheckupData(); 
 
             tableModel.setRowCount(0);
-            if (response.getCheckupData() != null) {
+            if (this.currentCheckupData != null) {
                 int stt = (currentPage - 1) * recordsPerPage + 1;
-                for (String[] rowData : response.getCheckupData()) {
+                // Enhanced for-loop works perfectly on a 2D array
+                for (String[] rowData : this.currentCheckupData) {
                     try {
                         Patient patient = new Patient(rowData);
                         String[] tableRow = {
@@ -573,19 +569,39 @@ public class DataDialog extends JDialog {
             deleteButton.setPreferredSize(new Dimension(30, 25));
 
             editButton.addActionListener(e -> {
-                int row = dataTable.convertRowIndexToModel(dataTable.getSelectedRow());
-                String checkupId = (String) tableModel.getValueAt(row, 1);
-
-                if (checkUpPageInstance != null) {
-                    checkUpPageInstance.loadPatientByCheckupId(checkupId);
-                }
-
-                parentDialog.dispose();
                 fireEditingStopped();
+
+                int selectedViewRow = dataTable.getSelectedRow();
+                if (selectedViewRow < 0) {
+                    return; 
+                }
+                int modelRow = dataTable.convertRowIndexToModel(selectedViewRow);
+
+                // <<< MODIFIED: Use .length for array and check index validity
+                if (currentCheckupData != null && modelRow >= 0 && modelRow < currentCheckupData.length) {
+                    // <<< MODIFIED: Use array index access `[modelRow]` instead of `.get()`
+                    String[] rowData = currentCheckupData[modelRow];
+                    try {
+                        Patient selectedPatient = new Patient(rowData);
+
+                        if (checkUpPageInstance != null) {
+                            checkUpPageInstance.loadPatientByCheckupId(selectedPatient);
+                        }
+                        
+                        parentDialog.dispose();
+
+                    } catch (IllegalArgumentException ex) {
+                        JOptionPane.showMessageDialog(parentDialog, "Không thể tải dữ liệu bệnh nhân. Dữ liệu không hợp lệ.", "Lỗi", JOptionPane.ERROR_MESSAGE);
+                        System.err.println("Error creating Patient DTO from row data: " + ex.getMessage());
+                    }
+                }
             });
 
             deleteButton.addActionListener(e -> {
+                fireEditingStopped();
                 int row = dataTable.getSelectedRow();
+                if (row < 0) return;
+
                 String patientId = (String) tableModel.getValueAt(row, 1);
                 int result = JOptionPane.showConfirmDialog(parentDialog,
                         "Bạn có chắc chắn muốn xóa phiếu khám của bệnh nhân " + patientId + " không?",
@@ -596,7 +612,6 @@ public class DataDialog extends JDialog {
                     tableModel.removeRow(row);
                     JOptionPane.showMessageDialog(parentDialog, "Đã xóa phiếu khám thành công!", "Thông báo", JOptionPane.INFORMATION_MESSAGE);
                 }
-                fireEditingStopped();
             });
 
             panel.add(editButton);
