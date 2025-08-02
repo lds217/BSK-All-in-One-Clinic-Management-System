@@ -31,7 +31,7 @@ public class GoogleDriveServiceOAuth {
     private static final List<String> SCOPES = Collections.singletonList(DriveScopes.DRIVE_FILE);
     
     // Path to OAuth2 client credentials file 
-    private static final String OAUTH_CREDENTIALS_PATH = "src/main/resources/google-oauth-credentials.json";
+    private static final String OAUTH_CREDENTIALS_PATH = "google-oauth-credentials.json";
     // Directory to store authorization tokens
     private static final String TOKENS_DIRECTORY_PATH = "tokens";
     

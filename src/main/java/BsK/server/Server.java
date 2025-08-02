@@ -41,7 +41,7 @@ public class Server {
   private static boolean googleDriveEnabled = true; // Can be configured
   private static String googleDriveRootFolderName = "BSK_Clinic_Patient_Files"; // Default
   public static String imageDbPath = "img_db"; // Default
-  public static String checkupMediaBaseDir = "src/main/resources/image/checkup_media"; // Default
+  public static String checkupMediaBaseDir = "image/checkup_media"; // Default
 
     static {
         try {
@@ -116,7 +116,7 @@ public class Server {
             log.info("Checkup media base dir: {}", checkupMediaBaseDir);
 
             // Directly use the provided database path
-            String dbPath = "src/main/resources/database/BSK.db";
+            String dbPath = "database/BSK.db";
             connection = DriverManager.getConnection("jdbc:sqlite:" + dbPath);
             
             // Initialize Google Drive service if enabled
@@ -346,7 +346,7 @@ public class Server {
         }
 
         // Define the path to the database
-        String dbPath = "src/main/resources/database/BSK.db";
+        String dbPath = "database/BSK.db";
         java.io.File dbFile = new java.io.File(dbPath);
 
         if (!dbFile.exists()) {

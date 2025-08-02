@@ -38,7 +38,7 @@ public class LocalStorage {
 
     // these variable can be changed by settings page
     // need restart
-    public static String checkupMediaBaseDir = "src/main/resources/image/checkup_media";
+    public static String checkupMediaBaseDir = "image/checkup_media";
     public static String ULTRASOUND_FOLDER_PATH = "ANH SIEU AM";
     public static String ClinicName = "Phòng khám BSK";
     public static String ClinicAddress = "Số ABC, Đường XYZ, Quận 1, TP.HCM";

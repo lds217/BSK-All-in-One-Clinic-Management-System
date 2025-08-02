@@ -3592,7 +3592,7 @@ public class CheckUpPage extends JPanel {
             SwingUtilities.invokeLater(() -> {
                 try {
                     // Create media directory for this checkup if it doesn't exist
-                    java.io.File mediaDir = new java.io.File("src/main/resources/image/checkup_media", response.getCheckupId());
+                    java.io.File mediaDir = new java.io.File("image/checkup_media", response.getCheckupId());
                     if (!mediaDir.exists()) {
                         mediaDir.mkdirs();
                     }
