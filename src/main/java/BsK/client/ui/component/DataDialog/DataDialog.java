@@ -511,24 +511,17 @@ public class DataDialog extends JDialog {
         LocalStorage.dataDialogDoctorName = "Tất cả";
     }
 
-    private ImageIcon createIcon(String path, int width, int height) {
-        java.net.URL imgURL = getClass().getResource(path);
-        if (imgURL != null) {
-            return new ImageIcon(new ImageIcon(imgURL).getImage().getScaledInstance(width, height, Image.SCALE_SMOOTH));
-        }
-        System.err.println("Couldn't find file: " + path);
-        return null;
-    }
-
     class ActionButtonRenderer extends JPanel implements TableCellRenderer {
         private JButton editButton, deleteButton;
 
         public ActionButtonRenderer() {
             setLayout(new FlowLayout(FlowLayout.CENTER, 2, 2));
 
-            ImageIcon editIcon = createIcon("src/main/java/BsK/client/ui/assets/icon/edit.png", 16, 16);
+            ImageIcon editIcon = new ImageIcon("src/main/java/BsK/client/ui/assets/icon/edit.png");
+            editIcon.setImage(editIcon.getImage().getScaledInstance(16, 16, Image.SCALE_SMOOTH));
             editButton = new JButton(editIcon);
-            ImageIcon deleteIcon = createIcon("src/main/java/BsK/client/ui/assets/icon/delete.png", 16, 16);
+            ImageIcon deleteIcon = new ImageIcon("src/main/java/BsK/client/ui/assets/icon/delete.png");
+            deleteIcon.setImage(deleteIcon.getImage().getScaledInstance(16, 16, Image.SCALE_SMOOTH));
             deleteButton = new JButton(deleteIcon);
 
             editButton.setPreferredSize(new Dimension(30, 25));
@@ -560,9 +553,11 @@ public class DataDialog extends JDialog {
             super(new JCheckBox());
             panel = new JPanel(new FlowLayout(FlowLayout.CENTER, 2, 2));
 
-            ImageIcon editIcon = createIcon("src/main/java/BsK/client/ui/assets/icon/edit.png", 16, 16);
+            ImageIcon editIcon = new ImageIcon("src/main/java/BsK/client/ui/assets/icon/edit.png");
+            editIcon.setImage(editIcon.getImage().getScaledInstance(16, 16, Image.SCALE_SMOOTH));
             editButton = new JButton(editIcon);
-            ImageIcon deleteIcon = createIcon("src/main/java/BsK/client/ui/assets/icon/delete.png", 16, 16);
+            ImageIcon deleteIcon = new ImageIcon("src/main/java/BsK/client/ui/assets/icon/delete.png");
+            deleteIcon.setImage(deleteIcon.getImage().getScaledInstance(16, 16, Image.SCALE_SMOOTH));
             deleteButton = new JButton(deleteIcon);
 
             editButton.setPreferredSize(new Dimension(30, 25));
