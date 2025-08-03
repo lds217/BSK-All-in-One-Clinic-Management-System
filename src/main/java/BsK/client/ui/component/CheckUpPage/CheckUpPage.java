@@ -1819,28 +1819,33 @@ public class CheckUpPage extends JPanel {
                         supplements.toArray(new String[0][]) // Pass supplements
                 );
                 // First, show the print preview to the user
-                medicineInvoice.showDirectJasperViewer(); 
+                try {
+                    medicineInvoice.showDirectJasperViewer(); 
 
-                // Then, asynchronously generate the PDF bytes and upload them
-                medicineInvoice.generatePdfBytesAsync().thenAccept(pdfBytes -> {
-                    if (pdfBytes != null && pdfBytes.length > 0) {
-                        String checkupId = checkupIdField.getText();
-                        String fileName = "medserinvoice.pdf";
-                        String pdfType = "medserinvoice";
+                    // Then, asynchronously generate the PDF bytes and upload them
+                    // medicineInvoice.generatePdfBytesAsync().thenAccept(pdfBytes -> {
+                    //     if (pdfBytes != null && pdfBytes.length > 0) {
+                    //         String checkupId = checkupIdField.getText();
+                    //         String fileName = "medserinvoice.pdf";
+                    //         String pdfType = "medserinvoice";
 
-                        log.info("Uploading {} ({}) for checkupId: {}", fileName, pdfType, checkupId);
+                    //         log.info("Uploading {} ({}) for checkupId: {}", fileName, pdfType, checkupId);
 
-                        UploadCheckupPdfRequest request = new UploadCheckupPdfRequest(checkupId, pdfBytes, fileName, pdfType);
-                        NetworkUtil.sendPacket(ClientHandler.ctx.channel(), request);
-                    }
-                }).exceptionally(ex -> {
-                    log.error("Failed to generate or upload medicine invoice PDF", ex);
-                    // Show error in the UI thread
-                    SwingUtilities.invokeLater(() ->
-                        JOptionPane.showMessageDialog(this, "Lỗi khi tạo hoặc tải lên file PDF hóa đơn: " + ex.getMessage(), "Lỗi PDF", JOptionPane.ERROR_MESSAGE)
-                    );
-                    return null;
-                });
+                    //         UploadCheckupPdfRequest request = new UploadCheckupPdfRequest(checkupId, pdfBytes, fileName, pdfType);
+                    //         NetworkUtil.sendPacket(ClientHandler.ctx.channel(), request);
+                    //     }
+                    // }).exceptionally(ex -> {
+                    //     log.error("Failed to generate or upload medicine invoice PDF", ex);
+                    //     // Show error in the UI thread
+                    //     SwingUtilities.invokeLater(() ->
+                    //         JOptionPane.showMessageDialog(this, "Lỗi khi tạo hoặc tải lên file PDF hóa đơn: " + ex.getMessage(), "Lỗi PDF", JOptionPane.ERROR_MESSAGE)
+                    //     );
+                    //     return null;
+                    // });
+                } catch (Exception e) {
+                    log.error("Failed to show direct JasperViewer", e);
+                    JOptionPane.showMessageDialog(this, "Lỗi khi hiển thị hộp thoại in: " + e.getMessage(), "Lỗi In", JOptionPane.ERROR_MESSAGE);
+                }
                 break;
             case "ultrasound": // This case now handles "Lưu & In"
                 // Step 1: Validate conditions first.
