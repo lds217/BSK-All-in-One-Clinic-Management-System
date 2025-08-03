@@ -124,9 +124,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                   JOIN
                       Doctor D ON a.doctor_id = D.doctor_id
                   WHERE
-                      a.checkup_date >= CAST(strftime('%s', date('now', 'localtime', 'start of day')) AS INTEGER) * 1000
-                  AND
-                      a.checkup_date < CAST(strftime('%s', date('now', 'localtime', 'start of day', '+1 day')) AS INTEGER) * 1000"""
+                        date(a.checkup_date / 1000, 'unixepoch', '+7 hours') = date('now', '+7 hours')"""
           );
 
           if (!rs.isBeforeFirst()) {
@@ -2196,15 +2194,22 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
     try {
         // --- EXISTING LOGIC FOR THE QUEUE (UNCHANGED) ---
         ResultSet rs = statement.executeQuery(
-                "select a.checkup_id, a.checkup_date, c.customer_last_name, c.customer_first_name,\n" +
-                        "d.doctor_first_name, d.doctor_last_name, a.suggestion, a.diagnosis, a.notes, a.status, a.customer_id, \n" +
-                        "c.customer_number, c.customer_address, a.customer_weight, a.customer_height, c.customer_gender, c.customer_dob, \n" +
-                        "a.checkup_type, a.conclusion, a.reCheckupDate, c.cccd_ddcn, a.heart_beat, a.blood_pressure, c.drive_url, a.doctor_ultrasound_id, a.queue_number\n" +
-                        "from checkup as a\n" +
-                        "join customer as c on a.customer_id = c.customer_id\n" +
-                        "join Doctor D on a.doctor_id = D.doctor_id\n" +
-                        "where a.checkup_date >= CAST(strftime('%s', date('now', 'localtime', 'start of day')) AS INTEGER) * 1000\n" +
-                        "AND a.checkup_date < CAST(strftime('%s', date('now', 'localtime', 'start of day', '+1 day')) AS INTEGER) * 1000"
+               """
+                  SELECT
+                      a.checkup_id, a.checkup_date, c.customer_last_name, c.customer_first_name,
+                      d.doctor_first_name, d.doctor_last_name, a.suggestion, a.diagnosis, a.notes,
+                      a.status, a.customer_id, c.customer_number, c.customer_address,
+                      a.customer_weight, a.customer_height, c.customer_gender, c.customer_dob,
+                      a.checkup_type, a.conclusion, a.reCheckupDate, c.cccd_ddcn, a.heart_beat,
+                      a.blood_pressure, c.drive_url, a.doctor_ultrasound_id, a.queue_number
+                  FROM
+                      checkup AS a
+                  JOIN
+                      customer AS c ON a.customer_id = c.customer_id
+                  JOIN
+                      Doctor D ON a.doctor_id = D.doctor_id
+                  WHERE
+                        date(a.checkup_date / 1000, 'unixepoch', '+7 hours') = date('now', '+7 hours')"""
         );
 
         String[][] resultArray;

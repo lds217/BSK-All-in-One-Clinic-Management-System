@@ -35,7 +35,7 @@
 			<expression><![CDATA[$V{medRowTotal}]]></expression>
 		</variable>
 		<variable name="serRowTotal" class="java.math.BigDecimal">
-			<expression><![CDATA[new java.math.BigDecimal($F{serUnitPrice}).multiply(new java.math.BigDecimal($F{serAmount}))]]></expression>
+			<expression><![CDATA[($F{serUnitPrice} == null || $F{serAmount} == null) ? new java.math.BigDecimal(0) : new java.math.BigDecimal($F{serUnitPrice}).multiply(new java.math.BigDecimal($F{serAmount}))]]></expression>
 		</variable>
 		<variable name="serTotal" calculation="Sum" class="java.math.BigDecimal">
 			<expression><![CDATA[$V{serRowTotal}]]></expression>
@@ -61,7 +61,6 @@
 	<parameter name="patientName" class="java.lang.String"/>
 	<parameter name="patientDOB" class="java.lang.String"/>
 	<parameter name="clinicAddress" class="java.lang.String"/>
-	<parameter name="logoImage" class="java.io.InputStream"/>
 	<parameter name="barcodeNumber" class="java.lang.String"/>
 	<parameter name="patientGender" class="java.lang.String"/>
 	<parameter name="hasMedicines" class="java.lang.Boolean"/>
@@ -69,6 +68,7 @@
 	<parameter name="hasSupplements" class="java.lang.Boolean"/>
 	<parameter name="driveURL" class="java.lang.String"/>
 	<parameter name="clinicPrefix" class="java.lang.String"/>
+	<parameter name="id" class="java.lang.String"/>
 	<query language="sql"><![CDATA[]]></query>
 	<variable name="MedicineGrandTotal" calculation="System" class="java.math.BigDecimal">
 		<initialValueExpression><![CDATA[new java.math.BigDecimal(0)]]></initialValueExpression>
@@ -563,44 +563,40 @@
 	</group>
 	<background splitType="Stretch"/>
 	<title height="96" splitType="Stretch">
-		<element kind="image" uuid="c596ac6f-18d9-4cfe-a74e-58b1f7d11ecc" x="-10" y="-4" width="90" height="83">
-			<expression><![CDATA[$P{logoImage}]]></expression>
-		</element>
-		<element kind="textField" uuid="48bf4793-8d8d-427d-b739-8f34f051192f" x="80" y="-4" width="359" height="25" forecolor="#FF0905" fontName="Times New Roman" fontSize="18.0" bold="true" hTextAlign="Center">
+		<element kind="textField" uuid="48bf4793-8d8d-427d-b739-8f34f051192f" x="1" y="-4" width="359" height="25" forecolor="#FF0905" fontName="Times New Roman" fontSize="18.0" bold="true" hTextAlign="Left">
 			<expression><![CDATA[$P{clinicPrefix}]]></expression>
 		</element>
-		<element kind="staticText" uuid="d8e95ce7-3ac0-44a7-ac8f-65821b7f373c" x="80" y="47" width="150" height="15" fontName="Times New Roman" fontSize="12.0" bold="true" hTextAlign="Left">
+		<element kind="staticText" uuid="d8e95ce7-3ac0-44a7-ac8f-65821b7f373c" x="1" y="47" width="150" height="15" fontName="Times New Roman" fontSize="12.0" bold="true" hTextAlign="Left">
 			<text><![CDATA[Địa chỉ: ]]></text>
 		</element>
-		<element kind="textField" uuid="9883203e-fd4b-4110-a4b9-2c8c257ce5fa" x="126" y="47" width="314" height="15" fontName="Times New Roman" fontSize="12.0">
+		<element kind="textField" uuid="9883203e-fd4b-4110-a4b9-2c8c257ce5fa" x="47" y="47" width="314" height="15" fontName="Times New Roman" fontSize="12.0" hTextAlign="Left">
 			<expression><![CDATA[$P{clinicAddress}]]></expression>
 		</element>
-		<element kind="staticText" uuid="f00706ca-903c-4089-b3a1-33be68f6112b" x="80" y="62" width="150" height="15" fontName="Times New Roman" fontSize="12.0" bold="true" hTextAlign="Left">
+		<element kind="staticText" uuid="f00706ca-903c-4089-b3a1-33be68f6112b" x="1" y="62" width="150" height="15" fontName="Times New Roman" fontSize="12.0" bold="true" hTextAlign="Left">
 			<text><![CDATA[SĐT:]]></text>
 		</element>
-		<element kind="textField" uuid="2af00e22-702e-42cb-a6fb-19d401a58170" x="110" y="62" width="330" height="15" fontName="Times New Roman" fontSize="12.0">
+		<element kind="textField" uuid="2af00e22-702e-42cb-a6fb-19d401a58170" x="31" y="62" width="330" height="15" fontName="Times New Roman" fontSize="12.0" hTextAlign="Left">
 			<expression><![CDATA[$P{clinicPhone}]]></expression>
-		</element>
-		<element kind="component" uuid="35037abf-0984-4b9e-8a05-f8fae38d7dcc" x="490" y="0" width="65" height="43">
-			<component kind="barcode4j:Code128">
-				<codeExpression><![CDATA[$P{barcodeNumber}]]></codeExpression>
-			</component>
 		</element>
 		<element kind="staticText" uuid="de38fb46-49af-4f48-8c33-f97680bcc7fa" x="135" y="71" width="284" height="21" fontName="Times New Roman" fontSize="18.0" bold="true" hTextAlign="Center">
 			<text><![CDATA[TOA THUỐC & DỊCH VỤ]]></text>
 			<property name="com.jaspersoft.studio.unit.height" value="pixel"/>
 		</element>
-		<element kind="component" uuid="b8dc3582-162b-47d9-9501-fbf3bfc63fbd" x="440" y="0" width="46" height="39">
-			<component kind="barcode4j:QRCode">
-				<codeExpression><![CDATA[$P{driveURL}]]></codeExpression>
-			</component>
-		</element>
-		<element kind="staticText" uuid="53b28743-6b3c-4700-b84d-a96a93371dbf" x="434" y="43" width="55" height="14" fontName="Times New Roman" fontSize="8.0" bold="false" hTextAlign="Center">
-			<printWhenExpression><![CDATA[$P{driveURL} != null && !$P{driveURL}.trim().isEmpty()]]></printWhenExpression>
+		<element kind="staticText" uuid="53b28743-6b3c-4700-b84d-a96a93371dbf" x="377" y="62" width="55" height="14" fontName="Times New Roman" fontSize="8.0" bold="false" hTextAlign="Center">
+			<printWhenExpression><![CDATA[$P{driveURL} != null]]></printWhenExpression>
 			<text><![CDATA[Xem KQ online]]></text>
 		</element>
-		<element kind="textField" uuid="9dcab6b1-a9ce-4aa9-9df9-232869b3ab24" x="80" y="21" width="359" height="25" forecolor="#FF0905" fontName="Times New Roman" fontSize="18.0" bold="true" hTextAlign="Center">
+		<element kind="textField" uuid="9dcab6b1-a9ce-4aa9-9df9-232869b3ab24" x="1" y="21" width="359" height="25" forecolor="#FF0905" fontName="Times New Roman" fontSize="18.0" bold="true" hTextAlign="Left">
 			<expression><![CDATA[$P{clinicName}]]></expression>
+		</element>
+		<element kind="image" uuid="bd44c818-46a4-4ccf-8ac4-1e78cce1442c" x="370" y="-4" width="68" height="66">
+			<expression><![CDATA[$P{driveURL}]]></expression>
+		</element>
+		<element kind="image" uuid="9a508076-24a7-46db-a8d4-e5e643f26bd2" x="451" y="-4" width="104" height="44">
+			<expression><![CDATA[$P{barcodeNumber}]]></expression>
+		</element>
+		<element kind="textField" uuid="6fa6eee4-7f0a-4741-8ede-1fd222ffed22" x="451" y="41" width="104" height="15" fontName="Times New Roman" fontSize="12.0" hTextAlign="Center">
+			<expression><![CDATA[$P{id}]]></expression>
 		</element>
 	</title>
 	<pageHeader height="72" splitType="Stretch">

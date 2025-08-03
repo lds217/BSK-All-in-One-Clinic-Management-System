@@ -1,10 +1,11 @@
-<configuration name="BSK Server" type="Application" factoryName="Application" singleton="true">
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="BSK Server" type="Application" factoryName="Application" singleton="true">
+    <option name="ALTERNATIVE_JRE_PATH" value="corretto-22" />
+    <option name="ALTERNATIVE_JRE_PATH_ENABLED" value="true" />
     <option name="MAIN_CLASS_NAME" value="BsK.server.Server" />
-    <module name="BSK-All-in-One-Clinic-Management-System" />
-    <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
-    <option name="ALLOW_RUNNING_IN_PARALLEL" value="false" />
-    <option name="SINGLE_INSTANCE_ONLY" value="true" />
+    <module name="ldS_BsK" />
     <method v="2">
       <option name="Make" enabled="true" />
     </method>
-  </configuration> 
+  </configuration>
+</component>

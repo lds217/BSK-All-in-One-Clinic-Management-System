@@ -1,7 +1,7 @@
 package BsK.client.ui.component.CheckUpPage.PrintDialog;
 
 import BsK.client.LocalStorage;
-import BsK.client.ui.component.CheckUpPage.PrintDialog.print_forms.InvoiceItem;
+import BsK.client.ui.component.CheckUpPage.PrintDialog.InvoiceItem;
 // JasperReports imports
 import net.sf.jasperreports.engine.*;
 import net.sf.jasperreports.engine.data.JRBeanCollectionDataSource;
@@ -9,8 +9,6 @@ import net.sf.jasperreports.engine.design.JasperDesign;
 import net.sf.jasperreports.engine.xml.JRXmlLoader;
 import net.sf.jasperreports.view.JasperViewer;
 
-import org.apache.pdfbox.pdmodel.PDDocument;
-import org.apache.pdfbox.rendering.PDFRenderer;
 
 import javax.swing.*;
 import java.awt.*;
@@ -23,6 +21,7 @@ import java.awt.print.PrinterException;
 import java.awt.print.PrinterJob;
 import java.io.*;
 import java.util.ArrayList;
+import java.io.ByteArrayInputStream;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.text.DecimalFormat;
@@ -30,8 +29,124 @@ import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.util.concurrent.CompletableFuture;
 import java.io.IOException;
+import java.net.URL;
+
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
 
 public class MedicineInvoice{
+    
+    /**
+     * Load and compile Jasper report from JRXML following standard pattern: inputstream → load → compile
+     */
+    private static JasperReport loadCompiledReport(String reportName) {
+        String jrxmlPath = "/print_forms/" + reportName + ".jrxml";
+        
+        try (InputStream inputStream = loadResourceAsStream(jrxmlPath)) {
+            if (inputStream == null) {
+                throw new RuntimeException("JRXML resource not found: " + jrxmlPath);
+            }
+            
+            log.info("Loading and compiling JRXML: {}", jrxmlPath);
+            
+            // Standard JasperReports pattern: inputstream → load → compile
+            JasperDesign jasperDesign = JRXmlLoader.load(inputStream);
+            JasperReport jasperReport = JasperCompileManager.compileReport(jasperDesign);
+            
+            log.info("Successfully compiled report: {}", reportName);
+            return jasperReport;
+            
+        } catch (Exception e) {
+            log.error("Failed to load/compile JRXML report {}: {}", jrxmlPath, e.getMessage());
+            e.printStackTrace();
+            throw new RuntimeException("Could not load or compile report: " + reportName, e);
+        }
+    }
+
+    /**
+     * Robust resource loading method that works in both development and JAR environments
+     */
+    private static InputStream loadResourceAsStream(String resourcePath) {
+        // Try multiple approaches to load the resource
+        InputStream inputStream = null;
+        
+        // Method 1: Using current class classloader
+        try {
+            inputStream = MedicineInvoice.class.getResourceAsStream(resourcePath);
+            if (inputStream != null) {
+                log.info("Successfully loaded resource using class.getResourceAsStream: {}", resourcePath);
+                return inputStream;
+            }
+        } catch (Exception e) {
+            log.warn("Failed to load resource using class.getResourceAsStream: {}", e.getMessage());
+        }
+        
+        // Method 2: Using thread context classloader (without leading slash)
+        try {
+            String pathWithoutSlash = resourcePath.startsWith("/") ? resourcePath.substring(1) : resourcePath;
+            ClassLoader contextClassLoader = Thread.currentThread().getContextClassLoader();
+            inputStream = contextClassLoader.getResourceAsStream(pathWithoutSlash);
+            if (inputStream != null) {
+                log.info("Successfully loaded resource using context classloader: {}", pathWithoutSlash);
+                return inputStream;
+            }
+        } catch (Exception e) {
+            log.warn("Failed to load resource using context classloader: {}", e.getMessage());
+        }
+        
+        // Method 3: Using system classloader
+        try {
+            String pathWithoutSlash = resourcePath.startsWith("/") ? resourcePath.substring(1) : resourcePath;
+            inputStream = ClassLoader.getSystemResourceAsStream(pathWithoutSlash);
+            if (inputStream != null) {
+                log.info("Successfully loaded resource using system classloader: {}", pathWithoutSlash);
+                return inputStream;
+            }
+        } catch (Exception e) {
+            log.warn("Failed to load resource using system classloader: {}", e.getMessage());
+        }
+        
+        // Method 4: Try with different class as anchor
+        try {
+            inputStream = LocalStorage.class.getResourceAsStream(resourcePath);
+            if (inputStream != null) {
+                log.info("Successfully loaded resource using LocalStorage.class: {}", resourcePath);
+                return inputStream;
+            }
+        } catch (Exception e) {
+            log.warn("Failed to load resource using LocalStorage.class: {}", e.getMessage());
+        }
+        
+        // Method 5: Try loading from external file system (fallback for JAR issues)
+        try {
+            String externalPath = resourcePath.startsWith("/") ? resourcePath.substring(1) : resourcePath;
+            java.io.File externalFile = new java.io.File(externalPath);
+            if (externalFile.exists()) {
+                inputStream = new FileInputStream(externalFile);
+                log.info("Successfully loaded resource from external file: {}", externalFile.getAbsolutePath());
+                return inputStream;
+            }
+        } catch (Exception e) {
+            log.warn("Failed to load resource from external file: {}", e.getMessage());
+        }
+        
+        // Method 6: Try loading from src/main/resources (development mode)
+        try {
+            String srcPath = "src/main/resources" + (resourcePath.startsWith("/") ? "" : "/") + resourcePath;
+            java.io.File srcFile = new java.io.File(srcPath);
+            if (srcFile.exists()) {
+                inputStream = new FileInputStream(srcFile);
+                log.info("Successfully loaded resource from source directory: {}", srcFile.getAbsolutePath());
+                return inputStream;
+            }
+        } catch (Exception e) {
+            log.warn("Failed to load resource from source directory: {}", e.getMessage());
+        }
+        
+        log.error("All resource loading methods failed for: {}", resourcePath);
+        return null;
+    }
 
     private JDialog dialog;
     private String patientName;
@@ -94,16 +209,21 @@ public class MedicineInvoice{
     /**
      * Shows the invoice directly in JasperViewer without creating a custom dialog
      */
-    public void showDirectJasperViewer() {
+    public void showDirectJasperViewer() throws Exception {
         try {
             // This method now only fills the report and shows the viewer
             fillJasperPrint();
+            
+            if (jasperPrint == null) {
+                throw new Exception("JasperPrint is null - report compilation failed");
+            }
+            
             // Use the constructor to prevent the application from closing
             JasperViewer viewer = new JasperViewer(jasperPrint, false);
             viewer.setVisible(true);
         } catch (Exception e) {
-            e.printStackTrace();
-            JOptionPane.showMessageDialog(null, "Error generating PDF: " + e.getMessage());
+            log.info("error showing the jasper viewer, {}", e.getMessage());
+            throw e;
         }
     }
 
@@ -150,7 +270,7 @@ public class MedicineInvoice{
         String pdfPath = "temp_medical_invoice.pdf"; // Use a temporary file name
         try {
             generatePdf(pdfPath);
-            displayPdfInLabel(pdfPath, pdfViewer);
+
         } catch (Exception e) {
             e.printStackTrace();
             JOptionPane.showMessageDialog(dialog, "Error generating PDF: " + e.getMessage());
@@ -209,6 +329,12 @@ public class MedicineInvoice{
         try {
             // This method is almost identical to generatePdf, but exports to a byte array
             fillJasperPrint(); // Ensures jasperPrint is filled
+            
+            if (jasperPrint == null) {
+                throw new Exception("JasperPrint is null - report compilation failed");
+            }
+            
+            log.info("Exporting JasperPrint to PDF bytes...");
             return JasperExportManager.exportReportToPdf(jasperPrint);
         } catch (Exception e) {
             e.printStackTrace();
@@ -220,6 +346,11 @@ public class MedicineInvoice{
         try {
             // Refactored to use a common method to fill the report
             fillJasperPrint();
+            
+            if (jasperPrint == null) {
+                throw new Exception("JasperPrint is null - report compilation failed");
+            }
+            
             // Export to PDF file
             JasperExportManager.exportReportToPdfFile(jasperPrint, pdfPath);
         } catch (Exception e) {
@@ -254,7 +385,7 @@ public class MedicineInvoice{
                         // Call signature: (Tên, Ghi chú, Liều dùng, Đường dùng, Số lượng)
                         medicineItems.add(InvoiceItem.createMedicine(medName, note, dosageInfo, route, amount));
                     } catch (Exception e) {
-                        System.err.println("Error parsing medicine data row: " + java.util.Arrays.toString(medicine) + " | Error: " + e.getMessage());
+                        log.info("Error parsing medicine data row: " + java.util.Arrays.toString(medicine) + " | Error: " + e.getMessage());
                     }
                 }
             }
@@ -271,7 +402,7 @@ public class MedicineInvoice{
                             Double.parseDouble(service[3])
                         ));
                     } catch (NumberFormatException e) {
-                        System.err.println("Error parsing service data: " + e.getMessage());
+                        log.info("Error parsing service data: " + e.getMessage());
                     }
                 }
             }
@@ -293,7 +424,7 @@ public class MedicineInvoice{
                         supplementItems.add(InvoiceItem.createSupplement(supName, supNote, dosageInfo, supRoute, amount));
                         
                     } catch (Exception e) {
-                         System.err.println("Error parsing supplement data row: " + java.util.Arrays.toString(supplement) + " | Error: " + e.getMessage());
+                        log.info("Error parsing supplement data row: " + java.util.Arrays.toString(supplement) + " | Error: " + e.getMessage());
                     }
                 }
             }
@@ -308,7 +439,7 @@ public class MedicineInvoice{
         parameters.put("medicineDS", medicineDS);
         parameters.put("serviceDS", serviceDS);
         parameters.put("supplementDS", supplementDS);
-        parameters.put(JRParameter.REPORT_LOCALE, new java.util.Locale("vi", "VN"));
+        parameters.put(JRParameter.REPORT_LOCALE, java.util.Locale.of("vi", "VN"));
         parameters.put("patientName", patientName != null ? patientName : "");
         parameters.put("patientDOB", patientDOB != null ? patientDOB : "");
         parameters.put("patientGender", patientGender != null ? patientGender : "");
@@ -321,93 +452,47 @@ public class MedicineInvoice{
         parameters.put("checkupDate", date != null ? date : "");
         parameters.put("patientDiagnos", diagnosis != null ? diagnosis : "");
         parameters.put("checkupNote", notes != null ? notes : "");
-        parameters.put("barcodeNumber", id != null ? id : "");
-        parameters.put("driveURL", driveURL != null ? driveURL : "");
         parameters.put("hasMedicines", !medicineItems.isEmpty());
         parameters.put("hasServices", !serviceItems.isEmpty());
         parameters.put("hasSupplements", !supplementItems.isEmpty());
+        parameters.put("id", id);
 
-        String logoPath = "/BsK/client/ui/assets/icon/logo.jpg";
-        // Load the logo as an InputStream
-        InputStream logoStream = MedicineInvoice.class.getResourceAsStream(logoPath);
-        if (logoStream == null) {
-            System.err.println("ERROR: Logo image not found on classpath: " + logoPath);
-            parameters.put("logoImage", null);
-        } else {
-            // Pass the InputStream to the report parameter
-            parameters.put("logoImage", logoStream);
-        }
-        String resourcePath = "/BsK/client/ui/component/CheckUpPage/PrintDialog/print_forms/medserinvoice.jrxml";
-        try (InputStream inputStream = MedicineInvoice.class.getResourceAsStream(resourcePath)) {
-            if (inputStream == null) {
-
-                throw new FileNotFoundException("Không thể tìm thấy tệp mẫu Jasper report trong classpath: " + resourcePath);
-            }
-            JasperDesign jasperDesign = JRXmlLoader.load(inputStream);
-            JasperReport jasperReport = JasperCompileManager.compileReport(jasperDesign);
-            jasperPrint = JasperFillManager.fillReport(jasperReport, parameters, new JREmptyDataSource());
-        }
-    }
-
-    private void displayPdfInLabel(String pdfPath, JPanel pdfPanel) throws Exception {
-        PDDocument document = PDDocument.load(new File(pdfPath));
-        PDFRenderer pdfRenderer = new PDFRenderer(document);
-
-        pdfPanel.setLayout(new BoxLayout(pdfPanel, BoxLayout.Y_AXIS));
-
-        for (int i = 0; i < document.getNumberOfPages(); i++) {
-            BufferedImage image = pdfRenderer.renderImageWithDPI(i, 150);
-            ImageIcon icon = new ImageIcon(image);
-            JLabel pageLabel = new JLabel(icon);
-            pdfPanel.add(pageLabel);
-        }
-        document.close();
-        
-        dialog.revalidate();
-        dialog.repaint();
-    }
-
-
-    public static void printPdf(File pdfFile) {
-        try (PDDocument document = PDDocument.load(pdfFile)) {
-            PrinterJob printerJob = PrinterJob.getPrinterJob();
-            printerJob.setJobName("Print Medicine Invoice");
-
-            if (printerJob.printDialog()) {
-                printerJob.setPrintable((graphics, pageFormat, pageIndex) -> {
-                    if (pageIndex >= document.getNumberOfPages()) {
-                        return Printable.NO_SUCH_PAGE;
-                    }
-
-                    Graphics2D g2 = (Graphics2D) graphics;
-                    g2.translate(pageFormat.getImageableX(), pageFormat.getImageableY());
-
-                    try {
-                        PDFRenderer pdfRenderer = new PDFRenderer(document);
-                        BufferedImage pageImage = pdfRenderer.renderImageWithDPI(pageIndex, 300);
-
-                        double scale = Math.min(pageFormat.getImageableWidth() / pageImage.getWidth(),
-                                                pageFormat.getImageableHeight() / pageImage.getHeight());
-                        
-                        g2.scale(scale, scale);
-                        g2.drawImage(pageImage, 0, 0, null);
-
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                        return Printable.NO_SUCH_PAGE;
-                    }
-
-                    return Printable.PAGE_EXISTS;
-                });
-
-                printerJob.print();
-                System.out.println("Printing completed.");
-            } else {
-                System.out.println("Print job canceled.");
-            }
+        // FIXED: Generate barcode and QR code as BufferedImage instead of InputStream
+        try {
+            // Generate barcode and get file path
+            String barcodePath = BarcodeGenerator.generateCode128WithFixedName(id, 200, 50, "invoice_barcode");
+            parameters.put("barcodeNumber", barcodePath);
+            
+            // Generate QR code for the driveURL
+            String qrcodePath = BarcodeGenerator.generateQRCodeWithFixedName(driveURL, 220, 220, "invoice_qrcode");
+            parameters.put("driveURL", qrcodePath);
+            
         } catch (Exception e) {
+            log.error("Error generating barcode/QR code images: {}", e.getMessage());
+            // Set fallback parameters as null or empty if image generation fails
+            parameters.put("barcodeNumber", null);
+            parameters.put("driveURL", null);
+        }
+
+        try {
+            // Use the new method that tries pre-compiled .jasper files first
+            JasperReport jasperReport = loadCompiledReport("medserinvoice");
+            log.info("Successfully loaded/compiled jasper report");
+            
+            log.info("Attempting to fill report with parameters...");
+            jasperPrint = JasperFillManager.fillReport(jasperReport, parameters, new JREmptyDataSource());
+            log.info("Successfully filled jasper print");
+            
+            // Verify jasperPrint is not null and has content
+            if (jasperPrint != null) {
+                log.info("JasperPrint created successfully with {} pages", jasperPrint.getPages().size());
+            } else {
+                log.error("JasperPrint is null after fill operation!");
+            }
+        }
+        catch (Exception e) {
+            log.info("error loading the input stream, {}", e.getMessage());
             e.printStackTrace();
-            JOptionPane.showMessageDialog(null, "Error printing PDF: " + e.getMessage());
         }
     }
 
