@@ -1750,7 +1750,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
   private void getAllUser(int sessionId) {
     log.debug("Fetching all users for session: {}", sessionId);
     // SỬA LỖI BẢO MẬT: Đã loại bỏ cột 'password' khỏi câu truy vấn
-    String sql = "SELECT user_id, user_name, last_name, first_name, role_name, deleted FROM User ORDER BY user_id";
+    String sql = "SELECT user_id, user_name, last_name, password, first_name, role_name, deleted FROM User ORDER BY user_id";
     
     // SỬA LỖI QUAN TRỌNG: Sử dụng try-with-resources để quản lý tài nguyên an toàn
     try (Connection conn = DatabaseManager.getConnection();
@@ -1762,13 +1762,14 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         while (rs.next()) {
             String userId = rs.getString("user_id");
             String userName = rs.getString("user_name");
+            String password = rs.getString("password");
             String lastName = rs.getString("last_name");
             String firstName = rs.getString("first_name");
             String role = rs.getString("role_name");
             String deleted = String.valueOf(rs.getBoolean("deleted")); // Lấy giá trị boolean an toàn
 
             // Mật khẩu đã được cố ý loại bỏ khỏi câu truy vấn để bảo mật
-            String result = String.join("|", userId, userName, lastName, firstName, role, deleted);
+            String result = String.join("|", userId, userName, lastName, firstName, password, role, deleted);
             resultList.add(result);
         }
 
@@ -1794,7 +1795,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
    */
   private void getSerInfo(int sessionId) {
     log.debug("Fetching all services for session: {}", sessionId);
-    String sql = "SELECT service_id, service_name, service_cost, deleted FROM Service ORDER BY service_id";
+    String sql = "SELECT service_id, service_name, service_cost, deleted FROM Service";
 
     // SỬA LỖI QUAN TRỌNG: Sử dụng try-with-resources để quản lý tài nguyên an toàn
     try (Connection conn = DatabaseManager.getConnection();
@@ -1808,7 +1809,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
             String serName = rs.getString("service_name");
             String serPrice = rs.getString("service_cost");
             // Lấy giá trị boolean một cách an toàn và chuyển thành String
-            String deleted = String.valueOf(rs.getBoolean("deleted")); 
+            String deleted = rs.getBoolean("deleted") ? "1" : "0";
 
             String result = String.join("|", serId, serName, serPrice, deleted);
             resultList.add(result);
@@ -1819,7 +1820,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         for (int i = 0; i < resultString.length; i++) {
             resultArray[i] = resultString[i].split("\\|");
         }
-
+        log.debug("service info: {}", resultArray);
         UserUtil.sendPacket(sessionId, new GetSerInfoResponse(resultArray));
 
     } catch (SQLException e) {
