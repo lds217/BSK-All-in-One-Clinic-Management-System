@@ -226,7 +226,7 @@ public class CheckUpPage extends JPanel {
     private final Map<String, Future<?>> uploadTimeoutTasks = new ConcurrentHashMap<>();
     
     // Ultrasound folder monitoring
-    private static final String ULTRASOUND_FOLDER_PATH = "ANH SIEU AM";
+    private static final String ULTRASOUND_FOLDER_PATH = LocalStorage.ULTRASOUND_FOLDER_PATH;
     private WatchService watchService;
     private ExecutorService folderWatchExecutor;
     private volatile boolean isWatchingFolder = false;
@@ -1821,27 +1821,25 @@ public class CheckUpPage extends JPanel {
                 // First, show the print preview to the user
                 try {
                     medicineInvoice.showDirectJasperViewer(); 
+                    medicineInvoice.generatePdfBytesAsync().thenAccept(pdfBytes -> {
+                        if (pdfBytes != null && pdfBytes.length > 0) {
+                            String checkupId = checkupIdField.getText();
+                            String fileName = "medserinvoice.pdf";
+                            String pdfType = "medserinvoice";
 
-                    // Then, asynchronously generate the PDF bytes and upload them
-                    // medicineInvoice.generatePdfBytesAsync().thenAccept(pdfBytes -> {
-                    //     if (pdfBytes != null && pdfBytes.length > 0) {
-                    //         String checkupId = checkupIdField.getText();
-                    //         String fileName = "medserinvoice.pdf";
-                    //         String pdfType = "medserinvoice";
+                            log.info("Uploading {} ({}) for checkupId: {}", fileName, pdfType, checkupId);
 
-                    //         log.info("Uploading {} ({}) for checkupId: {}", fileName, pdfType, checkupId);
-
-                    //         UploadCheckupPdfRequest request = new UploadCheckupPdfRequest(checkupId, pdfBytes, fileName, pdfType);
-                    //         NetworkUtil.sendPacket(ClientHandler.ctx.channel(), request);
-                    //     }
-                    // }).exceptionally(ex -> {
-                    //     log.error("Failed to generate or upload medicine invoice PDF", ex);
-                    //     // Show error in the UI thread
-                    //     SwingUtilities.invokeLater(() ->
-                    //         JOptionPane.showMessageDialog(this, "Lỗi khi tạo hoặc tải lên file PDF hóa đơn: " + ex.getMessage(), "Lỗi PDF", JOptionPane.ERROR_MESSAGE)
-                    //     );
-                    //     return null;
-                    // });
+                            UploadCheckupPdfRequest request = new UploadCheckupPdfRequest(checkupId, pdfBytes, fileName, pdfType);
+                            NetworkUtil.sendPacket(ClientHandler.ctx.channel(), request);
+                        }
+                    }).exceptionally(ex -> {
+                        log.error("Failed to generate or upload medicine invoice PDF", ex);
+                        // Show error in the UI thread
+                        SwingUtilities.invokeLater(() ->
+                            JOptionPane.showMessageDialog(this, "Lỗi khi tạo hoặc tải lên file PDF hóa đơn: " + ex.getMessage(), "Lỗi PDF", JOptionPane.ERROR_MESSAGE)
+                        );
+                        return null;
+                    });
                 } catch (Exception e) {
                     log.error("Failed to show direct JasperViewer", e);
                     JOptionPane.showMessageDialog(this, "Lỗi khi hiển thị hộp thoại in: " + e.getMessage(), "Lỗi In", JOptionPane.ERROR_MESSAGE);
@@ -2015,7 +2013,7 @@ public class CheckUpPage extends JPanel {
         callingStatusLabel.setText(message);
         callingStatusLabel.setBackground(new Color(230, 255, 230));
         callingStatusLabel.setForeground(new Color(0, 100, 0));
-        updateUpdateQueue();
+        // updateUpdateQueue();
 
         // If patient is marked as "ĐÃ KHÁM", clear the selection and details immediately.
         if ("ĐÃ KHÁM".equals(statusToSave)) {
@@ -3597,7 +3595,7 @@ public class CheckUpPage extends JPanel {
             SwingUtilities.invokeLater(() -> {
                 try {
                     // Create media directory for this checkup if it doesn't exist
-                    java.io.File mediaDir = new java.io.File("image/checkup_media", response.getCheckupId());
+                    java.io.File mediaDir = new java.io.File(LocalStorage.checkupMediaBaseDir, response.getCheckupId());
                     if (!mediaDir.exists()) {
                         mediaDir.mkdirs();
                     }
@@ -4426,7 +4424,7 @@ public class CheckUpPage extends JPanel {
             // Find the patient in the patientQueue
             if (checkupId == null) return -1;
             for (int i = 0; i < queueTableModel.getRowCount(); i++) {
-                if (checkupId.equals(queueTableModel.getValueAt(i, 0))) {
+                if (checkupId.equals(queueTableModel.getValueAt(i, 1))) {
                     return i;
                 }
             }
@@ -4450,10 +4448,15 @@ public class CheckUpPage extends JPanel {
                         queueTable.setRowSelectionInterval(rowToSelect, rowToSelect);
                         queueTable.scrollRectToVisible(queueTable.getCellRect(rowToSelect, 0, true));
                     } else {
-                        // The previously selected patient is no longer in the queue (e.g., status changed to "ĐÃ KHÁM")
-                        // Clear the details panel to avoid confusion
-                        clearPatientDetails();
-                        // Auto-select first row if available
+                        JOptionPane.showMessageDialog(
+                                mainFrame,
+                                "Trạng thái của bệnh nhân bạn đang chọn đã thay đổi và không còn trong hàng chờ.\n" +
+                                "Giao diện của bạn sẽ được làm mới.",
+                                "Cập Nhật Trạng Thái Bệnh Nhân",
+                                JOptionPane.INFORMATION_MESSAGE
+                        );
+                        
+                        clearPatientDetails(); // Now clear the details
                         if (queueTable.getRowCount() > 0) {
                             queueTable.setRowSelectionInterval(0, 0);
                         }

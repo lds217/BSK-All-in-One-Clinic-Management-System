@@ -27,11 +27,14 @@ public class ErrorResponse implements Packet {
       if (error.equals(Error.PASSWORD_INCORRECT)) {
         return "Mật khẩu không chính xác, vui lòng kiểm tra lại mật khẩu";
       }
-      if (error.equals(Error.USER_ALREADY_EXISTS)) {
-        return "Tên đăng nhập đã tồn tại, vui lòng chọn tên đăng nhập khác";
-      }
       if (error.equals(Error.INVALID_CREDENTIALS)) {
         return "Tên đăng nhập hoặc mật khẩu không chính xác, vui lòng kiểm tra lại";
+      }
+      if (error.equals(Error.INVALID_INPUT)) {
+        return "Dữ liệu nhập không hợp lệ, vui lòng kiểm tra lại";
+      }
+      if (error.equals(Error.USERNAME_EXISTS)) {
+        return "Tên đăng nhập đã tồn tại, vui lòng chọn tên đăng nhập khác";
       }
       return error.toString();
     }

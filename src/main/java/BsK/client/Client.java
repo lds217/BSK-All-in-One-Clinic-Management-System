@@ -13,10 +13,8 @@ import io.netty.handler.codec.http.HttpClientCodec;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.websocketx.WebSocketClientProtocolHandler;
 import io.netty.handler.codec.http.websocketx.WebSocketVersion;
-import io.netty.handler.timeout.IdleStateHandler;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.concurrent.TimeUnit;
 import lombok.extern.slf4j.Slf4j;
 import java.io.InputStream;
 import java.util.Properties;
@@ -178,10 +176,8 @@ public class Client {
                                             @Override
                                             protected void initChannel(SocketChannel ch) {
                                                 ch.pipeline()
-                                                        .addLast(new IdleStateHandler(60 * 30,
-                                                                0, 0, TimeUnit.SECONDS))
                                                         .addLast(new HttpClientCodec())
-                                                        .addLast(new HttpObjectAggregator(50 * 1024 * 1024))
+                                                        .addLast(new HttpObjectAggregator(10 * 1024 * 1024))
                                                         .addLast(
                                                                 new WebSocketClientProtocolHandler(
                                                                         finalUri,
@@ -189,7 +185,7 @@ public class Client {
                                                                         null,
                                                                         true,
                                                                         new DefaultHttpHeaders(),
-                                                                        50 * 1024 * 1024))
+                                                                        10 * 1024 * 1024))
                                                         .addLast("ws", ClientHandler.INSTANCE);
                                             }
                                         });

@@ -1,5 +1,6 @@
 package BsK.server;
 
+import BsK.server.database.DatabaseManager;
 import BsK.server.network.handler.ServerHandler;
 import BsK.server.service.GoogleDriveServiceOAuth;
 import io.netty.bootstrap.ServerBootstrap;
@@ -16,7 +17,6 @@ import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpServerCodec;
 import io.netty.handler.codec.http.websocketx.WebSocketServerProtocolHandler;
 import io.netty.handler.stream.ChunkedWriteHandler;
-import io.netty.handler.timeout.IdleStateHandler;
 import java.awt.Color;
 import java.io.File;
 import java.io.IOException;
@@ -36,7 +36,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class Server {
   private static int PORT;
-  public static Connection connection;
+  // public static Connection connection;
   public static GoogleDriveServiceOAuth googleDriveService;
   private static boolean googleDriveEnabled = true; // Can be configured
   private static String googleDriveRootFolderName = "BSK_Clinic_Patient_Files"; // Default
@@ -116,8 +116,8 @@ public class Server {
             log.info("Checkup media base dir: {}", checkupMediaBaseDir);
 
             // Directly use the provided database path
-            String dbPath = "database/BSK.db";
-            connection = DriverManager.getConnection("jdbc:sqlite:" + dbPath);
+            //String dbPath = "database/BSK.db";
+            //connection = DriverManager.getConnection("jdbc:sqlite:" + dbPath);
             
             // Initialize Google Drive service if enabled
             initializeGoogleDriveService();
@@ -251,13 +251,14 @@ public class Server {
         throw new UnsupportedOperationException("extractDatabaseFile is not used anymore. Database is read directly from the specified path.");
     }
 
-    public static Statement statement;
+    //public static Statement statement;
 
     static {
         try {
-            statement = connection.createStatement();
-        } catch (SQLException e) {
-            throw new RuntimeException(e);
+            // KHỞI TẠO CONNECTION POOL
+            DatabaseManager.initialize();
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to initialize server", e);
         }
     }
 
@@ -294,11 +295,10 @@ public class Server {
                         @Override
                         protected void initChannel(SocketChannel ch) throws Exception {
                           ch.pipeline()
-                              .addLast(new IdleStateHandler(60 * 30, 0, 0, TimeUnit.SECONDS))
                               .addLast(new HttpServerCodec())
                               .addLast(new ChunkedWriteHandler())
-                              .addLast(new HttpObjectAggregator(50 * 1024 * 1024))
-                              .addLast(new WebSocketServerProtocolHandler("/", null, true, 50 * 1024 * 1024))
+                              .addLast(new HttpObjectAggregator(10 * 1024 * 1024))
+                              .addLast(new WebSocketServerProtocolHandler("/", null, true, 10 * 1024 * 1024))
                               .addLast(new ServerHandler());
                         }
                       });
