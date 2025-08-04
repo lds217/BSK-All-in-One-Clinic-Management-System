@@ -289,7 +289,7 @@ public class UltrasoundResult {
             parameters.put("doctorName", this.doctorName);
             parameters.put("ultrasoundDoctorName", this.ultrasoundDoctorName);
             parameters.put("checkupDate", this.checkupDate);
-            parameters.put("barcodeNumber", this.checkupId);
+            parameters.put("id", this.checkupId);
 
             // RTF and plain text content
             parameters.put("checkupNote", this.rtfContent != null ? this.rtfContent : "");
@@ -305,6 +305,23 @@ public class UltrasoundResult {
 
             // Template title
             parameters.put("templateTitle", this.templateTitle);
+
+            try {
+                // Generate barcode and get file path
+                String barcodePath = BarcodeGenerator.generateCode128WithFixedName(this.checkupId, 200, 50, "invoice_barcode");
+                parameters.put("barcodeNumber", barcodePath);
+                
+                // Generate QR code for the driveURL
+                String qrcodePath = BarcodeGenerator.generateQRCodeWithFixedName(this.driveUrl, 220, 220, "invoice_qrcode");
+                parameters.put("driveURL", qrcodePath);
+                
+            } catch (Exception e) {
+                log.error("Error generating barcode/QR code images: {}", e.getMessage());
+                // Set fallback parameters as null or empty if image generation fails
+                parameters.put("barcodeNumber", null);
+                parameters.put("driveURL", null);
+            }
+    
             
             // Extra safety: Ensure no parameter is null or "null" string
             for (String key : parameters.keySet()) {
@@ -318,7 +335,7 @@ public class UltrasoundResult {
             int numberOfImages = this.selectedImages.size();
             parameters.put("numberImage", numberOfImages);
             
-            parameters.put("logoImage", System.getProperty("user.dir") + "/src/main/java/BsK/client/ui/assets/icon/logo.jpg");
+
 
             for (int i = 0; i < 6; i++) {
                 if (i < numberOfImages) {
@@ -328,8 +345,6 @@ public class UltrasoundResult {
                 }
             }
 
-            // Google Drive URL for QR code generation
-            parameters.put("driveURL", this.driveUrl);
 
             // Load pre-compiled report or compile JRXML as fallback
             JasperReport jasperReport = loadCompiledReport(reportName);

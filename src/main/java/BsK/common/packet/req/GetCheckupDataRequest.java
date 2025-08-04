@@ -10,6 +10,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class GetCheckupDataRequest implements Packet {
     private String searchTerm;
+    private String checkupIdSearch;
     private Long fromDate; // Use Long for timestamp
     private Long toDate;   // Use Long for timestamp
     private Integer doctorId;
