@@ -1,6 +1,15 @@
 <!-- Created with Jaspersoft Studio version 7.0.3.final using JasperReports Library version 7.0.3-41034ca841d452f3305ba55b9042260aaa1ab5dd  -->
-<jasperReport name="Blank_A4_Potrait" language="java" columnCount="1" pageWidth="595" pageHeight="842" orientation="Portrait" columnWidth="555" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20" uuid="e7f9ca7e-f0db-48b0-bef9-93be21b3b0a3">
+<jasperReport name="Blank_A4_Potrait" language="java" columnCount="1" pageWidth="595" pageHeight="842" columnWidth="555" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20" uuid="e7f9ca7e-f0db-48b0-bef9-93be21b3b0a3">
 	<property name="com.jaspersoft.studio.data.defaultdataadapter" value="One Empty Record"/>
+	<property name="com.jaspersoft.studio.unit." value="pixel"/>
+	<property name="com.jaspersoft.studio.unit.pageHeight" value="pixel"/>
+	<property name="com.jaspersoft.studio.unit.pageWidth" value="pixel"/>
+	<property name="com.jaspersoft.studio.unit.topMargin" value="pixel"/>
+	<property name="com.jaspersoft.studio.unit.bottomMargin" value="pixel"/>
+	<property name="com.jaspersoft.studio.unit.leftMargin" value="pixel"/>
+	<property name="com.jaspersoft.studio.unit.rightMargin" value="pixel"/>
+	<property name="com.jaspersoft.studio.unit.columnWidth" value="pixel"/>
+	<property name="com.jaspersoft.studio.unit.columnSpacing" value="pixel"/>
 	<parameter name="checkupNote" class="java.lang.String"/>
 	<parameter name="checkupDate" class="java.lang.String"/>
 	<parameter name="patientDiagnos" class="java.lang.String"/>
@@ -47,11 +56,11 @@
 				<element kind="textField" uuid="eb56d4c8-2a0d-45fa-89a2-ad6528f9a99b" x="1" y="-5" width="398" height="22" forecolor="#FF0905" fontName="Times New Roman" fontSize="14.0" bold="true" hTextAlign="Center">
 					<expression><![CDATA[$P{clinicPrefix}]]></expression>
 				</element>
-				<element kind="textField" uuid="796d9ffd-6d2e-4ae3-bdfb-b08183d7d9c0" x="1" y="29" width="398" height="12" fontName="Times New Roman" fontSize="10.0">
-					<expression><![CDATA[$P{clinicAddress}]]></expression>
+				<element kind="textField" uuid="796d9ffd-6d2e-4ae3-bdfb-b08183d7d9c0" x="1" y="34" width="398" height="12" fontName="Times New Roman" fontSize="10.0" bold="true">
+					<expression><![CDATA["Địa chỉ: " +  $P{clinicAddress}]]></expression>
 				</element>
-				<element kind="textField" uuid="260bb33d-1d11-4178-aceb-3fbf8fcb4b45" x="1" y="41" width="398" height="15" fontName="Times New Roman" fontSize="8.0">
-					<expression><![CDATA[$P{clinicPhone}]]></expression>
+				<element kind="textField" uuid="260bb33d-1d11-4178-aceb-3fbf8fcb4b45" x="1" y="46" width="398" height="15" fontName="Times New Roman" fontSize="8.0" bold="true">
+					<expression><![CDATA["SĐT: " + $P{clinicPhone}]]></expression>
 				</element>
 				<element kind="staticText" uuid="6f89a93f-2d10-4506-baa5-226bdd047b17" x="0" y="65" width="100" height="30" forecolor="#FF0905" fontName="Times New Roman" fontSize="14.0" bold="true">
 					<text><![CDATA[I.Thông tin]]></text>
@@ -93,7 +102,7 @@
 					<expression><![CDATA[$P{checkupDate}]]></expression>
 				</element>
 				<element kind="staticText" uuid="9f7de81c-4c38-41a2-9fea-a165eff19431" x="1" y="124" width="69" height="16" fontName="Times New Roman" fontSize="12.0" bold="true" hTextAlign="Left">
-					<text><![CDATA[Chuẩn đoán:]]></text>
+					<text><![CDATA[Chẩn đoán:]]></text>
 				</element>
 				<element kind="textField" uuid="5ae67e13-7a79-437f-bfb8-c720d896720d" x="70" y="124" width="329" height="26" fontName="Times New Roman" fontSize="12.0">
 					<expression><![CDATA[$P{patientDiagnos}]]></expression>
@@ -136,16 +145,16 @@
 					<printWhenExpression><![CDATA[$P{driveURL} != null]]></printWhenExpression>
 					<text><![CDATA[Xem KQ online]]></text>
 				</element>
-				<element kind="image" uuid="692eae9f-a304-4cda-856d-7a3a95fac3df" stretchType="NoStretch" x="400" y="91" width="151" height="124">
+				<element kind="image" uuid="692eae9f-a304-4cda-856d-7a3a95fac3df" stretchType="NoStretch" x="400" y="97" width="151" height="124">
 					<expression><![CDATA[$P{image1}]]></expression>
 				</element>
-				<element kind="image" uuid="9a15475c-d08c-4c8f-bbdf-70cf98f97e90" x="400" y="216" width="151" height="124">
+				<element kind="image" uuid="9a15475c-d08c-4c8f-bbdf-70cf98f97e90" x="400" y="222" width="151" height="124">
 					<expression><![CDATA[$P{image2}]]></expression>
 				</element>
-				<element kind="image" uuid="2902cf3c-31dd-4b96-be87-fa8a13ba88ae" x="400" y="342" width="151" height="124">
+				<element kind="image" uuid="2902cf3c-31dd-4b96-be87-fa8a13ba88ae" x="400" y="347" width="151" height="124">
 					<expression><![CDATA[$P{image3}]]></expression>
 				</element>
-				<element kind="image" uuid="129e6c61-d572-48a9-925e-1ab2e4e573e2" x="400" y="466" width="151" height="124">
+				<element kind="image" uuid="129e6c61-d572-48a9-925e-1ab2e4e573e2" x="400" y="472" width="151" height="124">
 					<expression><![CDATA[$P{image4}]]></expression>
 				</element>
 				<element kind="textField" uuid="5fde8538-8d26-4761-9a19-dd716a74749a" x="1" y="12" width="398" height="20" forecolor="#FF0905" fontName="Times New Roman" fontSize="14.0" bold="true" hTextAlign="Center">
@@ -163,39 +172,33 @@
 			</element>
 		</band>
 	</detail>
-	<pageFooter height="20">
-		<element kind="textField" uuid="e94aab84-4f90-4496-bc35-17547a2fa18a" x="300" y="0" width="252" height="17" fontName="Times New Roman" pattern="MMMMM dd, yyyy" hTextAlign="Right" vTextAlign="Bottom">
-			<expression><![CDATA[new java.text.SimpleDateFormat("dd/MM/yyyy HH:mm").format(new java.util.Date()) + " | Trang " + $V{PAGE_NUMBER}]]></expression>
-			<property name="com.jaspersoft.studio.unit.height" value="px"/>
-		</element>
-	</pageFooter>
-	<summary height="179">
+	<summary height="187">
 		<element kind="staticText" uuid="b6ee4329-aeb1-4ddf-99e8-41ebebaff12b" x="0" y="0" width="100" height="30" forecolor="#FF0905" fontName="Times New Roman" fontSize="15.0" bold="true">
 			<text><![CDATA[III.Kết luận]]></text>
 		</element>
 		<element kind="staticText" uuid="f4c12e4d-9aac-428d-bd79-59c3d15f0d87" x="0" y="60" width="100" height="30" forecolor="#FF0905" fontName="Times New Roman" fontSize="15.0" bold="true">
 			<text><![CDATA[Đề nghị:]]></text>
 		</element>
-		<element kind="staticText" uuid="d1d33b8f-b79a-45a1-b33b-1eecb656f49a" x="400" y="70" width="96" height="15" fontName="Times New Roman" fontSize="12.0" bold="true" hTextAlign="Center">
+		<element kind="staticText" uuid="d1d33b8f-b79a-45a1-b33b-1eecb656f49a" x="400" y="87" width="96" height="15" fontName="Times New Roman" fontSize="12.0" bold="true" hTextAlign="Center">
 			<text><![CDATA[Bác sĩ siêu âm]]></text>
 		</element>
-		<element kind="textField" uuid="de0d077c-f1d6-4d0c-8bbd-fb08c19b07c6" x="347" y="140" width="200" height="21" fontName="Times New Roman" fontSize="14.0" bold="true" hTextAlign="Center">
+		<element kind="textField" uuid="de0d077c-f1d6-4d0c-8bbd-fb08c19b07c6" x="347" y="165" width="200" height="21" fontName="Times New Roman" fontSize="14.0" bold="true" hTextAlign="Center">
 			<expression><![CDATA[$P{ultrasoundDoctorName}]]></expression>
-		</element>
-		<element kind="textField" uuid="0b5be2b8-8837-41ee-a805-81f562f5f961" x="347" y="157" width="200" height="19" fontName="Times New Roman" pattern="MMMMM dd, yyyy" hTextAlign="Center" vTextAlign="Bottom">
-			<expression><![CDATA[new java.text.SimpleDateFormat("'Đức Hoà, ngày ' dd ' tháng ' MM ' năm ' yyyy", new java.util.Locale("vi", "VN")).format(new java.util.Date())]]></expression>
 		</element>
 		<element kind="staticText" uuid="0b4ca7da-4831-4ca6-8272-94af19fd3089" x="0" y="155" width="110" height="14" forecolor="#FF0905" fontName="Times New Roman" fontSize="10.0" bold="true">
 			<text><![CDATA[Tái khám:]]></text>
 		</element>
-		<element kind="textField" uuid="e4fb5d0b-bbc3-4e42-a431-1bd20bcfb25d" x="0" y="20" width="546" height="38" fontName="Times New Roman" fontSize="12.0">
+		<element kind="textField" uuid="e4fb5d0b-bbc3-4e42-a431-1bd20bcfb25d" x="0" y="20" width="546" height="38" fontName="Times New Roman" fontSize="12.0" bold="true">
 			<expression><![CDATA[$P{checkupConclusion}]]></expression>
 		</element>
-		<element kind="textField" uuid="16b6dfab-1434-4de5-a1c4-619470f3d867" x="0" y="80" width="347" height="66" fontName="Times New Roman" fontSize="12.0">
+		<element kind="textField" uuid="16b6dfab-1434-4de5-a1c4-619470f3d867" x="0" y="80" width="347" height="66" fontName="Times New Roman" fontSize="12.0" bold="true">
 			<expression><![CDATA[$P{checkupSuggestion}]]></expression>
 		</element>
 		<element kind="textField" uuid="4d8aeb33-ab41-4a5b-a5d1-52bab4043246" x="48" y="155" width="150" height="15" fontName="Times New Roman" fontSize="12.0">
 			<expression><![CDATA[$P{reCheckupDate}]]></expression>
+		</element>
+		<element kind="staticText" uuid="f1223127-533c-4ecf-a950-7324b8aae0fa" x="0" y="170" width="196" height="15" fontName="Times New Roman" fontSize="12.0" bold="true" italic="true" hTextAlign="Left">
+			<text><![CDATA[Lưu ý: Mang phiếu khi tái khám]]></text>
 		</element>
 	</summary>
 </jasperReport>

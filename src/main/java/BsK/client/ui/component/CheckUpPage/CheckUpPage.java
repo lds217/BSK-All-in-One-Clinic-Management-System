@@ -202,6 +202,7 @@ public class CheckUpPage extends JPanel {
     private JComboBox<String> webcamDeviceComboBox;
     private JButton webcamRefreshButton;
     private JButton takePictureButton;
+    private JButton openFolderButton;
     private JButton recordVideoButton;
     private String currentCheckupIdForMedia;
     private Path currentCheckupMediaPath;
@@ -1780,7 +1781,9 @@ public class CheckUpPage extends JPanel {
             case "printer":
                 if ((medicinePrescription == null || medicinePrescription.length == 0) &&
                     (servicePrescription == null || servicePrescription.length == 0)) {
-                    return; // Just return silently if there's nothing to print
+                    // make a dialog saying that there are no medicine or service
+                    JOptionPane.showMessageDialog(this, "Không có thuốc hoặc dịch vụ để in.", "Lỗi", JOptionPane.ERROR_MESSAGE);
+                    return;
                 }
                 // Separate regular medications and supplements
                 List<String[]> regularMeds = new ArrayList<>();
@@ -1844,6 +1847,8 @@ public class CheckUpPage extends JPanel {
                     log.error("Failed to show direct JasperViewer", e);
                     JOptionPane.showMessageDialog(this, "Lỗi khi hiển thị hộp thoại in: " + e.getMessage(), "Lỗi In", JOptionPane.ERROR_MESSAGE);
                 }
+
+                
                 break;
             case "ultrasound": // This case now handles "Lưu & In"
                 // Step 1: Validate conditions first.
@@ -1883,6 +1888,7 @@ public class CheckUpPage extends JPanel {
                         TextUtils.scaleRtfFontSize(getRtfContentAsString()),
                         conclusionField.getText() == null ? "" : conclusionField.getText(),
                         suggestionField.getText() == null ? "" : suggestionField.getText(),
+                        diagnosisField.getText() == null ? "" : diagnosisField.getText(),
                         recheckupDatePicker.getJFormattedTextField().getText(),
                         selectedImagesForPrint,
                         (String) orientationComboBox.getSelectedItem(), // Use selected orientation
@@ -1965,6 +1971,7 @@ public class CheckUpPage extends JPanel {
                         TextUtils.scaleRtfFontSize(getRtfContentAsString()),
                         conclusionField.getText() == null ? "" : conclusionField.getText(),
                         suggestionField.getText() == null ? "" : suggestionField.getText(),
+                        diagnosisField.getText() == null ? "" : diagnosisField.getText(),
                         recheckupDatePicker.getJFormattedTextField().getText(),
                         selectedImagesForPrint,
                         (String) orientationComboBox.getSelectedItem(), // Use selected orientation
@@ -2150,9 +2157,10 @@ public class CheckUpPage extends JPanel {
         }
         
         // Enable webcam controls for the new patient
-        if (takePictureButton != null) takePictureButton.setEnabled(false);
-        if (recordVideoButton != null) recordVideoButton.setEnabled(false);
-        if (webcamDeviceComboBox != null) webcamDeviceComboBox.setEnabled(false);
+        if (takePictureButton != null) takePictureButton.setEnabled(true);
+        if (recordVideoButton != null) recordVideoButton.setEnabled(true);
+        if (webcamDeviceComboBox != null) webcamDeviceComboBox.setEnabled(true);
+        if (openFolderButton != null) openFolderButton.setEnabled(true);
         if (webcamPanel != null) {
             webcamPanel.start(); // Start webcam preview for new patient
         }
@@ -2381,12 +2389,14 @@ public class CheckUpPage extends JPanel {
                 currentCheckupMediaPath = null;
                 if (takePictureButton != null) takePictureButton.setEnabled(false);
                 if (recordVideoButton != null) recordVideoButton.setEnabled(false);
+                if (openFolderButton != null) openFolderButton.setEnabled(false);
                 if (webcamDeviceComboBox != null) webcamDeviceComboBox.setEnabled(false);
             }
         } else {
             log.warn("No Checkup ID available (or it is empty) for media operations for selected patient (Customer ID: {}). Disabling media features.", selectedPatient.getCustomerId());
             if (takePictureButton != null) takePictureButton.setEnabled(false);
             if (recordVideoButton != null) recordVideoButton.setEnabled(false);
+            if (openFolderButton != null) openFolderButton.setEnabled(false);
             if (webcamDeviceComboBox != null) webcamDeviceComboBox.setEnabled(false);
             if(imageGalleryPanel != null) {
                 imageGalleryPanel.removeAll();
@@ -2636,7 +2646,7 @@ public class CheckUpPage extends JPanel {
 
         // Initialize image refresh timer (if not already)
         if (imageRefreshTimer == null) {
-            imageRefreshTimer = new javax.swing.Timer(5000, e -> { // Refresh every 5 seconds
+            imageRefreshTimer = new javax.swing.Timer(2000, e -> { // Refresh every 2 seconds
                 if (currentCheckupMediaPath != null && Files.exists(currentCheckupMediaPath)) {
                     loadAndDisplayImages(currentCheckupMediaPath);
                 }
@@ -2736,7 +2746,7 @@ public class CheckUpPage extends JPanel {
         recordingTimer = new javax.swing.Timer(1000, e -> updateRecordingTime());
 
         // Panel for buttons
-        JPanel buttonPanel = new JPanel(new GridLayout(1, 2, 5, 5));
+        JPanel buttonPanel = new JPanel(new GridLayout(1, 3, 5, 5));
         buttonPanel.setOpaque(false);
         
         takePictureButton = new JButton("<html>Chụp ảnh <font color='red'><b>(F5)</b></font></html>");
@@ -2748,9 +2758,33 @@ public class CheckUpPage extends JPanel {
         recordVideoButton.setIcon(new ImageIcon("src/main/java/BsK/client/ui/assets/icon/video-camera.png"));
         recordVideoButton.addActionListener(e -> handleRecordVideo());
         recordVideoButton.setEnabled(false);
+
+        openFolderButton = new JButton("Mở thư mục ảnh");
+        openFolderButton.setIcon(new ImageIcon("src/main/java/BsK/client/ui/assets/icon/folder.png"));
+        openFolderButton.setEnabled(false); // Initially disabled
+        openFolderButton.addActionListener(e -> {
+            if (currentCheckupMediaPath != null && Files.exists(currentCheckupMediaPath)) {
+                try {
+                    // This opens the folder in the system's file explorer
+                    Desktop.getDesktop().open(currentCheckupMediaPath.toFile());
+                } catch (IOException ex) {
+                    log.error("Failed to open media folder: {}", currentCheckupMediaPath, ex);
+                    JOptionPane.showMessageDialog(this,
+                        "Không thể mở thư mục: " + ex.getMessage(),
+                        "Lỗi",
+                        JOptionPane.ERROR_MESSAGE);
+                }
+            } else {
+                JOptionPane.showMessageDialog(this,
+                    "Không có thư mục media cho bệnh nhân này hoặc chưa chọn bệnh nhân.",
+                    "Thông báo",
+                    JOptionPane.INFORMATION_MESSAGE);
+            }
+        });
         
         buttonPanel.add(takePictureButton);
         buttonPanel.add(recordVideoButton);
+        buttonPanel.add(openFolderButton);
 
         // Layout for webcam controls
         JPanel southControls = new JPanel(new BorderLayout(5,5));
@@ -4853,7 +4887,9 @@ public class CheckUpPage extends JPanel {
             }
         }
         driveButton.setEnabled(false); // <-- ADD THIS LINE
-
+        if (takePictureButton != null) takePictureButton.setEnabled(false);
+        if (recordVideoButton != null) recordVideoButton.setEnabled(false);
+        if (openFolderButton != null) openFolderButton.setEnabled(false);
             // Clear media view
             if (imageGalleryPanel != null) {
                 imageGalleryPanel.removeAll();

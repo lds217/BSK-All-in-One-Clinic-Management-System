@@ -13,8 +13,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.jdatepicker.impl.JDatePanelImpl;
 import org.jdatepicker.impl.JDatePickerImpl;
 import org.jdatepicker.impl.UtilDateModel;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+
 
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;
@@ -31,17 +30,17 @@ import java.util.Properties;
 
 @Slf4j
 public class AddDialog extends JDialog {
-    private static final Logger log = LoggerFactory.getLogger(AddDialog.class);
     // --- Left Panel (Input Form) ---
     private JTextField patientNameField;
-    private JTextField patientYearField;
+
     private JTextField patientIdField;
     private JTextField patientPhoneField;
     private JTextField cccdField;
-    private JComboBox patientGenderField;
-    private JComboBox wardComboBox, provinceComboBox;
+    private JComboBox<String> patientGenderField;
+    private JComboBox<String> wardComboBox, provinceComboBox;
     private JTextField customerAddressField;
     private JDatePickerImpl dobPicker;
+    private int autoSelectPatientId = -1;
 
     // --- Right Panel (Search & Table) ---
     private JTextField searchNameField; // Dedicated search field
@@ -146,10 +145,54 @@ public class AddDialog extends JDialog {
                 paginationLabel.setText("/ " + totalPages + " (" + totalCount + " bệnh nhân)");
             }
 
-            // Clear selection and update button states
-            patientTable.clearSelection();
-            saveButton.setEnabled(false);
-            addPatientButton.setEnabled(true);
+            if (autoSelectPatientId != -1) {
+                boolean foundAndSelected = false;
+                
+                // Search for the patient in the current page
+                for (int i = 0; i < patientData.length; i++) {
+                    if (patientData[i] != null && patientData[i].length > 0) {
+                        try {
+                            int patientId = Integer.parseInt(patientData[i][0].toString());
+                            if (patientId == autoSelectPatientId) {
+                                // Found the patient, select the row
+                                patientTable.setRowSelectionInterval(i, i);
+                                
+                                // Scroll to make the selected row visible
+                                patientTable.scrollRectToVisible(patientTable.getCellRect(i, 0, true));
+                                
+                                // Handle the selection (populate form fields)
+                                handleRowSelection(i);
+                                
+                                foundAndSelected = true;
+                                break;
+                            }
+                        } catch (NumberFormatException e) {
+                            log.warn("Could not parse patient ID: {}", patientData[i][0]);
+                        }
+                    }
+                }
+                
+                if (!foundAndSelected) {
+                    // Patient not found on current page, might be on page 1
+                    // Search on page 1 if we're not already there
+                    if (currentPage != 1) {
+                        log.info("Patient not found on current page, searching on page 1");
+                        sendPatientSearchRequest(null, null, 1);
+                        return; // Don't reset autoSelectPatientId yet, let the next response handle it
+                    } else {
+                        log.warn("Could not find newly added patient with ID: {}", autoSelectPatientId);
+                    }
+                }
+                
+                // Reset the auto-selection flag
+                autoSelectPatientId = -1;
+            } else {
+                // Normal behavior when not auto-selecting
+                // Clear selection and update button states
+                patientTable.clearSelection();
+                saveButton.setEnabled(false);
+                addPatientButton.setEnabled(true);
+            }
         });
     }
 
@@ -306,18 +349,28 @@ public class AddDialog extends JDialog {
         mainGbc.gridy = 1;
         inputPanel.add(addressInfoPanel, mainGbc);
 
-        // --- Checkup Info Panel ---
+        // --- Patient Action Panel (NEW) ---
+        JPanel patientActionPanel = new JPanel(new GridBagLayout());
+        patientActionPanel.setBorder(BorderFactory.createTitledBorder(
+                BorderFactory.createEtchedBorder(), "Thao tác bệnh nhân",
+                javax.swing.border.TitledBorder.LEADING, javax.swing.border.TitledBorder.TOP,
+                titleFont, new Color(50, 50, 50)
+        ));
+        mainGbc.gridy = 2; // This goes after address panel
+        inputPanel.add(patientActionPanel, mainGbc);
+
+        // --- Checkup Info Panel (MOVED DOWN) ---
         JPanel checkupInfoPanel = new JPanel(new GridBagLayout());
         checkupInfoPanel.setBorder(BorderFactory.createTitledBorder(
                 BorderFactory.createEtchedBorder(), "Thông tin đăng ký khám",
                 javax.swing.border.TitledBorder.LEADING, javax.swing.border.TitledBorder.TOP,
                 titleFont, new Color(50, 50, 50)
         ));
-        mainGbc.gridy = 2;
+        mainGbc.gridy = 3; // This goes after patient action panel
         inputPanel.add(checkupInfoPanel, mainGbc);
         
         // Placeholder for other components if any, or adjust weighting
-        mainGbc.gridy = 3;
+        mainGbc.gridy = 4;
         mainGbc.weighty = 1.0; // Allow inputPanel to take remaining vertical space if needed
         inputPanel.add(new JPanel(), mainGbc); // Empty panel to push others up
 
@@ -425,18 +478,51 @@ public class AddDialog extends JDialog {
         patientInfoPanel.add(cccdField, gbc);
         gbc.gridwidth = 1; // Reset
 
-        // Populate Checkup Info Panel
-        gbc.gridy = 0; // Reset gridy for the new panel
+        // Populate Patient Action Panel
+        gbc.gridy = 0;
+        gbc.gridx = 0;
+        gbc.gridwidth = 4;
+        gbc.weightx = 1.0;
+        addPatientButton = new JButton("Thêm bệnh nhân mới");
+        addPatientButton.setFont(textFont);
+        addPatientButton.setEnabled(true);
+        patientActionPanel.add(addPatientButton, gbc);
+
+        // Add note label
+        gbc.gridy++;
+        gbc.gridx = 0;
+        gbc.gridwidth = 4;
+        gbc.weightx = 1.0;
+        JLabel noteLabel = new JLabel("<html><i>Lưu ý: Thêm bệnh nhân chưa thêm vào hàng đợi khám. Cần thực hiện thêm vào hàng đợi ở bước tiếp theo.</i></html>");
+        noteLabel.setFont(new Font("Arial", Font.ITALIC, 12));
+        noteLabel.setForeground(new Color(100, 100, 100));
+        patientActionPanel.add(noteLabel, gbc);
+
+        // Add clear button
+        gbc.gridy++;
+        gbc.gridx = 0;
+        gbc.gridwidth = 4;
+        gbc.weightx = 1.0;
+        clearButton = new JButton("Làm mới");
+        clearButton.setFont(textFont);
+        patientActionPanel.add(clearButton, gbc);
+
+        // Reset for checkup panel
+        gbc.weightx = 0.0;
+        gbc.gridwidth = 1;
+
+        // Populate Checkup Info Panel (UPDATED)
+        gbc.gridy = 0;
         gbc.gridx = 0;
         gbc.gridwidth = 1;
-        gbc.weightx = 0.0; // Label doesn't expand
+        gbc.weightx = 0.0;
         JLabel doctorLabel = new JLabel("Bác sĩ khám:");
         doctorLabel.setFont(labelFont);
         checkupInfoPanel.add(doctorLabel, gbc);
 
         gbc.gridx = 1;
-        gbc.gridwidth = 1; // Doctor ComboBox takes 1 column
-        gbc.weightx = 0.5; // Doctor ComboBox takes some horizontal space
+        gbc.gridwidth = 1;
+        gbc.weightx = 0.5;
         doctorComboBox = new JComboBox<>(LocalStorage.doctorsName.toArray(new DoctorItem[0]));
         doctorComboBox.setFont(textFont);
         doctorComboBox.setPreferredSize(comboBoxSize);
@@ -445,39 +531,53 @@ public class AddDialog extends JDialog {
         // Checkup Type on the same row
         gbc.gridx = 2;
         gbc.gridwidth = 1;
-        gbc.weightx = 0.0; // Label doesn't expand
+        gbc.weightx = 0.0;
         JLabel checkupTypeLabel = new JLabel("Loại khám:");
         checkupTypeLabel.setFont(labelFont);
         checkupInfoPanel.add(checkupTypeLabel, gbc);
 
         gbc.gridx = 3;
-        gbc.gridwidth = 1; // Checkup Type ComboBox takes 1 column
-        gbc.weightx = 0.5; // Checkup Type ComboBox takes some horizontal space
+        gbc.gridwidth = 1;
+        gbc.weightx = 0.5;
         String[] checkupTypeOptions = {"BỆNH", "THAI", "KHÁC"};
         checkupTypeComboBox = new JComboBox<>(checkupTypeOptions);
         checkupTypeComboBox.setFont(textFont);
         checkupTypeComboBox.setPreferredSize(comboBoxSize);
         checkupInfoPanel.add(checkupTypeComboBox, gbc);
-        gbc.weightx = 0.0; // Reset weightx
+        gbc.weightx = 0.0;
 
-        // Add new buttons row (Row 1)
+        // Add the main action button - spans full width and is more prominent
         gbc.gridy++;
         gbc.gridx = 0;
-        gbc.gridwidth = 2;
-        gbc.weightx = 0.5;
-        addPatientButton = new JButton("Thêm bệnh nhân mới");
-        addPatientButton.setFont(textFont);
-        addPatientButton.setEnabled(true); // Initially enabled since no patient is selected
-        checkupInfoPanel.add(addPatientButton, gbc);
+        gbc.gridwidth = 4;
+        gbc.weightx = 1.0;
+        gbc.insets = new Insets(15, 5, 5, 5); // Extra top margin for separation
 
-        gbc.gridx = 2;
-        gbc.gridwidth = 2;
-        gbc.weightx = 0.5;
-        clearButton = new JButton("Làm mới");
-        clearButton.setFont(textFont);
-        checkupInfoPanel.add(clearButton, gbc);
-        gbc.weightx = 0.0; // Reset weightx
-        gbc.gridwidth = 1; // Reset gridwidth
+        // Option 1: Single combined button
+        saveButton = new JButton("Thêm vào hàng đợi khám");
+        // Option 2: More explicit button
+        // saveButton = new JButton("Thêm bệnh nhân vào hàng đợi khám");
+
+        saveButton.setFont(new Font("Arial", Font.BOLD, 16)); // Make it more prominent
+        saveButton.setPreferredSize(new Dimension(0, 35)); // Taller button
+        saveButton.setEnabled(false);
+        saveButton.addActionListener(e -> {
+            int patientId = Integer.parseInt(patientIdField.getText());
+            DoctorItem selectedDoctor = (DoctorItem) doctorComboBox.getSelectedItem();
+            if (selectedDoctor == null || selectedDoctor.getId() == null) {
+                JOptionPane.showMessageDialog(this, "Vui lòng chọn một bác sĩ hợp lệ.", "Lỗi", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            int doctorId = Integer.parseInt(selectedDoctor.getId());
+            String selectedCheckupType = (String) checkupTypeComboBox.getSelectedItem();
+            NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new AddCheckupRequest(patientId, doctorId, LocalStorage.userId, selectedCheckupType, "CHỜ KHÁM"));
+        });
+        checkupInfoPanel.add(saveButton, gbc);
+
+        // Reset insets and weights
+        gbc.insets = new Insets(5, 5, 5, 5);
+        gbc.weightx = 0.0;
+        gbc.gridwidth = 1;
 
 
         // Populate Address Info Panel
@@ -542,8 +642,7 @@ public class AddDialog extends JDialog {
             @Override
             public void actionPerformed(ActionEvent e) {
                 int selectedIndex = provinceComboBox.getSelectedIndex();
-                wardModel = new DefaultComboBoxModel<>(new String[]{"Xã/Phường"});
-                wardComboBox.setModel(wardModel); // Set ward combo box model
+                wardComboBox.setModel(new DefaultComboBoxModel<>(new String[]{"Xã/Phường"})); // Set ward combo box model
                 if (selectedIndex != 0) { // If the selected index is not 0 (which corresponds to "Tỉnh/Thành phố")
                     NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetWardRequest(LocalStorage.provinceToId
                             .get(provinceComboBox.getSelectedItem().toString())));
@@ -592,32 +691,7 @@ public class AddDialog extends JDialog {
         add(splitPane, BorderLayout.CENTER);
 
 
-        JPanel ButtonPanel = new JPanel();
-        JButton closeButton = new JButton("Đóng");
-        closeButton.setFont(labelFont);
-        closeButton.addActionListener(e -> {
-            setVisible(false);
-        });
-        ButtonPanel.add(closeButton);
 
-        saveButton = new JButton("Thêm vào khám");
-        saveButton.setFont(labelFont);
-        saveButton.addActionListener(e -> {
-            int patientId = Integer.parseInt(patientIdField.getText());
-            DoctorItem selectedDoctor = (DoctorItem) doctorComboBox.getSelectedItem();
-            if (selectedDoctor == null || selectedDoctor.getId() == null) {
-                JOptionPane.showMessageDialog(this, "Vui lòng chọn một bác sĩ hợp lệ.", "Lỗi", JOptionPane.ERROR_MESSAGE);
-                return;
-            }
-            int doctorId = Integer.parseInt(selectedDoctor.getId());
-            String selectedCheckupType = (String) checkupTypeComboBox.getSelectedItem();
-            NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new AddCheckupRequest(patientId, doctorId, LocalStorage.userId, selectedCheckupType, "CHỜ KHÁM"));
-
-        });
-        saveButton.setEnabled(false);
-        ButtonPanel.add(saveButton);
-
-        add(ButtonPanel, BorderLayout.SOUTH);
 
         // Add Escape key listener to close dialog
         JRootPane rootPane = this.getRootPane();
@@ -928,7 +1002,8 @@ public class AddDialog extends JDialog {
                 patientIdField.setText(String.valueOf(response.getPatientId()));
                 addPatientButton.setEnabled(false); // Disable add patient button
                 saveButton.setEnabled(true);      // Enable save button
-                
+                final int newPatientId = response.getPatientId();
+                autoSelectPatientId = newPatientId;
                 // Refresh the patient list in the dialog
                 sendGetRecentPatientRequest();
     
@@ -943,8 +1018,7 @@ public class AddDialog extends JDialog {
         log.info("Received dialog ward data");
 
         LocalStorage.wards = response.getWards();
-        wardModel = new DefaultComboBoxModel<>(LocalStorage.wards);
-        wardComboBox.setModel(wardModel);
+        wardComboBox.setModel(new DefaultComboBoxModel<>(LocalStorage.wards));
         wardComboBox.setEnabled(true); // Enable ward combo box
 
         // Set the ward after the ward data is loaded
@@ -995,25 +1069,5 @@ public class AddDialog extends JDialog {
                 }
             }
         });
-    }
-
-
-    public static void main(String[] args) {
-        // add a button to open the dialog
-        JFrame frame = new JFrame();
-        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        frame.setSize(400, 400);
-        frame.setLayout(new BorderLayout());
-        frame.setVisible(true);
-
-        JButton openDialogButton = new JButton("Mở Dialog");
-        openDialogButton.addActionListener(e -> {
-            AddDialog dialog = new AddDialog(frame);
-            dialog.setVisible(true);
-        });
-
-        frame.add(openDialogButton, BorderLayout.CENTER);
-
-
     }
 }
