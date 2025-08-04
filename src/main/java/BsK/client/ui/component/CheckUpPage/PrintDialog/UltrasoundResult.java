@@ -166,6 +166,7 @@ public class UltrasoundResult {
     private final String rtfContent;
     private final String conclusion;
     private final String suggestion;
+    private final String diagnosis;
     private final String recheckupDate;
     private final List<File> selectedImages;
     private final String printType; // "ngang" or "dọc"
@@ -182,7 +183,7 @@ public class UltrasoundResult {
 
     public UltrasoundResult(String checkupId, String patientName, String patientDOB, String patientGender,
                             String patientAddress, String doctorName, String ultrasoundDoctorName, String checkupDate,
-                            String rtfContent, String conclusion, String suggestion,
+                            String rtfContent, String conclusion, String suggestion, String diagnosis,
                             String recheckupDate, List<File> selectedImages, 
                             String printType, String templateTitle, String customerHeight, 
                             String customerWeight, String heartRate, String bloodPressure, String driveUrl) {
@@ -200,6 +201,7 @@ public class UltrasoundResult {
         this.rtfContent = convertNullToEmpty(rtfContent);
         this.conclusion = convertNullToEmpty(conclusion);
         this.suggestion = convertNullToEmpty(suggestion);
+        this.diagnosis = convertNullToEmpty(diagnosis);
         this.recheckupDate = convertNullToEmpty(recheckupDate);
         this.selectedImages = selectedImages != null ? selectedImages : new ArrayList<>();
         this.printType = convertNullToEmpty(printType);
@@ -296,7 +298,7 @@ public class UltrasoundResult {
             parameters.put("checkupConclusion", this.conclusion != null ? this.conclusion : "");
             parameters.put("checkupSuggestion", this.suggestion != null ? this.suggestion : "");
             parameters.put("reCheckupDate", this.recheckupDate != null ? this.recheckupDate : "");
-            
+            parameters.put("patientDiagnos", this.diagnosis != null ? this.diagnosis : "");
             // Vitals data
             parameters.put("checkupHeight", this.customerHeight != null ? this.customerHeight : "");
             parameters.put("checkupWeight", this.customerWeight != null ? this.customerWeight : "");
