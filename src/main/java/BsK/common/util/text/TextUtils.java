@@ -150,7 +150,7 @@ public final class TextUtils {
                 // The font size in RTF is in half-points. JTextPane seems to generate
                 // sizes that are double what is visually represented. Dividing by 2
                 // brings it to the expected point size for JasperReports.
-                int newSize = originalSize / 2;
+                int newSize = (int) (originalSize / 1.5);
                 
                 // Append the replacement string. We need to escape the backslash for appendReplacement.
                 matcher.appendReplacement(sb, "\\\\fs" + newSize);

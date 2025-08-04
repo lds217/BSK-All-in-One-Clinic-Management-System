@@ -1368,8 +1368,20 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
             StringBuilder whereClause = new StringBuilder();
             java.util.List<Object> params = new java.util.ArrayList<>();
             boolean hasWhere = false;
-    
-            if (getCheckupDataRequest.getSearchTerm() != null && !getCheckupDataRequest.getSearchTerm().trim().isEmpty()) {
+
+            String checkupIdSearch = getCheckupDataRequest.getCheckupIdSearch();
+            if (checkupIdSearch != null && !checkupIdSearch.trim().isEmpty()) {
+                whereClause.append("WHERE a.checkup_id = ?");
+                try {
+                    // Chuyển đổi sang kiểu số để tìm kiếm chính xác và an toàn
+                    params.add(Integer.parseInt(checkupIdSearch.trim()));
+                } catch (NumberFormatException e) {
+                    // Nếu người dùng nhập chữ, ta truyền một giá trị không thể tìm thấy để trả về 0 kết quả
+                    params.add(-1); 
+                }
+                hasWhere = true;
+            } 
+            else if (getCheckupDataRequest.getSearchTerm() != null && !getCheckupDataRequest.getSearchTerm().trim().isEmpty()) {
                 whereClause.append("WHERE (LOWER(c.customer_first_name) LIKE ? OR LOWER(c.customer_last_name) LIKE ? OR " +
                                    "LOWER(CONCAT(c.customer_last_name, ' ', c.customer_first_name)) LIKE ? OR c.customer_number LIKE ?)");
                 String searchTerm = "%" + getCheckupDataRequest.getSearchTerm().toLowerCase().trim() + "%";

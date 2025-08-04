@@ -4833,6 +4833,10 @@ public class CheckUpPage extends JPanel {
                 recheckupDatePickerButton.setEnabled(false);
             }
 
+            templateTitle = null;
+            photoNum = 0;
+            orientationComboBox.setSelectedItem("ngang");
+
             medicinePrescription = new String[0][0];
             servicePrescription = new String[0][0];
             updatePrescriptionTree();
