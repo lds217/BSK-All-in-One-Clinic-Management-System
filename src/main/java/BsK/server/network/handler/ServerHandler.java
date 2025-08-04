@@ -2200,6 +2200,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
    */
   private void uploadCheckupImageToGoogleDriveAsync(String checkupId, String fileName, byte[] imageData) {
     // CẢI TIẾN: Sử dụng CompletableFuture để xử lý bất đồng bộ, hiệu quả hơn new Thread().
+    log.info("uploadCheckupImageToGoogleDriveAsync");
     CompletableFuture.runAsync(() -> {
         try {
             if (!Server.isGoogleDriveConnected()) {

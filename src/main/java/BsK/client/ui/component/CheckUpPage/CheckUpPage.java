@@ -3672,7 +3672,7 @@ public class CheckUpPage extends JPanel {
      * @param pdfType The type of PDF ("ultrasound_result" or "medserinvoice")
      */
     private void uploadPdfToBackend(UltrasoundResult ultrasoundResult, String pdfType, String checkupId) {
-
+        log.info("uploadPdfToBackend");
         // Run PDF export and upload in background thread to avoid blocking UI
         CompletableFuture.runAsync(() -> {
             try {
