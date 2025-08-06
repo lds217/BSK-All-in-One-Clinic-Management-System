@@ -5,6 +5,8 @@ import javax.swing.border.TitledBorder;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.text.*;
 import java.awt.*;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
 import java.lang.management.OperatingSystemMXBean;
@@ -35,8 +37,6 @@ public class ServerDashboard extends JFrame {
     private boolean isAutoScrollEnabled = true;
     private JTable networkTable;
     private DefaultTableModel networkTableModel;
-
-    // --- NEW ---
     private JButton backupDbButton;
 
     public static ServerDashboard getInstance() {
@@ -49,8 +49,11 @@ public class ServerDashboard extends JFrame {
     private ServerDashboard() {
         setTitle("BSK Server Dashboard");
         setSize(1200, 800);
-        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
+        
+        // --- MODIFICATION START: Add custom close logic ---
+        addCustomCloseListener();
+        // --- MODIFICATION END ---
 
         // Main container panel
         JPanel mainPanel = new JPanel(new BorderLayout(10, 10));
@@ -66,7 +69,12 @@ public class ServerDashboard extends JFrame {
         startSystemStatsTimer();
         startNetworkStatsTimer();
     }
-
+    
+    // Unchanged methods from your original code are here...
+    // createHeaderPanel(), performDatabaseBackup(), createMainContentPanel(), etc.
+    // I've omitted them for brevity but they should remain in your file.
+    
+    // --- START OF UNCHANGED METHODS (for context) ---
     private JPanel createHeaderPanel() {
         JPanel headerPanel = new JPanel(new GridBagLayout());
         GridBagConstraints gbc = new GridBagConstraints();
@@ -127,7 +135,6 @@ public class ServerDashboard extends JFrame {
         return headerPanel;
     }
     
-    // --- NEW: Method to handle the backup action ---
     private void performDatabaseBackup() {
         // Disable button to prevent multiple clicks
         backupDbButton.setEnabled(false);
@@ -153,10 +160,10 @@ public class ServerDashboard extends JFrame {
                 // Update UI on failure
                 SwingUtilities.invokeLater(() -> {
                     addLog("❌ Database backup failed: " + e.getMessage());
-                     JOptionPane.showMessageDialog(this,
-                            "Failed to backup the database.\nError: " + e.getMessage() + "\n\nCheck logs for more details.",
-                            "Backup Failed",
-                            JOptionPane.ERROR_MESSAGE);
+                        JOptionPane.showMessageDialog(this,
+                                "Failed to backup the database.\nError: " + e.getMessage() + "\n\nCheck logs for more details.",
+                                "Backup Failed",
+                                JOptionPane.ERROR_MESSAGE);
                 });
             } finally {
                 // Always re-enable the button on the UI thread
@@ -166,7 +173,6 @@ public class ServerDashboard extends JFrame {
     }
 
     private JSplitPane createMainContentPanel() {
-        // ... (This method remains unchanged)
         // --- Log Panel ---
         JPanel logPanel = new JPanel(new BorderLayout());
         logPanel.setBorder(BorderFactory.createTitledBorder("Server Logs"));
@@ -197,7 +203,6 @@ public class ServerDashboard extends JFrame {
     }
 
     private JPanel createLogControlsPanel() {
-        // ... (This method remains unchanged)
         JPanel logControlsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         searchField = new JTextField(20);
         JButton searchButton = new JButton("Search");
@@ -218,7 +223,6 @@ public class ServerDashboard extends JFrame {
     }
 
     private void startSystemStatsTimer() {
-        // ... (This method remains unchanged)
         MemoryMXBean memoryBean = ManagementFactory.getMemoryMXBean();
         OperatingSystemMXBean osBean = ManagementFactory.getOperatingSystemMXBean();
 
@@ -240,13 +244,11 @@ public class ServerDashboard extends JFrame {
     }
 
     private void startNetworkStatsTimer() {
-        // ... (This method remains unchanged)
         networkStatsTimer = new Timer(1000, e -> refreshNetworkTable());
         networkStatsTimer.start();
     }
 
     public void refreshNetworkTable() {
-        // ... (This method remains unchanged)
         SwingUtilities.invokeLater(() -> {
             networkTableModel.setRowCount(0);
             for (ClientConnection conn : SessionManager.getAllConnections()) {
@@ -263,7 +265,6 @@ public class ServerDashboard extends JFrame {
     }
 
     private void searchInLogs() {
-        // ... (This method remains unchanged)
         String searchText = searchField.getText().toLowerCase();
         if (searchText.isEmpty()) {
             return;
@@ -288,7 +289,6 @@ public class ServerDashboard extends JFrame {
     }
 
     private void clearLogs() {
-        // ... (This method remains unchanged)
         SwingUtilities.invokeLater(() -> {
             try {
                 logArea.getDocument().remove(0, logArea.getDocument().getLength());
@@ -300,7 +300,6 @@ public class ServerDashboard extends JFrame {
     }
 
     public void updateStatus(String status, Color color) {
-        // ... (This method remains unchanged)
         SwingUtilities.invokeLater(() -> {
             statusLabel.setText("Status: " + status);
             statusLabel.setForeground(color);
@@ -308,26 +307,22 @@ public class ServerDashboard extends JFrame {
     }
 
     public void updatePort(int port) {
-        // ... (This method remains unchanged)
         SwingUtilities.invokeLater(() ->
             portLabel.setText("Port: " + port)
         );
     }
 
     public static void incrementClients() {
-        // ... (This method remains unchanged)
         connectedClients++;
         updateClientCount();
     }
 
     public static void decrementClients() {
-        // ... (This method remains unchanged)
         connectedClients = Math.max(0, connectedClients - 1);
         updateClientCount();
     }
 
     private static void updateClientCount() {
-        // ... (This method remains unchanged)
         if (instance != null) {
             SwingUtilities.invokeLater(() -> {
                 instance.clientsLabel.setText("Connected Clients: " + connectedClients);
@@ -337,7 +332,6 @@ public class ServerDashboard extends JFrame {
     }
 
     public void addLog(String message) {
-        // ... (This method remains unchanged)
         SwingUtilities.invokeLater(() -> {
             try {
                 Document doc = logArea.getDocument();
@@ -360,7 +354,6 @@ public class ServerDashboard extends JFrame {
     }
 
     public void updateGoogleDriveStatus(boolean connected, String statusMessage) {
-        // ... (This method remains unchanged)
         SwingUtilities.invokeLater(() -> {
             if (connected) {
                 googleDriveLabel.setText("✅ " + statusMessage);
@@ -377,7 +370,6 @@ public class ServerDashboard extends JFrame {
     }
 
     private void retryGoogleDriveConnection() {
-        // ... (This method remains unchanged)
         SwingUtilities.invokeLater(() -> {
             googleDriveLabel.setText("🔄 Connecting...");
             googleDriveLabel.setForeground(Color.ORANGE);
@@ -413,7 +405,6 @@ public class ServerDashboard extends JFrame {
 
     @Override
     public void dispose() {
-        // ... (This method remains unchanged)
         if (statsTimer != null) {
             statsTimer.stop();
         }
@@ -422,4 +413,45 @@ public class ServerDashboard extends JFrame {
         }
         super.dispose();
     }
+    // --- END OF UNCHANGED METHODS ---
+
+    // --- MODIFICATION START: Add new methods for close confirmation ---
+    /**
+     * Overrides the default close operation to show a confirmation dialog.
+     */
+    private void addCustomCloseListener() {
+        // This tells the frame to do nothing automatically when the 'X' is clicked.
+        // We will handle the closing manually.
+        setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
+
+        addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowClosing(WindowEvent e) {
+                showExitConfirmationDialog();
+            }
+        });
+    }
+
+    /**
+     * Displays the confirmation dialog and exits the application if confirmed.
+     */
+    private void showExitConfirmationDialog() {
+        String title = "Xác nhận thoát";
+        String message = "Nếu tắt bạn sẽ đóng tất cả các máy con. Bạn có chắc chắn không?";
+
+        int result = JOptionPane.showConfirmDialog(
+                this,
+                message,
+                title,
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.WARNING_MESSAGE);
+
+        if (result == JOptionPane.YES_OPTION) {
+            // User confirmed, so exit the entire application.
+            // This will trigger the graceful shutdown logic in your Server's main() method.
+            System.exit(0);
+        }
+        // If the user chooses "No", the dialog closes and nothing else happens.
+    }
+    // --- MODIFICATION END ---
 }

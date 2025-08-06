@@ -271,7 +271,7 @@ public class MedicineDialog extends JDialog {
         routeField = new JTextField(20);
         routeField.setFont(textFont);
         routeField.setPreferredSize(textFieldSize);
-        routeField.setEditable(false);
+        routeField.setEditable(true);
         medicineInfoPanel.add(routeField, gbc);
         gbc.weightx = 0.0;
         // --- END ADDED ---

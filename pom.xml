@@ -246,5 +246,12 @@
             <artifactId>sqlite-jdbc</artifactId>
             <version>3.45.1.0</version>
         </dependency>
+        <dependency>
+    <groupId>com.yourcompany</groupId>
+    <artifactId>jasper-fonts-timesnewroman</artifactId>
+    <version>1.0</version>
+    <scope>system</scope>
+    <systemPath>${project.basedir}/src/main/resources/fonts/timesnewroman-fonts.jar</systemPath>
+</dependency>
     </dependencies>
 </project>

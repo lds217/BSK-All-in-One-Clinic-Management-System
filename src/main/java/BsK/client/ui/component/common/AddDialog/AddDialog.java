@@ -721,7 +721,7 @@ public class AddDialog extends JDialog {
 
             // Validate required fields
             if (patientName.isEmpty() || patientPhone.isEmpty() || customerAddress.isEmpty() || 
-                dobPicker.getJFormattedTextField().getText().isEmpty()) {
+                dobPicker.getJFormattedTextField().getText().isEmpty() || cccd.isEmpty()) {
                 JOptionPane.showMessageDialog(this, "Vui lòng điền đầy đủ thông tin");
                 return;
             }

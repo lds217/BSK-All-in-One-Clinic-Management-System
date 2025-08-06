@@ -31,6 +31,8 @@ public class NavBar extends JPanel {
 
     private JLabel activeNavItem = null;
     private final MainFrame mainFrame;
+    private JLabel unreadCountLabel; // NEW: Label to display unread count
+    private RoundedPanel messageButtonPanel; // NEW: Reference to message button panel for repainting
 
     // Listener for incoming emergency alerts
     private final ResponseListener<EmergencyResponse> emergencyResponseListener = this::handleEmergencyResponse;
@@ -275,6 +277,10 @@ public class NavBar extends JPanel {
 
     private void showNotificationForMessage(SimpleMessageResponse response) {
         SwingUtilities.invokeLater(() -> {
+            // Increment unread message count
+            LocalStorage.unreadMessageCnt++;
+            updateUnreadCountDisplay();
+            
             // Create a borderless window for the notification
             JWindow notificationWindow = new JWindow(mainFrame);
             
@@ -334,6 +340,26 @@ public class NavBar extends JPanel {
     public void enableMessageListener() {
         ClientHandler.addResponseListener(SimpleMessageResponse.class, navBarMessageListener);
         log.info("NavBar message listener re-enabled.");
+    }
+
+    // NEW: Method to reset unread count when chat dialog opens
+    public void resetUnreadMessageCount() {
+        LocalStorage.unreadMessageCnt = 0;
+        updateUnreadCountDisplay();
+        log.info("Unread message count reset to 0.");
+    }
+
+    // NEW: Method to update the unread count display
+    private void updateUnreadCountDisplay() {
+        SwingUtilities.invokeLater(() -> {
+            if (LocalStorage.unreadMessageCnt > 0) {
+                unreadCountLabel.setText(String.valueOf(LocalStorage.unreadMessageCnt));
+                unreadCountLabel.setVisible(true);
+            } else {
+                unreadCountLabel.setVisible(false);
+            }
+            messageButtonPanel.repaint();
+        });
     }
 
     private Component createEmergencyButton() {
@@ -435,22 +461,23 @@ public class NavBar extends JPanel {
 
     private Component createMessageButton() {
         Color messageColor = new Color(150, 150, 150); // Muted gray color
-        RoundedPanel buttonPanel = new RoundedPanel(15, messageColor, true);
-        buttonPanel.setLayout(new BorderLayout(2, 2));
-        buttonPanel.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        buttonPanel.setToolTipText("Tin nhắn"); // Add a tooltip
+        messageButtonPanel = new RoundedPanel(15, messageColor, true); // Store reference
+        messageButtonPanel.setLayout(null); // Use null layout for absolute positioning
+        messageButtonPanel.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        messageButtonPanel.setToolTipText("Tin nhắn"); // Add a tooltip
 
         // Make the button smaller and square-like
-        buttonPanel.setPreferredSize(new Dimension(55, 55));
-        buttonPanel.setBorder(BorderFactory.createCompoundBorder(
+        messageButtonPanel.setPreferredSize(new Dimension(55, 55));
+        messageButtonPanel.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createEmptyBorder(2, 2, 2, 2),
                 BorderFactory.createEmptyBorder(5, 10, 5, 10)
         ));
 
-        // Create the label without text
+        // Create the main icon label
         JLabel buttonLabel = new JLabel();
         buttonLabel.setHorizontalAlignment(SwingConstants.CENTER);
         buttonLabel.setOpaque(false);
+        buttonLabel.setBounds(0, 0, 55, 55); // Position the main icon
 
         try {
             String iconPath = "src/main/java/BsK/client/ui/assets/icon/chat.png";
@@ -463,11 +490,33 @@ public class NavBar extends JPanel {
             buttonLabel.setText("Msg"); // Fallback text if icon fails
         }
 
-        buttonPanel.add(buttonLabel, BorderLayout.CENTER);
+        // Create the unread count badge
+        unreadCountLabel = new JLabel();
+        unreadCountLabel.setOpaque(true);
+        unreadCountLabel.setBackground(Color.RED);
+        unreadCountLabel.setForeground(Color.WHITE);
+        unreadCountLabel.setFont(new Font("Arial", Font.BOLD, 10));
+        unreadCountLabel.setHorizontalAlignment(SwingConstants.CENTER);
+        unreadCountLabel.setBounds(35, 5, 18, 18); // Position in top-right corner
+        unreadCountLabel.setBorder(BorderFactory.createEmptyBorder(1, 1, 1, 1));
+        
+        // Make the badge circular
+        unreadCountLabel.setPreferredSize(new Dimension(18, 18));
+        unreadCountLabel.setMinimumSize(new Dimension(18, 18));
+        unreadCountLabel.setMaximumSize(new Dimension(18, 18));
+        
+        // Initially hide the badge
+        unreadCountLabel.setVisible(false);
 
-        buttonPanel.addMouseListener(new MouseAdapter() {
+        messageButtonPanel.add(buttonLabel);
+        messageButtonPanel.add(unreadCountLabel);
+
+        messageButtonPanel.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
+                // Reset unread count when opening chat
+                resetUnreadMessageCount();
+                
                 // Open the SimpleChatDialog
                 SimpleChatDialog chatDialog = new SimpleChatDialog(mainFrame, NavBar.this);
                 chatDialog.setVisible(true);
@@ -475,16 +524,16 @@ public class NavBar extends JPanel {
 
             @Override
             public void mouseEntered(MouseEvent e) {
-                buttonPanel.setBackground(messageColor.darker());
+                messageButtonPanel.setBackground(messageColor.darker());
             }
 
             @Override
             public void mouseExited(MouseEvent e) {
-                buttonPanel.setBackground(messageColor);
+                messageButtonPanel.setBackground(messageColor);
             }
         });
 
-        return buttonPanel;
+        return messageButtonPanel;
     }
 
     /**

@@ -1929,8 +1929,6 @@ public class CheckUpPage extends JPanel {
                     JOptionPane.showMessageDialog(this, "Không thể hiển thị hộp thoại in: " + e.getMessage(), "Lỗi In", JOptionPane.ERROR_MESSAGE);
                 }
 
-                // Step 5: Upload PDF to backend after successful print dialog
-                uploadPdfToBackend(ultrasoundResultPrint, "ultrasound_result", checkupIdField.getText());
                 afterSaveActions(statusToSavePrint, "Đã lưu. Đang gửi lệnh in...");
                 break;
             case "loupe": // This case now handles "Lưu & Xem"
@@ -2004,8 +2002,6 @@ public class CheckUpPage extends JPanel {
                 // Step 4: Finally, show the viewer with the pre-made object.
                 JasperViewer.viewReport(jasperPrintToView, false);
 
-                // Step 5: Upload PDF to backend after successful view
-                uploadPdfToBackend(ultrasoundResultView, "ultrasound_result", checkupIdField.getText());
                 afterSaveActions(statusToSaveView, "Đã lưu. Đang tạo bản xem trước...");
                 break;
         }
@@ -3700,44 +3696,6 @@ public class CheckUpPage extends JPanel {
         }
     }
 
-    /**
-     * Uploads PDF to backend asynchronously
-     * @param ultrasoundResult The UltrasoundResult object to export as PDF
-     * @param pdfType The type of PDF ("ultrasound_result" or "medserinvoice")
-     */
-    private void uploadPdfToBackend(UltrasoundResult ultrasoundResult, String pdfType, String checkupId) {
-        log.info("uploadPdfToBackend");
-        // Run PDF export and upload in background thread to avoid blocking UI
-        CompletableFuture.runAsync(() -> {
-            try {
-                // Export PDF as bytes
-                byte[] pdfBytes = ultrasoundResult.exportToPdfBytes();
-                
-                // Create filename with override behavior (same name = override)
-                String fileName = pdfType + ".pdf";
-                
-                // Create and send upload request
-                UploadCheckupPdfRequest request = new UploadCheckupPdfRequest(
-                    checkupId,
-                    pdfBytes,
-                    fileName,
-                    pdfType
-                );
-                
-                NetworkUtil.sendPacket(ClientHandler.ctx.channel(), request);
-                log.info("Sent PDF upload request for checkup: {}, type: {}", checkupId, pdfType);
-                
-            } catch (Exception e) {
-                log.error("Failed to export or upload PDF for checkup: {}", checkupId, e);
-                SwingUtilities.invokeLater(() -> {
-                    JOptionPane.showMessageDialog(this,
-                        "Lỗi khi tạo hoặc tải PDF: " + e.getMessage(),
-                        "Lỗi PDF",
-                        JOptionPane.ERROR_MESSAGE);
-                });
-            }
-        });
-    }
 
     private void handleRecordVideo() {
         if (currentCheckupMediaPath == null) {
@@ -3765,28 +3723,25 @@ public class CheckUpPage extends JPanel {
                     } catch (ClassNotFoundException e) {
                         throw new Exception("Không tìm thấy thư viện JavaCV cần thiết. Vui lòng kiểm tra cài đặt Maven.", e);
                     }
-
+                
                     // Initialize frame converter
                     frameConverter = new Java2DFrameConverter();
-
+                
                     // Get webcam's actual frame rate
                     double webcamFPS = selectedWebcam.getFPS();
-                    // If webcam doesn't report FPS or reports an invalid value, default to 15
+                    // If webcam doesn't report FPS or reports an invalid value, default to a base value like 15
                     if (webcamFPS <= 0 || Double.isNaN(webcamFPS)) {
                         webcamFPS = 15.0;
                     }
                     
-                    // captureRate is used by the capture loop logic for polling interval
-                    final double captureRate = webcamFPS; 
-
-                    // If observed playback is 2x faster, the actual sustainable FPS for the recorder
-                    // should be half the reported/assumed FPS.
-                    double recorderFrameRate = webcamFPS / 2.0;
-                    if (recorderFrameRate < 1.0) { // Ensure a minimum frame rate of 1.0
-                        recorderFrameRate = 1.0;
-                    }
-                    log.info("Setting recorder frame rate to: {} (derived from webcam FPS: {})", String.format("%.2f", recorderFrameRate), String.format("%.2f", webcamFPS));
-
+                    // FIX FOR TIMING ISSUE: We double the reported FPS to match the actual frame delivery speed.
+                    final double recorderFrameRate = webcamFPS * 2.0;
+                
+                    // The capture loop will now also target this corrected frame rate to avoid missing frames.
+                    final double captureRate = recorderFrameRate;
+                
+                    log.info("Setting recorder frame rate to: {} (Corrected from webcam's reported FPS of {})", String.format("%.2f", recorderFrameRate), String.format("%.2f", webcamFPS));
+                
                     // Initialize the recorder with optimized settings
                     try {
                         Dimension size = selectedWebcam.getViewSize();
@@ -3795,23 +3750,24 @@ public class CheckUpPage extends JPanel {
                         // Video format and codec settings
                         recorder.setVideoCodec(org.bytedeco.ffmpeg.global.avcodec.AV_CODEC_ID_H264);
                         recorder.setFormat("mp4");
-                        // Use the adjusted effective frame rate for the recorder
-                        recorder.setFrameRate(recorderFrameRate); 
-                        recorder.setVideoQuality(1);
                         
-                        // Pixel format and color space settings
+                        // Set the corrected frame rate
+                        recorder.setFrameRate(recorderFrameRate); 
+                        
+                        // Pixel format
                         recorder.setPixelFormat(org.bytedeco.ffmpeg.global.avutil.AV_PIX_FMT_YUV420P);
                         
-                        // Encoding settings for better performance
-                        recorder.setVideoOption("preset", "medium");
+                        // --- QUALITY SETTINGS ---
+                        // Using CRF is the best way to control quality for H.264. 
+                        // The setVideoQuality(0) call is removed to avoid conflicts.
+                        recorder.setVideoOption("crf", "18"); // High quality
+                        recorder.setVideoOption("preset", "slow"); // Better compression
                         recorder.setVideoOption("tune", "zerolatency");
-                        recorder.setVideoOption("crf", "23");
                         
-                        // Buffer size settings - increased for smoother recording
-                        recorder.setVideoOption("bufsize", "5000k");
-                        recorder.setVideoOption("maxrate", "5000k");
+                        // Buffer size settings
+                        recorder.setVideoOption("bufsize", "20000k");
+                        recorder.setVideoOption("maxrate", "20000k");
                         
-                        // Remove the speed filter and start recorder
                         recorder.start();
                     } catch (Exception e) {
                         throw new Exception("Lỗi khởi tạo FFmpeg recorder: " + e.getMessage(), e);
