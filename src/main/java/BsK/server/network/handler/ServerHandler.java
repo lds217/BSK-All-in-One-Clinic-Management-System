@@ -1168,43 +1168,6 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         }
       }
 
-      if (packet instanceof UploadCheckupPdfRequest uploadCheckupPdfRequest) {
-        log.info("Received UploadCheckupPdfRequest for checkupId: {}, type: {}", uploadCheckupPdfRequest.getCheckupId(), uploadCheckupPdfRequest.getPdfType());
-
-        String checkupId = uploadCheckupPdfRequest.getCheckupId();
-        String fileName = uploadCheckupPdfRequest.getFileName();
-        String pdfType = uploadCheckupPdfRequest.getPdfType();
-        byte[] pdfData = uploadCheckupPdfRequest.getPdfData();
-
-        if (checkupId == null || checkupId.trim().isEmpty()) {
-            UserUtil.sendPacket(currentUser.getSessionId(), new UploadCheckupPdfResponse(false, "CheckupID is null or empty. Cannot save PDF.", fileName, pdfType));
-            return;
-        }
-
-        try {
-            // 1. Define and create storage directory (use same img_db structure)
-            Path storageDir = Paths.get(Server.imageDbPath, checkupId.trim());
-            Files.createDirectories(storageDir); // Create dirs if they don't exist
-
-            // 2. Save the PDF file (with override behavior - same name = override)
-            Path filePath = storageDir.resolve(fileName);
-            try (FileOutputStream fos = new FileOutputStream(filePath.toFile())) {
-                fos.write(pdfData);
-            }
-            String savedPath = filePath.toString().replace("\\", "/");
-            log.info("Successfully saved PDF to {} (override mode)", savedPath);
-
-            // 3. Send immediate success response to client
-            UserUtil.sendPacket(currentUser.getSessionId(), new UploadCheckupPdfResponse(true, "PDF uploaded successfully to " + savedPath, fileName, pdfType));
-
-            // 4. Upload to Google Drive asynchronously (don't block the response)
-            uploadCheckupPdfToGoogleDriveAsync(checkupId, fileName, pdfData, pdfType);
-
-        } catch (IOException e) {
-            log.error("Failed to save uploaded PDF for checkupId {}: {}", checkupId, e.getMessage());
-            UserUtil.sendPacket(currentUser.getSessionId(), new UploadCheckupPdfResponse(false, "Server failed to save PDF: " + e.getMessage(), fileName, pdfType));
-        }
-      }
 
       if (packet instanceof GetImagesByCheckupIdReq getImagesByCheckupIdReq) {
         String checkupId = getImagesByCheckupIdReq.getCheckupId();
@@ -2294,84 +2257,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
     return tempFile;
   }
 
-  /**
-   * Tải tệp PDF của lần khám lên Google Drive một cách bất đồng bộ.
-   *
-   * @param checkupId ID của lần khám (dưới dạng String).
-   * @param fileName  Tên của tệp PDF.
-   * @param pdfData   Dữ liệu của tệp PDF.
-   * @param pdfType   Loại PDF (ví dụ: "ultrasound_result").
-   */
-  private void uploadCheckupPdfToGoogleDriveAsync(String checkupId, String fileName, byte[] pdfData, String pdfType) {
-    // CẢI TIẾN: Sử dụng CompletableFuture để xử lý bất đồng bộ, hiệu quả hơn new Thread().
-    CompletableFuture.runAsync(() -> {
-        try {
-            if (!Server.isGoogleDriveConnected()) {
-                log.info("Google Drive not connected - skipping PDF upload for checkup {}", checkupId);
-                return;
-            }
-
-            // --- SỬA LỖI: Lấy thông tin drive_folder_id từ CSDL một cách an toàn ---
-            String checkupDriveFolderId = null;
-            String sql = "SELECT drive_folder_id FROM Checkup WHERE checkup_id = ?";
-            
-            try (Connection conn = DatabaseManager.getConnection();
-                PreparedStatement stmt = conn.prepareStatement(sql)) {
-                
-                // Giả định checkup_id trong CSDL là kiểu số (integer)
-                stmt.setInt(1, Integer.parseInt(checkupId));
-                
-                try (ResultSet rs = stmt.executeQuery()) {
-                    if (rs.next()) {
-                        checkupDriveFolderId = rs.getString("drive_folder_id");
-                    }
-                }
-            }
-
-            if (checkupDriveFolderId == null || checkupDriveFolderId.trim().isEmpty()) {
-                log.warn("Checkup {} has no Google Drive folder ID - cannot upload PDF", checkupId);
-                return;
-            }
-
-            log.info("Uploading PDF {} ({}) to Google Drive for checkup {}", fileName, pdfType, checkupId);
-            
-            // Logic tạo và dọn dẹp file tạm của bạn đã tốt, chúng ta giữ lại
-            java.io.File tempFile = null;
-            try {
-                tempFile = createTempFileFromBytes(pdfData, fileName);
-                
-                String uploadedFileId = Server.getGoogleDriveService().uploadFileToFolder(
-                    checkupDriveFolderId, tempFile, fileName
-                );
-                
-                log.info("PDF uploaded successfully to Google Drive for checkup {}: FileID={}", checkupId, uploadedFileId);
-                
-                if (ServerDashboard.getInstance() != null) {
-                    ServerDashboard.getInstance().addLog(
-                        String.format("Uploaded PDF %s (%s) to Google Drive for checkup %s", fileName, pdfType, checkupId)
-                    );
-                }
-            } finally {
-                if (tempFile != null && tempFile.exists()) {
-                    if (!tempFile.delete()) {
-                        log.warn("Could not delete temporary PDF file: {}", tempFile.getAbsolutePath());
-                    }
-                }
-            }
-            
-        } catch (NumberFormatException e) {
-            log.error("Invalid checkupId format '{}' for PDF upload.", checkupId);
-        } catch (Exception e) {
-            log.error("Failed to upload PDF to Google Drive for checkup {}: {}", checkupId, e.getMessage(), e);
-            if (ServerDashboard.getInstance() != null) {
-                ServerDashboard.getInstance().addLog(
-                    String.format("Failed to upload PDF %s (%s) for checkup %s: %s", fileName, pdfType, checkupId, e.getMessage())
-                );
-            }
-        }
-    });
-  }
-
+ 
   private void broadcastQueueUpdate() {
     // SỬA ĐỔI: Sử dụng một kết nối duy nhất, an toàn cho tất cả các truy vấn bên trong
     try (Connection conn = DatabaseManager.getConnection()) {
