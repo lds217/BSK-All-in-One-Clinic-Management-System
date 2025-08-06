@@ -291,7 +291,7 @@ public class Server {
                           ch.pipeline()
                               .addLast(new HttpServerCodec())
                               .addLast(new ChunkedWriteHandler())
-                              .addLast(new HttpObjectAggregator(50  * 1024 * 1024))
+                              .addLast(new HttpObjectAggregator(100  * 1024 * 1024))
                               .addLast(new WebSocketServerProtocolHandler("/", null, true, 50  * 1024 * 1024))
                               .addLast(new ServerHandler());
                         }

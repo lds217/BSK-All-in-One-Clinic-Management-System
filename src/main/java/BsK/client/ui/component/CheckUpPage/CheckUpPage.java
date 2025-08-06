@@ -129,8 +129,23 @@ import BsK.common.packet.res.UploadCheckupPdfResponse;
 import BsK.common.util.date.DateUtils;
 import javax.swing.text.JTextComponent;
 
+import java.nio.file.DirectoryStream;
+import java.util.Collections;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.attribute.FileTime;
+
+
 @Slf4j
 public class CheckUpPage extends JPanel {
+
+    private ScheduledExecutorService folderScanExecutor;
+    private volatile boolean isScanning = false;
+    private static final int SCAN_INTERVAL_SECONDS = 2;
+    private static final int MAX_FOLDERS_TO_SCAN = 4;
+
     private MainFrame mainFrame;
     private List<Patient> patientQueue = new ArrayList<>();
     private String[][] rawQueueForTv = new String[][]{};
@@ -329,7 +344,7 @@ public class CheckUpPage extends JPanel {
         queueManagementPage = new QueueManagementPage();
         
         // Initialize ultrasound folder monitoring
-        initializeUltrasoundFolderWatcher();
+        initializeUltrasoundFolderScanner();
         
         // Stop automatic webcam discovery to prevent background scanning
         try {
@@ -613,15 +628,18 @@ public class CheckUpPage extends JPanel {
         patientInfoInnerPanel.add(idLabel, gbcPatient);
 
         gbcPatient.gridx = 1; gbcPatient.weightx = 0.4;
-        customerIdField = new JTextField(15);
-        customerIdField.setFont(fieldFont);
-        customerIdField.setEditable(false);
-        patientInfoInnerPanel.add(customerIdField, gbcPatient);
-
-        // Initialize checkupIdField
         checkupIdField = new JTextField(15);
         checkupIdField.setFont(fieldFont);
         checkupIdField.setEditable(false);
+        patientInfoInnerPanel.add(checkupIdField, gbcPatient);
+
+        customerIdField = new JTextField(15);
+        customerIdField.setFont(fieldFont);
+        customerIdField.setEditable(false);
+        
+
+        // Initialize checkupIdField
+        
 
         gbcPatient.gridx = 2; gbcPatient.weightx = 0.1;
         JLabel phoneLabel = new JLabel("SĐT", SwingConstants.RIGHT);
@@ -1580,26 +1598,6 @@ public class CheckUpPage extends JPanel {
                         response.getStatus()
                 );
             }
-        });
-
-        // Listen for queue updates
-        ClientHandler.addResponseListener(GetCheckUpQueueUpdateResponse.class, response -> {
-            SwingUtilities.invokeLater(() -> {
-                log.info("Received checkup update queue");
-                this.rawQueueForTv = response.getQueue();
-                this.patientQueue.clear();
-                if (this.rawQueueForTv != null) {
-                    for (String[] patientData : this.rawQueueForTv) {
-                        this.patientQueue.add(new Patient(patientData));
-                    }
-                }
-                if (queueManagementPage != null) {
-                    queueManagementPage.updateQueueTable();
-                }
-                if (tvQueueFrame != null && tvQueueFrame.isVisible()) {
-                    tvQueueFrame.updateQueueData(this.rawQueueForTv);
-                }
-            });
         });
     }
 
@@ -3011,129 +3009,192 @@ public class CheckUpPage extends JPanel {
     
     // === Ultrasound Folder Monitoring Methods ===
     
-    private void initializeUltrasoundFolderWatcher() {
+    private void initializeUltrasoundFolderScanner() {
         try {
             // Create the ultrasound folder if it doesn't exist
             Path ultrasoundPath = Paths.get(ULTRASOUND_FOLDER_PATH);
-            log.info("Initializing ultrasound folder watcher for path: {}", ultrasoundPath.toAbsolutePath());
+            log.info("Initializing ultrasound folder scanner for path: {}", ultrasoundPath.toAbsolutePath());
             
             if (!Files.exists(ultrasoundPath)) {
                 Files.createDirectories(ultrasoundPath);
                 log.info("Created ultrasound folder: {}", ultrasoundPath.toAbsolutePath());
-            } else {
-                log.info("Ultrasound folder already exists: {}", ultrasoundPath.toAbsolutePath());
             }
             
-            // Initialize watch service
-            watchService = FileSystems.getDefault().newWatchService();
-            ultrasoundPath.register(watchService, 
-                StandardWatchEventKinds.ENTRY_CREATE,
-                StandardWatchEventKinds.ENTRY_MODIFY);
+            // Start scanning in a scheduled thread
+            folderScanExecutor = Executors.newSingleThreadScheduledExecutor();
+            isScanning = true;
             
-            // Start watching in a separate thread
-            folderWatchExecutor = Executors.newSingleThreadExecutor();
-            isWatchingFolder = true;
+            folderScanExecutor.scheduleWithFixedDelay(
+                this::scanUltrasoundFolders, 
+                0, // Initial delay
+                SCAN_INTERVAL_SECONDS, 
+                TimeUnit.SECONDS
+            );
             
-            folderWatchExecutor.submit(this::watchUltrasoundFolder);
-            
-            log.info("Started watching ultrasound folder: {} (Absolute: {})", 
-                ULTRASOUND_FOLDER_PATH, ultrasoundPath.toAbsolutePath());
-            
-            // SAFETY: Clean up any existing orphaned images on startup
-            cleanupOrphanedUltrasoundImages();
+            log.info("Started ultrasound folder scanner with {} second intervals", SCAN_INTERVAL_SECONDS);
             
         } catch (Exception e) {
-            log.error("Failed to initialize ultrasound folder watcher: {}", e.getMessage(), e);
-            // Error logged only - no dialog popup
+            log.error("Failed to initialize ultrasound folder scanner: {}", e.getMessage(), e);
         }
     }
     
-    private void watchUltrasoundFolder() {
-        log.info("Ultrasound folder watcher thread started, waiting for events...");
-        while (isWatchingFolder) {
+    private void scanUltrasoundFolders() {
+        if (!isScanning) {
+            return;
+        }
+        
+        try {
+            Path ultrasoundPath = Paths.get(ULTRASOUND_FOLDER_PATH);
+            
+            if (!Files.exists(ultrasoundPath)) {
+                return;
+            }
+            
+            // LEVEL 0: Check for images directly in the root "ANH SIEU AM" folder
+            scanDirectoryForImages(ultrasoundPath);
+            
+            // Get all first-level directories and sort by creation time (newest first)
+            List<Path> firstLevelFolders = getFirstLevelFoldersSortedByDate(ultrasoundPath);
+            
+            // Take only the latest 10 folders
+            List<Path> foldersToScan = firstLevelFolders.stream()
+                .limit(MAX_FOLDERS_TO_SCAN)
+                .collect(Collectors.toList());
+        
+            
+            // LEVEL 1: Check for images directly in each first-level folder
+            for (Path folder : foldersToScan) {
+                if (!isScanning) break;
+                scanDirectoryForImages(folder);
+            }
+            
+            // LEVEL 2+: Scan each folder deeply for images in subdirectories
+            for (Path folder : foldersToScan) {
+                if (!isScanning) break;
+                scanSubdirectoriesForImages(folder);
+            }
+            
+        } catch (Exception e) {
+            log.error("Error during ultrasound folder scan: {}", e.getMessage(), e);
+        }
+    }
+    
+    private List<Path> getFirstLevelFoldersSortedByDate(Path parentPath) {
+        List<Path> folders = new ArrayList<>();
+        
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(parentPath, Files::isDirectory)) {
+            for (Path folder : stream) {
+                folders.add(folder);
+            }
+        } catch (Exception e) {
+            log.error("Error listing first-level folders in {}: {}", parentPath, e.getMessage(), e);
+            return Collections.emptyList();
+        }
+        
+        // Sort by creation time (newest first)
+        folders.sort((path1, path2) -> {
             try {
-                // Synchronized check to prevent race condition
-                synchronized (this) {
-                    if (!isWatchingFolder || watchService == null) {
-                        log.info("Watch service stopped or null, exiting watcher thread");
-                        break;
-                    }
-                }
-                
-                log.info("Waiting for file system events...");
-                WatchKey key = watchService.take(); // Wait for events
-                
-                // Check again after potentially blocking call
-                if (!isWatchingFolder) {
-                    log.info("Watcher stopped while waiting for events");
-                    break;
-                }
-                
-                log.info("File system event detected!");
-                
-                for (WatchEvent<?> event : key.pollEvents()) {
-                    // Check if we should still be watching
-                    if (!isWatchingFolder) {
-                        log.info("Watcher stopped during event processing");
-                        return;
-                    }
-                    
-                    WatchEvent.Kind<?> kind = event.kind();
-                    log.info("Event type: {}", kind);
-                    
-                    if (kind == StandardWatchEventKinds.OVERFLOW) {
-                        log.warn("Event overflow detected, skipping");
-                        continue;
-                    }
-                    
-                    Path fileName = (Path) event.context();
-                    Path fullPath = Paths.get(ULTRASOUND_FOLDER_PATH).resolve(fileName);
-                    log.info("File event detected: {} at {}", fileName, fullPath.toAbsolutePath());
-                    
-                    // Check if it's an image file
-                    if (isImageFile(fileName.toString())) {
-                        log.info("Detected new IMAGE in ultrasound folder: {} (Full path: {})", fileName, fullPath.toAbsolutePath());
-                        
-                        // Wait a moment for file to be completely written
-                        SwingUtilities.invokeLater(() -> {
-                            Timer delayTimer = new Timer(500, e -> {
-                                handleUltrasoundImageDetected(fullPath);
-                            });
-                            delayTimer.setRepeats(false);
-                            delayTimer.start();
-                        });
-                    } else {
-                        log.info("File is not an image: {}", fileName);
-                    }
-                }
-                
-                boolean valid = key.reset();
-                if (!valid) {
-                    log.warn("Watch key is no longer valid, stopping watcher");
-                    break;
-                }
-                
-            } catch (InterruptedException e) {
-                log.info("Ultrasound folder watcher interrupted");
-                Thread.currentThread().interrupt();
-                break;
-            } catch (java.nio.file.ClosedWatchServiceException e) {
-                log.info("Watch service was closed, stopping watcher thread");
-                break;
+                FileTime time1 = Files.readAttributes(path1, BasicFileAttributes.class).creationTime();
+                FileTime time2 = Files.readAttributes(path2, BasicFileAttributes.class).creationTime();
+                return time2.compareTo(time1); // Newest first
             } catch (Exception e) {
-                log.error("Error in ultrasound folder watcher: {}", e.getMessage(), e);
-                // Don't break on general exceptions, just log and continue
-                try {
-                    Thread.sleep(1000); // Wait a bit before retrying
-                } catch (InterruptedException ie) {
-                    Thread.currentThread().interrupt();
-                    break;
+                log.warn("Error comparing creation times for {} and {}: {}", path1, path2, e.getMessage());
+                return 0;
+            }
+        });
+        
+        return folders;
+    }
+    
+    private void scanFolderForImages(Path folder) {
+        try {
+            scanFolderRecursively(folder);
+        } catch (Exception e) {
+            log.error("Error scanning folder {}: {}", folder, e.getMessage(), e);
+        }
+    }
+    
+    // Scan a single directory for images (non-recursive)
+    private void scanDirectoryForImages(Path directory) {
+        if (!Files.exists(directory) || !Files.isDirectory(directory) || !isScanning) {
+            return;
+        }
+        
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(directory)) {
+            for (Path entry : stream) {
+                if (!isScanning) break;
+                
+                // Only check files, not subdirectories
+                if (Files.isRegularFile(entry) && isImageFile(entry.getFileName().toString())) {
+                    handleUltrasoundImageDetected(entry);
                 }
             }
+        } catch (Exception e) {
+            log.error("Error scanning directory for images {}: {}", directory, e.getMessage(), e);
         }
-        log.info("Ultrasound folder watcher thread ended");
     }
     
+    // Scan subdirectories recursively for images
+    private void scanSubdirectoriesForImages(Path directory) {
+        if (!Files.exists(directory) || !Files.isDirectory(directory) || !isScanning) {
+            return;
+        }
+        
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(directory)) {
+            for (Path entry : stream) {
+                if (!isScanning) break;
+                
+                // Only process subdirectories, skip files (already handled in scanDirectoryForImages)
+                if (Files.isDirectory(entry)) {
+                    scanFolderRecursively(entry);
+                }
+            }
+        } catch (Exception e) {
+            log.error("Error scanning subdirectories {}: {}", directory, e.getMessage(), e);
+        }
+    }
+    
+    private void scanFolderRecursively(Path directory) {
+        if (!Files.exists(directory) || !Files.isDirectory(directory) || !isScanning) {
+            return;
+        }
+        
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(directory)) {
+            for (Path entry : stream) {
+                if (!isScanning) break;
+                
+                if (Files.isDirectory(entry)) {
+                    // Recursively scan subdirectories
+                    scanFolderRecursively(entry);
+                } else if (Files.isRegularFile(entry) && isImageFile(entry.getFileName().toString())) {
+                    // Found an image file
+                    handleUltrasoundImageDetected(entry);
+                }
+            }
+        } catch (Exception e) {
+            log.error("Error scanning directory {}: {}", directory, e.getMessage(), e);
+        }
+    }
+    
+    private void stopUltrasoundFolderScanner() {
+        log.info("Stopping ultrasound folder scanner...");
+        isScanning = false;
+        
+        if (folderScanExecutor != null) {
+            folderScanExecutor.shutdown();
+            try {
+                if (!folderScanExecutor.awaitTermination(5, TimeUnit.SECONDS)) {
+                    folderScanExecutor.shutdownNow();
+                }
+            } catch (InterruptedException e) {
+                folderScanExecutor.shutdownNow();
+                Thread.currentThread().interrupt();
+            }
+        }
+        log.info("Ultrasound folder scanner stopped");
+    }
+    
+    // Keep your existing handleUltrasoundImageDetected method unchanged
     private void handleUltrasoundImageDetected(Path imagePath) {
         log.info("=== HANDLING ULTRASOUND IMAGE: {} ===", imagePath.toAbsolutePath());
         log.info("Current patient ID: {}", currentCheckupIdForMedia);
@@ -3142,20 +3203,16 @@ public class CheckUpPage extends JPanel {
         if (currentCheckupIdForMedia == null || currentCheckupIdForMedia.trim().isEmpty()) {
             log.warn("No patient selected, DELETING ultrasound image for safety: {}", imagePath);
             
-            // SAFETY: Delete the image immediately to prevent mismatched patient data
             try {
                 Files.deleteIfExists(imagePath);
                 log.info("Successfully deleted unassigned ultrasound image: {}", imagePath);
             } catch (Exception deleteEx) {
                 log.error("Failed to delete unassigned ultrasound image: {}", deleteEx.getMessage(), deleteEx);
             }
-            
-            // Safety handled silently - logged only
             return;
         }
         
         try {
-            // SAFETY: Double-check patient ID hasn't changed during processing
             String safePatientId = currentCheckupIdForMedia;
             if (safePatientId == null || safePatientId.trim().isEmpty()) {
                 log.error("SAFETY ERROR: Patient ID became null during ultrasound image processing! Deleting image.");
@@ -3163,24 +3220,18 @@ public class CheckUpPage extends JPanel {
                 return;
             }
             
-            // Wait for file to be completely written
-            Thread.sleep(1000);
-            
             if (!Files.exists(imagePath)) {
                 log.warn("Ultrasound image file no longer exists: {}", imagePath);
                 return;
             }
             
-            // SAFETY: Final check that patient ID is still valid
             if (!safePatientId.equals(currentCheckupIdForMedia)) {
                 log.error("SAFETY ERROR: Patient ID changed during processing! Expected: {}, Current: {}. Deleting image for safety.", 
                     safePatientId, currentCheckupIdForMedia);
                 Files.deleteIfExists(imagePath);
-                // Safety handled silently - logged only
                 return;
             }
             
-            // Generate unique filename for the patient's folder
             String originalFileName = imagePath.getFileName().toString();
             String fileExtension = "";
             int lastDotIndex = originalFileName.lastIndexOf('.');
@@ -3191,13 +3242,11 @@ public class CheckUpPage extends JPanel {
             String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss_SSS").format(new Date());
             String newFileName = "ultrasound_" + safePatientId + "_" + timestamp + fileExtension;
             
-            // Move to patient's media folder
             Path targetPath = currentCheckupMediaPath.resolve(newFileName);
             Files.move(imagePath, targetPath);
             
             log.info("Moved ultrasound image from {} to {}", imagePath, targetPath);
             
-            // Upload the image to server (same as chụp ảnh function)
             try {
                 BufferedImage image = ImageIO.read(targetPath.toFile());
                 if (image != null) {
@@ -3211,21 +3260,18 @@ public class CheckUpPage extends JPanel {
             }
             
             SwingUtilities.invokeLater(() -> {
-                // Refresh the image gallery to show the new image
                 if (currentCheckupMediaPath != null && Files.exists(currentCheckupMediaPath)) {
                     loadAndDisplayImages(currentCheckupMediaPath);
                 }
-                
-                // Success logged only - no dialog popup
                 log.info("✅ SUCCESS: Ultrasound image processed for patient {} - File: {}", safePatientId, newFileName);
             });
             
         } catch (Exception e) {
             log.error("Error handling ultrasound image: {}", e.getMessage(), e);
-            // Error logged only - no dialog popup
         }
     }
-    
+
+
     private boolean isImageFile(String fileName) {
         if (fileName == null) return false;
         String lowercaseName = fileName.toLowerCase();
@@ -3491,7 +3537,7 @@ public class CheckUpPage extends JPanel {
                 return;
             }
 
-            String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
+            String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss_SSS").format(new Date());
             String fileName = "IMG_" + currentCheckupIdForMedia + "_" + timestamp + ".jpg";
             Path filePath = currentCheckupMediaPath.resolve(fileName);
 
@@ -3521,65 +3567,36 @@ public class CheckUpPage extends JPanel {
         }
     }
 
-    private void uploadImageInBackground(String fileName, BufferedImage image) {
-        imageUploadExecutor.submit(() -> {
-            try {
-                // Compress the image to JPEG with high quality (0.9) for better preservation
-                ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                
-                // Get JPEG writer and set high quality compression
-                ImageWriter jpegWriter = ImageIO.getImageWritersByFormatName("jpg").next();
-                ImageOutputStream ios = ImageIO.createImageOutputStream(baos);
-                jpegWriter.setOutput(ios);
-                
-                // Set compression quality to 0.9 (90% quality)
-                ImageWriteParam writeParam = jpegWriter.getDefaultWriteParam();
-                writeParam.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
-                writeParam.setCompressionQuality(0.9f); // High quality compression
-                
-                // Write the image with high quality
-                jpegWriter.write(null, new IIOImage(image, null, null), writeParam);
-                
-                // Clean up
-                jpegWriter.dispose();
-                ios.close();
-                
-                byte[] compressedImageData = baos.toByteArray();
+    
+    
+private void uploadImageInBackground(String fileName, BufferedImage image) {
+    imageUploadExecutor.submit(() -> {
+        try {
+            // Convert BufferedImage to byte array without compression
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            
+            // Write image as PNG to preserve original quality
+            ImageIO.write(image, "png", baos);
+            
+            byte[] imageData = baos.toByteArray();
+            baos.close();
 
-                // Create and send the request
-                String checkupId = currentCheckupIdForMedia;
+            // Create and send the request
+            String checkupId = currentCheckupIdForMedia;
 
-                // Keep original filename since we're already using JPG locally
-                String jpgFileName = fileName;
+            // Use PNG extension since we're preserving quality
+            String pngFileName = fileName.replaceAll("\\.(jpg|jpeg)$", ".png");
 
-                // Schedule a timeout task for this upload
-                Future<?> timeoutTask = timeoutExecutor.schedule(() -> {
-                    // If the task is still in the map, it means we timed out
-                    if (uploadTimeoutTasks.remove(jpgFileName) != null) {
-                        SwingUtilities.invokeLater(() -> {
-                            JOptionPane.showMessageDialog(CheckUpPage.this,
-                                "Không nhận được phản hồi từ máy chủ khi tải lên ảnh: " + jpgFileName + "\n" +
-                                "Vui lòng kiểm tra lại kết nối mạng (Wi-Fi/Internet).",
-                                "Lỗi Mạng",
-                                JOptionPane.WARNING_MESSAGE);
-                        });
-                    }
-                }, 15, TimeUnit.SECONDS); // 15-second timeout
+            UploadCheckupImageRequest request = new UploadCheckupImageRequest(checkupId, imageData, pngFileName);
+            NetworkUtil.sendPacket(ClientHandler.ctx.channel(), request);
+            log.info("Sent UploadCheckupImageRequest for {}", pngFileName);
 
-                // Store the task so we can cancel it if we get a response
-                uploadTimeoutTasks.put(jpgFileName, timeoutTask);
-
-                UploadCheckupImageRequest request = new UploadCheckupImageRequest(checkupId, compressedImageData, jpgFileName);
-                NetworkUtil.sendPacket(ClientHandler.ctx.channel(), request);
-                log.info("Sent UploadCheckupImageRequest for {}", jpgFileName);
-
-            } catch (IOException e) {
-                log.error("Failed to compress image for upload: {}", fileName, e);
-                // The timeout mechanism will handle notifying the user of a potential network issue.
-            }
-        });
-    }
-
+        } catch (IOException e) {
+            log.error("Failed to convert image for upload: {}", fileName, e);
+            // The timeout mechanism will handle notifying the user of a potential network issue.
+        }
+    });
+}
     private void handleUploadImageResponse(UploadCheckupImageResponse response) {
         String fileName = response.getFileName();
         
@@ -4434,9 +4451,13 @@ public class CheckUpPage extends JPanel {
 
                 if (previouslySelectedId != null) {
                     int rowToSelect = findRowByCheckupId(previouslySelectedId);
+                    
                     if (rowToSelect != -1) {
-                        queueTable.setRowSelectionInterval(rowToSelect, rowToSelect);
-                        queueTable.scrollRectToVisible(queueTable.getCellRect(rowToSelect, 0, true));
+                        int viewRow = queueTable.convertRowIndexToView(rowToSelect);
+                        if (viewRow != -1) {
+                            queueTable.setRowSelectionInterval(viewRow, viewRow);
+                            queueTable.scrollRectToVisible(queueTable.getCellRect(viewRow, 0, true));
+                        }
                     } else {
                         JOptionPane.showMessageDialog(
                                 mainFrame,

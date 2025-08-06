@@ -99,7 +99,6 @@ public class AddDialog extends JDialog {
         } else {
             JOptionPane.showMessageDialog(this, response.getError());
         }
-        setVisible(false);
     }
 
     private void sendGetRecentPatientRequest() {

@@ -8,6 +8,7 @@ import BsK.common.packet.res.*;
 import BsK.common.Error;
 import BsK.common.entity.Status;
 import BsK.common.util.date.DateUtils;
+import BsK.common.util.network.NetworkUtil;
 import BsK.server.Server;
 import BsK.server.ServerDashboard;
 import BsK.server.network.manager.SessionManager;
@@ -877,6 +878,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                 // 6. Hoàn tất và COMMIT giao dịch
                 conn.commit();
                 log.info("Successfully saved checkup transaction for checkup_id: {}", saveCheckupRequest.getCheckupId());
+                broadcastQueueUpdate();
                 UserUtil.sendPacket(currentUser.getSessionId(), new SaveCheckupRes(true, "Lưu thông tin khám bệnh thành công."));
     
             } catch (SQLException e) {
@@ -1167,6 +1169,82 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
             UserUtil.sendPacket(currentUser.getSessionId(), new UploadCheckupImageResponse(false, "Lỗi máy chủ khi lưu ảnh: " + e.getMessage(), fileName));
         }
       }
+
+      if (packet instanceof DeleteCheckupRequest deleteCheckupRequest) {
+        log.info("Recieved delete checkup request for checkupId: {}", deleteCheckupRequest.getCheckupId());
+    
+        // 2. Define the SQL DELETE statements in the correct order
+        String deleteOrderItemsSQL = "DELETE FROM main.OrderItem WHERE prescription_id IN (SELECT prescription_id FROM main.MedicineOrder WHERE checkup_id = ?)";
+        String deleteMedicineOrderSQL = "DELETE FROM main.MedicineOrder WHERE checkup_id = ?";
+        String deleteCheckupServiceSQL = "DELETE FROM main.CheckupService WHERE checkup_id = ?";
+        String deleteCheckupSQL = "DELETE FROM main.Checkup WHERE checkup_id = ?";
+    
+        Connection connection = null;
+        try {
+            // 3. Get a connection from your pool and start a transaction
+            // The 'try-with-resources' block will NOT work for the connection here
+            // because we need to manually control commit/rollback.
+            connection = DatabaseManager.getConnection(); 
+            connection.setAutoCommit(false); // This is the start of our transaction
+    
+            // 4. Execute deletes in order using PreparedStatement to prevent SQL injection
+            try (PreparedStatement psOrderItems = connection.prepareStatement(deleteOrderItemsSQL)) {
+                psOrderItems.setLong(1, deleteCheckupRequest.getCheckupId());
+                psOrderItems.executeUpdate();
+            }
+    
+            try (PreparedStatement psMedicineOrder = connection.prepareStatement(deleteMedicineOrderSQL)) {
+                psMedicineOrder.setLong(1, deleteCheckupRequest.getCheckupId());
+                psMedicineOrder.executeUpdate();
+            }
+    
+            try (PreparedStatement psCheckupService = connection.prepareStatement(deleteCheckupServiceSQL)) {
+                psCheckupService.setLong(1, deleteCheckupRequest.getCheckupId());
+                psCheckupService.executeUpdate();
+            }
+    
+            try (PreparedStatement psCheckup = connection.prepareStatement(deleteCheckupSQL)) {
+                psCheckup.setLong(1, deleteCheckupRequest.getCheckupId());
+                int rowsAffected = psCheckup.executeUpdate();
+                if (rowsAffected == 0) {
+                     // This is an optional check to see if the main record even existed.
+                     log.warn("Warning: Checkup with ID " + deleteCheckupRequest.getCheckupId() + " not found.");
+                }
+            }
+    
+            // 5. If all statements executed without error, commit the transaction
+            connection.commit();
+            log.info("Successfully deleted checkup " + deleteCheckupRequest.getCheckupId() + " and all associated data.");
+            broadcastQueueUpdate();
+            UserUtil.sendPacket(currentUser.getSessionId(), new DeleteCheckupResponse(true, "Xóa phiếu khám thành công."));
+    
+        } catch (SQLException e) {
+            // 6. If any SQL error occurs, roll back the entire transaction
+            log.info("SQL error during deletion. Rolling back transaction for checkup ID: " + deleteCheckupRequest.getCheckupId());
+            e.printStackTrace();
+            if (connection != null) {
+                try {
+                    connection.rollback();
+                } catch (SQLException ex) {
+                    System.err.println("Failed to rollback transaction.");
+                    ex.printStackTrace();
+                }
+            }
+            UserUtil.sendPacket(currentUser.getSessionId(), new ErrorResponse(Error.SQL_EXCEPTION));
+    
+        } finally {
+            // 7. Always return the connection to the pool
+            if (connection != null) {
+                try {
+                    // It's good practice to reset auto-commit before closing/returning
+                    connection.setAutoCommit(true);
+                    connection.close(); // For a pool, this returns the connection
+                } catch (SQLException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
 
 
       if (packet instanceof GetImagesByCheckupIdReq getImagesByCheckupIdReq) {

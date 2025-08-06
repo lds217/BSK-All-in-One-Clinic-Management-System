@@ -3,6 +3,20 @@
     "configurations": [
         {
             "type": "java",
+            "name": "DebugFileWalk",
+            "request": "launch",
+            "mainClass": "BsK.client.ui.component.CheckUpPage.DebugFileWalk",
+            "projectName": "ldS_BsK"
+        },
+        {
+            "type": "java",
+            "name": "DebugFileWalk",
+            "request": "launch",
+            "mainClass": "DebugFileWalk",
+            "projectName": "ldS_BsK"
+        },
+        {
+            "type": "java",
             "name": "TextUtils",
             "request": "launch",
             "mainClass": "BsK.common.util.text.TextUtils",

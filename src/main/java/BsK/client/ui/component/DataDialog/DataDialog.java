@@ -6,26 +6,27 @@ import BsK.client.network.handler.ResponseListener;
 import BsK.client.ui.component.common.AddDialog.AddDialog;
 import BsK.common.entity.DoctorItem;
 import BsK.common.entity.Patient;
+import BsK.common.packet.req.DeleteCheckupRequest;
 import BsK.common.packet.req.GetCheckupDataRequest;
+import BsK.common.packet.res.DeleteCheckupResponse;
 import BsK.common.packet.res.GetCheckupDataResponse;
 import BsK.common.util.network.NetworkUtil;
 import BsK.client.ui.component.CheckUpPage.CheckUpPage;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
+import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableCellRenderer;
 import javax.swing.table.TableColumn;
 import java.awt.*;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
-import java.util.Calendar;
-import java.util.Date;
-import BsK.client.ui.component.DataDialog.ExcelExporter;
-import javax.swing.filechooser.FileNameExtensionFilter;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Date;
 import java.util.List;
 
 public class DataDialog extends JDialog {
@@ -40,6 +41,7 @@ public class DataDialog extends JDialog {
     private DefaultTableModel tableModel;
     private JLabel resultCountLabel;
     private final ResponseListener<GetCheckupDataResponse> dataResponseListener = this::handleGetCheckupDataResponse;
+    private final ResponseListener<DeleteCheckupResponse> deleteResponseListener = this::handleDeleteCheckupResponse; // --- NEW ---
     private int currentPage = 1;
     private int totalPages = 1;
     private int recordsPerPage = 20;
@@ -105,12 +107,14 @@ public class DataDialog extends JDialog {
 
     private void setupNetworking() {
         ClientHandler.addResponseListener(GetCheckupDataResponse.class, dataResponseListener);
+        ClientHandler.addResponseListener(DeleteCheckupResponse.class, deleteResponseListener); // --- NEW ---
 
         this.addWindowListener(new WindowAdapter() {
             @Override
             public void windowClosing(WindowEvent e) {
                 // Clean up all listeners
                 ClientHandler.deleteListener(GetCheckupDataResponse.class, dataResponseListener);
+                ClientHandler.deleteListener(DeleteCheckupResponse.class, deleteResponseListener); // --- NEW ---
                 if (medicinePanel != null) {
                     medicinePanel.cleanup();
                 }
@@ -125,7 +129,7 @@ public class DataDialog extends JDialog {
         });
     }
 
-    //<editor-fold desc="Checkup Data Tab Methods (Partially Modified)">
+    //<editor-fold desc="Checkup Data Tab Methods">
     private void loadFiltersFromLocalStorage() {
         if (LocalStorage.dataDialogSearchTerm == null || LocalStorage.dataDialogSearchTerm.isEmpty()) {
             searchField.setText("Tìm theo tên bệnh nhân, mã bệnh nhân...");
@@ -191,7 +195,7 @@ public class DataDialog extends JDialog {
 
         JButton clearFilterButton = new JButton("Xóa bộ lọc");
         clearFilterButton.setPreferredSize(new Dimension(100, 30));
-        
+
         JButton getAllButton = new JButton("Lấy tất cả");
         getAllButton.setPreferredSize(new Dimension(100, 30));
 
@@ -230,9 +234,20 @@ public class DataDialog extends JDialog {
         bottomRow.add(Box.createHorizontalStrut(20));
         bottomRow.add(new JLabel("Bác sĩ:"));
 
-        bottomRow.add(Box.createHorizontalStrut(15)); // Thêm khoảng cách
+        doctorComboBox = new JComboBox<>();
+        doctorComboBox.addItem("Tất cả");
+        if (LocalStorage.doctorsName != null) {
+            for (DoctorItem doctor : LocalStorage.doctorsName) {
+                doctorComboBox.addItem(doctor.getName());
+            }
+        }
+        doctorComboBox.setSelectedIndex(0);
+        doctorComboBox.setPreferredSize(new Dimension(150, 25));
+        bottomRow.add(doctorComboBox);
+
+        bottomRow.add(Box.createHorizontalStrut(15));
         bottomRow.add(new JLabel("Mã Phiếu:"));
-        idSearchField = new JTextField("Tìm theo mã phiếu khám...", 12); // Tạo field mới
+        idSearchField = new JTextField("Tìm theo mã phiếu khám...", 12);
         idSearchField.setForeground(Color.GRAY);
         idSearchField.setPreferredSize(new Dimension(150, 25));
         idSearchField.addFocusListener(new java.awt.event.FocusAdapter() {
@@ -251,17 +266,6 @@ public class DataDialog extends JDialog {
         });
         bottomRow.add(idSearchField);
 
-        doctorComboBox = new JComboBox<>();
-        doctorComboBox.addItem("Tất cả");
-        if (LocalStorage.doctorsName != null) {
-            for (DoctorItem doctor : LocalStorage.doctorsName) {
-                doctorComboBox.addItem(doctor.getName());
-            }
-        }
-        doctorComboBox.setSelectedIndex(0);
-        doctorComboBox.setPreferredSize(new Dimension(150, 25));
-        bottomRow.add(doctorComboBox);
-
         controlPanel.add(topRow, BorderLayout.NORTH);
         controlPanel.add(bottomRow, BorderLayout.SOUTH);
 
@@ -279,7 +283,7 @@ public class DataDialog extends JDialog {
             clearFilters();
             fetchData(1);
         });
-        
+
         getAllButton.addActionListener(e -> {
             GetCheckupDataRequest request = new GetCheckupDataRequest(null, null,null, null, null, 1, recordsPerPage);
             NetworkUtil.sendPacket(ClientHandler.ctx.channel(), request);
@@ -300,7 +304,7 @@ public class DataDialog extends JDialog {
         tableModel = new DefaultTableModel(columnNames, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
-                return column == 9;
+                return column == 9; // Only the "Hành động" column is editable
             }
         };
         dataTable = new JTable(tableModel);
@@ -311,7 +315,7 @@ public class DataDialog extends JDialog {
         dataTable.setSelectionBackground(new Color(230, 240, 255));
 
         TableColumn column;
-        int[] columnWidths = {40, 80, 150, 80, 60, 100, 130, 150, 200, 120};
+        int[] columnWidths = {40, 80, 150, 80, 60, 100, 130, 150, 150, 120}; // Adjusted widths
         for (int i = 0; i < columnWidths.length; i++) {
             column = dataTable.getColumnModel().getColumn(i);
             column.setPreferredWidth(columnWidths[i]);
@@ -336,9 +340,8 @@ public class DataDialog extends JDialog {
             checkupIdSearch = null;
         }
 
-        // Ưu tiên tìm theo Mã phiếu khám. Nếu có, bỏ qua tìm kiếm chung.
         if (checkupIdSearch != null) {
-            searchTerm = null; 
+            searchTerm = null;
             searchField.setText("Tìm theo tên bệnh nhân, mã bệnh nhân...");
             searchField.setForeground(Color.GRAY);
         }
@@ -393,7 +396,6 @@ public class DataDialog extends JDialog {
             }
 
             try {
-                // <<< MODIFIED: Pass the doctors list to the exporter
                 ExcelExporter.exportToExcel(patientsToExport, LocalStorage.doctorsName, this.fileForExport);
                 JOptionPane.showMessageDialog(this, "Xuất file Excel thành công!\n" + this.fileForExport.getAbsolutePath(), "Thành công", JOptionPane.INFORMATION_MESSAGE);
             } catch (IOException ex) {
@@ -410,7 +412,7 @@ public class DataDialog extends JDialog {
             this.totalPages = response.getTotalPages();
             this.totalRecords = response.getTotalRecords();
             this.recordsPerPage = response.getPageSize();
-            this.currentCheckupData = response.getCheckupData(); 
+            this.currentCheckupData = response.getCheckupData();
 
             tableModel.setRowCount(0);
             if (this.currentCheckupData != null) {
@@ -420,7 +422,7 @@ public class DataDialog extends JDialog {
                         Patient patient = new Patient(rowData);
                         String[] tableRow = {
                                 String.valueOf(stt++),
-                                patient.getCustomerId(),
+                                patient.getCheckupId(), // Changed from getCustomerId() to getCheckupId()
                                 patient.getCustomerLastName() + " " + patient.getCustomerFirstName(),
                                 patient.getCustomerDob(),
                                 patient.getCustomerGender(),
@@ -428,7 +430,7 @@ public class DataDialog extends JDialog {
                                 patient.getDoctorName(),
                                 patient.getDiagnosis(),
                                 patient.getConclusion(),
-                                ""
+                                "" // Placeholder for action buttons
                         };
                         tableModel.addRow(tableRow);
                     } catch (IllegalArgumentException e) {
@@ -439,6 +441,23 @@ public class DataDialog extends JDialog {
 
             updateResultCountLabel();
             updatePaginationControls();
+        });
+    }
+    
+    /**
+     * --- NEW ---
+     * Handles the response from the server after a delete request.
+     * @param response The response packet from the server.
+     */
+    private void handleDeleteCheckupResponse(DeleteCheckupResponse response) {
+        SwingUtilities.invokeLater(() -> {
+            if (response.isSuccess()) {
+                JOptionPane.showMessageDialog(this, "Xóa phiếu khám thành công!", "Thành công", JOptionPane.INFORMATION_MESSAGE);
+                // Refresh the table to show the change.
+                fetchData(currentPage);
+            } else {
+                JOptionPane.showMessageDialog(this, "Lỗi khi xóa phiếu khám: " + response.getMessage(), "Lỗi", JOptionPane.ERROR_MESSAGE);
+            }
         });
     }
 
@@ -465,10 +484,8 @@ public class DataDialog extends JDialog {
             }
 
             this.isExporting = true;
-
             JOptionPane.showMessageDialog(this, "Đang chuẩn bị dữ liệu để xuất file...", "Thông báo", JOptionPane.INFORMATION_MESSAGE);
-
-            fetchData(-1);
+            fetchData(-1); // Fetch all data for export
         }
     }
 
@@ -525,17 +542,10 @@ public class DataDialog extends JDialog {
 
     private void saveFiltersToLocalStorage() {
         String searchTerm = searchField.getText();
-        if (searchTerm.equals("Tìm theo tên bệnh nhân, mã bệnh nhân...")) {
-            LocalStorage.dataDialogSearchTerm = "";
-        } else {
-            LocalStorage.dataDialogSearchTerm = searchTerm;
-        }
+        LocalStorage.dataDialogSearchTerm = searchTerm.equals("Tìm theo tên bệnh nhân, mã bệnh nhân...") ? "" : searchTerm;
+
         String idSearchTerm = idSearchField.getText();
-        if (idSearchTerm.equals("Tìm theo mã phiếu khám...")) {
-            LocalStorage.dataDialogIdSearchTerm = "";
-        } else {
-            LocalStorage.dataDialogIdSearchTerm = idSearchTerm;
-        }
+        LocalStorage.dataDialogIdSearchTerm = idSearchTerm.equals("Tìm theo mã phiếu khám...") ? "" : idSearchTerm;
 
         LocalStorage.dataDialogFromDate = (Date) fromDateSpinner.getValue();
         LocalStorage.dataDialogToDate = (Date) toDateSpinner.getValue();
@@ -545,6 +555,8 @@ public class DataDialog extends JDialog {
     private void clearFilters() {
         searchField.setText("Tìm theo tên bệnh nhân, mã bệnh nhân...");
         searchField.setForeground(Color.GRAY);
+        idSearchField.setText("Tìm theo mã phiếu khám...");
+        idSearchField.setForeground(Color.GRAY);
         doctorComboBox.setSelectedIndex(0);
 
         Date today = new Date();
@@ -552,88 +564,131 @@ public class DataDialog extends JDialog {
         toDateSpinner.setValue(today);
 
         LocalStorage.dataDialogSearchTerm = "";
+        LocalStorage.dataDialogIdSearchTerm = "";
         LocalStorage.dataDialogFromDate = today;
         LocalStorage.dataDialogToDate = today;
         LocalStorage.dataDialogDoctorName = "Tất cả";
-        LocalStorage.dataDialogIdSearchTerm = "";
     }
 
+    //</editor-fold>
+
+    //<editor-fold desc="Action Button Inner Classes">
+
+    /**
+     * --- MODIFIED ---
+     * Renders both an Edit and a Delete button in the "Hành động" column.
+     */
     class ActionButtonRenderer extends JPanel implements TableCellRenderer {
-        private JButton editButton;
+        private final JButton editButton;
+        private final JButton deleteButton;
 
         public ActionButtonRenderer() {
-            setLayout(new FlowLayout(FlowLayout.CENTER, 2, 2));
+            setLayout(new FlowLayout(FlowLayout.CENTER, 5, 2));
 
+            // Edit Button
             ImageIcon editIcon = new ImageIcon("src/main/java/BsK/client/ui/assets/icon/edit.png");
-            if (editIcon.getImage() != null) {
-                 editIcon.setImage(editIcon.getImage().getScaledInstance(16, 16, Image.SCALE_SMOOTH));
-            }
+            editIcon.setImage(editIcon.getImage().getScaledInstance(16, 16, Image.SCALE_SMOOTH));
             editButton = new JButton(editIcon);
-
             editButton.setPreferredSize(new Dimension(30, 25));
-
             editButton.setToolTipText("Sửa");
 
+            // Delete Button
+            ImageIcon deleteIcon = new ImageIcon("src/main/java/BsK/client/ui/assets/icon/delete.png");
+            deleteIcon.setImage(deleteIcon.getImage().getScaledInstance(16, 16, Image.SCALE_SMOOTH));
+            deleteButton = new JButton(deleteIcon);
+            deleteButton.setPreferredSize(new Dimension(30, 25));
+            deleteButton.setToolTipText("Xóa");
+
             add(editButton);
+            add(deleteButton);
         }
 
         @Override
         public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
-            if (isSelected) {
-                setBackground(table.getSelectionBackground());
-            } else {
-                setBackground(table.getBackground());
-            }
+            setBackground(isSelected ? table.getSelectionBackground() : table.getBackground());
             return this;
         }
     }
 
+    /**
+     * --- MODIFIED ---
+     * Cell editor for the "Hành động" column, handling clicks for both Edit and Delete buttons.
+     */
     class ActionButtonEditor extends DefaultCellEditor {
-        private JPanel panel;
-        private JButton editButton;
+        private final JPanel panel;
+        private final JButton editButton;
+        private final JButton deleteButton;
 
         public ActionButtonEditor(JDialog parentDialog) {
             super(new JCheckBox());
-            panel = new JPanel(new FlowLayout(FlowLayout.CENTER, 2, 2));
+            panel = new JPanel(new FlowLayout(FlowLayout.CENTER, 5, 2));
 
+            // Edit Button Setup
             ImageIcon editIcon = new ImageIcon("src/main/java/BsK/client/ui/assets/icon/edit.png");
-            if (editIcon.getImage() != null) {
-                editIcon.setImage(editIcon.getImage().getScaledInstance(16, 16, Image.SCALE_SMOOTH));
-            }
+            editIcon.setImage(editIcon.getImage().getScaledInstance(16, 16, Image.SCALE_SMOOTH));
             editButton = new JButton(editIcon);
-
             editButton.setPreferredSize(new Dimension(30, 25));
+            editButton.setToolTipText("Sửa");
 
+            // Delete Button Setup
+            ImageIcon deleteIcon = new ImageIcon("src/main/java/BsK/client/ui/assets/icon/delete.png");
+            deleteIcon.setImage(deleteIcon.getImage().getScaledInstance(16, 16, Image.SCALE_SMOOTH));
+            deleteButton = new JButton(deleteIcon);
+            deleteButton.setPreferredSize(new Dimension(30, 25));
+            deleteButton.setToolTipText("Xóa");
+
+            // Action Listener for Edit Button
             editButton.addActionListener(e -> {
                 fireEditingStopped();
-
                 int selectedViewRow = dataTable.getSelectedRow();
-                if (selectedViewRow < 0) {
-                    return; 
-                }
+                if (selectedViewRow < 0) return;
                 int modelRow = dataTable.convertRowIndexToModel(selectedViewRow);
 
                 if (currentCheckupData != null && modelRow >= 0 && modelRow < currentCheckupData.length) {
                     String[] rowData = currentCheckupData[modelRow];
                     try {
                         Patient selectedPatient = new Patient(rowData);
-
                         if (checkUpPageInstance != null) {
                             checkUpPageInstance.loadPatientByCheckupId(selectedPatient);
                         }
-                        
                         parentDialog.dispose();
-
                     } catch (IllegalArgumentException ex) {
                         JOptionPane.showMessageDialog(parentDialog, "Không thể tải dữ liệu bệnh nhân. Dữ liệu không hợp lệ.", "Lỗi", JOptionPane.ERROR_MESSAGE);
-                        System.err.println("Error creating Patient DTO from row data: " + ex.getMessage());
                     }
                 }
             });
 
+            // Action Listener for Delete Button
+            deleteButton.addActionListener(e -> {
+                fireEditingStopped();
+                int selectedViewRow = dataTable.getSelectedRow();
+                if (selectedViewRow < 0) return;
+                int modelRow = dataTable.convertRowIndexToModel(selectedViewRow);
 
+                String checkupIdStr = (String) tableModel.getValueAt(modelRow, 1);
+                String patientName = (String) tableModel.getValueAt(modelRow, 2);
+
+                int confirmation = JOptionPane.showConfirmDialog(
+                        parentDialog,
+                        "Bạn có chắc chắn muốn xóa phiếu khám của bệnh nhân:\n" + patientName + " (Mã khám: " + checkupIdStr + ")?\n\nHành động này sẽ xóa toàn bộ dữ liệu liên quan và không thể hoàn tác.",
+                        "Xác nhận xóa",
+                        JOptionPane.YES_NO_OPTION,
+                        JOptionPane.WARNING_MESSAGE
+                );
+
+                if (confirmation == JOptionPane.YES_OPTION) {
+                    try {
+                        long checkupId = Long.parseLong(checkupIdStr);
+                        DeleteCheckupRequest deleteRequest = new DeleteCheckupRequest(checkupId);
+                        NetworkUtil.sendPacket(ClientHandler.ctx.channel(), deleteRequest);
+                    } catch (NumberFormatException ex) {
+                        JOptionPane.showMessageDialog(parentDialog, "Mã khám không hợp lệ: " + checkupIdStr, "Lỗi", JOptionPane.ERROR_MESSAGE);
+                    }
+                }
+            });
 
             panel.add(editButton);
+            panel.add(deleteButton);
         }
 
         @Override
