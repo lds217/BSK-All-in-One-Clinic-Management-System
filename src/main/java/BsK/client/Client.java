@@ -177,7 +177,7 @@ public class Client {
                                             protected void initChannel(SocketChannel ch) {
                                                 ch.pipeline()
                                                         .addLast(new HttpClientCodec())
-                                                        .addLast(new HttpObjectAggregator(100  * 1024 * 1024))
+                                                        .addLast(new HttpObjectAggregator(50  * 1024 * 1024))
                                                         .addLast(
                                                                 new WebSocketClientProtocolHandler(
                                                                         finalUri,
@@ -185,7 +185,7 @@ public class Client {
                                                                         null,
                                                                         true,
                                                                         new DefaultHttpHeaders(),
-                                                                        100  * 1024 * 1024))
+                                                                        50  * 1024 * 1024))
                                                         .addLast("ws", ClientHandler.INSTANCE);
                                             }
                                         });

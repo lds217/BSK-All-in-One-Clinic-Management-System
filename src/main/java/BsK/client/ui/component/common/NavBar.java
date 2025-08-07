@@ -9,16 +9,22 @@ import BsK.client.ui.component.CheckUpPage.CheckUpPage;
 import BsK.common.Error;
 import BsK.common.packet.req.EmergencyRequest;
 import BsK.common.packet.req.LogoutRequest;
+import BsK.common.packet.req.SetCounterRequest;
+import BsK.common.packet.req.GetCounterRequest;
 import BsK.common.util.network.NetworkUtil;
 import BsK.client.network.handler.ClientHandler;
 import BsK.client.network.handler.ResponseListener;
 import BsK.common.packet.res.EmergencyResponse;
 import BsK.common.packet.res.ErrorResponse;
 import BsK.common.packet.res.SimpleMessageResponse;
+import BsK.common.packet.res.SetCounterResponse;
+import BsK.common.packet.res.GetCounterResponse;
 import lombok.extern.slf4j.Slf4j;
 import javax.swing.Icon;
 
 import javax.swing.*;
+import javax.swing.event.ChangeEvent;
+import javax.swing.event.ChangeListener;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
@@ -33,11 +39,15 @@ public class NavBar extends JPanel {
     private final MainFrame mainFrame;
     private JLabel unreadCountLabel; // NEW: Label to display unread count
     private RoundedPanel messageButtonPanel; // NEW: Reference to message button panel for repainting
+    private JSpinner counterSpinner; // NEW: Spinner for current number
+    private boolean isUpdatingSpinner = false; // Flag to prevent recursive updates
 
     // Listener for incoming emergency alerts
     private final ResponseListener<EmergencyResponse> emergencyResponseListener = this::handleEmergencyResponse;
     private final ResponseListener<ErrorResponse> errorResponseListener = this::handleErrorResponse;
     private final ResponseListener<SimpleMessageResponse> navBarMessageListener = this::showNotificationForMessage;
+    private final ResponseListener<SetCounterResponse> setCounterResponseListener = this::handleSetCounterResponse;
+    private final ResponseListener<GetCounterResponse> getCounterResponseListener = this::handleGetCounterResponse;
 
     public NavBar(MainFrame mainFrame, String activePageTitle) {
         this.mainFrame = mainFrame;
@@ -47,6 +57,10 @@ public class NavBar extends JPanel {
         // add error response listener
         ClientHandler.addResponseListener(ErrorResponse.class, errorResponseListener);
         ClientHandler.addResponseListener(SimpleMessageResponse.class, navBarMessageListener);
+        // NEW: Register counter response listener
+        ClientHandler.addResponseListener(SetCounterResponse.class, setCounterResponseListener);
+        ClientHandler.addResponseListener(GetCounterResponse.class, getCounterResponseListener);
+        
         this.setLayout(new BoxLayout(this, BoxLayout.X_AXIS));
         this.setBackground(new Color(240, 240, 240));
         this.setBorder(BorderFactory.createEmptyBorder(5, 25, 5, 25));
@@ -67,10 +81,14 @@ public class NavBar extends JPanel {
         titleLabel.setForeground(new Color(60, 60, 60));
         titlePanel.add(titleLabel, new GridBagConstraints());
 
-        // Right section with user info and emergency button
+        // Right section with user info, counter, message button, and emergency button
         JPanel userPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
         userPanel.setBackground(this.getBackground());
         userPanel.setAlignmentY(Component.CENTER_ALIGNMENT);
+
+        // NEW: Add counter spinner
+        Component counterComponent = createCounterSpinner();
+        userPanel.add(counterComponent);
 
         Component messageButton = createMessageButton();
         userPanel.add(messageButton);
@@ -266,6 +284,8 @@ public class NavBar extends JPanel {
         this.add(titlePanel);
         this.add(Box.createHorizontalGlue());
         this.add(userPanel);
+
+        NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetCounterRequest());
     }
 
     private int findNavItemIndex(String text, String[] items) {
@@ -273,6 +293,88 @@ public class NavBar extends JPanel {
             if (items[i].equals(text)) return i;
         }
         return 0;
+    }
+
+    // NEW: Create counter spinner component
+    private Component createCounterSpinner() {
+        JPanel counterPanel = new JPanel(new BorderLayout(5, 0));
+        counterPanel.setBackground(this.getBackground());
+        counterPanel.setAlignmentY(Component.CENTER_ALIGNMENT);
+
+        // Create label
+        JLabel counterLabel = new JLabel("Số thứ tự hiện tại:");
+        counterLabel.setFont(new Font("Arial", Font.BOLD, 12));
+        counterLabel.setForeground(new Color(60, 60, 60));
+
+        // Create spinner with initial value of 1, minimum 1, maximum 999, step 1
+        SpinnerNumberModel spinnerModel = new SpinnerNumberModel(1, 1, 999, 1);
+        counterSpinner = new JSpinner(spinnerModel);
+        counterSpinner.setPreferredSize(new Dimension(80, 30));
+        counterSpinner.setFont(new Font("Arial", Font.BOLD, 14));
+        
+        // Style the spinner
+        JComponent editor = counterSpinner.getEditor();
+        if (editor instanceof JSpinner.DefaultEditor) {
+            JSpinner.DefaultEditor defaultEditor = (JSpinner.DefaultEditor) editor;
+            defaultEditor.getTextField().setHorizontalAlignment(JTextField.CENTER);
+            defaultEditor.getTextField().setBackground(Color.WHITE);
+            defaultEditor.getTextField().setBorder(BorderFactory.createLoweredBevelBorder());
+        }
+
+        // Add change listener to send SetCounterRequest
+        counterSpinner.addChangeListener(new ChangeListener() {
+            @Override
+            public void stateChanged(ChangeEvent e) {
+                if (!isUpdatingSpinner) { // Prevent recursive updates
+                    int newValue = (Integer) counterSpinner.getValue();
+                    log.info("Counter spinner changed to: {}", newValue);
+                    
+                    // Send SetCounterRequest to server
+                    NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new SetCounterRequest(newValue));
+                }
+            }
+        });
+
+        counterPanel.add(counterLabel, BorderLayout.WEST);
+        counterPanel.add(counterSpinner, BorderLayout.EAST);
+
+        return counterPanel;
+    }
+
+    // NEW: Handle SetCounterResponse
+    private void handleSetCounterResponse(SetCounterResponse response) {
+        SwingUtilities.invokeLater(() -> {
+            log.info("Received SetCounterResponse with value: {}", response.getCounter());
+            
+            // Update spinner value without triggering change event
+            isUpdatingSpinner = true;
+            try {
+                counterSpinner.setValue(response.getCounter());
+            } catch (Exception e) {
+                log.error("Error updating counter spinner: {}", e.getMessage());
+            } finally {
+                isUpdatingSpinner = false;
+            }
+        });
+    }
+
+    // NEW: Method to programmatically set counter value
+    public void setCounterValue(int value) {
+        SwingUtilities.invokeLater(() -> {
+            isUpdatingSpinner = true;
+            try {
+                counterSpinner.setValue(Math.max(1, Math.min(999, value))); // Ensure value is within bounds
+            } catch (Exception e) {
+                log.error("Error setting counter value: {}", e.getMessage());
+            } finally {
+                isUpdatingSpinner = false;
+            }
+        });
+    }
+
+    // NEW: Method to get current counter value
+    public int getCounterValue() {
+        return (Integer) counterSpinner.getValue();
     }
 
     private void showNotificationForMessage(SimpleMessageResponse response) {
@@ -601,6 +703,23 @@ public class NavBar extends JPanel {
                 response.getError().toString(), "Lỗi", JOptionPane.ERROR_MESSAGE));
     }
 
+    private void handleGetCounterResponse(GetCounterResponse response) {
+        SwingUtilities.invokeLater(() -> {
+            log.info("Received GetCounterResponse with initial value: {}", response.getCounter());
+            
+            // Update spinner value without triggering change event
+            isUpdatingSpinner = true;
+            try {
+                counterSpinner.setValue(response.getCounter());
+                log.info("Counter spinner initialized to: {}", response.getCounter());
+            } catch (Exception e) {
+                log.error("Error initializing counter spinner: {}", e.getMessage());
+            } finally {
+                isUpdatingSpinner = false;
+            }
+        });
+    }
+
     /**
      * Cleans up resources, specifically unregistering network listeners.
      * This should be called when the NavBar is no longer needed (e.g., on logout).
@@ -609,6 +728,7 @@ public class NavBar extends JPanel {
         ClientHandler.deleteListener(EmergencyResponse.class, emergencyResponseListener);
         ClientHandler.deleteListener(ErrorResponse.class, errorResponseListener);
         ClientHandler.deleteListener(SimpleMessageResponse.class, navBarMessageListener);
+        ClientHandler.deleteListener(SetCounterResponse.class, setCounterResponseListener); // NEW: Clean up counter listener
         log.info("All NavBar listeners removed.");
     }
 }

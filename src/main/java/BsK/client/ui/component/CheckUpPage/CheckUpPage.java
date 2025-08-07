@@ -162,6 +162,7 @@ public class CheckUpPage extends JPanel {
     private final ResponseListener<UploadCheckupImageResponse> uploadImageResponseListener = this::handleUploadImageResponse;
     private final ResponseListener<UploadCheckupPdfResponse> uploadPdfResponseListener = this::handleUploadPdfResponse;
     private final ResponseListener<SyncCheckupImagesResponse> syncImagesResponseListener = this::handleSyncImagesResponse;
+    private final ResponseListener<GetCheckupImageResponse> getImageResponseListener = this::handleGetCheckupImageResponse;
     private JTextField checkupIdField, customerLastNameField, customerFirstNameField,customerAddressField, customerPhoneField, customerIdField, customerCccdDdcnField;
     private JTextArea suggestionField, diagnosisField, conclusionField; // Changed symptomsField to suggestionField
     private JTextPane notesField;
@@ -339,6 +340,7 @@ public class CheckUpPage extends JPanel {
         ClientHandler.addResponseListener(UploadCheckupImageResponse.class, uploadImageResponseListener);
         ClientHandler.addResponseListener(UploadCheckupPdfResponse.class, uploadPdfResponseListener);
         ClientHandler.addResponseListener(SyncCheckupImagesResponse.class, syncImagesResponseListener);
+        ClientHandler.addResponseListener(GetCheckupImageResponse.class, getImageResponseListener);
 
         // Instantiate the new queue page but don't show it yet
         queueManagementPage = new QueueManagementPage();
@@ -3569,34 +3571,33 @@ public class CheckUpPage extends JPanel {
 
     
     
-private void uploadImageInBackground(String fileName, BufferedImage image) {
-    imageUploadExecutor.submit(() -> {
-        try {
-            // Convert BufferedImage to byte array without compression
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            
-            // Write image as PNG to preserve original quality
-            ImageIO.write(image, "png", baos);
-            
-            byte[] imageData = baos.toByteArray();
-            baos.close();
-
-            // Create and send the request
-            String checkupId = currentCheckupIdForMedia;
-
-            // Use PNG extension since we're preserving quality
-            String pngFileName = fileName.replaceAll("\\.(jpg|jpeg)$", ".png");
-
-            UploadCheckupImageRequest request = new UploadCheckupImageRequest(checkupId, imageData, pngFileName);
-            NetworkUtil.sendPacket(ClientHandler.ctx.channel(), request);
-            log.info("Sent UploadCheckupImageRequest for {}", pngFileName);
-
-        } catch (IOException e) {
-            log.error("Failed to convert image for upload: {}", fileName, e);
-            // The timeout mechanism will handle notifying the user of a potential network issue.
-        }
-    });
-}
+    private void uploadImageInBackground(String fileName, BufferedImage image) {
+        imageUploadExecutor.submit(() -> {
+            try {
+                ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                
+                // CHANGE 1: Write the image as a JPG instead of PNG.
+                // This creates compressed JPG data, which is smaller and faster to upload.
+                ImageIO.write(image, "jpg", baos);
+                
+                byte[] imageData = baos.toByteArray();
+                baos.close();
+    
+                String checkupId = currentCheckupIdForMedia;
+    
+                // CHANGE 2: Use the original fileName (which should already be .jpg).
+                // No need to rename it to .png anymore.
+                UploadCheckupImageRequest request = new UploadCheckupImageRequest(checkupId, imageData, fileName);
+                
+                NetworkUtil.sendPacket(ClientHandler.ctx.channel(), request);
+                log.info("Sent UploadCheckupImageRequest for {}", fileName);
+    
+            } catch (IOException e) {
+                log.error("Failed to convert image to JPG for upload: {}", fileName, e);
+            }
+        });
+    }
+    
     private void handleUploadImageResponse(UploadCheckupImageResponse response) {
         String fileName = response.getFileName();
         
@@ -3637,67 +3638,51 @@ private void uploadImageInBackground(String fileName, BufferedImage image) {
 
     private void handleSyncImagesResponse(SyncCheckupImagesResponse response) {
         if (response.isSuccess()) {
-            log.info("Successfully synced images for checkup {}: {}", response.getCheckupId(), response.getMessage());
-            
+            String checkupId = response.getCheckupId();
+            int imageCount = response.getImageNames() != null ? response.getImageNames().size() : 0;
+            log.info("Received image manifest for checkup {}. Found {} images. Requesting data individually.", checkupId, imageCount);
+    
             SwingUtilities.invokeLater(() -> {
                 try {
-                    // Create media directory for this checkup if it doesn't exist
-                    java.io.File mediaDir = new java.io.File(LocalStorage.checkupMediaBaseDir, response.getCheckupId());
-                    if (!mediaDir.exists()) {
-                        mediaDir.mkdirs();
+                    // Step 1: Create the local directory for this checkup
+                    Path mediaDir = Paths.get(LocalStorage.checkupMediaBaseDir, checkupId);
+                    if (!Files.exists(mediaDir)) {
+                        Files.createDirectories(mediaDir);
                     }
                     
-                    // Save each image to local media directory, converting to JPG format for client consistency
-                    for (int i = 0; i < response.getImageNames().size(); i++) {
-                        String imageName = response.getImageNames().get(i);
-                        byte[] imageData = response.getImageDatas().get(i);
-                        
-                        // Convert filename to JPG extension for client storage consistency
-                        String jpgImageName = imageName.substring(0, imageName.lastIndexOf('.')) + ".jpg";
-                        java.io.File imageFile = new java.io.File(mediaDir, jpgImageName);
-                        
-                        try {
-                            // Convert image data to JPG format for client storage
-                            try (java.io.ByteArrayInputStream bais = new java.io.ByteArrayInputStream(imageData)) {
-                                java.awt.image.BufferedImage image = javax.imageio.ImageIO.read(bais);
-                                if (image != null) {
-                                    javax.imageio.ImageIO.write(image, "JPG", imageFile);
-                                    log.debug("Synced and converted image to JPG: {}", imageFile.getAbsolutePath());
-                                } else {
-                                    // Fallback: save as original format if conversion fails
-                                    try (java.io.FileOutputStream fos = new java.io.FileOutputStream(new java.io.File(mediaDir, imageName))) {
-                                        fos.write(imageData);
-                                        log.warn("Failed to convert image to JPG, saved as original format: {}", imageName);
-                                    }
-                                }
-                            }
-                        } catch (Exception e) {
-                            log.error("Failed to process synced image {}: {}", imageName, e.getMessage());
-                            // Fallback: save as original format
-                            try (java.io.FileOutputStream fos = new java.io.FileOutputStream(new java.io.File(mediaDir, imageName))) {
-                                fos.write(imageData);
-                                log.warn("Saved image as original format due to conversion error: {}", imageName);
-                            }
+                    // Step 2 (Optional but Recommended): Clear the local directory to ensure it perfectly matches the server.
+                    // This prevents images deleted on the server from lingering on the client.
+                    try (DirectoryStream<Path> stream = Files.newDirectoryStream(mediaDir)) {
+                        for (Path entry : stream) {
+                            Files.delete(entry);
                         }
                     }
-                    
-                    // Update the current media path and refresh the gallery if this is for the current checkup
-                    if (response.getCheckupId().equals(currentCheckupIdForMedia)) {
-                        currentCheckupMediaPath = mediaDir.toPath();
-                        loadAndDisplayImages(currentCheckupMediaPath);
-                        log.info("Refreshed image gallery with {} synced images", response.getImageNames().size());
+                    log.info("Cleared local media directory for checkup {}", checkupId);
+    
+                    // Step 3: Request each image from the server one by one
+                    if (imageCount > 0) {
+                        for (String imageName : response.getImageNames()) {
+                            log.info("Requesting image data for: {}", imageName);
+                            GetCheckupImageRequest request = new GetCheckupImageRequest(checkupId, imageName);
+                            NetworkUtil.sendPacket(ClientHandler.ctx.channel(), request);
+                        }
+                    } else {
+                        // If there are no images on the server, ensure the gallery is empty
+                        if (checkupId.equals(currentCheckupIdForMedia)) {
+                            loadAndDisplayImages(mediaDir);
+                        }
                     }
                     
                     // Update UI status
                     if (callingStatusLabel != null) {
-                        callingStatusLabel.setText("Đã đồng bộ " + response.getImageNames().size() + " hình ảnh từ server");
+                        callingStatusLabel.setText("Đang tải " + imageCount + " hình ảnh từ server...");
                         callingStatusLabel.setForeground(new Color(0, 100, 0));
                     }
-                    
+    
                 } catch (Exception e) {
-                    log.error("Failed to save synced images locally: {}", e.getMessage());
+                    log.error("Failed to process synced image manifest: {}", e.getMessage());
                     if (callingStatusLabel != null) {
-                        callingStatusLabel.setText("Lỗi khi lưu hình ảnh đồng bộ: " + e.getMessage());
+                        callingStatusLabel.setText("Lỗi khi xử lý danh sách hình ảnh: " + e.getMessage());
                         callingStatusLabel.setForeground(Color.RED);
                     }
                 }
@@ -3710,6 +3695,52 @@ private void uploadImageInBackground(String fileName, BufferedImage image) {
                     callingStatusLabel.setForeground(new Color(200, 100, 0)); // Orange for warning
                 }
             });
+        }
+    }
+    
+    
+    // ----------------- NEW METHOD -----------------
+    // ADD this new method to your CheckUpPage class.
+    private void handleGetCheckupImageResponse(GetCheckupImageResponse response) {
+        if (response.isSuccess() && response.getImageData() != null) {
+            log.info("Received image data for {} from checkup {}", response.getImageName(), response.getCheckupId());
+    
+            SwingUtilities.invokeLater(() -> {
+                try {
+                    Path mediaDir = Paths.get(LocalStorage.checkupMediaBaseDir, response.getCheckupId());
+                    if (!Files.exists(mediaDir)) {
+                        Files.createDirectories(mediaDir);
+                    }
+    
+                    // For client-side consistency, we'll save everything as a JPG.
+                    String jpgImageName = response.getImageName().replaceAll("\\.\\w+$", ".jpg");
+                    java.io.File imageFile = new java.io.File(mediaDir.toFile(), jpgImageName);
+    
+                    // Try to read the byte array as a BufferedImage and write it as a JPG.
+                    // This handles conversion from PNG, BMP, etc.
+                    try (java.io.ByteArrayInputStream bais = new java.io.ByteArrayInputStream(response.getImageData())) {
+                        java.awt.image.BufferedImage image = javax.imageio.ImageIO.read(bais);
+                        if (image != null) {
+                            javax.imageio.ImageIO.write(image, "JPG", imageFile);
+                        } else {
+                            throw new IOException("ImageIO.read returned null; could not decode image format.");
+                        }
+                    }
+    
+                    log.debug("Saved synced image as JPG: {}", imageFile.getAbsolutePath());
+    
+                    // If this image belongs to the currently selected patient, refresh the gallery to show it.
+                    if (response.getCheckupId().equals(currentCheckupIdForMedia)) {
+                        loadAndDisplayImages(currentCheckupMediaPath);
+                    }
+    
+                } catch (IOException e) {
+                    log.error("Failed to save synced image {} locally: {}", response.getImageName(), e.getMessage());
+                    // As a fallback, you could write the raw bytes if conversion fails, but logging the error is often enough.
+                }
+            });
+        } else {
+            log.error("Failed to get image {} for checkup {}: {}", response.getImageName(), response.getCheckupId(), response.getMessage());
         }
     }
 
