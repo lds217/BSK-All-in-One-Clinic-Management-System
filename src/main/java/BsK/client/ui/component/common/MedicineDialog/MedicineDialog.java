@@ -385,6 +385,7 @@ public class MedicineDialog extends JDialog {
         eveningSpinner.setPreferredSize(new Dimension(60,30));
         dosagePanel.add(eveningSpinner, gbc);
         gbc.weightx = 0.0;
+        
 
         gbc.gridy = 0;
         gbc.gridx = 0;
