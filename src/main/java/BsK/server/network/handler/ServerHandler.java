@@ -691,7 +691,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                 // Gửi phản hồi thành công và broadcast cập nhật
                 UserUtil.sendPacket(currentUser.getSessionId(), new AddCheckupResponse(true, "Thêm bệnh nhân thành công", queueNumber));
                 broadcastQueueUpdate();
-                
+                UserUtil.sendPacket(currentUser.getSessionId(), new SetCounterResponse(queueNumber));
                 // Tạo thư mục Google Drive bất đồng bộ
                 createCheckupGoogleDriveFolderAsync(generatedCheckupId, addCheckupRequest.getCustomerId());
     
@@ -711,6 +711,47 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
             // Lỗi này xảy ra nếu không thể lấy kết nối từ pool, hoặc có lỗi nghiêm trọng khi rollback
             log.error("Critical error during database transaction management for AddCheckupRequest.", e);
             UserUtil.sendPacket(currentUser.getSessionId(), new AddCheckupResponse(false, "Lỗi hệ thống: Không thể xử lý giao dịch CSDL.", -1));
+        }
+      }
+
+      if (packet instanceof SetCounterRequest setCounterRequest) {
+        log.debug("Received SetCounterRequest to set counter to {}", setCounterRequest.getCounter());
+        String sql = """
+                INSERT INTO DailyQueueCounter (date, current_count) 
+                VALUES (date('now', 'localtime'), ?) 
+                ON CONFLICT(date) DO UPDATE SET current_count = excluded.current_count;
+                """;
+
+        try (Connection conn = DatabaseManager.getConnection()) {
+            try (PreparedStatement preparedStatement = conn.prepareStatement(sql)) {
+                preparedStatement.setInt(1, setCounterRequest.getCounter());
+                preparedStatement.executeUpdate();
+            }
+        } catch (SQLException e) {
+            log.error("Error during SetCounterRequest, rolling back transaction.", e);
+            UserUtil.sendPacket(currentUser.getSessionId(), new ErrorResponse(Error.SQL_EXCEPTION));
+        }
+
+        int maxCurId = SessionManager.getMaxSessionId();
+        for (int sessionId = 1; sessionId <= maxCurId; sessionId++) {
+            UserUtil.sendPacket(sessionId, new SetCounterResponse(setCounterRequest.getCounter()));
+        }
+      }
+
+      if (packet instanceof GetCounterRequest getCounterRequest) {
+        log.debug("Received GetCounterRequest");
+        String sql = "SELECT current_count FROM DailyQueueCounter WHERE date = date('now', 'localtime');";
+        try (Connection conn = DatabaseManager.getConnection()) {
+            try (PreparedStatement preparedStatement = conn.prepareStatement(sql)) {
+                ResultSet rs = preparedStatement.executeQuery();
+                if (rs.next()) {
+                    int counter = rs.getInt(1);
+                    UserUtil.sendPacket(currentUser.getSessionId(), new GetCounterResponse(counter));
+                }
+            }
+        } catch (SQLException e) {
+            log.error("Error during GetCounterRequest, rolling back transaction.", e);
+            UserUtil.sendPacket(currentUser.getSessionId(), new ErrorResponse(Error.SQL_EXCEPTION));
         }
       }
 
@@ -1131,44 +1172,42 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         log.info("Received UploadCheckupImageRequest for checkupId: {}", uploadCheckupImageRequest.getCheckupId());
     
         String checkupId = uploadCheckupImageRequest.getCheckupId();
-        String fileName = uploadCheckupImageRequest.getFileName();
+        String originalFileName = uploadCheckupImageRequest.getFileName(); // Use the original name
         byte[] imageData = uploadCheckupImageRequest.getImageData();
     
         if (checkupId == null || checkupId.trim().isEmpty()) {
-            UserUtil.sendPacket(currentUser.getSessionId(), new UploadCheckupImageResponse(false, "CheckupID không hợp lệ.", fileName));
+            UserUtil.sendPacket(currentUser.getSessionId(), new UploadCheckupImageResponse(false, "CheckupID không hợp lệ.", originalFileName));
             return;
         }
     
         try {
-            // 1. Xác định và tạo thư mục lưu trữ
+            // 1. Define the storage directory
             Path storageDir = Paths.get(Server.imageDbPath, checkupId.trim());
             Files.createDirectories(storageDir);
     
-            // 2. Chuyển đổi và lưu ảnh dưới dạng PNG để đồng nhất
-            String pngFileName = fileName.substring(0, fileName.lastIndexOf('.')) + ".png";
-            Path filePath = storageDir.resolve(pngFileName);
-            
-            try (ByteArrayInputStream bais = new ByteArrayInputStream(imageData)) {
-                BufferedImage image = ImageIO.read(bais);
-                if (image != null) {
-                    ImageIO.write(image, "PNG", filePath.toFile());
-                    log.info("Successfully converted and saved image as PNG to {}", filePath);
-                } else {
-                    throw new IOException("Could not decode image data.");
-                }
-            }
-  
-            // 4. Gửi phản hồi thành công cho client
-            UserUtil.sendPacket(currentUser.getSessionId(), new UploadCheckupImageResponse(true, "Tải ảnh lên thành công.", fileName));
+            // 2. Define the final file path using the original file name.
+            // This preserves the original extension (jpg, png, etc.).
+            Path filePath = storageDir.resolve(originalFileName);
     
-            // 5. Tải lên Google Drive bất đồng bộ
-            uploadCheckupImageToGoogleDriveAsync(checkupId, fileName, imageData);
+            // 3. Write the raw bytes directly to the file.
+            // This is much faster and safer than decoding and re-encoding.
+            Files.write(filePath, imageData);
+            log.info("Successfully saved original image to {}", filePath);
+    
+            // 4. Send a success response back to the client
+            UserUtil.sendPacket(currentUser.getSessionId(), new UploadCheckupImageResponse(true, "Tải ảnh lên thành công.", originalFileName));
+    
+            // 5. Asynchronously upload to Google Drive (your existing logic)
+            uploadCheckupImageToGoogleDriveAsync(checkupId, originalFileName, imageData);
     
         } catch (IOException e) {
-            log.error("Failed to process uploaded image for checkupId {}: {}", checkupId, e.getMessage());
-            UserUtil.sendPacket(currentUser.getSessionId(), new UploadCheckupImageResponse(false, "Lỗi máy chủ khi lưu ảnh: " + e.getMessage(), fileName));
+            log.error("Failed to save uploaded image for checkupId {}: {}", checkupId, e.getMessage());
+            UserUtil.sendPacket(currentUser.getSessionId(), new UploadCheckupImageResponse(false, "Lỗi máy chủ khi lưu ảnh: " + e.getMessage(), originalFileName));
+        } catch (Exception e) { // Catch any other unexpected errors
+            log.error("An unexpected error occurred during image upload for checkupId {}: {}", checkupId, e.getMessage());
+            UserUtil.sendPacket(currentUser.getSessionId(), new UploadCheckupImageResponse(false, "Lỗi không xác định: " + e.getMessage(), originalFileName));
         }
-      }
+    }
 
       if (packet instanceof DeleteCheckupRequest deleteCheckupRequest) {
         log.info("Recieved delete checkup request for checkupId: {}", deleteCheckupRequest.getCheckupId());
@@ -1286,49 +1325,83 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
       if (packet instanceof SyncCheckupImagesRequest syncCheckupImagesRequest) {
         String checkupId = syncCheckupImagesRequest.getCheckupId();
         log.info("Received SyncCheckupImagesRequest for checkupId: {}", checkupId);
-
+    
         List<String> imageNames = new ArrayList<>();
-        List<byte[]> imageDatas = new ArrayList<>();
+        // No longer create a list for byte data: List<byte[]> imageDatas = new ArrayList<>();
         boolean success = false;
         String message = "";
-
+    
         Path checkupDir = Paths.get(Server.imageDbPath, checkupId);
         if (Files.exists(checkupDir) && Files.isDirectory(checkupDir)) {
             try {
-                List<Path> imagePaths = Files.list(checkupDir)
+                // We ONLY collect the names, not the file content
+                imageNames = Files.list(checkupDir)
                     .filter(path -> {
                         String filename = path.toString().toLowerCase();
                         return filename.endsWith(".jpg") || filename.endsWith(".jpeg") || filename.endsWith(".png") || filename.endsWith(".gif") || filename.endsWith(".bmp");
                     })
+                    .map(path -> path.getFileName().toString()) // Get just the filename string
                     .collect(Collectors.toList());
-
-                for (Path imagePath : imagePaths) {
-                    try {
-                        imageDatas.add(Files.readAllBytes(imagePath));
-                        imageNames.add(imagePath.getFileName().toString());
-                    } catch (IOException e) {
-                        log.error("Failed to read image file: {}", imagePath, e);
-                    }
-                }
-                
+    
                 success = true;
-                message = String.format("Successfully synced %d images for checkup %s", imageDatas.size(), checkupId);
-                log.info("Successfully synced {} images for checkupId: {}", imageDatas.size(), checkupId);
+                message = String.format("Successfully found %d image names for checkup %s", imageNames.size(), checkupId);
+                log.info(message);
                 
             } catch (IOException e) {
                 log.error("Failed to list images for checkupId: {}", checkupId, e);
-                message = "Failed to read images from server: " + e.getMessage();
+                message = "Failed to read image directory on server: " + e.getMessage();
             }
         } else {
             log.warn("Image directory not found for checkupId: {}", checkupId);
             message = "No images found for this checkup on server";
-            success = true; // Not finding images is still a successful response
+            success = true; // Not finding a directory is a successful "empty" response
         }
-
-        UserUtil.sendPacket(currentUser.getSessionId(), new SyncCheckupImagesResponse(checkupId, imageNames, imageDatas, success, message));
-        log.info("Sent sync response with {} images for checkupId: {}", imageDatas.size(), checkupId);
-      }
-      
+        
+        // Note: imageDatas has been removed from the constructor
+        UserUtil.sendPacket(currentUser.getSessionId(), new SyncCheckupImagesResponse(checkupId, imageNames, success, message));
+        log.info("Sent sync response with {} image names for checkupId: {}", imageNames.size(), checkupId);
+    }
+    if (packet instanceof GetCheckupImageRequest getImageRequest) {
+        String checkupId = getImageRequest.getCheckupId();
+        String imageName = getImageRequest.getImageName();
+        log.info("Received GetCheckupImageRequest for image '{}' in checkup {}", imageName, checkupId);
+    
+        byte[] imageData = null;
+        boolean success = false;
+        String message = "";
+    
+        try {
+            Path checkupDir = Paths.get(Server.imageDbPath, checkupId);
+            Path targetPath = checkupDir.resolve(imageName).normalize();
+    
+            // CRITICAL SECURITY CHECK: Prevent directory traversal attacks (e.g., "../../../etc/passwd")
+            if (!targetPath.startsWith(checkupDir)) {
+                throw new SecurityException("Attempted directory traversal attack: " + imageName);
+            }
+    
+            if (Files.exists(targetPath) && Files.isRegularFile(targetPath)) {
+                // The potentially dangerous operation is now safely inside a try-catch block
+                imageData = Files.readAllBytes(targetPath);
+                success = true;
+                message = "Successfully read image data.";
+            } else {
+                message = "Image not found on server: " + imageName;
+                log.warn(message);
+            }
+        } catch (IOException e) {
+            message = "IO error reading image file: " + e.getMessage();
+            log.error("Failed to read image file '{}': {}", imageName, e.getMessage(), e);
+        } catch (OutOfMemoryError e) {
+            // THIS IS THE KEY! We catch the crash and turn it into a safe error response.
+            message = "Server ran out of memory trying to read image. File may be corrupted: " + imageName;
+            log.error("OutOfMemoryError while reading image file '{}'. It is likely corrupted.", imageName, e);
+        } catch (Exception e) {
+            message = "An unexpected error occurred: " + e.getMessage();
+            log.error("Unexpected error reading image file '{}': {}", imageName, e.getMessage(), e);
+        }
+    
+        UserUtil.sendPacket(currentUser.getSessionId(), new GetCheckupImageResponse(checkupId, imageName, imageData, success, message));
+    }
       if (packet instanceof GetRecheckUpListRequest getRecheckUpListRequest) {
         log.debug("Received GetRecheckUpListRequest");
         getRecheckUpList(currentUser.getSessionId());
