@@ -96,6 +96,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import javax.swing.JTextPane;
@@ -136,6 +137,8 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileTime;
+import java.nio.file.NoSuchFileException;
+import java.nio.file.StandardCopyOption;
 
 
 @Slf4j
@@ -143,8 +146,28 @@ public class CheckUpPage extends JPanel {
 
     private ScheduledExecutorService folderScanExecutor;
     private volatile boolean isScanning = false;
-    private static final int SCAN_INTERVAL_SECONDS = 2;
+    private static final int SCAN_INTERVAL_MILLISECONDS = 500; // Check every 1 
     private static final int MAX_FOLDERS_TO_SCAN = 4;
+
+    private final Set<Path> processingFiles = ConcurrentHashMap.newKeySet();
+    private final Map<Path, FileAttributes> lastSeenFiles = new ConcurrentHashMap<>();
+
+    private static class FileAttributes {
+        final long size;
+        final FileTime lastModified;
+        final boolean isStable;
+        
+        FileAttributes(long size, FileTime lastModified, boolean isStable) {
+            this.size = size;
+            this.lastModified = lastModified;
+            this.isStable = isStable;
+        }
+    }
+
+    private JPanel room1StatusPanel;
+    private JLabel room1StatusLabel;
+    private JPanel room2StatusPanel;
+    private JLabel room2StatusLabel;
 
     private MainFrame mainFrame;
     private List<Patient> patientQueue = new ArrayList<>();
@@ -220,8 +243,8 @@ public class CheckUpPage extends JPanel {
     private JButton takePictureButton;
     private JButton openFolderButton;
     private JButton recordVideoButton;
-    private String currentCheckupIdForMedia;
-    private Path currentCheckupMediaPath;
+    private volatile String currentCheckupIdForMedia;
+    private volatile Path currentCheckupMediaPath;
     private javax.swing.Timer imageRefreshTimer;
     // Using LocalStorage.checkupMediaBaseDir which is loaded at startup
     private static final int THUMBNAIL_WIDTH = 100;
@@ -824,17 +847,20 @@ public class CheckUpPage extends JPanel {
         ));
 
         GridBagConstraints gbcRoom = new GridBagConstraints();
-        gbcRoom.insets = new Insets(5, 8, 5, 8); // Reduced vertical insets from 8 to 5
-        gbcRoom.fill = GridBagConstraints.HORIZONTAL;
+        gbcRoom.insets = new Insets(5, 8, 5, 8);
 
-        // Room Selection
+        // --- Left Side: Controls ---
+
+        // Room Selection Label
+        gbcRoom.fill = GridBagConstraints.HORIZONTAL;
         gbcRoom.gridx = 0; gbcRoom.gridy = 0;
         JLabel roomLabel = new JLabel("Phòng khám:", SwingConstants.RIGHT);
         roomLabel.setFont(labelFont);
         roomControlPanel.add(roomLabel, gbcRoom);
 
+        // Room Selection ComboBox
         gbcRoom.gridx = 1;
-        String[] roomOptions = {"Phòng 1", "Phòng 2", "Phòng 3"};
+        String[] roomOptions = {"Phòng 1", "Phòng 2"};
         callRoomComboBox = new JComboBox<>(roomOptions);
         callRoomComboBox.setFont(fieldFont);
         roomControlPanel.add(callRoomComboBox, gbcRoom);
@@ -846,21 +872,51 @@ public class CheckUpPage extends JPanel {
         callPatientButton.setBackground(new Color(33, 150, 243));
         callPatientButton.setForeground(Color.WHITE);
         callPatientButton.setFocusPainted(false);
-        callPatientButton.addActionListener(e -> handleCallPatient());
+        callPatientButton.addActionListener(e -> handleCallPatient()); // Ensure this method updates the panels
         roomControlPanel.add(callPatientButton, gbcRoom);
 
-        // Free Room Button
+        // Free Room Button (spans the width of the controls)
         gbcRoom.gridx = 0; gbcRoom.gridy = 1; gbcRoom.gridwidth = 3;
         JButton freeRoomButton = new JButton("Đánh dấu phòng trống");
         freeRoomButton.setFont(fieldFont);
         freeRoomButton.setBackground(new Color(46, 204, 113));
         freeRoomButton.setForeground(Color.WHITE);
         freeRoomButton.setFocusPainted(false);
-        freeRoomButton.addActionListener(e -> handleFreeRoom());
+        freeRoomButton.addActionListener(e -> handleFreeRoom()); // Ensure this method updates the panels
         roomControlPanel.add(freeRoomButton, gbcRoom);
 
-        // Add room control panel to the bottom of patient info panel
-        gbcPatient.gridx = 0; gbcPatient.gridy = 8; gbcPatient.gridwidth = 4;
+
+        // --- Right Side: Status Panels ---
+
+        // Reset constraints for status panels
+        gbcRoom.gridwidth = 1;
+        gbcRoom.gridheight = 2; // Make panels span 2 rows vertically
+        gbcRoom.fill = GridBagConstraints.BOTH; // Fill available space
+
+        // Room 1 Status Panel
+        gbcRoom.gridx = 3; gbcRoom.gridy = 0;
+        room1StatusPanel = new JPanel(new BorderLayout());
+        room1StatusPanel.setPreferredSize(new Dimension(110, 0)); // Set width, height is controlled by layout
+        room1StatusLabel = new JLabel("", SwingConstants.CENTER);
+        room1StatusLabel.putClientProperty("baseText", "PHÒNG 1"); // Store base text for reuse
+        styleRoomStatusPanel(room1StatusPanel, room1StatusLabel, Color.GREEN.darker(), "TRỐNG"); // Initial state
+        room1StatusPanel.add(room1StatusLabel, BorderLayout.CENTER);
+        roomControlPanel.add(room1StatusPanel, gbcRoom);
+
+        // Room 2 Status Panel
+        gbcRoom.gridx = 4; gbcRoom.gridy = 0;
+        room2StatusPanel = new JPanel(new BorderLayout());
+        room2StatusPanel.setPreferredSize(new Dimension(110, 0)); // Set width, height is controlled by layout
+        room2StatusLabel = new JLabel("", SwingConstants.CENTER);
+        room2StatusLabel.putClientProperty("baseText", "PHÒNG 2"); // Store base text for reuse
+        styleRoomStatusPanel(room2StatusPanel, room2StatusLabel, Color.GREEN.darker(), "TRỐNG"); // Initial state
+        room2StatusPanel.add(room2StatusLabel, BorderLayout.CENTER);
+        roomControlPanel.add(room2StatusPanel, gbcRoom);
+
+
+        // --- Add the completed panel to your main layout ---
+        // This part remains the same
+        gbcPatient.gridx = 0; gbcPatient.gridy = 8; gbcPatient.gridwidth = 4; // Adjust gridwidth if needed
         patientInfoInnerPanel.add(roomControlPanel, gbcPatient);
 
         // Add back the event listeners
@@ -934,7 +990,7 @@ public class CheckUpPage extends JPanel {
         topRowPanel.add(typeLabel, gbcTop);
 
         gbcTop.gridx = 5; gbcTop.weightx = 0.3;
-        checkupTypeComboBox = new JComboBox<>(new String[]{"BỆNH", "THAI", "KHÁC"});
+        checkupTypeComboBox = new JComboBox<>(new String[]{"PHỤ KHOA", "THAI", "KHÁC"});
         checkupTypeComboBox.setFont(fieldFont);
         topRowPanel.add(checkupTypeComboBox, gbcTop);
 
@@ -1813,7 +1869,7 @@ public class CheckUpPage extends JPanel {
                         dobPicker.getJFormattedTextField().getText(), customerPhoneField.getText(),
                         genderComboBox.getSelectedItem().toString(),
                         customerAddressField.getText()  + ", " + (wardComboBox.getSelectedItem() != null ? wardComboBox.getSelectedItem().toString() : "") + ", " + (provinceComboBox.getSelectedItem() != null ? provinceComboBox.getSelectedItem().toString() : ""),
-                        doctorName, 
+                        doctorName.toUpperCase(), 
                         diagnosisField.getText(),
                         conclusionField.getText(),
                         printerPatientDriveUrl,
@@ -1823,31 +1879,34 @@ public class CheckUpPage extends JPanel {
                 );
                 // First, show the print preview to the user
                 try {
-                    medicineInvoice.showDirectJasperViewer(); 
+                    // Instead of showing JasperViewer, show our custom print options dialog.
+                    // The 'this' keyword refers to the current component, likely a JFrame or JPanel.
+                    medicineInvoice.showPrintDialogWithOptions(mainFrame); // 'this' might need to be cast to JFrame if needed
+            
+                    // The PDF generation and upload can still run in the background,
+                    // independent of the printing action.
                     medicineInvoice.generatePdfBytesAsync().thenAccept(pdfBytes -> {
                         if (pdfBytes != null && pdfBytes.length > 0) {
                             String checkupId = checkupIdField.getText();
                             String fileName = "medserinvoice.pdf";
                             String pdfType = "medserinvoice";
-
+            
                             log.info("Uploading {} ({}) for checkupId: {}", fileName, pdfType, checkupId);
-
+            
                             UploadCheckupPdfRequest request = new UploadCheckupPdfRequest(checkupId, pdfBytes, fileName, pdfType);
                             NetworkUtil.sendPacket(ClientHandler.ctx.channel(), request);
                         }
                     }).exceptionally(ex -> {
                         log.error("Failed to generate or upload medicine invoice PDF", ex);
-                        // Show error in the UI thread
                         SwingUtilities.invokeLater(() ->
                             JOptionPane.showMessageDialog(this, "Lỗi khi tạo hoặc tải lên file PDF hóa đơn: " + ex.getMessage(), "Lỗi PDF", JOptionPane.ERROR_MESSAGE)
                         );
                         return null;
                     });
                 } catch (Exception e) {
-                    log.error("Failed to show direct JasperViewer", e);
-                    JOptionPane.showMessageDialog(this, "Lỗi khi hiển thị hộp thoại in: " + e.getMessage(), "Lỗi In", JOptionPane.ERROR_MESSAGE);
+                    log.error("Failed to show print options dialog", e);
+                    JOptionPane.showMessageDialog(this, "Lỗi khi hiển thị tùy chọn in: " + e.getMessage(), "Lỗi In", JOptionPane.ERROR_MESSAGE);
                 }
-
                 
                 break;
             case "ultrasound": // This case now handles "Lưu & In"
@@ -1883,7 +1942,7 @@ public class CheckUpPage extends JPanel {
                         (String) genderComboBox.getSelectedItem(),
                         customerAddressField.getText() +  ", " + (wardComboBox.getSelectedItem() != null ? wardComboBox.getSelectedItem().toString() : "") + ", " + (provinceComboBox.getSelectedItem() != null ? provinceComboBox.getSelectedItem().toString() : ""),
                         doctorNameForPrint,
-                        ultrasoundDoctorNameForPrint,
+                        ultrasoundDoctorNameForPrint.toUpperCase(),
                         datePicker.getJFormattedTextField().getText(),
                         TextUtils.scaleRtfFontSize(getRtfContentAsString()),
                         conclusionField.getText() == null ? "" : conclusionField.getText(),
@@ -1964,7 +2023,7 @@ public class CheckUpPage extends JPanel {
                         (String) genderComboBox.getSelectedItem(),
                         customerAddressField.getText() + ", " + (wardComboBox.getSelectedItem() != null ? wardComboBox.getSelectedItem().toString() : "") + ", " + (provinceComboBox.getSelectedItem() != null ? provinceComboBox.getSelectedItem().toString() : ""),
                         doctorNameForView,
-                        ultrasoundDoctorNameForView,
+                        ultrasoundDoctorNameForView.toUpperCase(),
                         datePicker.getJFormattedTextField().getText(),
                         TextUtils.scaleRtfFontSize(getRtfContentAsString()),
                         conclusionField.getText() == null ? "" : conclusionField.getText(),
@@ -2089,6 +2148,7 @@ public class CheckUpPage extends JPanel {
     }
 
     private void handleRowSelection(int selectedRowInQueue, Patient patient) {
+        
         if ((selectedRowInQueue < 0 || selectedRowInQueue >= patientQueue.size()) && patient == null) {
             log.warn("Selected row index out of bounds: {}", selectedRowInQueue);
             return;
@@ -2311,6 +2371,7 @@ public class CheckUpPage extends JPanel {
         genderComboBox.setSelectedItem(selectedPatient.getCustomerGender());
         checkupTypeComboBox.setSelectedItem(selectedPatient.getCheckupType());
         customerCccdDdcnField.setText(selectedPatient.getCccdDdcn() != null ? selectedPatient.getCccdDdcn() : "");
+
 
         NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetPatientHistoryRequest(Integer.parseInt(selectedPatient.getCustomerId())));
         NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetOrderInfoByCheckupReq(selectedPatient.getCheckupId()));
@@ -2544,6 +2605,16 @@ public class CheckUpPage extends JPanel {
             }
         }
         });
+
+        if (response.getRoomId() == 1 && response.getStatus() == Status.PROCESSING) {
+            styleRoomStatusPanel(room1StatusPanel, room1StatusLabel, Color.RED.darker(), "STT: " + response.getQueueNumber());
+        } else if (response.getRoomId() == 2 && response.getStatus() == Status.PROCESSING) {
+            styleRoomStatusPanel(room2StatusPanel, room2StatusLabel, Color.RED.darker(), "STT: " + response.getQueueNumber());
+        } else if (response.getRoomId() == 1 && response.getStatus() == Status.EMPTY) {
+            styleRoomStatusPanel(room1StatusPanel, room1StatusLabel, Color.GREEN.darker(), "TRỐNG");
+        } else if (response.getRoomId() == 2 && response.getStatus() == Status.EMPTY) {
+            styleRoomStatusPanel(room2StatusPanel, room2StatusLabel, Color.GREEN.darker(), "TRỐNG");
+        }
     }
 
 
@@ -2986,7 +3057,7 @@ public class CheckUpPage extends JPanel {
         fastCleanup();
         
         // Stop ultrasound folder watcher
-        stopUltrasoundFolderWatcher();
+        stopUltrasoundFolderScanner();
         
         // Only stop discovery service on full shutdown
         try {
@@ -3010,7 +3081,7 @@ public class CheckUpPage extends JPanel {
     }
     
     // === Ultrasound Folder Monitoring Methods ===
-    
+    // --- NEW METHOD: Replaces initializeUltrasoundFolderWatcher() ---
     private void initializeUltrasoundFolderScanner() {
         try {
             // Create the ultrasound folder if it doesn't exist
@@ -3022,18 +3093,26 @@ public class CheckUpPage extends JPanel {
                 log.info("Created ultrasound folder: {}", ultrasoundPath.toAbsolutePath());
             }
             
+            // Clear tracking maps
+            processingFiles.clear();
+            lastSeenFiles.clear();
+            
             // Start scanning in a scheduled thread
-            folderScanExecutor = Executors.newSingleThreadScheduledExecutor();
+            folderScanExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
+                Thread t = new Thread(r, "UltrasoundScanner");
+                t.setDaemon(true);
+                return t;
+            });
             isScanning = true;
             
             folderScanExecutor.scheduleWithFixedDelay(
                 this::scanUltrasoundFolders, 
                 0, // Initial delay
-                SCAN_INTERVAL_SECONDS, 
-                TimeUnit.SECONDS
+                SCAN_INTERVAL_MILLISECONDS, 
+                TimeUnit.MILLISECONDS
             );
             
-            log.info("Started ultrasound folder scanner with {} second intervals", SCAN_INTERVAL_SECONDS);
+            log.info("Started ultrasound folder scanner with {} milliseconds intervals", SCAN_INTERVAL_MILLISECONDS);
             
         } catch (Exception e) {
             log.error("Failed to initialize ultrasound folder scanner: {}", e.getMessage(), e);
@@ -3045,6 +3124,9 @@ public class CheckUpPage extends JPanel {
             return;
         }
         
+        // Capture current patient ID once to avoid changes during scan
+        final String currentPatientId = currentCheckupIdForMedia;
+        
         try {
             Path ultrasoundPath = Paths.get(ULTRASOUND_FOLDER_PATH);
             
@@ -3052,35 +3134,48 @@ public class CheckUpPage extends JPanel {
                 return;
             }
             
+            // Clean up tracking for files that no longer exist
+            cleanupStaleFileTracking(ultrasoundPath);
+            
             // LEVEL 0: Check for images directly in the root "ANH SIEU AM" folder
-            scanDirectoryForImages(ultrasoundPath);
+            scanDirectoryForImages(ultrasoundPath, currentPatientId);
             
             // Get all first-level directories and sort by creation time (newest first)
             List<Path> firstLevelFolders = getFirstLevelFoldersSortedByDate(ultrasoundPath);
             
-            // Take only the latest 10 folders
+            // Take only the latest N folders for performance
             List<Path> foldersToScan = firstLevelFolders.stream()
                 .limit(MAX_FOLDERS_TO_SCAN)
                 .collect(Collectors.toList());
         
-            
-            // LEVEL 1: Check for images directly in each first-level folder
+            // LEVEL 1: Check for images directly in each of the newest first-level folders
             for (Path folder : foldersToScan) {
                 if (!isScanning) break;
-                scanDirectoryForImages(folder);
+                scanDirectoryForImages(folder, currentPatientId);
             }
             
-            // LEVEL 2+: Scan each folder deeply for images in subdirectories
+            // LEVEL 2+: Scan each of the newest folders deeply for images in subdirectories
             for (Path folder : foldersToScan) {
                 if (!isScanning) break;
-                scanSubdirectoriesForImages(folder);
+                scanSubdirectoriesForImages(folder, currentPatientId);
             }
             
         } catch (Exception e) {
             log.error("Error during ultrasound folder scan: {}", e.getMessage(), e);
         }
     }
-    
+
+    private boolean isImageFile(String fileName) {
+        if (fileName == null) return false;
+        String lowercaseName = fileName.toLowerCase();
+        return lowercaseName.endsWith(".jpg") || 
+               lowercaseName.endsWith(".jpeg") || 
+               lowercaseName.endsWith(".png") || 
+               lowercaseName.endsWith(".bmp") || 
+               lowercaseName.endsWith(".tiff") || 
+               lowercaseName.endsWith(".tif");
+    }
+
     private List<Path> getFirstLevelFoldersSortedByDate(Path parentPath) {
         List<Path> folders = new ArrayList<>();
         
@@ -3108,16 +3203,26 @@ public class CheckUpPage extends JPanel {
         return folders;
     }
     
-    private void scanFolderForImages(Path folder) {
-        try {
-            scanFolderRecursively(folder);
-        } catch (Exception e) {
-            log.error("Error scanning folder {}: {}", folder, e.getMessage(), e);
-        }
+    private void cleanupStaleFileTracking(Path basePath) {
+        lastSeenFiles.entrySet().removeIf(entry -> {
+            Path filePath = entry.getKey();
+            try {
+                return !Files.exists(filePath) || !filePath.startsWith(basePath);
+            } catch (Exception e) {
+                return true; // Remove on error
+            }
+        });
+        
+        processingFiles.removeIf(filePath -> {
+            try {
+                return !Files.exists(filePath) || !filePath.startsWith(basePath);
+            } catch (Exception e) {
+                return true; // Remove on error
+            }
+        });
     }
     
-    // Scan a single directory for images (non-recursive)
-    private void scanDirectoryForImages(Path directory) {
+    private void scanDirectoryForImages(Path directory, String currentPatientId) {
         if (!Files.exists(directory) || !Files.isDirectory(directory) || !isScanning) {
             return;
         }
@@ -3126,9 +3231,9 @@ public class CheckUpPage extends JPanel {
             for (Path entry : stream) {
                 if (!isScanning) break;
                 
-                // Only check files, not subdirectories
+                // Only check files, not subdirectories in this method
                 if (Files.isRegularFile(entry) && isImageFile(entry.getFileName().toString())) {
-                    handleUltrasoundImageDetected(entry);
+                    processImageFileCandidate(entry, currentPatientId);
                 }
             }
         } catch (Exception e) {
@@ -3136,8 +3241,7 @@ public class CheckUpPage extends JPanel {
         }
     }
     
-    // Scan subdirectories recursively for images
-    private void scanSubdirectoriesForImages(Path directory) {
+    private void scanSubdirectoriesForImages(Path directory, String currentPatientId) {
         if (!Files.exists(directory) || !Files.isDirectory(directory) || !isScanning) {
             return;
         }
@@ -3146,9 +3250,9 @@ public class CheckUpPage extends JPanel {
             for (Path entry : stream) {
                 if (!isScanning) break;
                 
-                // Only process subdirectories, skip files (already handled in scanDirectoryForImages)
+                // Only process subdirectories, skip files (already handled by scanDirectoryForImages)
                 if (Files.isDirectory(entry)) {
-                    scanFolderRecursively(entry);
+                    scanFolderRecursively(entry, currentPatientId);
                 }
             }
         } catch (Exception e) {
@@ -3156,7 +3260,7 @@ public class CheckUpPage extends JPanel {
         }
     }
     
-    private void scanFolderRecursively(Path directory) {
+    private void scanFolderRecursively(Path directory, String currentPatientId) {
         if (!Files.exists(directory) || !Files.isDirectory(directory) || !isScanning) {
             return;
         }
@@ -3167,14 +3271,177 @@ public class CheckUpPage extends JPanel {
                 
                 if (Files.isDirectory(entry)) {
                     // Recursively scan subdirectories
-                    scanFolderRecursively(entry);
+                    scanFolderRecursively(entry, currentPatientId);
                 } else if (Files.isRegularFile(entry) && isImageFile(entry.getFileName().toString())) {
                     // Found an image file
-                    handleUltrasoundImageDetected(entry);
+                    processImageFileCandidate(entry, currentPatientId);
                 }
             }
         } catch (Exception e) {
             log.error("Error scanning directory {}: {}", directory, e.getMessage(), e);
+        }
+    }
+    
+    private void processImageFileCandidate(Path imagePath, String currentPatientId) {
+        // Skip if already being processed
+        if (processingFiles.contains(imagePath)) {
+            return;
+        }
+        
+        try {
+            // Check if file exists and get its attributes atomically
+            BasicFileAttributes attrs = Files.readAttributes(imagePath, BasicFileAttributes.class);
+            FileTime lastModified = attrs.lastModifiedTime();
+            long fileSize = attrs.size();
+            
+            // Skip empty files or files that are likely still being written
+            if (fileSize == 0) {
+                log.debug("Skipping empty file: {}", imagePath);
+                return;
+            }
+            
+            FileAttributes lastSeen = lastSeenFiles.get(imagePath);
+            
+            if (lastSeen == null) {
+                // First time seeing this file - track it but don't process yet
+                lastSeenFiles.put(imagePath, new FileAttributes(fileSize, lastModified, false));
+                log.debug("First time seeing file, tracking: {}", imagePath);
+                return;
+            }
+            
+            // Check if file has stabilized (no changes since last scan)
+            boolean hasChanged = lastSeen.size != fileSize || !lastSeen.lastModified.equals(lastModified);
+            
+            if (hasChanged) {
+                // File is still changing - update tracking
+                lastSeenFiles.put(imagePath, new FileAttributes(fileSize, lastModified, false));
+                log.debug("File still changing, updating tracking: {}", imagePath);
+                return;
+            }
+            
+            if (!lastSeen.isStable) {
+                // File hasn't changed this cycle - mark as stable
+                lastSeenFiles.put(imagePath, new FileAttributes(fileSize, lastModified, true));
+                log.debug("File stabilized, ready for processing: {}", imagePath);
+            }
+            
+            // File is stable and ready for processing
+            if (lastSeen.isStable) {
+                processStableImageFile(imagePath, currentPatientId);
+            }
+            
+        } catch (NoSuchFileException e) {
+            // File was deleted between directory scan and attribute read
+            lastSeenFiles.remove(imagePath);
+            log.debug("File disappeared during scan: {}", imagePath);
+        } catch (Exception e) {
+            log.error("Error checking file attributes for {}: {}", imagePath, e.getMessage(), e);
+        }
+    }
+    
+    private void processStableImageFile(Path imagePath, String currentPatientId) {
+        // Double-check the file still exists and add to processing set atomically
+        if (!processingFiles.add(imagePath)) {
+            return; // Already being processed
+        }
+        
+        try {
+            // Final existence and patient validation
+            if (!Files.exists(imagePath)) {
+                log.debug("File no longer exists when ready to process: {}", imagePath);
+                return;
+            }
+            
+            // Use the captured patient ID to avoid race conditions
+            handleUltrasoundImageDetected(imagePath, currentPatientId);
+            
+            // Remove from tracking since it's been processed
+            lastSeenFiles.remove(imagePath);
+            
+        } finally {
+            // Always remove from processing set
+            processingFiles.remove(imagePath);
+        }
+    }
+    
+    // Modified to accept patient ID parameter to avoid race conditions
+    private void handleUltrasoundImageDetected(Path imagePath, String patientId) {
+        log.info("=== HANDLING ULTRASOUND IMAGE: {} ===", imagePath.toAbsolutePath());
+        log.info("Patient ID for this operation: {}", patientId);
+        log.info("Current media path: {}", currentCheckupMediaPath);
+        
+        if (patientId == null || patientId.trim().isEmpty()) {
+            log.warn("No patient selected, DELETING ultrasound image for safety: {}", imagePath);
+            
+            try {
+                Files.deleteIfExists(imagePath);
+                log.info("Successfully deleted unassigned ultrasound image: {}", imagePath);
+            } catch (Exception deleteEx) {
+                log.error("Failed to delete unassigned ultrasound image: {}", deleteEx.getMessage(), deleteEx);
+            }
+            return;
+        }
+        
+        try {
+            // Final safety check - ensure file still exists before processing
+            if (!Files.exists(imagePath)) {
+                log.warn("Ultrasound image file no longer exists: {}", imagePath);
+                return;
+            }
+            
+            // Additional safety: check current state matches our captured state
+            if (!patientId.equals(currentCheckupIdForMedia)) {
+                log.warn("Patient changed during processing. Captured: {}, Current: {}. Deleting image for safety.", 
+                    patientId, currentCheckupIdForMedia);
+                Files.deleteIfExists(imagePath);
+                return;
+            }
+            
+            if (currentCheckupMediaPath == null) {
+                log.error("SAFETY ERROR: Media path is null during processing! Deleting image.");
+                Files.deleteIfExists(imagePath);
+                return;
+            }
+            
+            String originalFileName = imagePath.getFileName().toString();
+            String fileExtension = "";
+            int lastDotIndex = originalFileName.lastIndexOf('.');
+            if (lastDotIndex > 0) {
+                fileExtension = originalFileName.substring(lastDotIndex);
+            }
+            
+            String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss_SSS").format(new Date());
+            String newFileName = "ultrasound_" + patientId + "_" + timestamp + fileExtension;
+            
+            Path targetPath = currentCheckupMediaPath.resolve(newFileName);
+            
+            // Atomic move operation
+            Files.move(imagePath, targetPath, StandardCopyOption.ATOMIC_MOVE);
+            
+            log.info("Moved ultrasound image from {} to {}", imagePath, targetPath);
+            
+            try {
+                BufferedImage image = ImageIO.read(targetPath.toFile());
+                if (image != null) {
+                    uploadImageInBackground(newFileName, image);
+                    log.info("Started uploading ultrasound image to server: {}", newFileName);
+                } else {
+                    log.warn("Could not read ultrasound image for upload: {}", targetPath);
+                }
+            } catch (Exception uploadEx) {
+                log.error("Error reading ultrasound image for upload: {}", uploadEx.getMessage(), uploadEx);
+            }
+            
+            SwingUtilities.invokeLater(() -> {
+                // Use the current state for UI updates, but log the operation with captured state
+                if (currentCheckupMediaPath != null && Files.exists(currentCheckupMediaPath)) {
+                    loadAndDisplayImages(currentCheckupMediaPath);
+                }
+                log.info("✅ SUCCESS: Ultrasound image processed for patient {} - File: {}", patientId, newFileName);
+            });
+            
+        } catch (Exception e) {
+            log.error("Error handling ultrasound image: {}", e.getMessage(), e);
         }
     }
     
@@ -3193,259 +3460,12 @@ public class CheckUpPage extends JPanel {
                 Thread.currentThread().interrupt();
             }
         }
+        
+        // Clear tracking data
+        processingFiles.clear();
+        lastSeenFiles.clear();
+        
         log.info("Ultrasound folder scanner stopped");
-    }
-    
-    // Keep your existing handleUltrasoundImageDetected method unchanged
-    private void handleUltrasoundImageDetected(Path imagePath) {
-        log.info("=== HANDLING ULTRASOUND IMAGE: {} ===", imagePath.toAbsolutePath());
-        log.info("Current patient ID: {}", currentCheckupIdForMedia);
-        log.info("Current media path: {}", currentCheckupMediaPath);
-        
-        if (currentCheckupIdForMedia == null || currentCheckupIdForMedia.trim().isEmpty()) {
-            log.warn("No patient selected, DELETING ultrasound image for safety: {}", imagePath);
-            
-            try {
-                Files.deleteIfExists(imagePath);
-                log.info("Successfully deleted unassigned ultrasound image: {}", imagePath);
-            } catch (Exception deleteEx) {
-                log.error("Failed to delete unassigned ultrasound image: {}", deleteEx.getMessage(), deleteEx);
-            }
-            return;
-        }
-        
-        try {
-            String safePatientId = currentCheckupIdForMedia;
-            if (safePatientId == null || safePatientId.trim().isEmpty()) {
-                log.error("SAFETY ERROR: Patient ID became null during ultrasound image processing! Deleting image.");
-                Files.deleteIfExists(imagePath);
-                return;
-            }
-            
-            if (!Files.exists(imagePath)) {
-                log.warn("Ultrasound image file no longer exists: {}", imagePath);
-                return;
-            }
-            
-            if (!safePatientId.equals(currentCheckupIdForMedia)) {
-                log.error("SAFETY ERROR: Patient ID changed during processing! Expected: {}, Current: {}. Deleting image for safety.", 
-                    safePatientId, currentCheckupIdForMedia);
-                Files.deleteIfExists(imagePath);
-                return;
-            }
-            
-            String originalFileName = imagePath.getFileName().toString();
-            String fileExtension = "";
-            int lastDotIndex = originalFileName.lastIndexOf('.');
-            if (lastDotIndex > 0) {
-                fileExtension = originalFileName.substring(lastDotIndex);
-            }
-            
-            String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss_SSS").format(new Date());
-            String newFileName = "ultrasound_" + safePatientId + "_" + timestamp + fileExtension;
-            
-            Path targetPath = currentCheckupMediaPath.resolve(newFileName);
-            Files.move(imagePath, targetPath);
-            
-            log.info("Moved ultrasound image from {} to {}", imagePath, targetPath);
-            
-            try {
-                BufferedImage image = ImageIO.read(targetPath.toFile());
-                if (image != null) {
-                    uploadImageInBackground(newFileName, image);
-                    log.info("Started uploading ultrasound image to server: {}", newFileName);
-                } else {
-                    log.warn("Could not read ultrasound image for upload: {}", targetPath);
-                }
-            } catch (Exception uploadEx) {
-                log.error("Error reading ultrasound image for upload: {}", uploadEx.getMessage(), uploadEx);
-            }
-            
-            SwingUtilities.invokeLater(() -> {
-                if (currentCheckupMediaPath != null && Files.exists(currentCheckupMediaPath)) {
-                    loadAndDisplayImages(currentCheckupMediaPath);
-                }
-                log.info("✅ SUCCESS: Ultrasound image processed for patient {} - File: {}", safePatientId, newFileName);
-            });
-            
-        } catch (Exception e) {
-            log.error("Error handling ultrasound image: {}", e.getMessage(), e);
-        }
-    }
-
-
-    private boolean isImageFile(String fileName) {
-        if (fileName == null) return false;
-        String lowercaseName = fileName.toLowerCase();
-        return lowercaseName.endsWith(".jpg") || 
-               lowercaseName.endsWith(".jpeg") || 
-               lowercaseName.endsWith(".png") || 
-               lowercaseName.endsWith(".bmp") || 
-               lowercaseName.endsWith(".tiff") || 
-               lowercaseName.endsWith(".tif");
-    }
-    
-    // Debug method to check folder watcher status
-    public void checkUltrasoundFolderWatcherStatus() {
-        Path ultrasoundPath = Paths.get(ULTRASOUND_FOLDER_PATH);
-        
-        SwingUtilities.invokeLater(() -> {
-            StringBuilder status = new StringBuilder();
-            status.append("=== ULTRASOUND FOLDER WATCHER STATUS ===\n");
-            status.append("Folder path: ").append(ULTRASOUND_FOLDER_PATH).append("\n");
-            status.append("Absolute path: ").append(ultrasoundPath.toAbsolutePath()).append("\n");
-            status.append("Folder exists: ").append(Files.exists(ultrasoundPath)).append("\n");
-            status.append("Is watching: ").append(isWatchingFolder).append("\n");
-            status.append("Watch service: ").append(watchService != null ? "Active" : "Null").append("\n");
-            status.append("Executor: ").append(folderWatchExecutor != null && !folderWatchExecutor.isShutdown() ? "Active" : "Inactive").append("\n");
-            status.append("Current patient: ").append(currentCheckupIdForMedia != null ? currentCheckupIdForMedia : "None").append("\n");
-            
-            if (Files.exists(ultrasoundPath)) {
-                try {
-                    long fileCount = Files.list(ultrasoundPath).count();
-                    status.append("Files in folder: ").append(fileCount).append("\n");
-                } catch (Exception e) {
-                    status.append("Error reading folder: ").append(e.getMessage()).append("\n");
-                }
-            }
-            
-            log.info("Folder watcher status:\n{}", status.toString());
-            // Status logged only - no dialog popup
-        });
-    }
-    
-    // Manual test method to scan for existing images
-    public void scanUltrasoundFolderManually() {
-        Path ultrasoundPath = Paths.get(ULTRASOUND_FOLDER_PATH);
-        log.info("=== MANUAL SCAN OF ULTRASOUND FOLDER ===");
-        log.info("Scanning path: {}", ultrasoundPath.toAbsolutePath());
-        log.info("Current patient ID: {}", currentCheckupIdForMedia);
-        
-        if (!Files.exists(ultrasoundPath)) {
-            log.warn("Ultrasound folder doesn't exist: {}", ultrasoundPath.toAbsolutePath());
-            // Error logged only - no dialog popup
-            return;
-        }
-        
-        // SAFETY: Check if patient is selected before processing any images
-        if (currentCheckupIdForMedia == null || currentCheckupIdForMedia.trim().isEmpty()) {
-            log.warn("No patient selected during manual scan. Will delete any found images for safety.");
-            
-            try {
-                long deletedCount = Files.list(ultrasoundPath)
-                    .filter(path -> isImageFile(path.getFileName().toString()))
-                    .peek(imagePath -> log.info("Deleting unassigned image: {}", imagePath))
-                    .mapToLong(imagePath -> {
-                        try {
-                            Files.deleteIfExists(imagePath);
-                            return 1;
-                        } catch (Exception e) {
-                            log.error("Failed to delete image: {}", imagePath, e);
-                            return 0;
-                        }
-                    })
-                    .sum();
-                
-                // Manual scan safety handled silently - logged only
-            } catch (Exception e) {
-                log.error("Error during manual scan cleanup: {}", e.getMessage(), e);
-            }
-            return;
-        }
-        
-        try {
-            Files.list(ultrasoundPath)
-                .filter(path -> isImageFile(path.getFileName().toString()))
-                .forEach(imagePath -> {
-                    log.info("Found existing image: {}", imagePath);
-                    // Automatically process without confirmation dialog
-                    handleUltrasoundImageDetected(imagePath);
-                });
-        } catch (Exception e) {
-            log.error("Error scanning ultrasound folder: {}", e.getMessage(), e);
-            // Error logged only - no dialog popup
-        }
-    }
-    
-    // SAFETY: Clean up any orphaned ultrasound images that don't have a patient assigned
-    private void cleanupOrphanedUltrasoundImages() {
-        Path ultrasoundPath = Paths.get(ULTRASOUND_FOLDER_PATH);
-        log.info("=== SAFETY CLEANUP: Checking for orphaned ultrasound images ===");
-        
-        if (!Files.exists(ultrasoundPath)) {
-            log.info("Ultrasound folder doesn't exist, no cleanup needed");
-            return;
-        }
-        
-        // Since no patient is selected during startup, delete any existing images for safety
-        try {
-            long deletedCount = Files.list(ultrasoundPath)
-                .filter(path -> isImageFile(path.getFileName().toString()))
-                .peek(imagePath -> log.info("Deleting orphaned ultrasound image: {}", imagePath))
-                .mapToLong(imagePath -> {
-                    try {
-                        Files.deleteIfExists(imagePath);
-                        return 1;
-                    } catch (Exception e) {
-                        log.error("Failed to delete orphaned image: {}", imagePath, e);
-                        return 0;
-                    }
-                })
-                .sum();
-            
-            if (deletedCount > 0) {
-                log.info("SAFETY: Deleted {} orphaned ultrasound images during startup", deletedCount);
-            } else {
-                log.info("No orphaned ultrasound images found during startup");
-            }
-            
-        } catch (Exception e) {
-            log.error("Error during orphaned image cleanup: {}", e.getMessage(), e);
-        }
-    }
-    
-    private synchronized void stopUltrasoundFolderWatcher() {
-        try {
-            log.info("Stopping ultrasound folder watcher...");
-            isWatchingFolder = false;
-            
-            // Close watch service first to interrupt the waiting thread
-            if (watchService != null) {
-                try {
-                    watchService.close();
-                    log.info("Watch service closed");
-                } catch (Exception e) {
-                    log.warn("Error closing watch service: {}", e.getMessage());
-                }
-                watchService = null;
-            }
-            
-            // Shutdown executor with proper timeout
-            if (folderWatchExecutor != null && !folderWatchExecutor.isShutdown()) {
-                log.info("Shutting down folder watch executor...");
-                folderWatchExecutor.shutdown();
-                try {
-                    if (!folderWatchExecutor.awaitTermination(3, TimeUnit.SECONDS)) {
-                        log.warn("Executor didn't shutdown gracefully, forcing shutdown");
-                        folderWatchExecutor.shutdownNow();
-                        // Wait a bit more for forced shutdown
-                        if (!folderWatchExecutor.awaitTermination(1, TimeUnit.SECONDS)) {
-                            log.warn("Executor didn't shutdown even after forced shutdown");
-                        }
-                    }
-                } catch (InterruptedException e) {
-                    log.warn("Interrupted while waiting for executor shutdown");
-                    folderWatchExecutor.shutdownNow();
-                    Thread.currentThread().interrupt();
-                }
-                folderWatchExecutor = null;
-            }
-            
-            log.info("Ultrasound folder watcher stopped successfully");
-            
-        } catch (Exception e) {
-            log.error("Error stopping ultrasound folder watcher: {}", e.getMessage(), e);
-        }
     }
 
     private void initializeWebcam(String deviceName) {
@@ -3597,7 +3617,7 @@ public class CheckUpPage extends JPanel {
             }
         });
     }
-    
+
     private void handleUploadImageResponse(UploadCheckupImageResponse response) {
         String fileName = response.getFileName();
         
@@ -4185,7 +4205,7 @@ public class CheckUpPage extends JPanel {
             super(mainFrame, "Danh sách chờ khám", true); // Set as modal dialog
             
             setIconImage(new ImageIcon("src/main/java/BsK/client/ui/assets/icon/database.png").getImage());
-            setSize(1000, 700); // Increased size to accommodate filters and new column
+            setSize(1200, 700); // Increased size to accommodate filters and new column
             setLayout(new BorderLayout());
             
             // Add window listener to handle minimize/restore events with parent
@@ -4226,13 +4246,22 @@ public class CheckUpPage extends JPanel {
                 @Override
                 public boolean isCellEditable(int row, int column) { return false; }
             };
+            
             queueTable = new JTable(queueTableModel);
-            queueTable.setPreferredScrollableViewportSize(new Dimension(850, 400)); // Increased width for new column
+            queueTable.setPreferredScrollableViewportSize(new Dimension(1000, 400)); // Increased width for new column
             queueTable.getTableHeader().setFont(new Font("Arial", Font.BOLD, 18));
-            queueTable.setFont(new Font("Arial", Font.PLAIN, 16));
+            queueTable.setFont(new Font("Arial", Font.BOLD, 20));
             queueTable.setRowHeight(35);
             queueTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
             
+
+            queueTable.getColumnModel().getColumn(0).setPreferredWidth(50);
+            queueTable.getColumnModel().getColumn(1).setPreferredWidth(90);
+            queueTable.getColumnModel().getColumn(2).setPreferredWidth(250);
+            queueTable.getColumnModel().getColumn(3).setPreferredWidth(80);
+            queueTable.getColumnModel().getColumn(4).setPreferredWidth(220);
+            queueTable.getColumnModel().getColumn(5).setPreferredWidth(120);
+            queueTable.getColumnModel().getColumn(6).setPreferredWidth(120);
             // Create a row sorter for the table
             TableRowSorter<DefaultTableModel> sorter = new TableRowSorter<>(queueTableModel);
             queueTable.setRowSorter(sorter);
@@ -4348,6 +4377,8 @@ public class CheckUpPage extends JPanel {
             });
         }
 
+        
+
         private JPanel createFilterPanel() {
             JPanel filterPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 10));
             filterPanel.setBorder(BorderFactory.createTitledBorder(
@@ -4364,7 +4395,7 @@ public class CheckUpPage extends JPanel {
             checkupTypeLabel.setFont(new Font("Arial", Font.BOLD, 14));
             filterPanel.add(checkupTypeLabel);
 
-            checkupTypeFilter = new JComboBox<>(new String[]{"Tất cả", "BỆNH", "THAI", "KHÁC"});
+            checkupTypeFilter = new JComboBox<>(new String[]{"Tất cả", "PHỤ KHOA", "THAI", "KHÁC"});
             checkupTypeFilter.setFont(new Font("Arial", Font.PLAIN, 14));
             checkupTypeFilter.setPreferredSize(new Dimension(120, 30));
             checkupTypeFilter.addActionListener(e -> applyFilters());
@@ -4405,17 +4436,16 @@ public class CheckUpPage extends JPanel {
         private void applyFilters() {
             String selectedCheckupType = (String) checkupTypeFilter.getSelectedItem();
             String nameFilter = patientNameFilter.getText().trim();
-
+        
+            // 1. Filter your master list into a temporary list
             filteredPatients = patientQueue.stream()
                 .filter(patient -> {
-                    // Filter by checkup type
+                    // ... (your existing filter logic remains the same) ...
                     if (!"Tất cả".equals(selectedCheckupType)) {
                         if (!selectedCheckupType.equals(patient.getCheckupType())) {
                             return false;
                         }
                     }
-
-                    // Filter by patient first name (using remove accents)
                     if (!nameFilter.isEmpty()) {
                         String patientFirstName = patient.getCustomerFirstName();
                         if (patientFirstName == null) {
@@ -4427,28 +4457,26 @@ public class CheckUpPage extends JPanel {
                             return false;
                         }
                     }
-
                     return true;
                 })
                 .collect(Collectors.toList());
-
-            // Update table with filtered data
-            String[] columns = {"STT", "Mã Khám", "Họ và Tên", "Năm sinh", "Bác Sĩ", "Loại khám", "Trạng thái"};
-            queueTableModel.setDataVector(preprocessPatientDataForTable(filteredPatients), columns);
+        
+            // 2. Clear the table model's rows (this doesn't affect columns)
+            queueTableModel.setRowCount(0);
+        
+            // 3. Add the new, filtered data row by row
+            Object[][] filteredData = preprocessPatientDataForTable(filteredPatients);
+            for (Object[] rowData : filteredData) {
+                queueTableModel.addRow(rowData);
+            }
             
-            // Recreate row sorter for the table after data update
-            TableRowSorter<DefaultTableModel> sorter = new TableRowSorter<>(queueTableModel);
-            queueTable.setRowSorter(sorter);
-            
-            // Apply sorting by "STT" (queue number)
-            List<RowSorter.SortKey> sortKeys = new ArrayList<>();
-            sortKeys.add(new RowSorter.SortKey(0, SortOrder.ASCENDING));
-            sorter.setSortKeys(sortKeys);
-            
+            // NOTE: You don't need to call `setRowSorter` again if you're just updating rows.
+            // The existing sorter will work correctly.
+        
             // Auto-select first row after applying filters
             if (queueTable.getRowCount() > 0) {
                 queueTable.setRowSelectionInterval(0, 0);
-                queueTable.requestFocusInWindow(); // Ensure table gets focus
+                queueTable.requestFocusInWindow();
             }
         }
 
@@ -4515,17 +4543,6 @@ public class CheckUpPage extends JPanel {
             });
         }
 
-        /**
-         * Gets the currently selected row from the queue table.
-         * @return the selected row index in the original patient queue, or -1 if no row is selected.
-         */
-        public int getSelectedRow() {
-            int selectedRow = queueTable.getSelectedRow();
-            if (selectedRow != -1) {
-                return queueTable.convertRowIndexToModel(selectedRow);
-            }
-            return -1;
-        }
     }
 
     private void handleRtfPaste() {
@@ -5043,6 +5060,25 @@ public class CheckUpPage extends JPanel {
 
     public void loadPatientByCheckupId(Patient patient) {
         handleRowSelection(-1, patient);
+    }
+
+    /**
+     * Styles the room status panels with appropriate background color, border, and text.
+     * @param panel The JPanel to style.
+     * @param label The JLabel inside the panel.
+     * @param bgColor The background color (e.g., red for busy, green for free).
+     * @param statusText The text to display below the room name (e.g., "TRỐNG" or "STT: 123").
+     */
+    private void styleRoomStatusPanel(JPanel panel, JLabel label, Color bgColor, String statusText) {
+        // Retrieves the base room name (e.g., "PHÒNG 1") stored in the label's properties
+        String baseRoomText = (String) label.getClientProperty("baseText");
+
+        label.setFont(new Font("Arial", Font.BOLD, 12));
+        label.setForeground(Color.WHITE);
+        // Uses HTML to center text and create a line break
+        label.setText("<html><div style='text-align: center;'>" + baseRoomText + "<br>" + statusText + "</div></html>");
+        panel.setBackground(bgColor);
+        panel.setBorder(BorderFactory.createLineBorder(Color.GRAY, 1));
     }
 }
 

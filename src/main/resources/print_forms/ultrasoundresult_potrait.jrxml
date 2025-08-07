@@ -139,16 +139,16 @@
 					<printWhenExpression><![CDATA[$P{driveURL} != null]]></printWhenExpression>
 					<text><![CDATA[Xem KQ online]]></text>
 				</element>
-				<element kind="image" uuid="692eae9f-a304-4cda-856d-7a3a95fac3df" stretchType="NoStretch" x="400" y="97" width="151" height="124">
+				<element kind="image" uuid="692eae9f-a304-4cda-856d-7a3a95fac3df" stretchType="NoStretch" x="400" y="97" width="151" height="124" scaleImage="RetainShape">
 					<expression><![CDATA[$P{image1}]]></expression>
 				</element>
-				<element kind="image" uuid="9a15475c-d08c-4c8f-bbdf-70cf98f97e90" x="400" y="222" width="151" height="124">
+				<element kind="image" uuid="9a15475c-d08c-4c8f-bbdf-70cf98f97e90" x="400" y="222" width="151" height="124" scaleImage="RetainShape">
 					<expression><![CDATA[$P{image2}]]></expression>
 				</element>
-				<element kind="image" uuid="2902cf3c-31dd-4b96-be87-fa8a13ba88ae" x="400" y="347" width="151" height="124">
+				<element kind="image" uuid="2902cf3c-31dd-4b96-be87-fa8a13ba88ae" x="400" y="347" width="151" height="124" scaleImage="RetainShape">
 					<expression><![CDATA[$P{image3}]]></expression>
 				</element>
-				<element kind="image" uuid="129e6c61-d572-48a9-925e-1ab2e4e573e2" x="400" y="472" width="151" height="124">
+				<element kind="image" uuid="129e6c61-d572-48a9-925e-1ab2e4e573e2" x="400" y="472" width="151" height="124" scaleImage="RetainShape">
 					<expression><![CDATA[$P{image4}]]></expression>
 				</element>
 				<element kind="textField" uuid="5fde8538-8d26-4761-9a19-dd716a74749a" x="1" y="12" width="398" height="20" forecolor="#FF0905" fontName="Times New Roman" fontSize="14.0" bold="true" hTextAlign="Center">
@@ -191,7 +191,7 @@
 		<element kind="textField" uuid="4d8aeb33-ab41-4a5b-a5d1-52bab4043246" x="48" y="155" width="150" height="15" fontName="Times New Roman" fontSize="12.0">
 			<expression><![CDATA[$P{reCheckupDate}]]></expression>
 		</element>
-		<element kind="staticText" uuid="f1223127-533c-4ecf-a950-7324b8aae0fa" x="0" y="170" width="196" height="15" fontName="Times New Roman" fontSize="12.0" bold="true" italic="true" hTextAlign="Left">
+		<element kind="staticText" uuid="f1223127-533c-4ecf-a950-7324b8aae0fa" x="0" y="170" width="196" height="15" fontName="Times New Roman" fontSize="12.0" italic="true" bold="true" hTextAlign="Left">
 			<text><![CDATA[Lưu ý: Mang phiếu khi tái khám]]></text>
 		</element>
 	</summary>

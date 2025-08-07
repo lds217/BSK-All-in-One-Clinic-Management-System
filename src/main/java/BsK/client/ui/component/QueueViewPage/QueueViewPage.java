@@ -11,14 +11,16 @@ import java.awt.*;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Arrays; // Import Arrays
 import java.util.Calendar;
+import java.util.Comparator; // Import Comparator
 import java.util.Date;
 import java.util.List;
 
 public class QueueViewPage extends JFrame {
     private DefaultTableModel tvQueueTableModel;
     private JTable tvQueueTable;
-    private final String[] tvQueueColumns = {"STT", "Họ và Tên", "Năm sinh"};
+    private final String[] tvQueueColumns = {"STT", "Họ và Tên", "Năm sinh", "Trạng thái"};
 
     private JLabel clinicNameLabel;
     private JLabel clinicAddressLabel;
@@ -45,7 +47,7 @@ public class QueueViewPage extends JFrame {
         setLayout(new BorderLayout(0, 10)); // Main layout with vertical gap
         getContentPane().setBackground(Color.DARK_GRAY); // Dark background for TV
 
-        // --- Top Panel --- 
+        // --- Top Panel ---
         JPanel topPanel = new JPanel(new BorderLayout(20, 0)); // Hgap for spacing
         topPanel.setOpaque(false); // Transparent to show frame background
         topPanel.setBorder(new EmptyBorder(20, 20, 10, 20)); // Padding
@@ -160,11 +162,9 @@ public class QueueViewPage extends JFrame {
     }
 
     private void styleRoomLabel(JLabel label, JPanel panel, Color bgColor, String statusText) {
-        // The label's main text (PHÒNG 1 or PHÒNG 2) is set at initialization and doesn't change.
-        // This method now only updates the status part of the text and background color.
         String baseRoomText = label.getText().split("<br>")[0]; // Get "PHÒNG X"
-        if (baseRoomText.contains("html")) baseRoomText = (label == room1StatusLabel ? "PHÒNG 1" : "PHÒNG 2"); // Fallback if parsing fails
-        
+        if (baseRoomText.contains("html")) baseRoomText = (label == room1StatusLabel ? "PHÒNG 1" : "PHÒNG 2");
+
         label.setFont(new Font("Segoe UI", Font.BOLD, 32));
         label.setForeground(Color.WHITE);
         label.setText("<html><div style='text-align: center;'>" + baseRoomText + "<br>" + statusText + "</div></html>");
@@ -231,18 +231,12 @@ public class QueueViewPage extends JFrame {
 
         if (status == BsK.common.entity.Status.PROCESSING) {
             styleRoomLabel(targetLabel, targetPanel, Color.RED.darker(), "STT: " + queueNumberForRoomBox);
-            if (roomId == 1) {
-                room1PatientInfo = fullPatientInfoForCentralDisplay;
-            } else {
-                room2PatientInfo = fullPatientInfoForCentralDisplay;
-            }
+            if (roomId == 1) room1PatientInfo = fullPatientInfoForCentralDisplay;
+            else room2PatientInfo = fullPatientInfoForCentralDisplay;
         } else { // EMPTY, DONE, etc.
             styleRoomLabel(targetLabel, targetPanel, Color.GREEN.darker(), "TRỐNG");
-            if (roomId == 1) {
-                room1PatientInfo = null;
-            } else {
-                room2PatientInfo = null;
-            }
+            if (roomId == 1) room1PatientInfo = null;
+            else room2PatientInfo = null;
         }
         updateNowCallingDisplay();
     }
@@ -250,33 +244,26 @@ public class QueueViewPage extends JFrame {
     public void markRoomAsFree(int roomId) {
         JLabel targetLabel;
         JPanel targetPanel;
-        String roomName; // Not strictly needed here if styleRoomLabel handles base text
 
         if (roomId == 1) {
             targetLabel = room1StatusLabel;
             targetPanel = room1Panel;
-            // roomName = "PHÒNG 1"; // Base text is already PHÒNG 1
         } else if (roomId == 2) {
             targetLabel = room2StatusLabel;
             targetPanel = room2Panel;
-            // roomName = "PHÒNG 2"; // Base text is already PHÒNG 2
         } else {
             System.err.println("QueueViewPage: Invalid roomId for marking as free: " + roomId);
             return;
         }
         styleRoomLabel(targetLabel, targetPanel, Color.GREEN.darker(), "TRỐNG");
-        if (roomId == 1) {
-            room1PatientInfo = null;
-        } else {
-            room2PatientInfo = null;
-        }
+        if (roomId == 1) room1PatientInfo = null;
+        else room2PatientInfo = null;
         updateNowCallingDisplay();
     }
 
     public void updateQueueData(String[][] fullQueueData) {
         if (fullQueueData == null) {
             tvQueueTableModel.setRowCount(0);
-            // Reset room labels to their base text + TRỐNG
             styleRoomLabel(room1StatusLabel, room1Panel, Color.GREEN.darker(), "TRỐNG");
             styleRoomLabel(room2StatusLabel, room2Panel, Color.GREEN.darker(), "TRỐNG");
             room1PatientInfo = null;
@@ -284,26 +271,44 @@ public class QueueViewPage extends JFrame {
             updateNowCallingDisplay();
             return;
         }
+        
+        // --- CHANGE: Added sorting logic ---
+        // Sort the array in descending order based on the queue number (STT) at index 24.
+        Arrays.sort(fullQueueData, new Comparator<String[]>() {
+            @Override
+            public int compare(String[] row1, String[] row2) {
+                try {
+                    // Assuming STT is at index 24
+                    int stt1 = Integer.parseInt(row1[24]);
+                    int stt2 = Integer.parseInt(row2[24]);
+                    // Compare in reverse order for descending sort (largest first)
+                    return Integer.compare(stt2, stt1);
+                } catch (NumberFormatException e) {
+                    // Handle cases where the STT is not a valid number
+                    return 0; 
+                }
+            }
+        });
+        // --- END OF CHANGE ---
 
         List<Object[]> tvDataList = new ArrayList<>();
         SimpleDateFormat inputDateFormat = new SimpleDateFormat("dd/MM/yyyy");
 
         for (String[] row : fullQueueData) {
-            if (row.length > 24) { // Ensure we have all data including queue number
-                String queueNumber = row[24]; // Use the new queue number from index 24
+            if (row.length > 24) { 
+                String queueNumber = row[24]; 
                 String ho = row[2];
                 String ten = row[3];
                 String hoVaTen = ho + " " + ten;
-                String customerDob = row[15]; // Use customer DOB instead of checkup date
-                String namSinh = "N/A"; 
+                String customerDob = row[15];
+                String namSinh = "N/A";
+                String status = row[8];
 
                 if (customerDob != null && !customerDob.isEmpty()) {
-                    // Extract year from DOB using DateUtils for consistency
                     int year = DateUtils.extractYearFromTimestamp(customerDob);
                     if (year != -1) {
                         namSinh = String.valueOf(year);
                     } else {
-                        // Fallback: try to parse as date string and extract year
                         try {
                             Date dobDate = DateUtils.convertToDate(customerDob);
                             if (dobDate != null) {
@@ -316,25 +321,22 @@ public class QueueViewPage extends JFrame {
                         }
                     }
                 }
-                tvDataList.add(new Object[]{queueNumber, hoVaTen, namSinh});
+                tvDataList.add(new Object[]{queueNumber, hoVaTen, namSinh, status});
             }
         }
         tvQueueTableModel.setDataVector(tvDataList.toArray(new Object[0][0]), tvQueueColumns);
 
-        // Set column widths for TV display
-        tvQueueTable.getColumnModel().getColumn(0).setPreferredWidth(150); // STT
+        tvQueueTable.getColumnModel().getColumn(0).setPreferredWidth(150);
         tvQueueTable.getColumnModel().getColumn(0).setMaxWidth(200);
-        tvQueueTable.getColumnModel().getColumn(2).setPreferredWidth(250); // Năm sinh
+        tvQueueTable.getColumnModel().getColumn(2).setPreferredWidth(250);
         tvQueueTable.getColumnModel().getColumn(2).setMaxWidth(300);
-
-        // The specific room status (patient ID in box) is now handled by updateSpecificRoomStatus
-        // and markRoomAsFree. The general updateQueueData should not override this detailed status.
-        // If no patients are called, updateNowCallingDisplay will reflect that rooms are free if their info is null.
+        tvQueueTable.getColumnModel().getColumn(3).setPreferredWidth(250);
+        tvQueueTable.getColumnModel().getColumn(3).setMaxWidth(300);
     }
 
     @Override
     public void setVisible(boolean b) {
-        if (b) { 
+        if (b) {
             loadClinicInfo();
         }
         super.setVisible(b);
@@ -342,6 +344,6 @@ public class QueueViewPage extends JFrame {
 
     public void optimizeForTv() {
         setExtendedState(JFrame.MAXIMIZED_BOTH);
-        // setUndecorated(true); // Optional: removes window borders, use with caution
+        // setUndecorated(true); 
     }
-} 
+}

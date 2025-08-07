@@ -161,55 +161,55 @@
 				</element>
 				<element kind="frame" uuid="2f301804-acfa-4b6f-9f52-236c04fd1197" x="0" y="0" width="400" height="344">
 					<printWhenExpression><![CDATA[$P{numberImage}.intValue() == 6]]></printWhenExpression>
-					<element kind="image" uuid="fe4e4fa7-8b26-4817-ae86-4c147a25abbe" x="83" y="3" width="111" height="113">
+					<element kind="image" uuid="fe4e4fa7-8b26-4817-ae86-4c147a25abbe" x="83" y="3" width="111" height="113" scaleImage="RetainShape">
 						<expression><![CDATA[$P{image1}]]></expression>
 					</element>
-					<element kind="image" uuid="9c6302ea-8b4a-48d6-8c42-68313154be77" x="83" y="117" width="111" height="113">
+					<element kind="image" uuid="9c6302ea-8b4a-48d6-8c42-68313154be77" x="83" y="117" width="111" height="113" scaleImage="RetainShape">
 						<expression><![CDATA[$P{image3}]]></expression>
 					</element>
-					<element kind="image" uuid="d7d6a47e-a129-4726-80b1-701113d0d9c2" x="83" y="231" width="111" height="113">
+					<element kind="image" uuid="d7d6a47e-a129-4726-80b1-701113d0d9c2" x="83" y="231" width="111" height="113" scaleImage="RetainShape">
 						<expression><![CDATA[$P{image5}]]></expression>
 					</element>
-					<element kind="image" uuid="7cd3d01b-f3ac-48d1-9749-ab5787497ab9" x="198" y="232" width="111" height="113">
+					<element kind="image" uuid="7cd3d01b-f3ac-48d1-9749-ab5787497ab9" x="198" y="232" width="111" height="113" scaleImage="RetainShape">
 						<expression><![CDATA[$P{image6}]]></expression>
 					</element>
-					<element kind="image" uuid="65610203-a91f-4b55-9a33-d6bfb7ffa7a6" x="199" y="117" width="111" height="113">
+					<element kind="image" uuid="65610203-a91f-4b55-9a33-d6bfb7ffa7a6" x="199" y="117" width="111" height="113" scaleImage="RetainShape">
 						<expression><![CDATA[$P{image4}]]></expression>
 					</element>
-					<element kind="image" uuid="127b0f54-33e9-43a5-af62-64152d74958f" x="199" y="3" width="111" height="113">
+					<element kind="image" uuid="127b0f54-33e9-43a5-af62-64152d74958f" x="199" y="3" width="111" height="113" scaleImage="RetainShape">
 						<expression><![CDATA[$P{image2}]]></expression>
 					</element>
 				</element>
 				<element kind="frame" uuid="58523878-7ef9-46fe-aad7-ee5bd65115aa" x="0" y="1" width="400" height="344">
 					<printWhenExpression><![CDATA[$P{numberImage}.intValue() == 5]]></printWhenExpression>
-					<element kind="image" uuid="6870ae02-5ee4-40e8-9787-1ad084dc3b7f" x="83" y="3" width="111" height="113">
+					<element kind="image" uuid="6870ae02-5ee4-40e8-9787-1ad084dc3b7f" x="83" y="3" width="111" height="113" scaleImage="RetainShape">
 						<expression><![CDATA[$P{image1}]]></expression>
 					</element>
-					<element kind="image" uuid="4216a22f-f20f-4bf1-9e93-79ccc3bbd5c6" x="83" y="117" width="111" height="113">
+					<element kind="image" uuid="4216a22f-f20f-4bf1-9e93-79ccc3bbd5c6" x="83" y="117" width="111" height="113" scaleImage="RetainShape">
 						<expression><![CDATA[$P{image3}]]></expression>
 					</element>
-					<element kind="image" uuid="3069d087-6d97-455c-bb0d-211b0698b54c" x="142" y="231" width="111" height="113">
+					<element kind="image" uuid="3069d087-6d97-455c-bb0d-211b0698b54c" x="142" y="231" width="111" height="113" scaleImage="RetainShape">
 						<expression><![CDATA[$P{image5}]]></expression>
 					</element>
-					<element kind="image" uuid="34187787-d55d-495a-be82-9ff67702211f" x="199" y="117" width="111" height="113">
+					<element kind="image" uuid="34187787-d55d-495a-be82-9ff67702211f" x="199" y="117" width="111" height="113" scaleImage="RetainShape">
 						<expression><![CDATA[$P{image4}]]></expression>
 					</element>
-					<element kind="image" uuid="7b2d4efb-1f35-4c37-80a1-685195e1218e" x="199" y="3" width="111" height="113">
+					<element kind="image" uuid="7b2d4efb-1f35-4c37-80a1-685195e1218e" x="199" y="3" width="111" height="113" scaleImage="RetainShape">
 						<expression><![CDATA[$P{image2}]]></expression>
 					</element>
 				</element>
 				<element kind="frame" uuid="33b6f6ef-93e4-4488-a421-08de09b5458c" x="0" y="0" width="400" height="344">
 					<printWhenExpression><![CDATA[$P{numberImage}.intValue() == 4]]></printWhenExpression>
-					<element kind="image" uuid="1378905c-276f-42ba-9101-18b27ba14e0b" x="28" y="3" width="161" height="165">
+					<element kind="image" uuid="1378905c-276f-42ba-9101-18b27ba14e0b" x="21" y="3" width="181" height="165" scaleImage="RetainShape">
 						<expression><![CDATA[$P{image1}]]></expression>
 					</element>
-					<element kind="image" uuid="58917767-70d5-4822-bb6f-7f5aba6f660e" x="29" y="173" width="161" height="165">
+					<element kind="image" uuid="58917767-70d5-4822-bb6f-7f5aba6f660e" x="22" y="173" width="181" height="165" scaleImage="RetainShape">
 						<expression><![CDATA[$P{image3}]]></expression>
 					</element>
-					<element kind="image" uuid="6026efa4-cfd7-4b1d-90be-fe8912eb43c3" x="210" y="3" width="161" height="165">
+					<element kind="image" uuid="6026efa4-cfd7-4b1d-90be-fe8912eb43c3" x="203" y="3" width="181" height="165" scaleImage="RetainShape">
 						<expression><![CDATA[$P{image2}]]></expression>
 					</element>
-					<element kind="image" uuid="6c5adc41-f3d7-4e32-997a-e1845d7170c5" x="211" y="173" width="161" height="165">
+					<element kind="image" uuid="6c5adc41-f3d7-4e32-997a-e1845d7170c5" x="204" y="173" width="181" height="165" scaleImage="RetainShape">
 						<expression><![CDATA[$P{image4}]]></expression>
 					</element>
 				</element>
@@ -217,29 +217,31 @@
 					<printWhenExpression><![CDATA[$P{numberImage}.intValue() == 3]]></printWhenExpression>
 					<property name="com.jaspersoft.studio.unit.y" value="px"/>
 					<property name="com.jaspersoft.studio.unit.x" value="px"/>
-					<element kind="image" uuid="3ab88449-e282-41cd-898e-ab91aeef70b9" x="28" y="3" width="161" height="165">
+					<element kind="image" uuid="3ab88449-e282-41cd-898e-ab91aeef70b9" x="2" y="3" width="197" height="165" scaleImage="RetainShape">
 						<expression><![CDATA[$P{image1}]]></expression>
 					</element>
-					<element kind="image" uuid="119378b1-674d-457a-bc69-a9823f2160b7" x="121" y="173" width="161" height="165">
+					<element kind="image" uuid="119378b1-674d-457a-bc69-a9823f2160b7" x="100" y="173" width="210" height="165" scaleImage="RetainShape">
 						<expression><![CDATA[$P{image3}]]></expression>
+						<property name="com.jaspersoft.studio.unit.x" value="px"/>
 					</element>
-					<element kind="image" uuid="8ac7bc19-5ae6-4569-87fb-c9cf72936b50" x="210" y="3" width="161" height="165">
+					<element kind="image" uuid="8ac7bc19-5ae6-4569-87fb-c9cf72936b50" x="205" y="3" width="195" height="165" scaleImage="RetainShape">
 						<expression><![CDATA[$P{image2}]]></expression>
+						<property name="com.jaspersoft.studio.unit.x" value="px"/>
 					</element>
 				</element>
 				<element kind="frame" uuid="935efa61-0cd7-47ab-b7d8-6508a1726537" x="0" y="0" width="400" height="344">
 					<printWhenExpression><![CDATA[$P{numberImage}.intValue() == 2]]></printWhenExpression>
-					<element kind="image" uuid="8f2957f9-fb76-49d1-94ce-08c723aec7ce" x="121" y="3" width="161" height="165">
+					<element kind="image" uuid="8f2957f9-fb76-49d1-94ce-08c723aec7ce" x="70" y="3" width="270" height="165" scaleImage="RetainShape">
 						<expression><![CDATA[$P{image1}]]></expression>
 					</element>
-					<element kind="image" uuid="f5585019-40b7-4b1b-9c7a-8b10386cf210" x="121" y="173" width="161" height="165">
+					<element kind="image" uuid="f5585019-40b7-4b1b-9c7a-8b10386cf210" x="70" y="173" width="270" height="165" scaleImage="RetainShape">
 						<expression><![CDATA[$P{image2}]]></expression>
 					</element>
 				</element>
 				<element kind="frame" uuid="dfa0c283-dbfc-40de-97e0-d1d04db85c96" x="0" y="0" width="400" height="344">
 					<printWhenExpression><![CDATA[$P{numberImage}.intValue() == 1]]></printWhenExpression>
 					<property name="com.jaspersoft.studio.unit.y" value="px"/>
-					<element kind="image" uuid="a7cef70f-1dbe-4d6f-a007-7543bbc2b9b8" x="29" y="4" width="342" height="335">
+					<element kind="image" uuid="a7cef70f-1dbe-4d6f-a007-7543bbc2b9b8" x="10" y="4" width="381" height="335" scaleImage="RetainShape">
 						<expression><![CDATA[$P{image1}]]></expression>
 					</element>
 				</element>
@@ -256,7 +258,7 @@
 				<element kind="image" uuid="14220495-3e07-4322-9c5f-ebf98a8083c8" x="-50" y="3" width="48" height="48">
 					<expression><![CDATA[$P{driveURL}]]></expression>
 				</element>
-				<element kind="staticText" uuid="fbffa5e9-b68c-4bd9-be86-34d3537fbfa5" x="2" y="538" width="196" height="15" fontName="Times New Roman" fontSize="12.0" bold="true" italic="true" hTextAlign="Left">
+				<element kind="staticText" uuid="fbffa5e9-b68c-4bd9-be86-34d3537fbfa5" x="2" y="538" width="196" height="15" fontName="Times New Roman" fontSize="12.0" italic="true" bold="true" hTextAlign="Left">
 					<text><![CDATA[Lưu ý: Mang phiếu khi tái khám]]></text>
 				</element>
 			</element>

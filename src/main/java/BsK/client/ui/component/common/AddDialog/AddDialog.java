@@ -427,7 +427,7 @@ public class AddDialog extends JDialog {
         patientInfoPanel.add(genderLabel, gbc);
 
         gbc.gridx = 3;
-        patientGenderField = new JComboBox<>(new String[]{"Nam", "Nữ"});
+        patientGenderField = new JComboBox<>(new String[]{"Nữ", "Nam"});
         patientGenderField.setFont(textFont);
         patientGenderField.setPreferredSize(comboBoxSize);
         patientInfoPanel.add(patientGenderField, gbc);
@@ -538,7 +538,7 @@ public class AddDialog extends JDialog {
         gbc.gridx = 3;
         gbc.gridwidth = 1;
         gbc.weightx = 0.5;
-        String[] checkupTypeOptions = {"BỆNH", "THAI", "KHÁC"};
+        String[] checkupTypeOptions = {"PHỤ KHOA", "THAI", "KHÁC"};
         checkupTypeComboBox = new JComboBox<>(checkupTypeOptions);
         checkupTypeComboBox.setFont(textFont);
         checkupTypeComboBox.setPreferredSize(comboBoxSize);
