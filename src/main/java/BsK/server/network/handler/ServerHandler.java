@@ -614,29 +614,32 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
     
         // --- SỬA ĐỔI QUAN TRỌNG: Sử dụng một kết nối riêng từ pool cho toàn bộ giao dịch ---
         // try-with-resources sẽ đảm bảo kết nối được trả về pool ngay cả khi có lỗi.
+    
         try (Connection conn = DatabaseManager.getConnection()) {
             int generatedCheckupId = 0;
-            int queueNumber = 0;
-    
+            int queueNumber = addCheckupRequest.getQueueNumber();
+            
             try {
                 // 1. Bắt đầu một transaction trên kết nối CỤC BỘ (conn) này
                 conn.setAutoCommit(false);
     
                 // 2. LẤY SỐ THỨ TỰ (QUEUE NUMBER)
                 // Sử dụng UPSERT để đảm bảo thao tác là nguyên tử
-                String queueSql = """
-                        INSERT INTO DailyQueueCounter (date, current_count) 
-                        VALUES (date('now', 'localtime'), 1) 
-                        ON CONFLICT(date) DO UPDATE SET current_count = current_count + 1 
-                        RETURNING current_count
-                        """;
-                
-                try (PreparedStatement queueStmt = conn.prepareStatement(queueSql);
-                     ResultSet rs = queueStmt.executeQuery()) {
-                    if (rs.next()) {
-                        queueNumber = rs.getInt(1);
-                    } else {
-                        throw new SQLException("Failed to get or update queue number.");
+                if (queueNumber == -1) { // if queue number is -1, means the queue number is not provided, so we need to get the queue number from the database
+                    String queueSql = """
+                            INSERT INTO DailyQueueCounter (date, current_count) 
+                            VALUES (date('now', 'localtime'), 1) 
+                            ON CONFLICT(date) DO UPDATE SET current_count = current_count + 1 
+                            RETURNING current_count
+                            """;
+                    
+                    try (PreparedStatement queueStmt = conn.prepareStatement(queueSql);
+                        ResultSet rs = queueStmt.executeQuery()) {
+                        if (rs.next()) {
+                            queueNumber = rs.getInt(1);
+                        } else {
+                            throw new SQLException("Failed to get or update queue number.");
+                        }
                     }
                 }
     

@@ -13,4 +13,5 @@ public class AddCheckupRequest implements Packet {
     private int processedById;
     private String checkupType;
     private String status;
+    private int queueNumber;
 }
