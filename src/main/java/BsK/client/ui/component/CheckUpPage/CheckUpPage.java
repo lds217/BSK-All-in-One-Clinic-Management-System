@@ -1864,6 +1864,12 @@ public class CheckUpPage extends JPanel {
                 DoctorItem selectedDoctor = (DoctorItem) doctorComboBox.getSelectedItem();
                 String doctorName = (selectedDoctor != null) ? selectedDoctor.getName() : "";
                 
+                // Show papaer size dialog 
+                String paperSize = (String) JOptionPane.showInputDialog(this, "Chọn kích thước giấy in:", "Chọn kích thước giấy in", JOptionPane.QUESTION_MESSAGE, null, new Object[] {"A4", "A5"}, "A4");
+                if (paperSize == null) {
+                    return;
+                }
+
                 MedicineInvoice medicineInvoice = new MedicineInvoice(checkupIdField.getText(),
                         customerLastNameField.getText() + " " + customerFirstNameField.getText(),
                         dobPicker.getJFormattedTextField().getText(), customerPhoneField.getText(),
@@ -1875,38 +1881,36 @@ public class CheckUpPage extends JPanel {
                         printerPatientDriveUrl,
                         regularMeds.toArray(new String[0][]),
                         servicePrescription,
-                        supplements.toArray(new String[0][]) // Pass supplements
+                        supplements.toArray(new String[0][]), // Pass supplements
+                        paperSize
                 );
                 // First, show the print preview to the user
                 try {
-                    // Instead of showing JasperViewer, show our custom print options dialog.
-                    // The 'this' keyword refers to the current component, likely a JFrame or JPanel.
-                    medicineInvoice.showPrintDialogWithOptions(mainFrame); // 'this' might need to be cast to JFrame if needed
-            
-                    // The PDF generation and upload can still run in the background,
-                    // independent of the printing action.
+                    medicineInvoice.showDirectJasperViewer(); 
                     medicineInvoice.generatePdfBytesAsync().thenAccept(pdfBytes -> {
                         if (pdfBytes != null && pdfBytes.length > 0) {
                             String checkupId = checkupIdField.getText();
                             String fileName = "medserinvoice.pdf";
                             String pdfType = "medserinvoice";
-            
+
                             log.info("Uploading {} ({}) for checkupId: {}", fileName, pdfType, checkupId);
-            
+
                             UploadCheckupPdfRequest request = new UploadCheckupPdfRequest(checkupId, pdfBytes, fileName, pdfType);
                             NetworkUtil.sendPacket(ClientHandler.ctx.channel(), request);
                         }
                     }).exceptionally(ex -> {
                         log.error("Failed to generate or upload medicine invoice PDF", ex);
+                        // Show error in the UI thread
                         SwingUtilities.invokeLater(() ->
                             JOptionPane.showMessageDialog(this, "Lỗi khi tạo hoặc tải lên file PDF hóa đơn: " + ex.getMessage(), "Lỗi PDF", JOptionPane.ERROR_MESSAGE)
                         );
                         return null;
                     });
                 } catch (Exception e) {
-                    log.error("Failed to show print options dialog", e);
-                    JOptionPane.showMessageDialog(this, "Lỗi khi hiển thị tùy chọn in: " + e.getMessage(), "Lỗi In", JOptionPane.ERROR_MESSAGE);
+                    log.error("Failed to show direct JasperViewer", e);
+                    JOptionPane.showMessageDialog(this, "Lỗi khi hiển thị hộp thoại in: " + e.getMessage(), "Lỗi In", JOptionPane.ERROR_MESSAGE);
                 }
+
                 
                 break;
             case "ultrasound": // This case now handles "Lưu & In"
