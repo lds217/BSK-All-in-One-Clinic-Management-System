@@ -8,13 +8,6 @@ import net.sf.jasperreports.engine.data.JRBeanCollectionDataSource;
 import net.sf.jasperreports.engine.design.JasperDesign;
 import net.sf.jasperreports.engine.xml.JRXmlLoader;
 import net.sf.jasperreports.view.JasperViewer;
-import net.sf.jasperreports.export.SimpleExporterInput;
-import net.sf.jasperreports.export.SimplePrintServiceExporterConfiguration;
-import net.sf.jasperreports.engine.export.JRPrintServiceExporter;
-import javax.print.attribute.HashPrintRequestAttributeSet;
-import javax.print.attribute.PrintRequestAttributeSet;
-import javax.print.attribute.standard.Fidelity;
-import javax.print.attribute.standard.MediaSizeName;
 
 
 import javax.swing.*;
@@ -170,6 +163,7 @@ public class MedicineInvoice{
     private String[][] med; // Prescription data for medicines
     private String[][] services; // Prescription data for services
     private String[][] supplements; // Prescription data for supplements
+    private String paperSize;
 
     public CompletableFuture<byte[]> generatePdfBytesAsync() {
         return CompletableFuture.supplyAsync(() -> {
@@ -186,7 +180,7 @@ public class MedicineInvoice{
 
     public MedicineInvoice(String id, String patientName, String patientDOB, String patientPhone,
                            String patientGender, String patientAddress, String doctorName, String diagnosis,
-                           String notes, String driveURL, String[][] med, String[][] services, String[][] supplements) {
+                           String notes, String driveURL, String[][] med, String[][] services, String[][] supplements, String paperSize) {
         this.id = id;
         this.patientName = patientName;
         this.patientDOB = patientDOB;
@@ -208,6 +202,7 @@ public class MedicineInvoice{
         this.med = med;
         this.services = services;
         this.supplements = supplements;
+        this.paperSize = paperSize;
     }
 
 
@@ -469,21 +464,24 @@ public class MedicineInvoice{
             // Generate barcode and get file path
             String barcodePath = BarcodeGenerator.generateCode128WithFixedName(id, 200, 50, "invoice_barcode");
             parameters.put("barcodeNumber", barcodePath);
-            
-            // Generate QR code for the driveURL
-            String qrcodePath = BarcodeGenerator.generateQRCodeWithFixedName(driveURL, 220, 220, "invoice_qrcode");
-            parameters.put("driveURL", qrcodePath);
+
             
         } catch (Exception e) {
             log.error("Error generating barcode/QR code images: {}", e.getMessage());
             // Set fallback parameters as null or empty if image generation fails
             parameters.put("barcodeNumber", null);
-            parameters.put("driveURL", null);
         }
 
         try {
+            JasperReport jasperReport = null;
             // Use the new method that tries pre-compiled .jasper files first
-            JasperReport jasperReport = loadCompiledReport("medserinvoice");
+            if (paperSize.equals("A4")) {
+                jasperReport = loadCompiledReport("medserinvoice");
+            } else if (paperSize.equals("A5")) {
+                jasperReport = loadCompiledReport("medserinvoice_A5");
+            } else {
+                throw new Exception("Invalid paper size: " + paperSize);
+            }
             log.info("Successfully loaded/compiled jasper report");
             
             log.info("Attempting to fill report with parameters...");
@@ -501,79 +499,6 @@ public class MedicineInvoice{
             log.info("error loading the input stream, {}", e.getMessage());
             e.printStackTrace();
         }
-    }
-
-    /**
-     * Shows a dialog to select paper size (A4/A5) and then opens the system print dialog.
-     * @param parent The parent frame for the dialogs.
-     */
-    public void showPrintDialogWithOptions(JFrame parent) {
-        try {
-            // Step 1: Ensure the report data is compiled and filled.
-            // This populates the 'jasperPrint' object.
-            log.info("Preparing report data for printing...");
-            fillJasperPrint();
-            if (jasperPrint == null) {
-                JOptionPane.showMessageDialog(parent, "Could not generate the report data.", "Error", JOptionPane.ERROR_MESSAGE);
-                return;
-            }
-
-            // Step 2: Show the paper size selection dialog.
-            Object[] options = {"A4", "A5"};
-            int choice = JOptionPane.showOptionDialog(parent,
-                    "Chọn khổ giấy để in:",
-                    "Print Options",
-                    JOptionPane.YES_NO_OPTION,
-                    JOptionPane.QUESTION_MESSAGE,
-                    null,
-                    options,
-                    options[0]);
-
-            // Step 3: If the user cancels, do nothing.
-            if (choice == JOptionPane.CLOSED_OPTION) {
-                log.info("User cancelled the print operation.");
-                return;
-            }
-
-            // Step 4: Determine the selected paper size.
-            MediaSizeName selectedPaperSize = (choice == 0) ? MediaSizeName.ISO_A4 : MediaSizeName.ISO_A5;
-            log.info("User selected paper size: {}", selectedPaperSize);
-
-            // Step 5: Call the direct printing method with the chosen size.
-            printDirectly(selectedPaperSize);
-
-        } catch (Exception e) {
-            log.error("Failed during the print process with options", e);
-            JOptionPane.showMessageDialog(parent, "Lỗi khi chuẩn bị in: " + e.getMessage(), "Lỗi In", JOptionPane.ERROR_MESSAGE);
-        }
-    }
-
-    /**
-     * Private helper method to print the report directly using JRPrintServiceExporter.
-     * @param paperSize The MediaSizeName (e.g., A4 or A5) to use for printing.
-     * @throws JRException
-     */
-    private void printDirectly(MediaSizeName paperSize) throws JRException {
-        // This set of instructions tells the printer to use the selected paper size
-        // and allows it to scale the content down if necessary.
-        PrintRequestAttributeSet printRequestAttributeSet = new HashPrintRequestAttributeSet();
-        printRequestAttributeSet.add(paperSize);
-        printRequestAttributeSet.add(Fidelity.FIDELITY_FALSE); // CRITICAL: This allows scaling!
-
-        // Configure the exporter with our printing instructions
-        JRPrintServiceExporter exporter = new JRPrintServiceExporter();
-        SimplePrintServiceExporterConfiguration configuration = new SimplePrintServiceExporterConfiguration();
-        configuration.setPrintRequestAttributeSet(printRequestAttributeSet);
-        configuration.setDisplayPageDialog(false); // Optional: Do not show page setup dialog
-        configuration.setDisplayPrintDialog(true);  // Show the main system print dialog
-
-        // Export the report to the printer
-        exporter.setExporterInput(new SimpleExporterInput(jasperPrint));
-        exporter.setConfiguration(configuration);
-        
-        log.info("Exporting report to printer with configuration...");
-        exporter.exportReport();
-        log.info("Print job sent to the system.");
     }
 
 }
