@@ -19,9 +19,11 @@ public class LocalStorage {
     public static Role role;
     public static int userId;
     
+    
     public static List<String> chatHistory = new ArrayList<>();
     public static String pathToProject = "";
     
+    public static int currentMaxQueueNumber = 0;
     public static String dataDialogSearchTerm = "";
     public static Date dataDialogFromDate = new Date();
     public static Date dataDialogToDate = new Date();

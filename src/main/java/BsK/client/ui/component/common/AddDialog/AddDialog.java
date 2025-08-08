@@ -49,6 +49,8 @@ public class AddDialog extends JDialog {
     private JTable patientTable;
     private String[] patientColumns = {"Mã BN", "Tên Bệnh Nhân", "Năm sinh", "Số điện thoại" ,"Địa chỉ"};
     private String[][] patientData;
+    private JCheckBox specifyQueueNumberCheckBox; 
+    private JSpinner queueNumberSpinner;        
     
     // --- Checkup & Action Buttons ---
     private JComboBox<DoctorItem> doctorComboBox;
@@ -189,7 +191,7 @@ public class AddDialog extends JDialog {
                 // Normal behavior when not auto-selecting
                 // Clear selection and update button states
                 patientTable.clearSelection();
-                saveButton.setEnabled(false);
+
                 addPatientButton.setEnabled(true);
             }
         });
@@ -241,7 +243,7 @@ public class AddDialog extends JDialog {
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
 
         // Set size of the dialog
-        setSize(1200, 700);
+        setSize(1200, 800);
         // Put in the middle of parent window
         setLocationRelativeTo(parent);
         setResizable(true);
@@ -279,6 +281,8 @@ public class AddDialog extends JDialog {
         ClientHandler.addResponseListener(AddPatientResponse.class, addPatientResponseListener);
         ClientHandler.addResponseListener(AddCheckupResponse.class, addCheckupResponseListener);
         ClientHandler.addResponseListener(GetRecentPatientResponse.class, getRecentPatientResponseListener);
+
+    
 
         sendGetRecentPatientRequest();
         // Add patent table on the right side
@@ -380,9 +384,23 @@ public class AddDialog extends JDialog {
         gbc.insets = new Insets(5, 5, 5, 5);
         gbc.weighty = 0.0;
 
+        // Phone (Row 2, Col 0-2) & Patient ID (Row 3, Col 0-1)
+        gbc.gridy = 0;
+        gbc.gridx = 0;
+        JLabel phoneLabel = new JLabel("Số điện thoại:");
+        phoneLabel.setFont(labelFont);
+        patientInfoPanel.add(phoneLabel, gbc);
+
+        gbc.gridx = 1;
+        gbc.gridwidth = 3; // Span more columns since we removed the search button
+        patientPhoneField = new JTextField(10);
+        patientPhoneField.setFont(textFont);
+        patientPhoneField.setPreferredSize(textFieldSize);
+        patientInfoPanel.add(patientPhoneField, gbc);
+        gbc.gridwidth = 1; // Reset
         // Populate Patient Info Panel
         // Patient Name (Row 0, Col 0-1) - now spans more columns since we removed the plus button
-        gbc.gridy = 0;
+        gbc.gridy++;
         gbc.gridx = 0;
         gbc.gridwidth = 1;
         JLabel nameLabel = new JLabel("Họ và tên:");
@@ -432,20 +450,7 @@ public class AddDialog extends JDialog {
         patientGenderField.setPreferredSize(comboBoxSize);
         patientInfoPanel.add(patientGenderField, gbc);
 
-        // Phone (Row 2, Col 0-2) & Patient ID (Row 3, Col 0-1)
-        gbc.gridy++;
-        gbc.gridx = 0;
-        JLabel phoneLabel = new JLabel("Số điện thoại:");
-        phoneLabel.setFont(labelFont);
-        patientInfoPanel.add(phoneLabel, gbc);
-
-        gbc.gridx = 1;
-        gbc.gridwidth = 3; // Span more columns since we removed the search button
-        patientPhoneField = new JTextField(10);
-        patientPhoneField.setFont(textFont);
-        patientPhoneField.setPreferredSize(textFieldSize);
-        patientInfoPanel.add(patientPhoneField, gbc);
-        gbc.gridwidth = 1; // Reset
+        
 
         // Patient ID (Row 3, Col 0-1)
         gbc.gridy++;
@@ -454,12 +459,31 @@ public class AddDialog extends JDialog {
         patientIdLabel.setFont(labelFont);
         patientInfoPanel.add(patientIdLabel, gbc);
 
+       
+
         gbc.gridx = 1;
         patientIdField = new JTextField(5);
         patientIdField.setFont(textFont);
         patientIdField.setPreferredSize(textFieldSize);
         patientIdField.setEditable(false);
         patientInfoPanel.add(patientIdField, gbc);
+
+        patientIdField.getDocument().addDocumentListener(new DocumentListener() {
+            @Override
+            public void insertUpdate(DocumentEvent e) {
+                updateSaveButtonState();
+            }
+
+            @Override
+            public void removeUpdate(DocumentEvent e) {
+                updateSaveButtonState();
+            }
+
+            @Override
+            public void changedUpdate(DocumentEvent e) {
+                updateSaveButtonState();
+            }
+        });
 
         // CCCD (Row 4, Col 0-3)
         gbc.gridy++;
@@ -545,6 +569,40 @@ public class AddDialog extends JDialog {
         checkupInfoPanel.add(checkupTypeComboBox, gbc);
         gbc.weightx = 0.0;
 
+        gbc.anchor = GridBagConstraints.EAST;
+        gbc.gridy++; // Move to a new row
+        gbc.gridx = 0;
+        gbc.gridwidth = 2; // Span 2 columns
+        specifyQueueNumberCheckBox = new JCheckBox("Chỉ định STT");
+        specifyQueueNumberCheckBox.setFont(labelFont);
+        checkupInfoPanel.add(specifyQueueNumberCheckBox, gbc);
+
+        gbc.anchor = GridBagConstraints.WEST;
+        gbc.gridx = 2;
+        gbc.gridwidth = 2; // Span the other 2 columns
+        SpinnerNumberModel queueSpinnerModel = new SpinnerNumberModel(1, 1, 999, 1); // (defaultValue, min, max, step)
+        queueNumberSpinner = new JSpinner(queueSpinnerModel);
+        queueNumberSpinner.setFont(textFont);
+        queueNumberSpinner.setEnabled(false); // Disabled by default
+        checkupInfoPanel.add(queueNumberSpinner, gbc);
+
+        
+
+        // Add listener to enable/disable spinner when checkbox is toggled
+        specifyQueueNumberCheckBox.addActionListener(e -> {
+            queueNumberSpinner.setEnabled(specifyQueueNumberCheckBox.isSelected());
+            queueNumberSpinner.setValue(LocalStorage.currentMaxQueueNumber + 1);
+        });
+
+        gbc.gridy++; // Move to a new row for the note
+        gbc.gridx = 0;
+        gbc.gridwidth = 4; // Span all 4 columns
+        gbc.insets = new Insets(0, 8, 5, 5); // Adjust insets to bring it closer to the controls above
+        JLabel queueNoteLabel = new JLabel("<html><i>Lưu ý: Nếu không chỉ định STT thì STT sẽ bằng STT lớn nhất hiện tại + 1</i></html>");
+        queueNoteLabel.setFont(new Font("Arial", Font.ITALIC, 12));
+        queueNoteLabel.setForeground(new Color(100, 100, 100)); // Set a gray color for the note
+        checkupInfoPanel.add(queueNoteLabel, gbc);
+
         // Add the main action button - spans full width and is more prominent
         gbc.gridy++;
         gbc.gridx = 0;
@@ -569,7 +627,15 @@ public class AddDialog extends JDialog {
             }
             int doctorId = Integer.parseInt(selectedDoctor.getId());
             String selectedCheckupType = (String) checkupTypeComboBox.getSelectedItem();
-            NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new AddCheckupRequest(patientId, doctorId, LocalStorage.userId, selectedCheckupType, "CHỜ KHÁM"));
+            int queueNumber;
+            if (specifyQueueNumberCheckBox.isSelected()) {
+                queueNumber = (Integer) queueNumberSpinner.getValue();
+            } else {
+                // Send -1 to let the server know to auto-increment the queue number
+                queueNumber = -1;
+            }
+            log.info("Sending AddCheckupRequest with queue number: {}", queueNumber);
+            NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new AddCheckupRequest(patientId, doctorId, LocalStorage.userId, selectedCheckupType, "CHỜ KHÁM", queueNumber));
         });
         checkupInfoPanel.add(saveButton, gbc);
 
@@ -801,11 +867,13 @@ public class AddDialog extends JDialog {
             
             // Clear table selection
             patientTable.clearSelection();
-            
+            specifyQueueNumberCheckBox.setSelected(false);
+            queueNumberSpinner.setEnabled(false);
+            queueNumberSpinner.setValue(LocalStorage.currentMaxQueueNumber + 1);
             // Update button states
             saveButton.setEnabled(false);
             addPatientButton.setEnabled(true);
-            
+            setDefaultLocation();
             // Reset table to show all patients
             sendGetRecentPatientRequest();
     });
@@ -823,60 +891,83 @@ public class AddDialog extends JDialog {
             sendPatientSearchRequest(searchName, searchPhone, selectedPage);
         }
     });
+    setDefaultLocation();
 }
     
-    private void setupDebounceSearch() {
-        // Initialize timers for debounce search (1 second delay)
-        nameSearchTimer = new Timer(1000, e -> {
-            String searchName = searchNameField.getText().trim();
-            String searchPhone = searchPhoneField.getText().trim();
-            sendPatientSearchRequest(searchName.isEmpty() ? null : searchName, searchPhone.isEmpty() ? null : searchPhone, 1);
-        });
-        nameSearchTimer.setRepeats(false);
+private void setupDebounceSearch() {
+    // Initialize timers for debounce search (1 second delay)
+    nameSearchTimer = new Timer(1000, e -> {
+        String searchName = searchNameField.getText().trim();
+        String searchPhone = searchPhoneField.getText().trim();
+        sendPatientSearchRequest(searchName.isEmpty() ? null : searchName, searchPhone.isEmpty() ? null : searchPhone, 1);
+    });
+    nameSearchTimer.setRepeats(false);
 
-        phoneSearchTimer = new Timer(1000, e -> {
-            String searchName = searchNameField.getText().trim();
-            String searchPhone = searchPhoneField.getText().trim();
-            sendPatientSearchRequest(searchName.isEmpty() ? null : searchName, searchPhone.isEmpty() ? null : searchPhone, 1);
-        });
-        phoneSearchTimer.setRepeats(false);
+    phoneSearchTimer = new Timer(1000, e -> {
+        String searchName = searchNameField.getText().trim();
+        String searchPhone = searchPhoneField.getText().trim();
+        sendPatientSearchRequest(searchName.isEmpty() ? null : searchName, searchPhone.isEmpty() ? null : searchPhone, 1);
+    });
+    phoneSearchTimer.setRepeats(false);
 
-        // Add DocumentListener to searchNameField for debounced search
-        searchNameField.getDocument().addDocumentListener(new DocumentListener() {
-            @Override
-            public void insertUpdate(DocumentEvent e) {
-                resetAndStartTimer(nameSearchTimer);
-            }
+    // Add DocumentListener to searchNameField for debounced search
+    searchNameField.getDocument().addDocumentListener(new DocumentListener() {
+        @Override
+        public void insertUpdate(DocumentEvent e) {
+            resetAndStartTimer(nameSearchTimer);
+        }
 
-            @Override
-            public void removeUpdate(DocumentEvent e) {
-                resetAndStartTimer(nameSearchTimer);
-            }
+        @Override
+        public void removeUpdate(DocumentEvent e) {
+            resetAndStartTimer(nameSearchTimer);
+        }
 
-            @Override
-            public void changedUpdate(DocumentEvent e) {
-                resetAndStartTimer(nameSearchTimer);
-            }
-        });
+        @Override
+        public void changedUpdate(DocumentEvent e) {
+            resetAndStartTimer(nameSearchTimer);
+        }
+    });
 
-        // Add DocumentListener to searchPhoneField for debounced search
-        searchPhoneField.getDocument().addDocumentListener(new DocumentListener() {
-            @Override
-            public void insertUpdate(DocumentEvent e) {
-                resetAndStartTimer(phoneSearchTimer);
-            }
+    // Add DocumentListener to searchPhoneField for debounced search
+    searchPhoneField.getDocument().addDocumentListener(new DocumentListener() {
+        @Override
+        public void insertUpdate(DocumentEvent e) {
+            resetAndStartTimer(phoneSearchTimer);
+        }
 
-            @Override
-            public void removeUpdate(DocumentEvent e) {
-                resetAndStartTimer(phoneSearchTimer);
-            }
+        @Override
+        public void removeUpdate(DocumentEvent e) {
+            resetAndStartTimer(phoneSearchTimer);
+        }
 
-            @Override
-            public void changedUpdate(DocumentEvent e) {
-                resetAndStartTimer(phoneSearchTimer);
-            }
-        });
-    }
+        @Override
+        public void changedUpdate(DocumentEvent e) {
+            resetAndStartTimer(phoneSearchTimer);
+        }
+    });
+
+
+    patientPhoneField.getDocument().addDocumentListener(new DocumentListener() {
+        private void syncPhoneFields() {
+            searchPhoneField.setText(patientPhoneField.getText());
+        }
+        
+        @Override
+        public void insertUpdate(DocumentEvent e) {
+            syncPhoneFields();
+        }
+
+        @Override
+        public void removeUpdate(DocumentEvent e) {
+            syncPhoneFields();
+        }
+
+        @Override
+        public void changedUpdate(DocumentEvent e) {
+            syncPhoneFields();
+        }
+    });
+}
 
     private void resetAndStartTimer(Timer timer) {
         if (timer.isRunning()) {
@@ -889,9 +980,10 @@ public class AddDialog extends JDialog {
         JPanel searchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         searchPanel.setBorder(BorderFactory.createTitledBorder("Tìm kiếm bệnh nhân"));
 
-        searchPanel.add(new JLabel("Tên BN:"));
+        //searchPanel.add(new JLabel("Tên BN:"));
         searchNameField = new JTextField(15);
-        searchPanel.add(searchNameField);
+        //searchPanel.add(searchNameField);
+
 
         searchPanel.add(new JLabel("SĐT:"));
         searchPhoneField = new JTextField(10);
@@ -1068,5 +1160,34 @@ public class AddDialog extends JDialog {
                 }
             }
         });
+    }
+
+    private void setDefaultLocation() {
+        // Define the desired default location. Note: Using "Thị trấn Đức Hòa" as it's a likely ward name.
+        final String DEFAULT_PROVINCE = "Tây Ninh";
+        final String DEFAULT_WARD = "Đức Hòa";
+
+        // Set the target ward that should be selected once the province's wards are loaded from the server.
+        this.targetWard = DEFAULT_WARD;
+
+        // Find and select the default province from the list.
+        int provinceIndex = findProvinceIndex(DEFAULT_PROVINCE);
+        if (provinceIndex != -1) {
+            // Setting the index here will trigger the ActionListener for the provinceComboBox.
+            // That listener sends a request to the server to get the wards for Tây Ninh.
+            // The handleGetWardResponse method will then see 'targetWard' and select the correct ward.
+            provinceComboBox.setSelectedIndex(provinceIndex);
+        } else {
+            // Log a warning if the default province isn't found in the local storage list.
+            log.warn("Default province '{}' not found in LocalStorage.provinces.", DEFAULT_PROVINCE);
+            // If the province isn't found, we can't get the wards, so clear the target.
+            this.targetWard = null;
+        }
+    }
+
+    private void updateSaveButtonState() {
+        // Enable the save button only if the patient ID field is not empty.
+        boolean isPatientSelected = !patientIdField.getText().trim().isEmpty();
+        saveButton.setEnabled(isPatientSelected);
     }
 }

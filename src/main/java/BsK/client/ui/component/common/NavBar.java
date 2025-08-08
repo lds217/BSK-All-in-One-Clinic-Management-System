@@ -302,7 +302,7 @@ public class NavBar extends JPanel {
         counterPanel.setAlignmentY(Component.CENTER_ALIGNMENT);
 
         // Create label
-        JLabel counterLabel = new JLabel("Số thứ tự hiện tại:");
+        JLabel counterLabel = new JLabel("STT lớn nhất:");
         counterLabel.setFont(new Font("Arial", Font.BOLD, 12));
         counterLabel.setForeground(new Color(60, 60, 60));
 
@@ -345,7 +345,7 @@ public class NavBar extends JPanel {
     private void handleSetCounterResponse(SetCounterResponse response) {
         SwingUtilities.invokeLater(() -> {
             log.info("Received SetCounterResponse with value: {}", response.getCounter());
-            
+            LocalStorage.currentMaxQueueNumber = response.getCounter();
             // Update spinner value without triggering change event
             isUpdatingSpinner = true;
             try {
@@ -706,7 +706,7 @@ public class NavBar extends JPanel {
     private void handleGetCounterResponse(GetCounterResponse response) {
         SwingUtilities.invokeLater(() -> {
             log.info("Received GetCounterResponse with initial value: {}", response.getCounter());
-            
+            LocalStorage.currentMaxQueueNumber = response.getCounter();
             // Update spinner value without triggering change event
             isUpdatingSpinner = true;
             try {
