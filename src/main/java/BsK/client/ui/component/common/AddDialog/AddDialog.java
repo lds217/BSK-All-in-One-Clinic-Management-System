@@ -248,12 +248,12 @@ public class AddDialog extends JDialog {
         setLocationRelativeTo(parent);
         setResizable(true);
         
-        // UI Fonts and Dimensions
-        Font labelFont = new Font("Arial", Font.BOLD, 15);
-        Font textFont = new Font("Arial", Font.PLAIN, 15);
-        Font titleFont = new Font("Arial", Font.BOLD, 16);
-        Dimension textFieldSize = new Dimension(100, 30);
-        Dimension comboBoxSize = new Dimension(100, 30);
+        // UI Fonts and Dimensions (labels bigger, fields smaller)
+        Font labelFont = new Font("Arial", Font.BOLD, 18);
+        Font textFont = new Font("Arial", Font.PLAIN, 14);
+        Font titleFont = new Font("Arial", Font.BOLD, 18);
+        Dimension textFieldSize = new Dimension(100, 26);
+        Dimension comboBoxSize = new Dimension(100, 26);
         
         // Ensure modal behavior and proper parent relationship
         setModalityType(Dialog.ModalityType.APPLICATION_MODAL);
@@ -436,7 +436,7 @@ public class AddDialog extends JDialog {
         dobPicker.getJFormattedTextField().setFont(textFont);
         dobPicker.getJFormattedTextField().setToolTipText("Nhập ngày theo định dạng dd/mm/yyyy");
         setupDateFieldForDirectInput(dobPicker);
-        dobPicker.setPreferredSize(new Dimension(150, 30));
+        dobPicker.setPreferredSize(new Dimension(140, 26));
         patientInfoPanel.add(dobPicker, gbc);
 
         gbc.gridx = 2;
@@ -571,15 +571,15 @@ public class AddDialog extends JDialog {
 
         gbc.anchor = GridBagConstraints.EAST;
         gbc.gridy++; // Move to a new row
-        gbc.gridx = 0;
+        gbc.gridx = 2;
         gbc.gridwidth = 2; // Span 2 columns
         specifyQueueNumberCheckBox = new JCheckBox("Chỉ định STT");
         specifyQueueNumberCheckBox.setFont(labelFont);
         checkupInfoPanel.add(specifyQueueNumberCheckBox, gbc);
 
         gbc.anchor = GridBagConstraints.WEST;
-        gbc.gridx = 2;
-        gbc.gridwidth = 2; // Span the other 2 columns
+        gbc.gridx = 1;
+        gbc.gridwidth = 1; // Span the other 2 columns
         SpinnerNumberModel queueSpinnerModel = new SpinnerNumberModel(1, 1, 999, 1); // (defaultValue, min, max, step)
         queueNumberSpinner = new JSpinner(queueSpinnerModel);
         queueNumberSpinner.setFont(textFont);
@@ -636,8 +636,12 @@ public class AddDialog extends JDialog {
             }
             log.info("Sending AddCheckupRequest with queue number: {}", queueNumber);
             NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new AddCheckupRequest(patientId, doctorId, LocalStorage.userId, selectedCheckupType, "CHỜ KHÁM", queueNumber));
+            clearButton.doClick();
         });
         checkupInfoPanel.add(saveButton, gbc);
+
+        // Initially disable checkup controls until a patient is selected
+        setCheckupControlsEnabled(false);
 
         // Reset insets and weights
         gbc.insets = new Insets(5, 5, 5, 5);
@@ -717,7 +721,8 @@ public class AddDialog extends JDialog {
             }
         });
 
-        inputPanel.setMinimumSize(new Dimension(400, 0));
+        // Make the left panel narrower
+        inputPanel.setMinimumSize(new Dimension(300, 0));
         
         // Wrap inputPanel in a JScrollPane
         JScrollPane inputScrollPane = new JScrollPane(inputPanel);
@@ -752,7 +757,9 @@ public class AddDialog extends JDialog {
         rightPanel.add(paginationPanel, BorderLayout.SOUTH);
 
         JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, inputScrollPane, rightPanel);
-        splitPane.setResizeWeight(0.5); // Keep or adjust as needed
+        // Favor the right panel; set an initial divider position and resize weight
+        splitPane.setDividerLocation(0.25);
+        splitPane.setResizeWeight(0.2);
         add(splitPane, BorderLayout.CENTER);
 
 
@@ -873,6 +880,7 @@ public class AddDialog extends JDialog {
             // Update button states
             saveButton.setEnabled(false);
             addPatientButton.setEnabled(true);
+            setCheckupControlsEnabled(false);
             setDefaultLocation();
             // Reset table to show all patients
             sendGetRecentPatientRequest();
@@ -1189,5 +1197,28 @@ private void setupDebounceSearch() {
         // Enable the save button only if the patient ID field is not empty.
         boolean isPatientSelected = !patientIdField.getText().trim().isEmpty();
         saveButton.setEnabled(isPatientSelected);
+        setCheckupControlsEnabled(isPatientSelected);
+    }
+
+    private void setCheckupControlsEnabled(boolean enabled) {
+        // Guard against initialization order
+        if (doctorComboBox != null) {
+            doctorComboBox.setEnabled(enabled);
+        }
+        if (checkupTypeComboBox != null) {
+            checkupTypeComboBox.setEnabled(enabled);
+        }
+        if (specifyQueueNumberCheckBox != null) {
+            specifyQueueNumberCheckBox.setEnabled(enabled);
+        }
+        if (queueNumberSpinner != null) {
+            // Spinner enabled only when both the section is enabled and the checkbox is selected
+            boolean spinnerEnabled = enabled && specifyQueueNumberCheckBox != null && specifyQueueNumberCheckBox.isSelected();
+            queueNumberSpinner.setEnabled(spinnerEnabled);
+        }
+        if (saveButton != null) {
+            // Keep saveButton consistent with the enabled state as well
+            saveButton.setEnabled(enabled);
+        }
     }
 }

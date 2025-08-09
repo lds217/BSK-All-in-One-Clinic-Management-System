@@ -147,7 +147,7 @@ public class CheckUpPage extends JPanel {
     private ScheduledExecutorService folderScanExecutor;
     private volatile boolean isScanning = false;
     private static final int SCAN_INTERVAL_MILLISECONDS = 500; // Check every 1 
-    private static final int MAX_FOLDERS_TO_SCAN = 4;
+    private static final int MAX_FOLDERS_TO_SCAN = 12;
 
     private final Set<Path> processingFiles = ConcurrentHashMap.newKeySet();
     private final Map<Path, FileAttributes> lastSeenFiles = new ConcurrentHashMap<>();
@@ -398,7 +398,14 @@ public class CheckUpPage extends JPanel {
         openQueueButton.setBorder(BorderFactory.createEmptyBorder(8, 15, 8, 15)); // Reduced vertical padding from 10 to 8
         openQueueButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         openQueueButton.addActionListener(e -> {
+            // Always fetch the latest queue to avoid cross-client mismatch
             updateQueue();
+            // Reset filters to "Tất cả" to avoid index/filter/sort mismatch on open
+            if (queueManagementPage != null) {
+                queueManagementPage.checkupTypeFilter.setSelectedItem("Tất cả");
+                queueManagementPage.patientNameFilter.setText("");
+                queueManagementPage.applyFilters();
+            }
             queueManagementPage.setVisible(true);
             queueManagementPage.toFront();
         });
@@ -1914,13 +1921,7 @@ public class CheckUpPage extends JPanel {
                 
                 break;
             case "ultrasound": // This case now handles "Lưu & In"
-                // Step 1: Validate conditions first.
-                if (selectedImagesForPrint.isEmpty()) {
-                    JOptionPane.showMessageDialog(this,
-                            "Vui lòng chọn ít nhất một hình ảnh để in kết quả.",
-                            "Chưa chọn ảnh", JOptionPane.WARNING_MESSAGE);
-                    return;
-                }
+
                  if (photoNum != 0 && selectedImagesForPrint.size() > photoNum) {
                     JOptionPane.showMessageDialog(this,
                             "Số lượng ảnh đã chọn (" + selectedImagesForPrint.size() + ") nhiều hơn số lượng cho phép trong mẫu (" + photoNum + ").",
@@ -1995,13 +1996,7 @@ public class CheckUpPage extends JPanel {
                 afterSaveActions(statusToSavePrint, "Đã lưu. Đang gửi lệnh in...");
                 break;
             case "loupe": // This case now handles "Lưu & Xem"
-                // Step 1: Validate conditions first.
-                if (selectedImagesForPrint.isEmpty()) {
-                    JOptionPane.showMessageDialog(this,
-                            "Vui lòng chọn ít nhất một hình ảnh để xem kết quả.",
-                            "Chưa chọn ảnh", JOptionPane.WARNING_MESSAGE);
-                    return;
-                }
+
                  if (photoNum != 0 && selectedImagesForPrint.size() > photoNum) {
                     JOptionPane.showMessageDialog(this,
                             "Số lượng ảnh đã chọn (" + selectedImagesForPrint.size() + ") nhiều hơn số lượng cho phép trong mẫu (" + photoNum + ").",
@@ -2729,10 +2724,8 @@ public class CheckUpPage extends JPanel {
 
     private JPanel createImageDisplayPanel() {
         JPanel panel = new JPanel(new BorderLayout(5, 5));
-        panel.setBorder(BorderFactory.createTitledBorder(
-                BorderFactory.createEtchedBorder(), "Thư viện Hình ảnh",
-                TitledBorder.CENTER, TitledBorder.TOP,
-                new Font("Arial", Font.ITALIC, 14), new Color(50, 50, 50)));
+        // Remove inner title to avoid duplicate "Thư viện Hình ảnh" header and save vertical space
+        panel.setBorder(BorderFactory.createEmptyBorder());
 
         imageGalleryPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 10)); // Added more spacing
         imageGalleryPanel.setBackground(Color.WHITE); // Set a background for the gallery
@@ -3192,14 +3185,14 @@ public class CheckUpPage extends JPanel {
             return Collections.emptyList();
         }
         
-        // Sort by creation time (newest first)
+        // Sort by last modified time (newest first)
         folders.sort((path1, path2) -> {
             try {
-                FileTime time1 = Files.readAttributes(path1, BasicFileAttributes.class).creationTime();
-                FileTime time2 = Files.readAttributes(path2, BasicFileAttributes.class).creationTime();
-                return time2.compareTo(time1); // Newest first
+                FileTime time1 = Files.getLastModifiedTime(path1);
+                FileTime time2 = Files.getLastModifiedTime(path2);
+                return time2.compareTo(time1);
             } catch (Exception e) {
-                log.warn("Error comparing creation times for {} and {}: {}", path1, path2, e.getMessage());
+                log.warn("Error comparing last modified times for {} and {}: {}", path1, path2, e.getMessage());
                 return 0;
             }
         });
@@ -4303,8 +4296,13 @@ public class CheckUpPage extends JPanel {
                                         return;
                                     }
                                 }
-                                // Call the parent class's method to handle the selection with the model row index
-                                CheckUpPage.this.handleRowSelection(modelRow, null);
+                                // Resolve the selected patient by Checkup ID to avoid index mismatch after filtering/sorting
+                                Patient selected = patientQueue.stream()
+                                        .filter(p -> newlySelectedCheckupId.equals(p.getCheckupId()))
+                                        .findFirst().orElse(null);
+                                if (selected != null) {
+                                    CheckUpPage.this.handleRowSelection(-1, selected);
+                                }
                                 // Reset patient name filter when closing dialog after selection
                                 patientNameFilter.setText("");
                                 applyFilters();
@@ -4353,8 +4351,13 @@ public class CheckUpPage extends JPanel {
                                     return;
                                 }
                             }
-                            // Call the parent class's method to handle the selection with the model row index
-                            CheckUpPage.this.handleRowSelection(modelRow, null);
+                            // Resolve patient by Checkup ID to avoid index mismatch
+                            Patient selected = patientQueue.stream()
+                                    .filter(p -> newlySelectedCheckupId.equals(p.getCheckupId()))
+                                    .findFirst().orElse(null);
+                            if (selected != null) {
+                                CheckUpPage.this.handleRowSelection(-1, selected);
+                            }
                             // Reset patient name filter when closing dialog after selection
                             patientNameFilter.setText("");
                             applyFilters();
@@ -4444,9 +4447,12 @@ public class CheckUpPage extends JPanel {
             // 1. Filter your master list into a temporary list
             filteredPatients = patientQueue.stream()
                 .filter(patient -> {
-                    // ... (your existing filter logic remains the same) ...
+                    // Checkup type filter with normalized comparison (accent-insensitive, case-insensitive)
                     if (!"Tất cả".equals(selectedCheckupType)) {
-                        if (!selectedCheckupType.equals(patient.getCheckupType())) {
+                        String normalizedSelected = TextUtils.removeAccents(selectedCheckupType).trim().toUpperCase();
+                        String patientType = patient.getCheckupType();
+                        String normalizedPatientType = TextUtils.removeAccents(patientType == null ? "" : patientType).trim().toUpperCase();
+                        if (!normalizedSelected.equals(normalizedPatientType)) {
                             return false;
                         }
                     }
@@ -4522,17 +4528,45 @@ public class CheckUpPage extends JPanel {
                             queueTable.scrollRectToVisible(queueTable.getCellRect(viewRow, 0, true));
                         }
                     } else {
-                        JOptionPane.showMessageDialog(
-                                mainFrame,
-                                "Trạng thái của bệnh nhân bạn đang chọn đã thay đổi và không còn trong hàng chờ.\n" +
-                                "Giao diện của bạn sẽ được làm mới.",
-                                "Cập Nhật Trạng Thái Bệnh Nhân",
-                                JOptionPane.INFORMATION_MESSAGE
-                        );
-                        
-                        clearPatientDetails(); // Now clear the details
-                        if (queueTable.getRowCount() > 0) {
-                            queueTable.setRowSelectionInterval(0, 0);
+                        // Not visible under current filters. Check if the patient still exists in the full queue.
+                        Patient target = patientQueue.stream()
+                                .filter(p -> previouslySelectedId.equals(p.getCheckupId()))
+                                .findFirst().orElse(null);
+                        if (target != null) {
+                            // Adjust filters to include the target patient's type and re-apply
+                            if (checkupTypeFilter != null) {
+                                String type = target.getCheckupType();
+                                checkupTypeFilter.setSelectedItem(type == null || type.isEmpty() ? "Tất cả" : type);
+                            }
+                            if (patientNameFilter != null) {
+                                patientNameFilter.setText("");
+                            }
+                            applyFilters();
+                            int rowAgain = findRowByCheckupId(previouslySelectedId);
+                            if (rowAgain != -1) {
+                                int viewRow = queueTable.convertRowIndexToView(rowAgain);
+                                if (viewRow != -1) {
+                                    queueTable.setRowSelectionInterval(viewRow, viewRow);
+                                    queueTable.scrollRectToVisible(queueTable.getCellRect(viewRow, 0, true));
+                                }
+                            } else if (queueTable.getRowCount() > 0) {
+                                // Fall back to first row without showing a misleading status-change message
+                                queueTable.setRowSelectionInterval(0, 0);
+                            }
+                        } else {
+                            // Patient truly no longer in queue; show message and clear
+                            JOptionPane.showMessageDialog(
+                                    mainFrame,
+                                    "Trạng thái của bệnh nhân bạn đang chọn đã thay đổi và không còn trong hàng chờ.\n" +
+                                    "Giao diện của bạn sẽ được làm mới.",
+                                    "Cập Nhật Trạng Thái Bệnh Nhân",
+                                    JOptionPane.INFORMATION_MESSAGE
+                            );
+                            
+                            clearPatientDetails(); // Now clear the details
+                            if (queueTable.getRowCount() > 0) {
+                                queueTable.setRowSelectionInterval(0, 0);
+                            }
                         }
                     }
                 } else {
