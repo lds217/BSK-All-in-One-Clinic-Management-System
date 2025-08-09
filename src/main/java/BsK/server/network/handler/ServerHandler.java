@@ -618,7 +618,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         try (Connection conn = DatabaseManager.getConnection()) {
             int generatedCheckupId = 0;
             int queueNumber = addCheckupRequest.getQueueNumber();
-            
+            boolean customQueue = (addCheckupRequest.getCustomerId() != -1);
             try {
                 // 1. Bắt đầu một transaction trên kết nối CỤC BỘ (conn) này
                 conn.setAutoCommit(false);
@@ -694,9 +694,11 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                 // Gửi phản hồi thành công và broadcast cập nhật
                 UserUtil.sendPacket(currentUser.getSessionId(), new AddCheckupResponse(true, "Thêm bệnh nhân thành công", queueNumber));
                 broadcastQueueUpdate();
-                int maxCurId = SessionManager.getMaxSessionId();
-                for (int sessionId = 1; sessionId <= maxCurId; sessionId++) {
-                    UserUtil.sendPacket(sessionId, new SetCounterResponse(queueNumber));
+                if (!customQueue) { // Nếu STT không chỉ định, thì không cần gửi cho các client
+                    int maxCurId = SessionManager.getMaxSessionId();
+                    for (int sessionId = 1; sessionId <= maxCurId; sessionId++) {
+                        UserUtil.sendPacket(sessionId, new SetCounterResponse(queueNumber));
+                    }
                 }
                 // Tạo thư mục Google Drive bất đồng bộ
                 createCheckupGoogleDriveFolderAsync(generatedCheckupId, addCheckupRequest.getCustomerId());
