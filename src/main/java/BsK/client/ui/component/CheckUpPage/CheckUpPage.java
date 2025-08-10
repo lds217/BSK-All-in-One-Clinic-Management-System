@@ -261,6 +261,7 @@ public class CheckUpPage extends JPanel {
     private javax.swing.Timer recordingTimer;
     private boolean isWebcamInitialized = false;
     private JPanel webcamContainer;
+    private final Object mediaStateLock = new Object();
     private final ExecutorService imageUploadExecutor = Executors.newSingleThreadExecutor();
     private final ScheduledExecutorService timeoutExecutor = Executors.newSingleThreadScheduledExecutor();
     private final Map<String, Future<?>> uploadTimeoutTasks = new ConcurrentHashMap<>();
@@ -2166,9 +2167,11 @@ public class CheckUpPage extends JPanel {
         log.info("Previous patient ID: {}", previousPatientId);
         log.info("New patient ID: {}", selectedPatient.getCheckupId());
         
-        // Clear immediately to prevent any ultrasound image mix-ups
-        currentCheckupIdForMedia = null;
-        currentCheckupMediaPath = null;
+        // Clear immediately to prevent any ultrasound image mix-ups (atomically)
+        synchronized (mediaStateLock) {
+            currentCheckupIdForMedia = null;
+            currentCheckupMediaPath = null;
+        }
         this.selectedCheckupId = null;
         
         // Now set the new patient ID
@@ -2200,8 +2203,10 @@ public class CheckUpPage extends JPanel {
             stopRecording();
         }
         
-        currentCheckupIdForMedia = null;
-        currentCheckupMediaPath = null;
+        synchronized (mediaStateLock) {
+            currentCheckupIdForMedia = null;
+            currentCheckupMediaPath = null;
+        }
         if (imageGalleryPanel != null) {
             imageGalleryPanel.removeAll();
             JLabel loadingMsg = new JLabel("Đang tải hình ảnh (nếu có)...");
@@ -2423,9 +2428,14 @@ public class CheckUpPage extends JPanel {
 
         // Setup for Supersonic View media for the NEWLY selected patient
         currentCheckupIdForMedia = selectedPatient.getCheckupId();
-        if (currentCheckupIdForMedia != null && !currentCheckupIdForMedia.trim().isEmpty()) {
-            ensureMediaDirectoryExists(currentCheckupIdForMedia);
-            currentCheckupMediaPath = Paths.get(LocalStorage.checkupMediaBaseDir, currentCheckupIdForMedia.trim());
+        if (selectedPatient.getCheckupId() != null && !selectedPatient.getCheckupId().trim().isEmpty()) {
+            String newId = selectedPatient.getCheckupId().trim();
+            ensureMediaDirectoryExists(newId);
+            Path newPath = Paths.get(LocalStorage.checkupMediaBaseDir, newId);
+            synchronized (mediaStateLock) {
+                currentCheckupIdForMedia = newId;
+                currentCheckupMediaPath = newPath;
+            }
             
             if (Files.exists(currentCheckupMediaPath)) {
                 loadAndDisplayImages(currentCheckupMediaPath); // Load initial images for this patient
@@ -3367,15 +3377,15 @@ public class CheckUpPage extends JPanel {
         log.info("Patient ID for this operation: {}", patientId);
         log.info("Current media path: {}", currentCheckupMediaPath);
         
-        if (patientId == null || patientId.trim().isEmpty()) {
-            log.warn("No patient selected, DELETING ultrasound image for safety: {}", imagePath);
-            
-            try {
-                Files.deleteIfExists(imagePath);
-                log.info("Successfully deleted unassigned ultrasound image: {}", imagePath);
-            } catch (Exception deleteEx) {
-                log.error("Failed to delete unassigned ultrasound image: {}", deleteEx.getMessage(), deleteEx);
-            }
+        // Snapshot the current media state atomically to avoid races
+        final String capturedPatientId;
+        final Path capturedMediaPath;
+        synchronized (mediaStateLock) {
+            capturedPatientId = (patientId == null) ? currentCheckupIdForMedia : patientId;
+            capturedMediaPath = currentCheckupMediaPath;
+        }
+        if (capturedPatientId == null || capturedPatientId.trim().isEmpty() || capturedMediaPath == null) {
+            log.warn("Media state not ready (patientId or mediaPath null). Skipping: {}", imagePath);
             return;
         }
         
@@ -3387,16 +3397,14 @@ public class CheckUpPage extends JPanel {
             }
             
             // Additional safety: check current state matches our captured state
-            if (!patientId.equals(currentCheckupIdForMedia)) {
-                log.warn("Patient changed during processing. Captured: {}, Current: {}. Deleting image for safety.", 
-                    patientId, currentCheckupIdForMedia);
-                Files.deleteIfExists(imagePath);
+            if (!capturedPatientId.equals(currentCheckupIdForMedia)) {
+                log.warn("Patient changed during processing. Captured: {}, Current: {}. Skipping.", 
+                    capturedPatientId, currentCheckupIdForMedia);
                 return;
             }
             
-            if (currentCheckupMediaPath == null) {
-                log.error("SAFETY ERROR: Media path is null during processing! Deleting image.");
-                Files.deleteIfExists(imagePath);
+            if (capturedMediaPath == null) {
+                log.error("SAFETY ERROR: Media path is null during processing! Skipping.");
                 return;
             }
             
@@ -3408,33 +3416,36 @@ public class CheckUpPage extends JPanel {
             }
             
             String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss_SSS").format(new Date());
-            String newFileName = "ultrasound_" + patientId + "_" + timestamp + fileExtension;
+            String newFileName = "ultrasound_" + capturedPatientId + "_" + timestamp + fileExtension;
             
-            Path targetPath = currentCheckupMediaPath.resolve(newFileName);
+            Path targetPath = capturedMediaPath.resolve(newFileName);
             
-            // Atomic move operation
-            Files.move(imagePath, targetPath, StandardCopyOption.ATOMIC_MOVE);
+            // Robust move with retries/fallback
+            safeMoveWithRetry(imagePath, targetPath);
             
             log.info("Moved ultrasound image from {} to {}", imagePath, targetPath);
             
-            try {
-                BufferedImage image = ImageIO.read(targetPath.toFile());
-                if (image != null) {
-                    uploadImageInBackground(newFileName, image);
-                    log.info("Started uploading ultrasound image to server: {}", newFileName);
-                } else {
-                    log.warn("Could not read ultrasound image for upload: {}", targetPath);
+            // Offload image decoding & upload
+            imageUploadExecutor.submit(() -> {
+                try {
+                    BufferedImage image = ImageIO.read(targetPath.toFile());
+                    if (image != null) {
+                        uploadImageInBackground(newFileName, image);
+                        log.info("Started uploading ultrasound image to server: {}", newFileName);
+                    } else {
+                        log.warn("Could not read ultrasound image for upload: {}", targetPath);
+                    }
+                } catch (Exception uploadEx) {
+                    log.error("Error reading ultrasound image for upload: {}", uploadEx.getMessage(), uploadEx);
                 }
-            } catch (Exception uploadEx) {
-                log.error("Error reading ultrasound image for upload: {}", uploadEx.getMessage(), uploadEx);
-            }
+            });
             
             SwingUtilities.invokeLater(() -> {
                 // Use the current state for UI updates, but log the operation with captured state
-                if (currentCheckupMediaPath != null && Files.exists(currentCheckupMediaPath)) {
-                    loadAndDisplayImages(currentCheckupMediaPath);
+                if (capturedMediaPath != null && Files.exists(capturedMediaPath)) {
+                    loadAndDisplayImages(capturedMediaPath);
                 }
-                log.info("✅ SUCCESS: Ultrasound image processed for patient {} - File: {}", patientId, newFileName);
+                log.info("✅ SUCCESS: Ultrasound image processed for patient {} - File: {}", capturedPatientId, newFileName);
             });
             
         } catch (Exception e) {
@@ -3463,6 +3474,32 @@ public class CheckUpPage extends JPanel {
         lastSeenFiles.clear();
         
         log.info("Ultrasound folder scanner stopped");
+    }
+
+    // Robust move with retry to avoid transient AccessDenied on Windows
+    private void safeMoveWithRetry(Path source, Path target) throws IOException {
+        int attempts = 0;
+        while (true) {
+            try {
+                try {
+                    Files.move(source, target, StandardCopyOption.ATOMIC_MOVE);
+                } catch (java.nio.file.AtomicMoveNotSupportedException e) {
+                    Files.move(source, target, StandardCopyOption.REPLACE_EXISTING);
+                }
+                return;
+            } catch (java.nio.file.FileSystemException e) {
+                attempts++;
+                if (attempts > 6) {
+                    throw e;
+                }
+                try {
+                    Thread.sleep(200L);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw new IOException("Interrupted during move retry", ie);
+                }
+            }
+        }
     }
 
     private void initializeWebcam(String deviceName) {
