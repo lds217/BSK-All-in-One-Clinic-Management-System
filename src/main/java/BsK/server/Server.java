@@ -17,6 +17,7 @@ import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpServerCodec;
 import io.netty.handler.codec.http.websocketx.WebSocketServerProtocolHandler;
 import io.netty.handler.stream.ChunkedWriteHandler;
+import io.netty.handler.timeout.IdleStateHandler;
 import java.awt.Color;
 import java.io.File;
 import java.io.IOException;
@@ -293,6 +294,9 @@ public class Server {
                               .addLast(new ChunkedWriteHandler())
                               .addLast(new HttpObjectAggregator(50  * 1024 * 1024))
                               .addLast(new WebSocketServerProtocolHandler("/", null, true, 50  * 1024 * 1024))
+                              // Add IdleStateHandler with longer timeout to be more tolerant of network issues
+                              // Reader timeout: 90 seconds (longer than client's 60s to allow for network delays)
+                              .addLast(new IdleStateHandler(90, 0, 0))
                               .addLast(new ServerHandler());
                         }
                       });

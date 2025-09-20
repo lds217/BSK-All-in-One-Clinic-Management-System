@@ -13,6 +13,7 @@ import io.netty.handler.codec.http.HttpClientCodec;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.websocketx.WebSocketClientProtocolHandler;
 import io.netty.handler.codec.http.websocketx.WebSocketVersion;
+import io.netty.handler.timeout.IdleStateHandler;
 import java.net.URI;
 import java.net.URISyntaxException;
 import lombok.extern.slf4j.Slf4j;
@@ -45,11 +46,13 @@ public class Client {
                 1. Máy chủ chưa được khởi động
                 2. Địa chỉ hoặc cổng không chính xác
                 3. Tường lửa đang chặn kết nối
+                4. Mạng internet/WiFi bị ngắt kết nối
                 
                 Giải pháp:
-                1. Kiểm tra xem máy chủ đã được khởi động chưa
-                2. Kiểm tra lại cấu hình trong file config.properties
-                3. Tắt ứng dụng và khởi động lại
+                1. Kiểm tra kết nối internet/WiFi
+                2. Kiểm tra xem máy chủ đã được khởi động chưa
+                3. Kiểm tra lại cấu hình trong file config.properties
+                4. Tắt ứng dụng và khởi động lại
                 
                 Chi tiết lỗi: %s
                 """,
@@ -186,16 +189,37 @@ public class Client {
                                                                         true,
                                                                         new DefaultHttpHeaders(),
                                                                         50  * 1024 * 1024))
+                                                        // Add IdleStateHandler with longer timeouts for network resilience
+                                                        // Read timeout: 60 seconds, Write timeout: 30 seconds  
+                                                        .addLast(new IdleStateHandler(60, 30, 0))
                                                         .addLast("ws", ClientHandler.INSTANCE);
                                             }
                                         });
                 log.info("Connecting to {}:{}", serverAddress, 1999);
                 Channel channel = bootstrap.connect(serverAddress, 1999).sync().channel();
+                
+                // Store the channel for potential reconnection
+                ClientHandler.ctx = channel.pipeline().get(ClientHandler.class).ctx;
+                
+                // Wait for channel to close, but handle it gracefully
                 channel.closeFuture().sync();
 
             } catch (Exception e) {
                 log.error("Connection error", e);
-                showConnectionErrorDialog(serverAddress, 1999, e);
+                
+                // Show more specific error message for different types of connection failures
+                if (e instanceof java.net.ConnectException) {
+                    showConnectionErrorDialog(serverAddress, 1999, 
+                        new Exception("Không thể kết nối đến máy chủ. Máy chủ có thể chưa được khởi động hoặc địa chỉ/cổng không đúng."));
+                } else if (e instanceof java.net.UnknownHostException) {
+                    showConnectionErrorDialog(serverAddress, 1999, 
+                        new Exception("Không tìm thấy máy chủ. Kiểm tra lại địa chỉ máy chủ và kết nối mạng."));
+                } else if (e instanceof java.net.SocketTimeoutException) {
+                    showConnectionErrorDialog(serverAddress, 1999, 
+                        new Exception("Hết thời gian chờ kết nối. Kiểm tra kết nối mạng và thử lại."));
+                } else {
+                    showConnectionErrorDialog(serverAddress, 1999, e);
+                }
                 return;
             } finally {
                 try {
