@@ -34,6 +34,41 @@ public class ClientHandler extends SimpleChannelInboundHandler<TextWebSocketFram
   private static volatile long lastNetworkIssueTime = 0;
   private static final long NETWORK_ISSUE_DIALOG_COOLDOWN = 30000; // 30 seconds
   private static volatile boolean dialogCurrentlyShowing = false;
+  
+  // Disconnection type tracking
+  public enum DisconnectionType {
+    TIMEOUT,           // Server not responding (READER_IDLE)
+    CONNECTION_LOST,   // Abrupt connection loss
+    NETWORK_ERROR,     // Network-related IOException
+    SERVER_SHUTDOWN,   // Clean server shutdown
+    UNKNOWN            // Other/unknown causes
+  }
+  
+  private static volatile DisconnectionType lastDisconnectionType = DisconnectionType.UNKNOWN;
+  private static volatile boolean wasTimeoutDetected = false;
+  private static volatile long lastPingTime = 0;
+  private static volatile long lastPongTime = 0;
+  private static volatile boolean awaitingPong = false;
+  
+  /**
+   * Get a human-readable description of the disconnection type
+   */
+  public static String getDisconnectionTypeDescription(DisconnectionType type) {
+    return switch (type) {
+      case TIMEOUT -> "Server Timeout - Server stopped responding";
+      case CONNECTION_LOST -> "Connection Lost - Network disconnected abruptly";
+      case NETWORK_ERROR -> "Network Error - Data transmission issues";
+      case SERVER_SHUTDOWN -> "Server Shutdown - Server is not available";
+      case UNKNOWN -> "Unknown - Unspecified disconnection cause";
+    };
+  }
+  
+  /**
+   * Get the current disconnection type (for debugging/logging)
+   */
+  public static DisconnectionType getCurrentDisconnectionType() {
+    return lastDisconnectionType;
+  }
 
   private static final Map<Class<?>, List<ResponseListener<?>>> listeners = new ConcurrentHashMap<>();
 
@@ -90,9 +125,8 @@ public class ClientHandler extends SimpleChannelInboundHandler<TextWebSocketFram
             }
         }
         log.info("Updated doctors list in LocalStorage. Total doctors: {}", LocalStorage.doctorsName.size());
-      } else if (packet instanceof GetMedInfoResponse) {
-          GetMedInfoResponse res = (GetMedInfoResponse) packet;
-          log.debug("GetMedInfoResponse received");
+      } else if (packet instanceof GetMedInfoResponse res) {
+          log.debug("GetMedInfoResponse received: {}", res.getClass().getSimpleName());
       }
 
       if (packet instanceof GetProvinceResponse provinceResponse) {
@@ -124,13 +158,29 @@ public class ClientHandler extends SimpleChannelInboundHandler<TextWebSocketFram
       if (event.state() == IdleState.WRITER_IDLE) {
         // Send ping to keep connection alive
         log.debug("Sending ping to server");
+        lastPingTime = System.currentTimeMillis();
+        awaitingPong = true;
         ctx.writeAndFlush(new PingWebSocketFrame());
       } else if (event.state() == IdleState.READER_IDLE) {
-        // Server hasn't responded in a while - show internet issue dialog but don't close immediately
-        log.warn("Server not responding - possible network issues");
-        showInternetIssueDialog();
+        // Server hasn't responded in a while - this is a timeout scenario
+        log.warn("Server not responding - timeout detected");
+        wasTimeoutDetected = true;
+        lastDisconnectionType = DisconnectionType.TIMEOUT;
+        // Just set the flag, don't show dialog yet - let channelInactive handle it
         // Try to send a ping to test connection
+        lastPingTime = System.currentTimeMillis();
+        awaitingPong = true;
         ctx.writeAndFlush(new PingWebSocketFrame());
+      }
+      } else if (evt instanceof WebSocketFrame) {
+      // Handle pong responses
+      if (evt instanceof PongWebSocketFrame) {
+        lastPongTime = System.currentTimeMillis();
+        long pingRoundTrip = lastPongTime - lastPingTime;
+        log.debug("Received pong from server (round trip: {}ms)", pingRoundTrip);
+        awaitingPong = false;
+        // Reset timeout flag since we got a response
+        wasTimeoutDetected = false;
       }
     }
   }
@@ -139,20 +189,31 @@ public class ClientHandler extends SimpleChannelInboundHandler<TextWebSocketFram
   public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
     log.error("Connection exception: {}", cause.getMessage());
     
-    // Check if it's a network-related exception that might be temporary
+    // Determine disconnection type based on exception
+    if (cause instanceof java.nio.channels.ClosedChannelException) {
+      lastDisconnectionType = DisconnectionType.CONNECTION_LOST;
+      log.warn("Channel closed abruptly - connection lost");
+    } else if (cause instanceof java.net.ConnectException) {
+      lastDisconnectionType = DisconnectionType.SERVER_SHUTDOWN;
+      log.warn("Cannot connect to server - server may be down");
+    } else if (cause instanceof IOException || cause instanceof java.net.SocketException) {
+      lastDisconnectionType = DisconnectionType.NETWORK_ERROR;
+      log.warn("Network-related exception occurred");
+    } else {
+      lastDisconnectionType = DisconnectionType.UNKNOWN;
+      log.error("Unknown exception type: {}", cause.getClass().getName());
+    }
+    
+    // Handle based on exception type
     if (cause instanceof IOException || 
         cause instanceof java.nio.channels.ClosedChannelException ||
         cause instanceof java.net.SocketException) {
       
-      // Show internet issue dialog instead of immediately closing
-      showInternetIssueDialogBlocking();
-      
-      // Only close after multiple failures or if explicitly requested
-      log.warn("Network exception occurred, showing warning dialog");
+      // Don't show dialog here - let channelInactive handle it to avoid double dialogs
+      log.warn("Network exception occurred: {}", lastDisconnectionType);
     } else {
       // For other exceptions, show the connection lost dialog and exit
-      showConnectionLostDialog();
-      System.exit(0);
+      showDisconnectionDialogFinal(DisconnectionType.UNKNOWN);
     }
   }
 
@@ -160,8 +221,22 @@ public class ClientHandler extends SimpleChannelInboundHandler<TextWebSocketFram
   public void channelInactive(ChannelHandlerContext ctx) throws Exception {
     log.warn("Channel became inactive - connection lost");
     
-    // Show internet issue dialog and give it time to display
-    showInternetIssueDialogBlocking();
+    // Determine disconnection type if not already set
+    if (lastDisconnectionType == DisconnectionType.UNKNOWN) {
+      if (wasTimeoutDetected) {
+        lastDisconnectionType = DisconnectionType.TIMEOUT;
+        log.info("Channel inactive due to timeout");
+      } else if (awaitingPong && (System.currentTimeMillis() - lastPingTime) > 60000) {
+        lastDisconnectionType = DisconnectionType.TIMEOUT;
+        log.info("Channel inactive - server stopped responding to pings");
+      } else {
+        lastDisconnectionType = DisconnectionType.CONNECTION_LOST;
+        log.info("Channel inactive - abrupt connection loss");
+      }
+    }
+    
+    // Show appropriate dialog based on disconnection type - this forces restart
+    showDisconnectionDialogFinal(lastDisconnectionType);
     
     // Add a small delay to ensure dialog shows before channel cleanup
     try {
@@ -171,75 +246,33 @@ public class ClientHandler extends SimpleChannelInboundHandler<TextWebSocketFram
     }
     
     super.channelInactive(ctx);
-    // The dialog will handle the exit decision
+    // Reset state for potential reconnection
+    resetConnectionState();
   }
 
-  private void showInternetIssueDialog() {
-    long currentTime = System.currentTimeMillis();
-    
-    // Only show dialog if cooldown period has passed to avoid spam
-    if (internetIssueDialogShown && (currentTime - lastNetworkIssueTime) < NETWORK_ISSUE_DIALOG_COOLDOWN) {
-      return;
-    }
-    
-    internetIssueDialogShown = true;
-    lastNetworkIssueTime = currentTime;
-    
-    SwingUtilities.invokeLater(() -> {
-      String message = """
-          Phát hiện vấn đề kết nối mạng!
-          
-          Tình trạng:
-          • Mạng internet chậm hoặc không ổn định
-          • Một số yêu cầu có thể bị trễ hoặc thất bại
-          • Ứng dụng sẽ tiếp tục hoạt động nhưng có thể chậm
-          
-          Nguyên nhân có thể:
-          1. Kết nối WiFi/Internet không ổn định
-          2. Tốc độ mạng chậm
-          3. Gián đoạn mạng tạm thời
-          
-          Giải pháp:
-          1. Kiểm tra kết nối internet/WiFi
-          2. Thử thao tác lại nếu có lỗi
-          3. Đợi mạng ổn định hơn
-          4. Khởi động lại ứng dụng nếu cần thiết
-          
-          Ứng dụng sẽ tiếp tục hoạt động...
-          """;
-      
-      int option = JOptionPane.showOptionDialog(
-          null,
-          message,
-          "Cảnh Báo - Vấn Đề Mạng",
-          JOptionPane.YES_NO_OPTION,
-          JOptionPane.WARNING_MESSAGE,
-          null,
-          new String[]{"Tiếp Tục", "Đóng Ứng Dụng"},
-          "Tiếp Tục"
-      );
-      
-      if (option == 1) { // User chose to close application
-        System.exit(0);
-      }
-      
-      // Reset the flag after some time to allow showing the dialog again if needed
-      new Thread(() -> {
-        try {
-          Thread.sleep(NETWORK_ISSUE_DIALOG_COOLDOWN);
-          internetIssueDialogShown = false;
-        } catch (InterruptedException e) {
-          Thread.currentThread().interrupt();
-        }
-      }).start();
-    });
+  // Removed showInternetIssueDialog - consolidated into single dialog system
+  
+  
+
+  // Removed showConnectionLostDialog - consolidated into single dialog system
+  
+  private void resetConnectionState() {
+    lastDisconnectionType = DisconnectionType.UNKNOWN;
+    wasTimeoutDetected = false;
+    awaitingPong = false;
+    lastPingTime = 0;
+    lastPongTime = 0;
   }
   
-  private void showInternetIssueDialogBlocking() {
-    long currentTime = System.currentTimeMillis();
-    
+  /**
+   * Shows final disconnection dialog that forces application restart
+   */
+  private void showDisconnectionDialogFinal(DisconnectionType type) {
     // Only show dialog if cooldown period has passed to avoid spam
+    long currentTime = System.currentTimeMillis();
     if ((internetIssueDialogShown && (currentTime - lastNetworkIssueTime) < NETWORK_ISSUE_DIALOG_COOLDOWN) || dialogCurrentlyShowing) {
+      // If dialog already shown recently, just exit
+      System.exit(0);
       return;
     }
     
@@ -247,102 +280,145 @@ public class ClientHandler extends SimpleChannelInboundHandler<TextWebSocketFram
     dialogCurrentlyShowing = true;
     lastNetworkIssueTime = currentTime;
     
-    // Show dialog directly on current thread to ensure it displays before app can exit
     try {
       // Force the dialog to show on the EDT and block until it's handled
       if (SwingUtilities.isEventDispatchThread()) {
-        // If already on EDT, show directly
-        showNetworkIssueDialog();
+        showFinalDisconnectionDialog(type);
       } else {
-        // If on another thread, switch to EDT and wait
-        SwingUtilities.invokeAndWait(this::showNetworkIssueDialog);
+        SwingUtilities.invokeAndWait(() -> showFinalDisconnectionDialog(type));
       }
     } catch (InterruptedException | InvocationTargetException e) {
-      dialogCurrentlyShowing = false;
-      System.err.println("Error showing dialog: " + e.getMessage());
-      // Show a simple message as fallback
-      System.err.println("NETWORK ISSUE DETECTED - Please restart the application");
+      System.err.println("Error showing disconnection dialog: " + e.getMessage());
     }
     
-    dialogCurrentlyShowing = false;
-    
-    // Reset the flag after some time to allow showing the dialog again if needed
-    new Thread(() -> {
-      try {
-        Thread.sleep(NETWORK_ISSUE_DIALOG_COOLDOWN);
-        internetIssueDialogShown = false;
-      } catch (InterruptedException e) {
-        Thread.currentThread().interrupt();
-      }
-    }, "NetworkDialogReset").start();
+    // Always exit after showing dialog
+    System.exit(0);
   }
   
-  private void showNetworkIssueDialog() {
-    String message = """
-        Phát hiện vấn đề kết nối mạng!
-        
-        Tình trạng:
-        • Mạng internet chậm hoặc không ổn định
-        • Một số yêu cầu có thể bị trễ hoặc thất bại
-        • Ứng dụng sẽ tiếp tục hoạt động nhưng có thể chậm
-        
-        Nguyên nhân có thể:
-        1. Kết nối WiFi/Internet không ổn định
-        2. Tốc độ mạng chậm
-        3. Gián đoạn mạng tạm thời
-        
-        Giải pháp:
-        1. Kiểm tra kết nối internet/WiFi
-        2. Thử thao tác lại nếu có lỗi
-        3. Đợi mạng ổn định hơn
-        4. Khởi động lại ứng dụng nếu cần thiết
-        
-        Ứng dụng sẽ tiếp tục hoạt động...
-        """;
+  private void showFinalDisconnectionDialog(DisconnectionType type) {
+    String title;
+    String message;
     
-    int option = JOptionPane.showOptionDialog(
+    switch (type) {
+      case TIMEOUT -> {
+        title = "Cảnh Báo - Hết Thời Gian Chờ";
+        message = """
+            Máy chủ không phản hồi!
+            
+            Tình trạng:
+            • Máy chủ đã dừng phản hồi các yêu cầu
+            • Kết nối vẫn còn nhưng không có dữ liệu
+            • Có thể do máy chủ quá tải hoặc đã treo
+            
+            Nguyên nhân có thể:
+            1. Máy chủ đang gặp sự cố hoặc quá tải
+            2. Mạng chậm gây ra timeout
+            3. Máy chủ đã dừng hoạt động
+            
+            Giải pháp:
+            1. Kiểm tra kết nối internet
+            2. Liên hệ quản trị viên máy chủ
+            3. Thử lại sau vài phút
+            
+            Ứng dụng sẽ đóng để đảm bảo tính toàn vẹn dữ liệu.
+            """;
+      }
+      case CONNECTION_LOST -> {
+        title = "Cảnh Báo - Mất Kết Nối";
+        message = """
+            Mất kết nối với máy chủ!
+            
+            Tình trạng:
+            • Kết nối bị ngắt đột ngột
+            • Không thể giao tiếp với máy chủ
+            
+            Nguyên nhân có thể:
+            1. Mạng internet bị ngắt kết nối
+            2. WiFi bị mất kết nối
+            3. Cáp mạng bị rút
+            4. Router/modem gặp sự cố
+            
+            Giải pháp:
+            1. Kiểm tra kết nối internet/WiFi
+            2. Kiểm tra cáp mạng
+            3. Khởi động lại router nếu cần
+            4. Khởi động lại ứng dụng
+            
+            Ứng dụng sẽ đóng để đảm bảo tính toàn vẹn dữ liệu.
+            """;
+      }
+      case NETWORK_ERROR -> {
+        title = "Cảnh Báo - Lỗi Mạng";
+        message = """
+            Phát hiện lỗi mạng!
+            
+            Tình trạng:
+            • Gặp lỗi trong quá trình truyền dữ liệu
+            • Kết nối không ổn định
+            
+            Nguyên nhân có thể:
+            1. Mạng không ổn định
+            2. Gói tin bị mất
+            3. Sự cố mạng tạm thời
+            
+            Giải pháp:
+            1. Kiểm tra chất lượng mạng
+            2. Thử kết nối mạng khác
+            3. Đợi mạng ổn định hơn
+            4. Khởi động lại ứng dụng
+            
+            Ứng dụng sẽ đóng để đảm bảo tính toàn vẹn dữ liệu.
+            """;
+      }
+      case SERVER_SHUTDOWN -> {
+        title = "Cảnh Báo - Máy Chủ Ngừng Hoạt Động";
+        message = """
+            Máy chủ đã ngừng hoạt động!
+            
+            Tình trạng:
+            • Không thể kết nối đến máy chủ
+            • Máy chủ có thể đã tắt hoặc khởi động lại
+            
+            Nguyên nhân có thể:
+            1. Máy chủ đang bảo trì
+            2. Máy chủ gặp sự cố
+            3. Máy chủ đã tắt
+            
+            Giải pháp:
+            1. Liên hệ quản trị viên máy chủ
+            2. Đợi máy chủ hoạt động trở lại
+            3. Kiểm tra thông báo bảo trì
+            
+            Ứng dụng sẽ đóng để bảo vệ dữ liệu.
+            """;
+      }
+      default -> {
+        title = "Cảnh Báo - Mất Kết Nối";
+        message = """
+            Mất kết nối với máy chủ!
+            
+            Nguyên nhân không xác định.
+            
+            Giải pháp:
+            1. Kiểm tra kết nối internet
+            2. Khởi động lại ứng dụng
+            3. Liên hệ hỗ trợ kỹ thuật
+            
+            Ứng dụng sẽ đóng để đảm bảo an toàn dữ liệu.
+            """;
+      }
+    }
+    
+    // Only show OK button - no continue option
+    JOptionPane.showMessageDialog(
         null,
         message,
-        "Cảnh Báo - Vấn Đề Mạng",
-        JOptionPane.YES_NO_OPTION,
-        JOptionPane.WARNING_MESSAGE,
-        null,
-        new String[]{"Tiếp Tục", "Đóng Ứng Dụng"},
-        "Tiếp Tục"
+        title,
+        JOptionPane.ERROR_MESSAGE
     );
-    
-    if (option == 1) { // User chose to close application
-      System.exit(0);
-    }
   }
-
-  private void showConnectionLostDialog() {
-    SwingUtilities.invokeLater(() -> {
-      String message = """
-          Mất kết nối với máy chủ!
-          
-          Nguyên nhân có thể:
-          1. Mạng internet bị ngắt kết nối
-          2. WiFi bị mất kết nối
-          3. Máy chủ đã ngừng hoạt động
-          4. Lỗi mạng tạm thời
-          
-          Giải pháp:
-          1. Kiểm tra kết nối internet/WiFi
-          2. Khởi động lại ứng dụng
-          3. Liên hệ quản trị viên nếu vấn đề tiếp tục
-          
-          Ứng dụng sẽ đóng sau khi nhấn OK.
-          """;
-      
-      JOptionPane.showMessageDialog(
-          null,
-          message,
-          "Cảnh Báo - Mất Kết Nối",
-          JOptionPane.WARNING_MESSAGE
-      );
-    });
-  }
+  
+  // Removed old dialog methods - now using single showDisconnectionDialogFinal
 
   @SuppressWarnings("unchecked")
   private <T> void notifyListener(ResponseListener<?> listener, T response) {
