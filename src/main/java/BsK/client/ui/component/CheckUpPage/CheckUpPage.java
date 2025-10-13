@@ -5046,7 +5046,7 @@ public class CheckUpPage extends JPanel {
             // Clear target address values
             targetWard = null;
 
-            if (doctorComboBox.getItemCount() > 0) doctorComboBox.setSelectedIndex(0);
+            // if (doctorComboBox.getItemCount() > 0) doctorComboBox.setSelectedIndex(0);
             statusComboBox.setSelectedIndex(0);
             genderComboBox.setSelectedIndex(0);
             if (provinceComboBox.getItemCount() > 0) provinceComboBox.setSelectedIndex(0);
