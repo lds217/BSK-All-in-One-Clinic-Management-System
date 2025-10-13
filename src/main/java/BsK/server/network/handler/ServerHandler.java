@@ -1671,7 +1671,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
       }
       if (packet instanceof PingRequest pingRequest) {
         // Respond immediately to ping with pong
-        log.debug("Received PingRequest from session {}, responding with PongResponse", currentUser.getSessionId());
+       // log.debug("Received PingRequest from session {}, responding with PongResponse", currentUser.getSessionId());
         UserUtil.sendPacket(currentUser.getSessionId(), new PongResponse(pingRequest.getTimestamp()));
       }
       

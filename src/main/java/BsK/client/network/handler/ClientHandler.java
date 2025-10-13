@@ -34,7 +34,7 @@ public class ClientHandler extends SimpleChannelInboundHandler<TextWebSocketFram
   // Network resilience tracking
   private static volatile boolean internetIssueDialogShown = false;
   private static volatile long lastNetworkIssueTime = 0;
-  private static final long NETWORK_ISSUE_DIALOG_COOLDOWN = 30000; // 30 seconds
+  private static final long NETWORK_ISSUE_DIALOG_COOLDOWN = 10000; // 10 seconds
   private static volatile boolean dialogCurrentlyShowing = false;
   
   // Ping-pong tracking
