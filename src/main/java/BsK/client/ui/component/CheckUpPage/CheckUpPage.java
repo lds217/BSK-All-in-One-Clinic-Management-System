@@ -1299,7 +1299,7 @@ public class CheckUpPage extends JPanel {
         suggestionField.setFont(fieldFont);
         suggestionField.setLineWrap(true);
         suggestionField.setWrapStyleWord(true);
-        addSelectAllOnFocus(suggestionField);
+        // addSelectAllOnFocus(suggestionField);
         JScrollPane suggestionScrollPane = new JScrollPane(suggestionField);
         suggestionScrollPane.setPreferredSize(new Dimension(0, 50)); // Reduced height
         suggestionPanel.add(suggestionScrollPane, BorderLayout.CENTER);
@@ -1385,7 +1385,7 @@ public class CheckUpPage extends JPanel {
         diagnosisField.setFont(new Font("Arial", Font.BOLD, 16)); // Slightly smaller font
         diagnosisField.setLineWrap(true);
         diagnosisField.setWrapStyleWord(true);
-        addSelectAllOnFocus(diagnosisField);
+        // addSelectAllOnFocus(diagnosisField);
         diagnosisPanel.add(new JScrollPane(diagnosisField), BorderLayout.CENTER);
 
         // Conclusion Panel - more compact
@@ -1401,7 +1401,7 @@ public class CheckUpPage extends JPanel {
         conclusionField.setFont(new Font("Arial", Font.BOLD, 16)); // Slightly smaller font
         conclusionField.setLineWrap(true);
         conclusionField.setWrapStyleWord(true);
-        addSelectAllOnFocus(conclusionField);
+        // addSelectAllOnFocus(conclusionField);
         conclusionPanel.add(new JScrollPane(conclusionField), BorderLayout.CENTER);
 
         rightPanel.add(suggestionPanel);
