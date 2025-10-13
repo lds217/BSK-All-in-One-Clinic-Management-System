@@ -191,8 +191,8 @@ public class Client {
                                                                         50  * 1024 * 1024))
                                                         // Add IdleStateHandler for keep-alive and timeout detection
                                                         // Read timeout: 5 minutes (300s) - disconnect if no data from server
-                                                        // Write timeout: 10 seconds - send ping if no data sent to server
-                                                        .addLast(new IdleStateHandler(300, 10, 0))
+                                                        // Write timeout: 2 seconds - send ping every 2 seconds (CLINIC MODE - CRITICAL)
+                                                        .addLast(new IdleStateHandler(300, 2, 0))
                                                         .addLast("ws", ClientHandler.INSTANCE);
                                             }
                                         });
