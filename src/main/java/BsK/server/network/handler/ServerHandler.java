@@ -1217,6 +1217,59 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         }
     }
 
+    if (packet instanceof DeleteCheckupImageRequest deleteCheckupImageRequest) {
+        log.info("Received DeleteCheckupImageRequest for checkupId: {}, fileName: {}", 
+                deleteCheckupImageRequest.getCheckupId(), deleteCheckupImageRequest.getFileName());
+    
+        String checkupId = deleteCheckupImageRequest.getCheckupId();
+        String fileName = deleteCheckupImageRequest.getFileName();
+    
+        if (checkupId == null || checkupId.trim().isEmpty()) {
+            UserUtil.sendPacket(currentUser.getSessionId(), 
+                new DeleteCheckupImageResponse(false, "CheckupID không hợp lệ.", fileName));
+            return;
+        }
+    
+        if (fileName == null || fileName.trim().isEmpty()) {
+            UserUtil.sendPacket(currentUser.getSessionId(), 
+                new DeleteCheckupImageResponse(false, "Tên file không hợp lệ.", fileName));
+            return;
+        }
+    
+        try {
+            // 1. Define the local file path
+            Path storageDir = Paths.get(Server.imageDbPath, checkupId.trim());
+            Path filePath = storageDir.resolve(fileName);
+    
+            // 2. Delete the local file if it exists
+            boolean localDeleted = false;
+            if (Files.exists(filePath)) {
+                Files.delete(filePath);
+                localDeleted = true;
+                log.info("Successfully deleted local image: {}", filePath);
+            } else {
+                log.warn("Local file not found: {}", filePath);
+            }
+    
+            // 3. Send success response to client immediately
+            UserUtil.sendPacket(currentUser.getSessionId(), 
+                new DeleteCheckupImageResponse(true, "Xóa ảnh thành công.", fileName));
+    
+            // 4. Asynchronously delete from Google Drive
+            deleteCheckupImageFromGoogleDriveAsync(checkupId, fileName);
+    
+        } catch (IOException e) {
+            log.error("Failed to delete image for checkupId {}: {}", checkupId, e.getMessage());
+            UserUtil.sendPacket(currentUser.getSessionId(), 
+                new DeleteCheckupImageResponse(false, "Lỗi máy chủ khi xóa ảnh: " + e.getMessage(), fileName));
+        } catch (Exception e) {
+            log.error("An unexpected error occurred during image deletion for checkupId {}: {}", 
+                    checkupId, e.getMessage());
+            UserUtil.sendPacket(currentUser.getSessionId(), 
+                new DeleteCheckupImageResponse(false, "Lỗi không xác định: " + e.getMessage(), fileName));
+        }
+    }
+
       if (packet instanceof DeleteCheckupRequest deleteCheckupRequest) {
         log.info("Recieved delete checkup request for checkupId: {}", deleteCheckupRequest.getCheckupId());
     
@@ -1616,6 +1669,12 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
             UserUtil.sendPacket(currentUser.getSessionId(), new GetCheckupDataResponse(new String[0][0], 0, 1, 0, getCheckupDataRequest.getPageSize()));
         }
       }
+      if (packet instanceof PingRequest pingRequest) {
+        // Respond immediately to ping with pong
+        log.debug("Received PingRequest from session {}, responding with PongResponse", currentUser.getSessionId());
+        UserUtil.sendPacket(currentUser.getSessionId(), new PongResponse(pingRequest.getTimestamp()));
+      }
+      
       if (packet instanceof SimpleMessageRequest simpleMessageRequest) {
         log.info("Received SimpleMessageRequest from {}", simpleMessageRequest.getSenderName());
         SimpleMessageResponse response = new SimpleMessageResponse(simpleMessageRequest.getSenderName(), simpleMessageRequest.getMessage());
@@ -2414,6 +2473,80 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
     }
     
     return tempFile;
+  }
+
+  /**
+   * Delete an image from Google Drive asynchronously.
+   *
+   * @param checkupId  ID of the checkup (as String).
+   * @param fileName   Name of the image file to delete.
+   */
+  private void deleteCheckupImageFromGoogleDriveAsync(String checkupId, String fileName) {
+    log.info("deleteCheckupImageFromGoogleDriveAsync - Checkup: {}, File: {}", checkupId, fileName);
+    CompletableFuture.runAsync(() -> {
+        try {
+            if (!Server.isGoogleDriveConnected()) {
+                log.info("Google Drive not connected - skipping image deletion for checkup {}", checkupId);
+                return;
+            }
+
+            // Get the checkup's Google Drive folder ID from database
+            String checkupDriveFolderId = null;
+            String sql = "SELECT drive_folder_id FROM Checkup WHERE checkup_id = ?";
+            
+            try (Connection conn = DatabaseManager.getConnection();
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
+                
+                stmt.setInt(1, Integer.parseInt(checkupId));
+                
+                try (ResultSet rs = stmt.executeQuery()) {
+                    if (rs.next()) {
+                        checkupDriveFolderId = rs.getString("drive_folder_id");
+                    }
+                }
+            }
+
+            if (checkupDriveFolderId == null || checkupDriveFolderId.trim().isEmpty()) {
+                log.warn("Checkup {} has no Google Drive folder ID - cannot delete image", checkupId);
+                return;
+            }
+
+            log.info("Deleting image {} from Google Drive for checkup {}", fileName, checkupId);
+            
+            // Find and delete the file from Google Drive
+            List<com.google.api.services.drive.model.File> files = 
+                Server.getGoogleDriveService().findFilesByName(checkupDriveFolderId, fileName);
+            
+            if (files.isEmpty()) {
+                log.warn("File {} not found in Google Drive folder for checkup {}", fileName, checkupId);
+                return;
+            }
+            
+            // Delete all matching files (there should typically be only one)
+            for (com.google.api.services.drive.model.File file : files) {
+                Server.getGoogleDriveService().deleteFile(file.getId());
+                log.info("Successfully deleted file {} (ID: {}) from Google Drive for checkup {}", 
+                        fileName, file.getId(), checkupId);
+                
+                if (ServerDashboard.getInstance() != null) {
+                    ServerDashboard.getInstance().addLog(
+                        String.format("Deleted image %s from Google Drive for checkup %s", fileName, checkupId)
+                    );
+                }
+            }
+            
+        } catch (NumberFormatException e) {
+            log.error("Invalid checkupId format '{}' for Google Drive deletion.", checkupId);
+        } catch (Exception e) {
+            log.error("Failed to delete image from Google Drive for checkup {}: {}", checkupId, e.getMessage(), e);
+            if (ServerDashboard.getInstance() != null) {
+                ServerDashboard.getInstance().addLog(
+                    String.format("Failed to delete image %s from Google Drive for checkup %s: %s", 
+                            fileName, checkupId, e.getMessage())
+                );
+            }
+        }
+    });
   }
 
  

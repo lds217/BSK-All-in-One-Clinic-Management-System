@@ -294,9 +294,10 @@ public class Server {
                               .addLast(new ChunkedWriteHandler())
                               .addLast(new HttpObjectAggregator(50  * 1024 * 1024))
                               .addLast(new WebSocketServerProtocolHandler("/", null, true, 50  * 1024 * 1024))
-                              // Add IdleStateHandler with longer timeout to be more tolerant of network issues
-                              // Reader timeout: 90 seconds (longer than client's 60s to allow for network delays)
-                              .addLast(new IdleStateHandler(90, 0, 0))
+                              // Add IdleStateHandler to detect inactive clients
+                              // Reader timeout: 40 seconds - disconnect if no data from client (ping should arrive every 10s)
+                              // Allow up to 4 missed pings (10s * 4 = 40s) before disconnecting
+                              .addLast(new IdleStateHandler(40, 0, 0))
                               .addLast(new ServerHandler());
                         }
                       });
