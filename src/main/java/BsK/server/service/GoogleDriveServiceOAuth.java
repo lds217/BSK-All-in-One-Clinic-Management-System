@@ -451,7 +451,7 @@ public class GoogleDriveServiceOAuth {
      * @return A list of File objects matching the name.
      * @throws IOException if the Google Drive API call fails.
      */
-    private List<File> findFilesByName(String parentFolderId, String fileName) throws IOException {
+    public List<File> findFilesByName(String parentFolderId, String fileName) throws IOException {
         String query = String.format("name = '%s' and '%s' in parents and trashed = false",
                 fileName.replace("'", "\\'"), // Escape single quotes in filename
                 parentFolderId);
@@ -522,5 +522,15 @@ public class GoogleDriveServiceOAuth {
         log.info("✅ Successfully uploaded database backup. File ID: {}", fileId);
 
         return fileId;
+    }
+
+    /**
+     * Deletes a file from Google Drive by its file ID.
+     * @param fileId The ID of the file to delete.
+     * @throws IOException if the deletion fails.
+     */
+    public void deleteFile(String fileId) throws IOException {
+        driveService.files().delete(fileId).execute();
+        log.info("Successfully deleted file with ID: {}", fileId);
     }
 } 

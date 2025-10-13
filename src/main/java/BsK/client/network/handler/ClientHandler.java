@@ -6,7 +6,9 @@ import BsK.client.ui.handler.UIHandler;
 import BsK.common.entity.DoctorItem;
 import BsK.common.packet.Packet;
 import BsK.common.packet.PacketSerializer;
+import BsK.common.packet.req.PingRequest;
 import BsK.common.packet.res.*;
+import BsK.common.util.network.NetworkUtil;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.codec.http.websocketx.*;
@@ -34,6 +36,12 @@ public class ClientHandler extends SimpleChannelInboundHandler<TextWebSocketFram
   private static volatile long lastNetworkIssueTime = 0;
   private static final long NETWORK_ISSUE_DIALOG_COOLDOWN = 30000; // 30 seconds
   private static volatile boolean dialogCurrentlyShowing = false;
+  
+  // Ping-pong tracking
+  private static volatile int missedPongCount = 0;
+  private static final int MAX_MISSED_PONGS = 3;
+  private static volatile long lastPingRequestTime = 0;
+  private static volatile boolean awaitingPongResponse = false;
   
   // Disconnection type tracking
   public enum DisconnectionType {
@@ -135,6 +143,19 @@ public class ClientHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         LocalStorage.provinceToId = provinceResponse.getProvinceToId();
         return;
       }
+      
+      // Handle PongResponse
+      if (packet instanceof PongResponse pongResponse) {
+        long roundTripTime = System.currentTimeMillis() - pongResponse.getTimestamp();
+        log.debug("Received PongResponse (round trip: {}ms)", roundTripTime);
+        
+        // Reset missed pong counter on successful pong
+        missedPongCount = 0;
+        awaitingPongResponse = false;
+        wasTimeoutDetected = false;
+        
+        return;
+      }
 
       // Dispatch to registered listeners
       List<ResponseListener<?>> responseListeners = listeners.get(packet.getClass());
@@ -156,33 +177,40 @@ public class ClientHandler extends SimpleChannelInboundHandler<TextWebSocketFram
     if (evt instanceof IdleStateEvent) {
       IdleStateEvent event = (IdleStateEvent) evt;
       if (event.state() == IdleState.WRITER_IDLE) {
-        // Send ping to keep connection alive
-        log.debug("Sending ping to server");
-        lastPingTime = System.currentTimeMillis();
-        awaitingPong = true;
-        ctx.writeAndFlush(new PingWebSocketFrame());
+        // Send PingRequest packet to keep connection alive
+        if (awaitingPongResponse) {
+          // Previous ping not answered - increment missed counter
+          missedPongCount++;
+          log.warn("Missed pong #{} - no response to previous ping", missedPongCount);
+          
+          if (missedPongCount >= MAX_MISSED_PONGS) {
+            log.error("Missed {} consecutive pongs - disconnecting", missedPongCount);
+            wasTimeoutDetected = true;
+            lastDisconnectionType = DisconnectionType.TIMEOUT;
+            ctx.close(); // Force disconnect
+            return;
+          }
+        }
+        
+        // Send new ping packet
+        log.debug("Sending PingRequest to server (missed count: {})", missedPongCount);
+        lastPingRequestTime = System.currentTimeMillis();
+        awaitingPongResponse = true;
+        
+        PingRequest pingRequest = new PingRequest();
+        NetworkUtil.sendPacket(ctx.channel(), pingRequest);
+        
       } else if (event.state() == IdleState.READER_IDLE) {
-        // Server hasn't responded in a while - this is a timeout scenario
-        log.warn("Server not responding - timeout detected");
+        // Server hasn't sent any data (including pong) for 5 minutes
+        log.warn("Server not responding - no data received for 5 minutes (READER_IDLE)");
         wasTimeoutDetected = true;
         lastDisconnectionType = DisconnectionType.TIMEOUT;
-        // Just set the flag, don't show dialog yet - let channelInactive handle it
-        // Try to send a ping to test connection
-        lastPingTime = System.currentTimeMillis();
-        awaitingPong = true;
-        ctx.writeAndFlush(new PingWebSocketFrame());
-      }
-      } else if (evt instanceof WebSocketFrame) {
-      // Handle pong responses
-      if (evt instanceof PongWebSocketFrame) {
-        lastPongTime = System.currentTimeMillis();
-        long pingRoundTrip = lastPongTime - lastPingTime;
-        log.debug("Received pong from server (round trip: {}ms)", pingRoundTrip);
-        awaitingPong = false;
-        // Reset timeout flag since we got a response
-        wasTimeoutDetected = false;
+        // Let channelInactive handle the disconnect
       }
     }
+    
+    // IMPORTANT: Call super to ensure event propagation continues
+    super.userEventTriggered(ctx, evt);
   }
 
   @Override
@@ -223,10 +251,10 @@ public class ClientHandler extends SimpleChannelInboundHandler<TextWebSocketFram
     
     // Determine disconnection type if not already set
     if (lastDisconnectionType == DisconnectionType.UNKNOWN) {
-      if (wasTimeoutDetected) {
+      if (wasTimeoutDetected || missedPongCount >= MAX_MISSED_PONGS) {
         lastDisconnectionType = DisconnectionType.TIMEOUT;
-        log.info("Channel inactive due to timeout");
-      } else if (awaitingPong && (System.currentTimeMillis() - lastPingTime) > 60000) {
+        log.info("Channel inactive due to timeout (missed {} pongs)", missedPongCount);
+      } else if (awaitingPongResponse && (System.currentTimeMillis() - lastPingRequestTime) > 30000) {
         lastDisconnectionType = DisconnectionType.TIMEOUT;
         log.info("Channel inactive - server stopped responding to pings");
       } else {
@@ -262,6 +290,9 @@ public class ClientHandler extends SimpleChannelInboundHandler<TextWebSocketFram
     awaitingPong = false;
     lastPingTime = 0;
     lastPongTime = 0;
+    missedPongCount = 0;
+    awaitingPongResponse = false;
+    lastPingRequestTime = 0;
   }
   
   /**

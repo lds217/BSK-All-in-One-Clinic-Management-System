@@ -186,6 +186,7 @@ public class CheckUpPage extends JPanel {
     private final ResponseListener<UploadCheckupPdfResponse> uploadPdfResponseListener = this::handleUploadPdfResponse;
     private final ResponseListener<SyncCheckupImagesResponse> syncImagesResponseListener = this::handleSyncImagesResponse;
     private final ResponseListener<GetCheckupImageResponse> getImageResponseListener = this::handleGetCheckupImageResponse;
+    private final ResponseListener<DeleteCheckupImageResponse> deleteImageResponseListener = this::handleDeleteImageResponse;
     private JTextField checkupIdField, customerLastNameField, customerFirstNameField,customerAddressField, customerPhoneField, customerIdField, customerCccdDdcnField;
     private JTextArea suggestionField, diagnosisField, conclusionField; // Changed symptomsField to suggestionField
     private JTextPane notesField;
@@ -365,6 +366,7 @@ public class CheckUpPage extends JPanel {
         ClientHandler.addResponseListener(UploadCheckupPdfResponse.class, uploadPdfResponseListener);
         ClientHandler.addResponseListener(SyncCheckupImagesResponse.class, syncImagesResponseListener);
         ClientHandler.addResponseListener(GetCheckupImageResponse.class, getImageResponseListener);
+        ClientHandler.addResponseListener(DeleteCheckupImageResponse.class, deleteImageResponseListener);
 
         // Instantiate the new queue page but don't show it yet
         queueManagementPage = new QueueManagementPage();
@@ -3652,6 +3654,45 @@ public class CheckUpPage extends JPanel {
         });
     }
 
+    private void deleteImage(File imageFile) {
+        if (imageFile == null || !imageFile.exists()) {
+            log.warn("Cannot delete image - file does not exist or is null");
+            return;
+        }
+
+        String fileName = imageFile.getName();
+        String checkupId = currentCheckupIdForMedia;
+
+        if (checkupId == null || checkupId.trim().isEmpty()) {
+            log.error("Cannot delete image - no checkup ID available");
+            JOptionPane.showMessageDialog(this,
+                    "Không thể xóa ảnh - không có mã khám.",
+                    "Lỗi",
+                    JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        // Send delete request to server
+        DeleteCheckupImageRequest request = new DeleteCheckupImageRequest(checkupId, fileName);
+        NetworkUtil.sendPacket(ClientHandler.ctx.channel(), request);
+        log.info("Sent DeleteCheckupImageRequest for file: {} in checkup: {}", fileName, checkupId);
+
+        // Delete local file immediately
+        try {
+            if (imageFile.delete()) {
+                log.info("Successfully deleted local image file: {}", fileName);
+                // Refresh the gallery
+                if (currentCheckupMediaPath != null && Files.exists(currentCheckupMediaPath)) {
+                    loadAndDisplayImages(currentCheckupMediaPath);
+                }
+            } else {
+                log.warn("Failed to delete local image file: {}", fileName);
+            }
+        } catch (Exception e) {
+            log.error("Error deleting local image file: {}", fileName, e);
+        }
+    }
+
     private void handleUploadImageResponse(UploadCheckupImageResponse response) {
         String fileName = response.getFileName();
         
@@ -3669,6 +3710,29 @@ public class CheckUpPage extends JPanel {
                     "Lỗi khi tải ảnh lên server: " + response.getMessage(),
                     "Lỗi Tải Ảnh",
                     JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void handleDeleteImageResponse(DeleteCheckupImageResponse response) {
+        String fileName = response.getFileName();
+        
+        if (response.isSuccess()) {
+            log.info("Successfully deleted image from server: {} - {}", fileName, response.getMessage());
+            SwingUtilities.invokeLater(() -> {
+                // Image already deleted locally, just log success
+                if (callingStatusLabel != null) {
+                    callingStatusLabel.setText("Đã xóa ảnh: " + fileName);
+                    callingStatusLabel.setForeground(new Color(0, 150, 0)); // Green color
+                }
+            });
+        } else {
+            log.error("Failed to delete image from server: {} - {}", fileName, response.getMessage());
+            SwingUtilities.invokeLater(() -> {
+                JOptionPane.showMessageDialog(this,
+                        "Lỗi khi xóa ảnh trên server: " + response.getMessage(),
+                        "Lỗi Xóa Ảnh",
+                        JOptionPane.ERROR_MESSAGE);
+            });
         }
     }
 
@@ -4091,11 +4155,33 @@ public class CheckUpPage extends JPanel {
                         layeredPane.setBorder(BorderFactory.createLineBorder(Color.GRAY));
                         layeredPane.setCursor(new Cursor(Cursor.HAND_CURSOR)); // Set the hand cursor
 
+                        // Create popup menu for right-click
+                        JPopupMenu imagePopupMenu = new JPopupMenu();
+                        JMenuItem deleteMenuItem = new JMenuItem("Xoá");
+                        deleteMenuItem.setIcon(UIManager.getIcon("FileView.fileIcon")); // Optional icon
+                        deleteMenuItem.addActionListener(ev -> {
+                            int confirm = JOptionPane.showConfirmDialog(
+                                CheckUpPage.this,
+                                "Bạn có chắc chắn muốn xoá ảnh này không?\n" + imageFile.getName(),
+                                "Xác nhận xoá",
+                                JOptionPane.YES_NO_OPTION,
+                                JOptionPane.WARNING_MESSAGE);
+                            
+                            if (confirm == JOptionPane.YES_OPTION) {
+                                deleteImage(imageFile);
+                            }
+                        });
+                        imagePopupMenu.add(deleteMenuItem);
+
                         // Add the click listener directly to the image label
                         imageLabel.addMouseListener(new MouseAdapter() {
                             @Override
                             public void mouseClicked(MouseEvent e) {
-                                showFullImageDialog(imageFile);
+                                if (SwingUtilities.isRightMouseButton(e)) {
+                                    imagePopupMenu.show(e.getComponent(), e.getX(), e.getY());
+                                } else if (SwingUtilities.isLeftMouseButton(e)) {
+                                    showFullImageDialog(imageFile);
+                                }
                             }
                         });
 
@@ -4299,6 +4385,20 @@ public class CheckUpPage extends JPanel {
             // Create a row sorter for the table
             TableRowSorter<DefaultTableModel> sorter = new TableRowSorter<>(queueTableModel);
             queueTable.setRowSorter(sorter);
+            
+            // Set custom comparator for STT column to sort as integers
+            sorter.setComparator(0, new Comparator<String>() {
+                @Override
+                public int compare(String s1, String s2) {
+                    try {
+                        Integer i1 = Integer.parseInt(s1);
+                        Integer i2 = Integer.parseInt(s2);
+                        return i1.compareTo(i2);
+                    } catch (NumberFormatException e) {
+                        return s1.compareTo(s2); // Fallback to string comparison
+                    }
+                }
+            });
             
             // Sort by "STT" (queue number) column in ascending order
             List<RowSorter.SortKey> sortKeys = new ArrayList<>();
