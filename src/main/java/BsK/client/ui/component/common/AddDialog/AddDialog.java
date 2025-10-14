@@ -82,6 +82,13 @@ public class AddDialog extends JDialog {
     private void handleAddCheckupResponse(AddCheckupResponse response) {
         log.info("Received AddCheckupResponse");
         if (response.isSuccess()) {
+            // IMPORTANT: Update local storage immediately with the new queue number from the response.
+            // This ensures that when the form is cleared, the spinner gets the latest max value.
+            int newQueueNumber = response.getQueueNumber();
+            if (newQueueNumber > LocalStorage.currentMaxQueueNumber) {
+                LocalStorage.currentMaxQueueNumber = newQueueNumber;
+            }
+            
             JPanel panel = new JPanel();
             panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
 
@@ -98,6 +105,10 @@ public class AddDialog extends JDialog {
             panel.add(queueLabel);
 
             JOptionPane.showMessageDialog(this, panel, "Thành công", JOptionPane.INFORMATION_MESSAGE);
+            
+            // Now that the dialog is closed, clear the form. 
+            // The spinner will be correctly updated because LocalStorage is fresh.
+            clearButton.doClick();
         } else {
             JOptionPane.showMessageDialog(this, response.getError());
         }
@@ -569,24 +580,31 @@ public class AddDialog extends JDialog {
         checkupInfoPanel.add(checkupTypeComboBox, gbc);
         gbc.weightx = 0.0;
 
-        gbc.anchor = GridBagConstraints.EAST;
-        gbc.gridy++; // Move to a new row
-        gbc.gridx = 2;
-        gbc.gridwidth = 2; // Span 2 columns
-        specifyQueueNumberCheckBox = new JCheckBox("Chỉ định STT");
-        specifyQueueNumberCheckBox.setFont(labelFont);
-        checkupInfoPanel.add(specifyQueueNumberCheckBox, gbc);
+        gbc.gridy++; // Move to a new row for STT controls
 
+        // Label for STT
+        JLabel sttLabel = new JLabel("STT cho BN:");
+        sttLabel.setFont(labelFont);
+        gbc.gridx = 0;
         gbc.anchor = GridBagConstraints.WEST;
+        gbc.gridwidth = 1;
+        checkupInfoPanel.add(sttLabel, gbc);
+
+        // Spinner for STT
         gbc.gridx = 1;
-        gbc.gridwidth = 1; // Span the other 2 columns
-        SpinnerNumberModel queueSpinnerModel = new SpinnerNumberModel(1, 1, 999, 1); // (defaultValue, min, max, step)
+        SpinnerNumberModel queueSpinnerModel = new SpinnerNumberModel(LocalStorage.currentMaxQueueNumber + 1, 1, 999, 1); // (defaultValue, min, max, step)
         queueNumberSpinner = new JSpinner(queueSpinnerModel);
         queueNumberSpinner.setFont(textFont);
         queueNumberSpinner.setEnabled(false); // Disabled by default
         checkupInfoPanel.add(queueNumberSpinner, gbc);
 
-        
+        // Checkbox to enable/disable STT spinner
+        gbc.gridx = 2;
+        gbc.gridwidth = 2; // Span 2 columns
+        gbc.anchor = GridBagConstraints.EAST;
+        specifyQueueNumberCheckBox = new JCheckBox("Chỉ định STT");
+        specifyQueueNumberCheckBox.setFont(labelFont);
+        checkupInfoPanel.add(specifyQueueNumberCheckBox, gbc);
 
         // Add listener to enable/disable spinner when checkbox is toggled
         specifyQueueNumberCheckBox.addActionListener(e -> {
@@ -594,14 +612,6 @@ public class AddDialog extends JDialog {
             queueNumberSpinner.setValue(LocalStorage.currentMaxQueueNumber + 1);
         });
 
-        gbc.gridy++; // Move to a new row for the note
-        gbc.gridx = 0;
-        gbc.gridwidth = 4; // Span all 4 columns
-        gbc.insets = new Insets(0, 8, 5, 5); // Adjust insets to bring it closer to the controls above
-        JLabel queueNoteLabel = new JLabel("<html><i>Lưu ý: Nếu không chỉ định STT thì STT sẽ bằng STT lớn nhất hiện tại + 1</i></html>");
-        queueNoteLabel.setFont(new Font("Arial", Font.ITALIC, 12));
-        queueNoteLabel.setForeground(new Color(100, 100, 100)); // Set a gray color for the note
-        checkupInfoPanel.add(queueNoteLabel, gbc);
 
         // Add the main action button - spans full width and is more prominent
         gbc.gridy++;
@@ -636,7 +646,6 @@ public class AddDialog extends JDialog {
             }
             log.info("Sending AddCheckupRequest with queue number: {}", queueNumber);
             NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new AddCheckupRequest(patientId, doctorId, LocalStorage.userId, selectedCheckupType, "CHỜ KHÁM", queueNumber));
-            clearButton.doClick();
         });
         checkupInfoPanel.add(saveButton, gbc);
 

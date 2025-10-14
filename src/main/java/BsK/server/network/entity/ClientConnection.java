@@ -55,11 +55,11 @@ public class ClientConnection {
         Duration duration = Duration.between(lastActivityTime, Instant.now());
         long minutes = duration.toMinutes();
         if (minutes < 1) {
-            return "Just now";
+            return "Vừa xong";
         } else if (minutes == 1) {
-            return "1 minute ago";
+            return "1 phút trước";
         } else {
-            return minutes + " minutes ago";
+            return minutes + " phút trước";
         }
     }
 } 

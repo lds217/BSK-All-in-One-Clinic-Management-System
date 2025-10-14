@@ -54,6 +54,8 @@ import BsK.common.util.text.TextUtils;
 import java.time.Instant;
 import java.time.format.DateTimeFormatter;
 import java.util.concurrent.CompletableFuture;
+import java.util.Comparator;
+import java.util.stream.Stream;
 
 
 
@@ -102,9 +104,16 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
       } else {
         log.warn("Received LogoutRequest from a channel with no active user session: {}", ctx.channel().id().asLongText());
       }
+      
     } else {
       // Check if user is authenticated
       var currentUser = SessionManager.getUserByChannel(ctx.channel().id().asLongText());
+
+      if (packet instanceof PingRequest pingRequest) {
+        // Respond immediately to ping with pong
+       // log.debug("Received PingRequest from session {}, responding with PongResponse", currentUser.getSessionId());
+        UserUtil.sendPacket(currentUser.getSessionId(), new PongResponse(pingRequest.getTimestamp()));
+      }
       if (currentUser == null || !currentUser.isAuthenticated()) {
         log.warn("Received packet from unauthenticated user: {}", packet);
         return;
@@ -618,13 +627,12 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         try (Connection conn = DatabaseManager.getConnection()) {
             int generatedCheckupId = 0;
             int queueNumber = addCheckupRequest.getQueueNumber();
-            boolean customQueue = (addCheckupRequest.getCustomerId() != -1);
+            boolean shouldBroadcastCounter = false;
             try {
                 // 1. Bắt đầu một transaction trên kết nối CỤC BỘ (conn) này
                 conn.setAutoCommit(false);
     
                 // 2. LẤY SỐ THỨ TỰ (QUEUE NUMBER)
-                // Sử dụng UPSERT để đảm bảo thao tác là nguyên tử
                 if (queueNumber == -1) { // if queue number is -1, means the queue number is not provided, so we need to get the queue number from the database
                     String queueSql = """
                             INSERT INTO DailyQueueCounter (date, current_count) 
@@ -637,9 +645,32 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                         ResultSet rs = queueStmt.executeQuery()) {
                         if (rs.next()) {
                             queueNumber = rs.getInt(1);
+                            shouldBroadcastCounter = true; // Auto-increment always gives new max
                         } else {
                             throw new SQLException("Failed to get or update queue number.");
                         }
+                    }
+                } else { // Custom queue number provided
+                    int currentMax = 0;
+                    String getMaxSql = "SELECT current_count FROM DailyQueueCounter WHERE date = date('now', 'localtime')";
+                    try (PreparedStatement stmt = conn.prepareStatement(getMaxSql); ResultSet rs = stmt.executeQuery()) {
+                        if (rs.next()) {
+                            currentMax = rs.getInt(1);
+                        }
+                    }
+
+                    if (queueNumber > currentMax) {
+                        String upsertSql = """
+                            INSERT INTO DailyQueueCounter (date, current_count) 
+                            VALUES (date('now', 'localtime'), ?) 
+                            ON CONFLICT(date) DO UPDATE SET current_count = ?
+                            """;
+                        try (PreparedStatement stmt = conn.prepareStatement(upsertSql)) {
+                            stmt.setInt(1, queueNumber);
+                            stmt.setInt(2, queueNumber);
+                            stmt.executeUpdate();
+                        }
+                        shouldBroadcastCounter = true;
                     }
                 }
     
@@ -694,7 +725,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                 // Gửi phản hồi thành công và broadcast cập nhật
                 UserUtil.sendPacket(currentUser.getSessionId(), new AddCheckupResponse(true, "Thêm bệnh nhân thành công", queueNumber));
                 broadcastQueueUpdate();
-                if (!customQueue) { // Nếu STT không chỉ định, thì không cần gửi cho các client
+                if (shouldBroadcastCounter) { // Nếu STT không chỉ định, thì không cần gửi cho các client
                     int maxCurId = SessionManager.getMaxSessionId();
                     for (int sessionId = 1; sessionId <= maxCurId; sessionId++) {
                         UserUtil.sendPacket(sessionId, new SetCounterResponse(queueNumber));
@@ -724,25 +755,37 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
 
       if (packet instanceof SetCounterRequest setCounterRequest) {
         log.debug("Received SetCounterRequest to set counter to {}", setCounterRequest.getCounter());
-        String sql = """
-                INSERT INTO DailyQueueCounter (date, current_count) 
-                VALUES (date('now', 'localtime'), ?) 
-                ON CONFLICT(date) DO UPDATE SET current_count = excluded.current_count;
-                """;
-
+    
         try (Connection conn = DatabaseManager.getConnection()) {
-            try (PreparedStatement preparedStatement = conn.prepareStatement(sql)) {
-                preparedStatement.setInt(1, setCounterRequest.getCounter());
-                preparedStatement.executeUpdate();
+            int currentMax = 0;
+            String getMaxSql = "SELECT current_count FROM DailyQueueCounter WHERE date = date('now', 'localtime')";
+            try (PreparedStatement stmt = conn.prepareStatement(getMaxSql); ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    currentMax = rs.getInt(1);
+                }
+            }
+
+            int newCounter = setCounterRequest.getCounter();
+            if (newCounter > currentMax) {
+                String upsertSql = """
+                    INSERT INTO DailyQueueCounter (date, current_count) 
+                    VALUES (date('now', 'localtime'), ?) 
+                    ON CONFLICT(date) DO UPDATE SET current_count = ?
+                    """;
+                try (PreparedStatement stmt = conn.prepareStatement(upsertSql)) {
+                    stmt.setInt(1, newCounter);
+                    stmt.setInt(2, newCounter);
+                    stmt.executeUpdate();
+                }
+
+                int maxCurId = SessionManager.getMaxSessionId();
+                for (int sessionId = 1; sessionId <= maxCurId; sessionId++) {
+                    UserUtil.sendPacket(sessionId, new SetCounterResponse(newCounter));
+                }
             }
         } catch (SQLException e) {
-            log.error("Error during SetCounterRequest, rolling back transaction.", e);
+            log.error("Error during SetCounterRequest.", e);
             UserUtil.sendPacket(currentUser.getSessionId(), new ErrorResponse(Error.SQL_EXCEPTION));
-        }
-
-        int maxCurId = SessionManager.getMaxSessionId();
-        for (int sessionId = 1; sessionId <= maxCurId; sessionId++) {
-            UserUtil.sendPacket(sessionId, new SetCounterResponse(setCounterRequest.getCounter()));
         }
       }
 
@@ -1273,54 +1316,70 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
       if (packet instanceof DeleteCheckupRequest deleteCheckupRequest) {
         log.info("Recieved delete checkup request for checkupId: {}", deleteCheckupRequest.getCheckupId());
     
-        // 2. Define the SQL DELETE statements in the correct order
-        String deleteOrderItemsSQL = "DELETE FROM main.OrderItem WHERE prescription_id IN (SELECT prescription_id FROM main.MedicineOrder WHERE checkup_id = ?)";
-        String deleteMedicineOrderSQL = "DELETE FROM main.MedicineOrder WHERE checkup_id = ?";
-        String deleteCheckupServiceSQL = "DELETE FROM main.CheckupService WHERE checkup_id = ?";
-        String deleteCheckupSQL = "DELETE FROM main.Checkup WHERE checkup_id = ?";
-    
+        long checkupId = deleteCheckupRequest.getCheckupId();
+        String checkupIdStr = String.valueOf(checkupId);
+
         Connection connection = null;
         try {
-            // 3. Get a connection from your pool and start a transaction
-            // The 'try-with-resources' block will NOT work for the connection here
-            // because we need to manually control commit/rollback.
-            connection = DatabaseManager.getConnection(); 
-            connection.setAutoCommit(false); // This is the start of our transaction
-    
-            // 4. Execute deletes in order using PreparedStatement to prevent SQL injection
-            try (PreparedStatement psOrderItems = connection.prepareStatement(deleteOrderItemsSQL)) {
-                psOrderItems.setLong(1, deleteCheckupRequest.getCheckupId());
-                psOrderItems.executeUpdate();
-            }
-    
-            try (PreparedStatement psMedicineOrder = connection.prepareStatement(deleteMedicineOrderSQL)) {
-                psMedicineOrder.setLong(1, deleteCheckupRequest.getCheckupId());
-                psMedicineOrder.executeUpdate();
-            }
-    
-            try (PreparedStatement psCheckupService = connection.prepareStatement(deleteCheckupServiceSQL)) {
-                psCheckupService.setLong(1, deleteCheckupRequest.getCheckupId());
-                psCheckupService.executeUpdate();
-            }
-    
-            try (PreparedStatement psCheckup = connection.prepareStatement(deleteCheckupSQL)) {
-                psCheckup.setLong(1, deleteCheckupRequest.getCheckupId());
-                int rowsAffected = psCheckup.executeUpdate();
-                if (rowsAffected == 0) {
-                     // This is an optional check to see if the main record even existed.
-                     log.warn("Warning: Checkup with ID " + deleteCheckupRequest.getCheckupId() + " not found.");
+            connection = DatabaseManager.getConnection();
+            connection.setAutoCommit(false);
+
+            // 1. Get drive_folder_id before deleting the checkup record
+            String driveFolderId = null;
+            try (PreparedStatement ps = connection.prepareStatement("SELECT drive_folder_id FROM main.Checkup WHERE checkup_id = ?")) {
+                ps.setLong(1, checkupId);
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) {
+                        driveFolderId = rs.getString("drive_folder_id");
+                    }
                 }
             }
-    
+
+            // 2. Delete local and cloud images/folders
+            if (driveFolderId != null && !driveFolderId.trim().isEmpty()) {
+                deleteCheckupImagesFromGoogleDriveAsync(driveFolderId);
+            }
+            deleteLocalCheckupImageFolder(checkupIdStr);
+            
+            // 3. Define the SQL DELETE statements in the correct order
+            String deleteOrderItemsSQL = "DELETE FROM main.OrderItem WHERE prescription_id IN (SELECT prescription_id FROM main.MedicineOrder WHERE checkup_id = ?)";
+            String deleteMedicineOrderSQL = "DELETE FROM main.MedicineOrder WHERE checkup_id = ?";
+            String deleteCheckupServiceSQL = "DELETE FROM main.CheckupService WHERE checkup_id = ?";
+            String deleteCheckupSQL = "DELETE FROM main.Checkup WHERE checkup_id = ?";
+
+            // 4. Execute deletes in order
+            try (PreparedStatement psOrderItems = connection.prepareStatement(deleteOrderItemsSQL)) {
+                psOrderItems.setLong(1, checkupId);
+                psOrderItems.executeUpdate();
+            }
+
+            try (PreparedStatement psMedicineOrder = connection.prepareStatement(deleteMedicineOrderSQL)) {
+                psMedicineOrder.setLong(1, checkupId);
+                psMedicineOrder.executeUpdate();
+            }
+
+            try (PreparedStatement psCheckupService = connection.prepareStatement(deleteCheckupServiceSQL)) {
+                psCheckupService.setLong(1, checkupId);
+                psCheckupService.executeUpdate();
+            }
+
+            try (PreparedStatement psCheckup = connection.prepareStatement(deleteCheckupSQL)) {
+                psCheckup.setLong(1, checkupId);
+                int rowsAffected = psCheckup.executeUpdate();
+                if (rowsAffected == 0) {
+                    log.warn("Warning: Checkup with ID " + checkupId + " not found.");
+                }
+            }
+
             // 5. If all statements executed without error, commit the transaction
             connection.commit();
-            log.info("Successfully deleted checkup " + deleteCheckupRequest.getCheckupId() + " and all associated data.");
+            log.info("Successfully deleted checkup " + checkupId + " and all associated data.");
             broadcastQueueUpdate();
             UserUtil.sendPacket(currentUser.getSessionId(), new DeleteCheckupResponse(true, "Xóa phiếu khám thành công."));
-    
+
         } catch (SQLException e) {
             // 6. If any SQL error occurs, roll back the entire transaction
-            log.info("SQL error during deletion. Rolling back transaction for checkup ID: " + deleteCheckupRequest.getCheckupId());
+            log.info("SQL error during deletion. Rolling back transaction for checkup ID: " + checkupId);
             e.printStackTrace();
             if (connection != null) {
                 try {
@@ -1331,14 +1390,25 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                 }
             }
             UserUtil.sendPacket(currentUser.getSessionId(), new ErrorResponse(Error.SQL_EXCEPTION));
-    
+        
+        } catch (IOException e) {
+            log.error("Failed to delete local image folder for checkupId {}: {}", checkupId, e.getMessage());
+            if (connection != null) {
+                try {
+                    connection.rollback();
+                } catch (SQLException ex) {
+                    log.error("Failed to rollback transaction after IOException", ex);
+                }
+            }
+            UserUtil.sendPacket(currentUser.getSessionId(), 
+                new DeleteCheckupResponse(false, "Lỗi khi xóa thư mục ảnh: " + e.getMessage()));
+
         } finally {
             // 7. Always return the connection to the pool
             if (connection != null) {
                 try {
-                    // It's good practice to reset auto-commit before closing/returning
                     connection.setAutoCommit(true);
-                    connection.close(); // For a pool, this returns the connection
+                    connection.close();
                 } catch (SQLException e) {
                     e.printStackTrace();
                 }
@@ -1669,11 +1739,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
             UserUtil.sendPacket(currentUser.getSessionId(), new GetCheckupDataResponse(new String[0][0], 0, 1, 0, getCheckupDataRequest.getPageSize()));
         }
       }
-      if (packet instanceof PingRequest pingRequest) {
-        // Respond immediately to ping with pong
-       // log.debug("Received PingRequest from session {}, responding with PongResponse", currentUser.getSessionId());
-        UserUtil.sendPacket(currentUser.getSessionId(), new PongResponse(pingRequest.getTimestamp()));
-      }
+      
       
       if (packet instanceof SimpleMessageRequest simpleMessageRequest) {
         log.info("Received SimpleMessageRequest from {}", simpleMessageRequest.getSenderName());
@@ -2535,18 +2601,45 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                 }
             }
             
-        } catch (NumberFormatException e) {
-            log.error("Invalid checkupId format '{}' for Google Drive deletion.", checkupId);
         } catch (Exception e) {
-            log.error("Failed to delete image from Google Drive for checkup {}: {}", checkupId, e.getMessage(), e);
-            if (ServerDashboard.getInstance() != null) {
-                ServerDashboard.getInstance().addLog(
-                    String.format("Failed to delete image %s from Google Drive for checkup %s: %s", 
-                            fileName, checkupId, e.getMessage())
-                );
-            }
+            log.error("Error deleting image {} from Google Drive for checkup {}", fileName, checkupId, e);
         }
     });
+  }
+
+  private void deleteCheckupImagesFromGoogleDriveAsync(String folderId) {
+    log.info("deleteCheckupImagesFromGoogleDriveAsync - Folder: {}", folderId);
+    CompletableFuture.runAsync(() -> {
+        try {
+            if (!Server.isGoogleDriveConnected()) {
+                log.warn("Google Drive not connected - skipping folder deletion.");
+                return;
+            }
+            Server.getGoogleDriveService().deleteFile(folderId);
+            log.info("Successfully deleted folder with ID: {} from Google Drive.", folderId);
+        } catch (Exception e) {
+            log.error("Error deleting folder {} from Google Drive", folderId, e);
+        }
+    });
+  }
+
+  private void deleteLocalCheckupImageFolder(String checkupId) throws IOException {
+    Path directory = Paths.get(Server.imageDbPath, checkupId);
+    if (Files.exists(directory)) {
+        try (Stream<Path> walk = Files.walk(directory)) {
+            walk.sorted(Comparator.reverseOrder())
+                .forEach(path -> {
+                    try {
+                        Files.delete(path);
+                        log.info("Deleted local file/folder: {}", path);
+                    } catch (IOException e) {
+                        log.error("Failed to delete path: {}", path, e);
+                    }
+                });
+        }
+    } else {
+        log.warn("Local image folder not found for checkupId {}: {}", checkupId, directory);
+    }
   }
 
  
