@@ -291,7 +291,7 @@ public class CheckUpPage extends JPanel {
     
 
     public void updateQueue() {
-        NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetCheckUpQueueRequest());
+        NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetCheckUpQueueRequest(LocalStorage.currentShift));
     }
 
 
@@ -300,7 +300,7 @@ public class CheckUpPage extends JPanel {
     }
 
     public void updateUpdateQueue() {
-        NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetCheckUpQueueUpdateRequest());
+        NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetCheckUpQueueUpdateRequest(LocalStorage.currentShift));
     }
 
     private String[][] preprocessPatientDataForTable(List<Patient> patients) {
@@ -602,8 +602,6 @@ public class CheckUpPage extends JPanel {
         driveButton.setBackground(new Color(26, 115, 232)); // Google Blue color
         driveButton.setForeground(Color.WHITE);
         driveButton.setFocusPainted(false);
-        driveButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        driveButton.setEnabled(false); // Disabled by default
         driveButton.setBorder(BorderFactory.createEmptyBorder(8, 15, 8, 15));
 
         // Load and set the icon
@@ -4851,7 +4849,8 @@ public class CheckUpPage extends JPanel {
                 (Integer) patientHeartRateSpinner.getValue(),
                 bloodPressureSystolicSpinner.getValue() + "/" + bloodPressureDiastolicSpinner.getValue(),
             medicinePrescription,
-            servicePrescription
+            servicePrescription,
+            LocalStorage.currentShift
         );
         NetworkUtil.sendPacket(ClientHandler.ctx.channel(), request);
         saved = true;

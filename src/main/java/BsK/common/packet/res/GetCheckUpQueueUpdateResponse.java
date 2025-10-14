@@ -8,4 +8,5 @@ import lombok.Data;
 @Data
 public class GetCheckUpQueueUpdateResponse implements Packet {
     private String[][] queue;
+    private int shift;
 }

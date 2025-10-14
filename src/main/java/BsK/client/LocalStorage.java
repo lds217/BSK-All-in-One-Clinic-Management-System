@@ -24,6 +24,7 @@ public class LocalStorage {
     public static String pathToProject = "";
     
     public static int currentMaxQueueNumber = 0;
+    public static int currentShift = 0; // 0 for morning, 1 for afternoon
     public static String dataDialogSearchTerm = "";
     public static Date dataDialogFromDate = new Date();
     public static Date dataDialogToDate = new Date();

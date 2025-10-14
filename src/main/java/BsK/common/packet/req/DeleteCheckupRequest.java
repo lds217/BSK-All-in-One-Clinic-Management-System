@@ -6,9 +6,11 @@ import lombok.Data;
 @Data
 public class DeleteCheckupRequest implements Packet {
     private long checkupId;
+    private int shift;
 
-    public DeleteCheckupRequest(long checkupId) {
+    public DeleteCheckupRequest(long checkupId, int shift) {
         this.checkupId = checkupId;
+        this.shift = shift;
     }
     
 }

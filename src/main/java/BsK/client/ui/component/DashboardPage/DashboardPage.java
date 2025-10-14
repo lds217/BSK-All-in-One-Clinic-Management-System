@@ -53,7 +53,12 @@ public class DashboardPage extends JPanel {
 
     private void handleGetCheckUpQueueUpdateResponse(GetCheckUpQueueUpdateResponse response) {
         SwingUtilities.invokeLater(() -> {
-            log.info("Received dashboard queue update from server.");
+            if (response.getShift() != LocalStorage.currentShift) {
+                log.info("Ignored dashboard queue update for different shift. Current: {}, Received: {}", LocalStorage.currentShift, response.getShift());
+                return;
+            }
+
+            log.info("Received dashboard queue update from server for shift {}.", response.getShift());
             this.patientQueue.clear();
             if (response.getQueue() != null) {
                 for (String[] patientData : response.getQueue()) {
@@ -128,7 +133,7 @@ public class DashboardPage extends JPanel {
         ClientHandler.addResponseListener(TodayPatientCountResponse.class, todayPatientCountListener);
         ClientHandler.addResponseListener(RecheckCountResponse.class, recheckCountListener);
         log.info("DashboardPage listeners registered. Requesting initial data.");
-        NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetCheckUpQueueUpdateRequest());
+        NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetCheckUpQueueUpdateRequest(LocalStorage.currentShift));
     }
 
     private void startRealTimeClock() {

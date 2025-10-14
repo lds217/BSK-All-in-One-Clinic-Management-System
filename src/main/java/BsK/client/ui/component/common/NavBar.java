@@ -31,6 +31,7 @@ import java.awt.event.MouseEvent;
 import java.awt.event.ActionListener;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.Calendar;
 
 @Slf4j
 public class NavBar extends JPanel {
@@ -41,6 +42,7 @@ public class NavBar extends JPanel {
     private RoundedPanel messageButtonPanel; // NEW: Reference to message button panel for repainting
     private JSpinner counterSpinner; // NEW: Spinner for current number
     private boolean isUpdatingSpinner = false; // Flag to prevent recursive updates
+    private int currentShift = 0; // 0 for morning, 1 for afternoon
 
     // Listener for incoming emergency alerts
     private final ResponseListener<EmergencyResponse> emergencyResponseListener = this::handleEmergencyResponse;
@@ -285,7 +287,9 @@ public class NavBar extends JPanel {
         this.add(Box.createHorizontalGlue());
         this.add(userPanel);
 
-        NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetCounterRequest());
+        // Determine current shift and request counter
+        currentShift = LocalStorage.currentShift;
+        NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetCounterRequest(currentShift));
     }
 
     private int findNavItemIndex(String text, String[] items) {
@@ -297,7 +301,7 @@ public class NavBar extends JPanel {
 
     // NEW: Create counter spinner component
     private Component createCounterSpinner() {
-        JPanel counterPanel = new JPanel(new BorderLayout(5, 0));
+        JPanel counterPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));
         counterPanel.setBackground(this.getBackground());
         counterPanel.setAlignmentY(Component.CENTER_ALIGNMENT);
 
@@ -309,7 +313,7 @@ public class NavBar extends JPanel {
         // Create spinner with initial value of 1, minimum 1, maximum 999, step 1
         SpinnerNumberModel spinnerModel = new SpinnerNumberModel(1, 1, 999, 1);
         counterSpinner = new JSpinner(spinnerModel);
-        counterSpinner.setPreferredSize(new Dimension(80, 30));
+        counterSpinner.setPreferredSize(new Dimension(60, 30));
         counterSpinner.setFont(new Font("Arial", Font.BOLD, 14));
         counterSpinner.setEnabled(false);
         // Style the spinner
@@ -330,13 +334,21 @@ public class NavBar extends JPanel {
                     log.info("Counter spinner changed to: {}", newValue);
                     
                     // Send SetCounterRequest to server
-                    NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new SetCounterRequest(newValue));
+                    NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new SetCounterRequest(newValue, currentShift));
                 }
             }
         });
 
-        counterPanel.add(counterLabel, BorderLayout.WEST);
-        counterPanel.add(counterSpinner, BorderLayout.EAST);
+        counterPanel.add(counterLabel);
+        counterPanel.add(counterSpinner);
+
+        String shiftText = (LocalStorage.currentShift == 0) ? "Ca sáng" : "Ca chiều";
+        JLabel shiftLabel = new JLabel(shiftText);
+        shiftLabel.setFont(new Font("Arial", Font.BOLD, 12));
+        shiftLabel.setForeground(new Color(60, 60, 60));
+
+        counterPanel.add(new JLabel("Ca:"));
+        counterPanel.add(shiftLabel);
 
         return counterPanel;
     }
@@ -344,16 +356,21 @@ public class NavBar extends JPanel {
     // NEW: Handle SetCounterResponse
     private void handleSetCounterResponse(SetCounterResponse response) {
         SwingUtilities.invokeLater(() -> {
-            log.info("Received SetCounterResponse with value: {}", response.getCounter());
-            LocalStorage.currentMaxQueueNumber = response.getCounter();
-            // Update spinner value without triggering change event
-            isUpdatingSpinner = true;
-            try {
-                counterSpinner.setValue(response.getCounter());
-            } catch (Exception e) {
-                log.error("Error updating counter spinner: {}", e.getMessage());
-            } finally {
-                isUpdatingSpinner = false;
+            // Only update if the response is for the currently selected shift
+            if (response.getShift() == currentShift) {
+                log.info("Received SetCounterResponse with value: {} for shift {}", response.getCounter(), response.getShift());
+                LocalStorage.currentMaxQueueNumber = response.getCounter();
+                // Update spinner value without triggering change event
+                isUpdatingSpinner = true;
+                try {
+                    counterSpinner.setValue(response.getCounter());
+                } catch (Exception e) {
+                    log.error("Error updating counter spinner: {}", e.getMessage());
+                } finally {
+                    isUpdatingSpinner = false;
+                }
+            } else {
+                log.info("Ignored SetCounterResponse for different shift. Current: {}, Received: {}", currentShift, response.getShift());
             }
         });
     }
@@ -705,17 +722,21 @@ public class NavBar extends JPanel {
 
     private void handleGetCounterResponse(GetCounterResponse response) {
         SwingUtilities.invokeLater(() -> {
-            log.info("Received GetCounterResponse with initial value: {}", response.getCounter());
-            LocalStorage.currentMaxQueueNumber = response.getCounter();
-            // Update spinner value without triggering change event
-            isUpdatingSpinner = true;
-            try {
-                counterSpinner.setValue(response.getCounter());
-                log.info("Counter spinner initialized to: {}", response.getCounter());
-            } catch (Exception e) {
-                log.error("Error initializing counter spinner: {}", e.getMessage());
-            } finally {
-                isUpdatingSpinner = false;
+            if (response.getShift() == currentShift) {
+                log.info("Received GetCounterResponse with initial value: {} for shift {}", response.getCounter(), response.getShift());
+                LocalStorage.currentMaxQueueNumber = response.getCounter();
+                // Update spinner value without triggering change event
+                isUpdatingSpinner = true;
+                try {
+                    counterSpinner.setValue(response.getCounter());
+                    log.info("Counter spinner initialized to: {} for shift {}", response.getCounter(), response.getShift());
+                } catch (Exception e) {
+                    log.error("Error initializing counter spinner: {}", e.getMessage());
+                } finally {
+                    isUpdatingSpinner = false;
+                }
+            } else {
+                 log.info("Ignored GetCounterResponse for different shift. Current: {}, Received: {}", currentShift, response.getShift());
             }
         });
     }

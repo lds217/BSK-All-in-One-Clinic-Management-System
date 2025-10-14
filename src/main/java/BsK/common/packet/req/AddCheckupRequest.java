@@ -14,4 +14,5 @@ public class AddCheckupRequest implements Packet {
     private String checkupType;
     private String status;
     private int queueNumber;
+    private int shift; // 0 for morning, 1 for afternoon
 }

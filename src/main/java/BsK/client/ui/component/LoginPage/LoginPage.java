@@ -78,6 +78,21 @@ public class LoginPage extends JPanel {
         gbc.anchor = GridBagConstraints.WEST;
         JPasswordField passwordField = new JPasswordField(20);
         formPanel.add(passwordField, gbc);
+        
+        gbc.gridx = 0;
+        gbc.gridy++;
+        gbc.anchor = GridBagConstraints.EAST;
+        JLabel shiftLabel = new JLabel("Chọn ca:");
+        shiftLabel.setForeground(Color.WHITE);
+        shiftLabel.setFont(new Font("Arial", Font.PLAIN, 14));
+        formPanel.add(shiftLabel, gbc);
+
+        gbc.gridx = 1;
+        gbc.anchor = GridBagConstraints.WEST;
+        String[] shifts = {"Chọn ca", "Ca sáng", "Ca chiều"};
+        JComboBox<String> shiftComboBox = new JComboBox<>(shifts);
+        formPanel.add(shiftComboBox, gbc);
+
 
         // --- BUTTON PANEL START ---
         gbc.gridx = 0;
@@ -120,10 +135,15 @@ public class LoginPage extends JPanel {
         passwordField.addActionListener(e -> loginButton.doClick());
 
         loginButton.addActionListener(e -> {
+            if (shiftComboBox.getSelectedIndex() == 0) {
+                JOptionPane.showMessageDialog(this, "Vui lòng chọn ca làm việc.", "Lỗi", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
             char[] passwordChars = passwordField.getPassword();
             String password = new String(passwordChars);
             String username = loginField.getText();
-            var loginRequest = new LoginRequest(username, password);
+            int shift = shiftComboBox.getSelectedIndex() - 1;
+            var loginRequest = new LoginRequest(username, password, shift);
             NetworkUtil.sendPacket(ClientHandler.ctx.channel(), loginRequest);
         });
 
@@ -131,6 +151,7 @@ public class LoginPage extends JPanel {
             log.info("Login successful, UserId: {}, Role: {}", response.getUserId(), response.getRole());
             LocalStorage.username = loginField.getText();
             LocalStorage.userId = response.getUserId();
+            LocalStorage.currentShift = shiftComboBox.getSelectedIndex() - 1; // 0 for morning, 1 for afternoon
             NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new ClinicInfoRequest());
             NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetDoctorGeneralInfo());
             NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetProvinceRequest());
