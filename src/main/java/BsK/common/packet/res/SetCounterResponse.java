@@ -8,4 +8,5 @@ import lombok.Data;
 @AllArgsConstructor
 public class SetCounterResponse implements Packet{
     private int counter;
+    private int shift; // 0 for morning, 1 for afternoon
 }

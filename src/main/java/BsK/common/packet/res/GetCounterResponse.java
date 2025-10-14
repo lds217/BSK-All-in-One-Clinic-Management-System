@@ -8,4 +8,5 @@ import lombok.Data;
 @Data
 public class GetCounterResponse implements Packet{
     private int counter;
+    private int shift;
 }

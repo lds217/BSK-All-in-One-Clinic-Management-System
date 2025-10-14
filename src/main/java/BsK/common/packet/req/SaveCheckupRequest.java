@@ -40,4 +40,5 @@ public class SaveCheckupRequest implements Packet {
     // Prescriptions
     String[][] medicinePrescription;
     String[][] servicePrescription;
+    int shift;
 } 

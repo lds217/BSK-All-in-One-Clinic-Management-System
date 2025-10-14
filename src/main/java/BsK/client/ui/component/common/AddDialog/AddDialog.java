@@ -644,8 +644,8 @@ public class AddDialog extends JDialog {
                 // Send -1 to let the server know to auto-increment the queue number
                 queueNumber = -1;
             }
-            log.info("Sending AddCheckupRequest with queue number: {}", queueNumber);
-            NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new AddCheckupRequest(patientId, doctorId, LocalStorage.userId, selectedCheckupType, "CHỜ KHÁM", queueNumber));
+            log.info("Sending AddCheckupRequest with queue number: {} for shift {}", queueNumber, LocalStorage.currentShift);
+            NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new AddCheckupRequest(patientId, doctorId, LocalStorage.userId, selectedCheckupType, "CHỜ KHÁM", queueNumber, LocalStorage.currentShift));
         });
         checkupInfoPanel.add(saveButton, gbc);
 
@@ -1105,7 +1105,7 @@ private void setupDebounceSearch() {
     
                 // Now that the JOptionPane is closed, the connection is still alive.
                 // This packet will be sent successfully.
-                NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetCheckUpQueueUpdateRequest());
+                NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetCheckUpQueueUpdateRequest(LocalStorage.currentShift));
                 
                 patientIdField.setText(String.valueOf(response.getPatientId()));
                 addPatientButton.setEnabled(false); // Disable add patient button

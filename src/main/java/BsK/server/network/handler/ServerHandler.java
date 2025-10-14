@@ -119,9 +119,9 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         return;
       }
 
-      if (packet instanceof GetCheckUpQueueRequest) {
+      if (packet instanceof GetCheckUpQueueRequest getCheckUpQueueRequest) {
         log.debug("Received GetCheckUpQueueRequest");
-    
+        int shift = getCheckUpQueueRequest.getShift();
         String sql = """
             SELECT
                 a.checkup_id, a.checkup_date, c.customer_last_name, c.customer_first_name,
@@ -137,11 +137,12 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
             JOIN
                 Doctor D ON a.doctor_id = D.doctor_id
             WHERE
-                date(a.checkup_date / 1000, 'unixepoch', '+7 hours') = date('now', '+7 hours')""";
+                date(a.checkup_date / 1000, 'unixepoch', '+7 hours') = date('now', '+7 hours') AND a.shift = ?""";
 
         try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql);
-             ResultSet rs = stmt.executeQuery()) {
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setInt(1, shift);
+            ResultSet rs = stmt.executeQuery();
     
             if (!rs.isBeforeFirst()) {
                 log.warn("No data found in the checkup table for today.");
@@ -209,9 +210,9 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         }
     }
 
-      if (packet instanceof GetCheckUpQueueUpdateRequest) {
+      if (packet instanceof GetCheckUpQueueUpdateRequest getCheckUpQueueUpdateRequest) {
         log.debug("Received GetCheckUpQueueUpdateRequest");
-        broadcastQueueUpdate();
+        broadcastQueueUpdate(getCheckUpQueueUpdateRequest.getShift());
       }
 
       if (packet instanceof GetDoctorGeneralInfo) {
@@ -627,6 +628,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         try (Connection conn = DatabaseManager.getConnection()) {
             int generatedCheckupId = 0;
             int queueNumber = addCheckupRequest.getQueueNumber();
+            int shift = addCheckupRequest.getShift();
             boolean shouldBroadcastCounter = false;
             try {
                 // 1. Bắt đầu một transaction trên kết nối CỤC BỘ (conn) này
@@ -635,14 +637,15 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                 // 2. LẤY SỐ THỨ TỰ (QUEUE NUMBER)
                 if (queueNumber == -1) { // if queue number is -1, means the queue number is not provided, so we need to get the queue number from the database
                     String queueSql = """
-                            INSERT INTO DailyQueueCounter (date, current_count) 
-                            VALUES (date('now', 'localtime'), 1) 
-                            ON CONFLICT(date) DO UPDATE SET current_count = current_count + 1 
+                            INSERT INTO DailyQueueCounter (date, shift, current_count) 
+                            VALUES (date('now', 'localtime'), ?, 1) 
+                            ON CONFLICT(date, shift) DO UPDATE SET current_count = current_count + 1 
                             RETURNING current_count
                             """;
                     
-                    try (PreparedStatement queueStmt = conn.prepareStatement(queueSql);
-                        ResultSet rs = queueStmt.executeQuery()) {
+                    try (PreparedStatement queueStmt = conn.prepareStatement(queueSql)) {
+                        queueStmt.setInt(1, shift);
+                        ResultSet rs = queueStmt.executeQuery();
                         if (rs.next()) {
                             queueNumber = rs.getInt(1);
                             shouldBroadcastCounter = true; // Auto-increment always gives new max
@@ -652,8 +655,10 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                     }
                 } else { // Custom queue number provided
                     int currentMax = 0;
-                    String getMaxSql = "SELECT current_count FROM DailyQueueCounter WHERE date = date('now', 'localtime')";
-                    try (PreparedStatement stmt = conn.prepareStatement(getMaxSql); ResultSet rs = stmt.executeQuery()) {
+                    String getMaxSql = "SELECT current_count FROM DailyQueueCounter WHERE date = date('now', 'localtime') AND shift = ?";
+                    try (PreparedStatement stmt = conn.prepareStatement(getMaxSql)) {
+                        stmt.setInt(1, shift);
+                        ResultSet rs = stmt.executeQuery();
                         if (rs.next()) {
                             currentMax = rs.getInt(1);
                         }
@@ -661,13 +666,14 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
 
                     if (queueNumber > currentMax) {
                         String upsertSql = """
-                            INSERT INTO DailyQueueCounter (date, current_count) 
-                            VALUES (date('now', 'localtime'), ?) 
-                            ON CONFLICT(date) DO UPDATE SET current_count = ?
+                            INSERT INTO DailyQueueCounter (date, shift, current_count) 
+                            VALUES (date('now', 'localtime'), ?, ?) 
+                            ON CONFLICT(date, shift) DO UPDATE SET current_count = ?
                             """;
                         try (PreparedStatement stmt = conn.prepareStatement(upsertSql)) {
-                            stmt.setInt(1, queueNumber);
+                            stmt.setInt(1, shift);
                             stmt.setInt(2, queueNumber);
+                            stmt.setInt(3, queueNumber);
                             stmt.executeUpdate();
                         }
                         shouldBroadcastCounter = true;
@@ -675,13 +681,14 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                 }
     
                 // 3. CHÈN VÀO BẢNG CHECKUP VÀ LẤY LẠI CHECKUP_ID
-                String checkupSql = "INSERT INTO Checkup (customer_id, doctor_id, checkup_type, status, queue_number) VALUES (?, ?, ?, ?, ?)";
+                String checkupSql = "INSERT INTO Checkup (customer_id, doctor_id, checkup_type, status, queue_number, shift) VALUES (?, ?, ?, ?, ?, ?)";
                 try (PreparedStatement checkupStmt = conn.prepareStatement(checkupSql, PreparedStatement.RETURN_GENERATED_KEYS)) {
                     checkupStmt.setInt(1, addCheckupRequest.getCustomerId());
                     checkupStmt.setInt(2, addCheckupRequest.getDoctorId());
                     checkupStmt.setString(3, addCheckupRequest.getCheckupType());
                     checkupStmt.setString(4, addCheckupRequest.getStatus());
                     checkupStmt.setInt(5, queueNumber);
+                    checkupStmt.setInt(6, shift);
                     checkupStmt.executeUpdate();
     
                     try (ResultSet generatedKeys = checkupStmt.getGeneratedKeys()) {
@@ -724,11 +731,11 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
     
                 // Gửi phản hồi thành công và broadcast cập nhật
                 UserUtil.sendPacket(currentUser.getSessionId(), new AddCheckupResponse(true, "Thêm bệnh nhân thành công", queueNumber));
-                broadcastQueueUpdate();
+                broadcastQueueUpdate(shift);
                 if (shouldBroadcastCounter) { // Nếu STT không chỉ định, thì không cần gửi cho các client
                     int maxCurId = SessionManager.getMaxSessionId();
                     for (int sessionId = 1; sessionId <= maxCurId; sessionId++) {
-                        UserUtil.sendPacket(sessionId, new SetCounterResponse(queueNumber));
+                        UserUtil.sendPacket(sessionId, new SetCounterResponse(queueNumber, shift));
                     }
                 }
                 // Tạo thư mục Google Drive bất đồng bộ
@@ -755,11 +762,14 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
 
       if (packet instanceof SetCounterRequest setCounterRequest) {
         log.debug("Received SetCounterRequest to set counter to {}", setCounterRequest.getCounter());
+        int shift = setCounterRequest.getShift();
     
         try (Connection conn = DatabaseManager.getConnection()) {
             int currentMax = 0;
-            String getMaxSql = "SELECT current_count FROM DailyQueueCounter WHERE date = date('now', 'localtime')";
-            try (PreparedStatement stmt = conn.prepareStatement(getMaxSql); ResultSet rs = stmt.executeQuery()) {
+            String getMaxSql = "SELECT current_count FROM DailyQueueCounter WHERE date = date('now', 'localtime') AND shift = ?";
+            try (PreparedStatement stmt = conn.prepareStatement(getMaxSql)) {
+                stmt.setInt(1, shift);
+                ResultSet rs = stmt.executeQuery();
                 if (rs.next()) {
                     currentMax = rs.getInt(1);
                 }
@@ -768,19 +778,20 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
             int newCounter = setCounterRequest.getCounter();
             if (newCounter > currentMax) {
                 String upsertSql = """
-                    INSERT INTO DailyQueueCounter (date, current_count) 
-                    VALUES (date('now', 'localtime'), ?) 
-                    ON CONFLICT(date) DO UPDATE SET current_count = ?
+                    INSERT INTO DailyQueueCounter (date, shift, current_count) 
+                    VALUES (date('now', 'localtime'), ?, ?) 
+                    ON CONFLICT(date, shift) DO UPDATE SET current_count = ?
                     """;
                 try (PreparedStatement stmt = conn.prepareStatement(upsertSql)) {
-                    stmt.setInt(1, newCounter);
+                    stmt.setInt(1, shift);
                     stmt.setInt(2, newCounter);
+                    stmt.setInt(3, newCounter);
                     stmt.executeUpdate();
                 }
 
                 int maxCurId = SessionManager.getMaxSessionId();
                 for (int sessionId = 1; sessionId <= maxCurId; sessionId++) {
-                    UserUtil.sendPacket(sessionId, new SetCounterResponse(newCounter));
+                    UserUtil.sendPacket(sessionId, new SetCounterResponse(newCounter, shift));
                 }
             }
         } catch (SQLException e) {
@@ -791,13 +802,18 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
 
       if (packet instanceof GetCounterRequest getCounterRequest) {
         log.debug("Received GetCounterRequest");
-        String sql = "SELECT current_count FROM DailyQueueCounter WHERE date = date('now', 'localtime');";
+        int shift = getCounterRequest.getShift();
+        String sql = "SELECT current_count FROM DailyQueueCounter WHERE date = date('now', 'localtime') AND shift = ?;";
         try (Connection conn = DatabaseManager.getConnection()) {
             try (PreparedStatement preparedStatement = conn.prepareStatement(sql)) {
+                preparedStatement.setInt(1, shift);
                 ResultSet rs = preparedStatement.executeQuery();
                 if (rs.next()) {
                     int counter = rs.getInt(1);
-                    UserUtil.sendPacket(currentUser.getSessionId(), new GetCounterResponse(counter));
+                    UserUtil.sendPacket(currentUser.getSessionId(), new GetCounterResponse(counter, shift));
+                } else {
+                    // No counter for this shift today, so send 0
+                    UserUtil.sendPacket(currentUser.getSessionId(), new GetCounterResponse(0, shift));
                 }
             }
         } catch (SQLException e) {
@@ -970,7 +986,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                 // 6. Hoàn tất và COMMIT giao dịch
                 conn.commit();
                 log.info("Successfully saved checkup transaction for checkup_id: {}", saveCheckupRequest.getCheckupId());
-                broadcastQueueUpdate();
+                broadcastQueueUpdate(saveCheckupRequest.getShift());
                 UserUtil.sendPacket(currentUser.getSessionId(), new SaveCheckupRes(true, "Lưu thông tin khám bệnh thành công."));
     
             } catch (SQLException e) {
@@ -1374,7 +1390,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
             // 5. If all statements executed without error, commit the transaction
             connection.commit();
             log.info("Successfully deleted checkup " + checkupId + " and all associated data.");
-            broadcastQueueUpdate();
+            broadcastQueueUpdate(deleteCheckupRequest.getShift());
             UserUtil.sendPacket(currentUser.getSessionId(), new DeleteCheckupResponse(true, "Xóa phiếu khám thành công."));
 
         } catch (SQLException e) {
@@ -2643,87 +2659,85 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
   }
 
  
-  private void broadcastQueueUpdate() {
-    // SỬA ĐỔI: Sử dụng một kết nối duy nhất, an toàn cho tất cả các truy vấn bên trong
-    try (Connection conn = DatabaseManager.getConnection()) {
+  private void broadcastQueueUpdate(int shift) {
+    String sql = """
+        SELECT
+            a.checkup_id, a.checkup_date, c.customer_last_name, c.customer_first_name,
+            d.doctor_first_name, d.doctor_last_name, a.suggestion, a.diagnosis, a.notes,
+            a.status, a.customer_id, c.customer_number, c.customer_address,
+            a.customer_weight, a.customer_height, c.customer_gender, c.customer_dob,
+            a.checkup_type, a.conclusion, a.reCheckupDate, c.cccd_ddcn, a.heart_beat,
+            a.blood_pressure, c.drive_url, a.doctor_ultrasound_id, a.queue_number
+        FROM
+            checkup AS a
+        JOIN
+            customer AS c ON a.customer_id = c.customer_id
+        JOIN
+            Doctor D ON a.doctor_id = D.doctor_id
+        WHERE
+            date(a.checkup_date / 1000, 'unixepoch', '+7 hours') = date('now', '+7 hours') AND a.shift = ?""";
+    
+    try (Connection conn = DatabaseManager.getConnection();
+         PreparedStatement stmt = conn.prepareStatement(sql)) {
+        stmt.setInt(1, shift);
+        ResultSet rs = stmt.executeQuery();
         
-        // --- LOGIC GỐC CHO HÀNG CHỜ (KHÔNG THAY ĐỔI THUẬT TOÁN) ---
         String[][] resultArray;
-        String queueSql = """
-            SELECT
-                a.checkup_id, a.checkup_date, c.customer_last_name, c.customer_first_name,
-                d.doctor_first_name, d.doctor_last_name, a.suggestion, a.diagnosis, a.notes,
-                a.status, a.customer_id, c.customer_number, c.customer_address,
-                a.customer_weight, a.customer_height, c.customer_gender, c.customer_dob,
-                a.checkup_type, a.conclusion, a.reCheckupDate, c.cccd_ddcn, a.heart_beat,
-                a.blood_pressure, c.drive_url, a.doctor_ultrasound_id, a.queue_number
-            FROM
-                checkup AS a
-            JOIN
-                customer AS c ON a.customer_id = c.customer_id
-            JOIN
-                Doctor D ON a.doctor_id = D.doctor_id
-            WHERE
-                date(a.checkup_date / 1000, 'unixepoch', '+7 hours') = date('now', '+7 hours')
-            """;
-        
-        // SỬA ĐỔI: Thay thế statement.executeQuery bằng PreparedStatement an toàn
-        try (PreparedStatement stmt = conn.prepareStatement(queueSql);
-             ResultSet rs = stmt.executeQuery()) {
-            
-            if (!rs.isBeforeFirst()) {
-                System.out.println("No data found in the checkup table.");
-                resultArray = new String[0][0];
-            } else {
-                ArrayList<String> resultList = new ArrayList<>();
-                while (rs.next()) {
-                    String checkupId = rs.getString("checkup_id");
-                    String checkupDate = rs.getString("checkup_date");
-                    long checkupDateLong = Long.parseLong(checkupDate);
-                    Timestamp timestamp = new Timestamp(checkupDateLong);
-                    Date date = new Date(timestamp.getTime());
-                    SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy");
-                    checkupDate = sdf.format(date);
-                    String customerLastName = rs.getString("customer_last_name");
-                    String customerFirstName = rs.getString("customer_first_name");
-                    String doctorFirstName = rs.getString("doctor_first_name");
-                    String doctorLastName = rs.getString("doctor_last_name");
-                    String suggestion = rs.getString("suggestion");
-                    String diagnosis = rs.getString("diagnosis");
-                    String notes = rs.getString("notes");
-                    String status = rs.getString("status");
-                    String customerId = rs.getString("customer_id");
-                    String customerNumber = rs.getString("customer_number");
-                    String customerAddress = rs.getString("customer_address");
-                    String customerWeight = rs.getString("customer_weight");
-                    String customerHeight = rs.getString("customer_height");
-                    String customerGender = rs.getString("customer_gender");
-                    String customerDob = rs.getString("customer_dob");
-                    String checkupType = rs.getString("checkup_type");
-                    String conclusion = rs.getString("conclusion");
-                    String reCheckupDate = rs.getString("reCheckupDate");
-                    String cccdDdcn = rs.getString("cccd_ddcn");
-                    String heartBeat = rs.getString("heart_beat");
-                    String bloodPressure = rs.getString("blood_pressure");
-                    String driveUrl = rs.getString("drive_url");
-                    String doctorUltrasoundId = rs.getString("doctor_ultrasound_id");
-                    String queueNumber = String.format("%02d", rs.getInt("queue_number"));
-                    if (driveUrl == null) { driveUrl = ""; }
-                    String result = String.join("|", checkupId, checkupDate, customerLastName, customerFirstName,
-                            doctorLastName + " " + doctorFirstName, suggestion, diagnosis, notes, status, customerId, customerNumber, customerAddress, customerWeight, customerHeight,
-                            customerGender, customerDob, checkupType, conclusion, reCheckupDate, cccdDdcn, heartBeat, bloodPressure,
-                            driveUrl, doctorUltrasoundId, queueNumber
-                    );
-                    resultList.add(result);
+        if (!rs.isBeforeFirst()) {
+            log.warn("No data found in the checkup table for today's shift {}.", shift);
+            resultArray = new String[0][0];
+        } else {
+            // ... (rest of the logic is the same)
+            ArrayList<String> resultList = new ArrayList<>();
+            while (rs.next()) {
+                String checkupId = rs.getString("checkup_id");
+                String checkupDate = rs.getString("checkup_date");
+                long checkupDateLong = Long.parseLong(checkupDate);
+                Timestamp timestamp = new Timestamp(checkupDateLong);
+                Date date = new Date(timestamp.getTime());
+                SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy");
+                checkupDate = sdf.format(date);
+                String customerLastName = rs.getString("customer_last_name");
+                String customerFirstName = rs.getString("customer_first_name");
+                String doctorFirstName = rs.getString("doctor_first_name");
+                String doctorLastName = rs.getString("doctor_last_name");
+                String suggestion = rs.getString("suggestion");
+                String diagnosis = rs.getString("diagnosis");
+                String notes = rs.getString("notes");
+                String status = rs.getString("status");
+                String customerId = rs.getString("customer_id");
+                String customerNumber = rs.getString("customer_number");
+                String customerAddress = rs.getString("customer_address");
+                String customerWeight = rs.getString("customer_weight");
+                String customerHeight = rs.getString("customer_height");
+                String customerGender = rs.getString("customer_gender");
+                String customerDob = rs.getString("customer_dob");
+                String checkupType = rs.getString("checkup_type");
+                String conclusion = rs.getString("conclusion");
+                String reCheckupDate = rs.getString("reCheckupDate");
+                String cccdDdcn = rs.getString("cccd_ddcn");
+                String heartBeat = rs.getString("heart_beat");
+                String bloodPressure = rs.getString("blood_pressure");
+                String driveUrl = rs.getString("drive_url");
+                String doctorUltrasoundId = rs.getString("doctor_ultrasound_id");
+                String queueNumber = String.format("%02d", rs.getInt("queue_number"));
+                if (driveUrl == null) {
+                    driveUrl = "";
                 }
-                String[] resultString = resultList.toArray(new String[0]);
-                resultArray = new String[resultString.length][];
-                for (int i = 0; i < resultString.length; i++) {
-                    resultArray[i] = resultString[i].split("\\|");
-                }
+                String result = String.join("|", checkupId, checkupDate, customerLastName, customerFirstName,
+                        doctorLastName + " " + doctorFirstName, suggestion, diagnosis, notes, status, customerId, customerNumber, customerAddress, customerWeight, customerHeight,
+                        customerGender, customerDob, checkupType, conclusion, reCheckupDate, cccdDdcn, heartBeat, bloodPressure,
+                        driveUrl, doctorUltrasoundId, queueNumber
+                );
+                resultList.add(result);
+            }
+            String[] resultString = resultList.toArray(new String[0]);
+            resultArray = new String[resultString.length][];
+            for (int i = 0; i < resultString.length; i++) {
+                resultArray[i] = resultString[i].split("\\|");
             }
         }
-
+        
         // --- LOGIC GỐC ĐẾM SỐ BỆNH NHÂN TRONG NGÀY ---
         ZoneId zoneId = ZoneId.of("Asia/Ho_Chi_Minh");
         LocalDate today = LocalDate.now(zoneId);
@@ -2733,7 +2747,6 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         int totalPatientsToday = 0;
         String countQuery = "SELECT COUNT(DISTINCT a.customer_id) as patient_count FROM checkup as a WHERE a.checkup_date >= ? AND a.checkup_date <= ?";
         
-        // SỬA ĐỔI: Thay thế String.format và statement.executeQuery bằng PreparedStatement an toàn
         try (PreparedStatement countStmt = conn.prepareStatement(countQuery)) {
             countStmt.setLong(1, startOfTodayMillis);
             countStmt.setLong(2, endOfTodayMillis);
@@ -2748,7 +2761,6 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         int totalRecheckToday = 0;
         String recheckQuery = "SELECT COUNT(*) as recheck_count FROM checkup WHERE reCheckupDate >= ? AND reCheckupDate <= ?";
         
-        // SỬA ĐỔI: Thay thế String.format và statement.executeQuery bằng PreparedStatement an toàn
         try (PreparedStatement recheckStmt = conn.prepareStatement(recheckQuery)) {
             recheckStmt.setLong(1, startOfTodayMillis);
             recheckStmt.setLong(2, endOfTodayMillis);
@@ -2758,11 +2770,10 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                 }
             }
         }
-        
-        // --- LOGIC GỐC GỬI GÓI TIN ---
+
         int maxCurId = SessionManager.getMaxSessionId();
         for (int sessionId = 1; sessionId <= maxCurId; sessionId++) {
-            UserUtil.sendPacket(sessionId, new GetCheckUpQueueUpdateResponse(resultArray));
+            UserUtil.sendPacket(sessionId, new GetCheckUpQueueUpdateResponse(resultArray, shift));
             UserUtil.sendPacket(sessionId, new TodayPatientCountResponse(totalPatientsToday));
             UserUtil.sendPacket(sessionId, new RecheckCountResponse(totalRecheckToday));
         }
@@ -2771,9 +2782,8 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         log.info("send recheck count response to all clients");
 
     } catch (SQLException e) {
-        // Giữ nguyên cách xử lý lỗi gốc
-        throw new RuntimeException(e);
+        log.error("Error during broadcastQueueUpdate", e);
     }
-  } 
+}
 
 }
