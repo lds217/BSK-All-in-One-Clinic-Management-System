@@ -311,7 +311,7 @@ public class NavBar extends JPanel {
         counterSpinner = new JSpinner(spinnerModel);
         counterSpinner.setPreferredSize(new Dimension(80, 30));
         counterSpinner.setFont(new Font("Arial", Font.BOLD, 14));
-        
+        counterSpinner.setEnabled(false);
         // Style the spinner
         JComponent editor = counterSpinner.getEditor();
         if (editor instanceof JSpinner.DefaultEditor) {

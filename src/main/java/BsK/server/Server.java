@@ -130,24 +130,24 @@ public class Server {
         }
 
         try {
-            log.info("🔄 Initializing Google Drive OAuth service...");
+            log.info("Đang khởi tạo dịch vụ Google Drive OAuth...");
             googleDriveService = new GoogleDriveServiceOAuth(googleDriveRootFolderName);
-            log.info("✅ Google Drive OAuth service initialized successfully");
+            log.info("Dịch vụ Google Drive OAuth đã khởi tạo thành công");
             
             // Update dashboard if it exists
             if (ServerDashboard.getInstance() != null) {
-                ServerDashboard.getInstance().updateGoogleDriveStatus(true, "Connected");
+                ServerDashboard.getInstance().updateGoogleDriveStatus(true, "Đã kết nối");
             }
             
         } catch (Exception e) {
-            log.error("❌ Failed to initialize Google Drive OAuth service: {}", e.getMessage());
-            log.info("💡 Server will continue without Google Drive integration");
-            log.info("🔧 To fix this, ensure google-oauth-credentials.json is properly configured");
+            log.error("Không thể khởi tạo dịch vụ Google Drive OAuth: {}", e.getMessage());
+            log.info("Máy chủ sẽ tiếp tục hoạt động mà không tích hợp Google Drive");
+            log.info("Để khắc phục, hãy đảm bảo google-oauth-credentials.json được cấu hình đúng");
             googleDriveService = null;
             
             // Update dashboard if it exists
             if (ServerDashboard.getInstance() != null) {
-                ServerDashboard.getInstance().updateGoogleDriveStatus(false, "Failed: " + e.getMessage());
+                ServerDashboard.getInstance().updateGoogleDriveStatus(false, "Thất bại: " + e.getMessage());
             }
         }
     }
@@ -156,7 +156,7 @@ public class Server {
      * Manually retry Google Drive connection
      */
     public static void retryGoogleDriveConnection() {
-        log.info("🔄 Retrying Google Drive connection...");
+        log.info("Đang thử kết nối lại Google Drive...");
         initializeGoogleDriveService();
     }
 
@@ -186,11 +186,11 @@ public class Server {
      */
     public static void updateGoogleDriveRootFolder(String newRootFolderName) throws Exception {
         if (newRootFolderName == null || newRootFolderName.trim().isEmpty()) {
-            throw new IllegalArgumentException("Root folder name cannot be empty");
+            throw new IllegalArgumentException("Tên thư mục gốc không được để trống");
         }
         
         googleDriveRootFolderName = newRootFolderName.trim();
-        log.info("🔄 Updating Google Drive root folder to: {}", googleDriveRootFolderName);
+        log.info("Đang cập nhật thư mục gốc Google Drive thành: {}", googleDriveRootFolderName);
         
         // Save to configuration file
         saveGoogleDriveRootFolderToConfig(googleDriveRootFolderName);
@@ -234,11 +234,11 @@ public class Server {
             // Save to external config file
             try (var output = Files.newOutputStream(externalConfig.toPath())) {
                 props.store(output, "BSK Server Configuration - Updated by Dashboard");
-                log.info("💾 Saved Google Drive root folder setting to config file");
+                log.info("Đã lưu cấu hình thư mục gốc Google Drive vào tệp cấu hình");
             }
             
         } catch (Exception e) {
-            log.warn("⚠️  Could not save Google Drive root folder to config file: {}", e.getMessage());
+            log.warn("Không thể lưu thư mục gốc Google Drive vào tệp cấu hình: {}", e.getMessage());
         }
     }
 
@@ -265,12 +265,12 @@ public class Server {
         // Initialize and show server dashboard
         ServerDashboard dashboard = ServerDashboard.getInstance();
         dashboard.setVisible(true);
-        dashboard.updateStatus("Starting...", Color.ORANGE);
+        dashboard.updateStatus("Đang khởi động...", Color.ORANGE);
         dashboard.updatePort(PORT);
         
         // Update Google Drive status on dashboard
         dashboard.updateGoogleDriveStatus(isGoogleDriveConnected(), 
-            isGoogleDriveConnected() ? "Connected" : "Disconnected");
+            isGoogleDriveConnected() ? "Đã kết nối" : "Chưa kết nối");
 
         EventLoopGroup parentGroup =
             Epoll.isAvailable() ? new EpollEventLoopGroup() : new NioEventLoopGroup();
@@ -310,22 +310,22 @@ public class Server {
           log.info(" - If on network: ws://<this-computer's-ip>:{}", PORT);
           
           // Update dashboard status to running
-          dashboard.updateStatus("Running", Color.GREEN);
-          dashboard.addLog("Server started successfully on port " + PORT);
+          dashboard.updateStatus("Đang chạy", Color.GREEN);
+          dashboard.addLog("Máy chủ đã khởi động thành công trên cổng " + PORT);
           if (isGoogleDriveConnected()) {
-              dashboard.addLog("Google Drive integration: Connected ✅");
+              dashboard.addLog("Tích hợp Google Drive: Đã kết nối");
           } else {
-              dashboard.addLog("Google Drive integration: Disconnected ❌");
+              dashboard.addLog("Tích hợp Google Drive: Chưa kết nối");
           }
           
           f.channel().closeFuture().sync();
         } catch (Exception e) {
-          dashboard.updateStatus("Error", Color.RED);
-          dashboard.addLog("Server error: " + e.getMessage());
+          dashboard.updateStatus("Lỗi", Color.RED);
+          dashboard.addLog("Lỗi máy chủ: " + e.getMessage());
           throw e;
         } finally {
-          dashboard.updateStatus("Shutting down", Color.ORANGE);
-          dashboard.addLog("Server shutting down...");
+          dashboard.updateStatus("Đang tắt", Color.ORANGE);
+          dashboard.addLog("Máy chủ đang tắt...");
           parentGroup.shutdownGracefully();
           childGroup.shutdownGracefully();
         }
@@ -340,8 +340,8 @@ public class Server {
         ServerDashboard dashboard = ServerDashboard.getInstance();
 
         if (!isGoogleDriveConnected() || googleDriveService == null) {
-            dashboard.addLog("❌ Cannot backup database: Google Drive is not connected.");
-            throw new IOException("Google Drive service is not available.");
+            dashboard.addLog("Không thể sao lưu cơ sở dữ liệu: Google Drive chưa kết nối.");
+            throw new IOException("Dịch vụ Google Drive không khả dụng.");
         }
 
         // Define the path to the database
@@ -349,8 +349,8 @@ public class Server {
         java.io.File dbFile = new java.io.File(dbPath);
 
         if (!dbFile.exists()) {
-            dashboard.addLog("❌ Cannot backup database: File not found at " + dbPath);
-            throw new IOException("Database file not found: " + dbPath);
+            dashboard.addLog("Không thể sao lưu cơ sở dữ liệu: Không tìm thấy tệp tại " + dbPath);
+            throw new IOException("Không tìm thấy tệp cơ sở dữ liệu: " + dbPath);
         }
 
         // Call the service to perform the backup

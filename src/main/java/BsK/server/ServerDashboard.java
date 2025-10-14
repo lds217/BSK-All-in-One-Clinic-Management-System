@@ -38,6 +38,14 @@ public class ServerDashboard extends JFrame {
     private JTable networkTable;
     private DefaultTableModel networkTableModel;
     private JButton backupDbButton;
+    
+    // New monitoring fields
+    private JLabel uptimeLabel;
+    private JLabel diskSpaceLabel;
+    private JLabel dbSizeLabel;
+    private JLabel peakConnectionsLabel;
+    private final long serverStartTime = System.currentTimeMillis();
+    private int peakConnections = 0;
 
     public static ServerDashboard getInstance() {
         if (instance == null) {
@@ -47,20 +55,23 @@ public class ServerDashboard extends JFrame {
     }
 
     private ServerDashboard() {
-        setTitle("BSK Server Dashboard");
-        setSize(1200, 800);
+        setTitle("Bảng Điều Khiển Máy Chủ BSK");
+        setSize(1400, 900);
         setLocationRelativeTo(null);
         
-        // --- MODIFICATION START: Add custom close logic ---
+        // Add custom close logic
         addCustomCloseListener();
-        // --- MODIFICATION END ---
 
         // Main container panel
-        JPanel mainPanel = new JPanel(new BorderLayout(10, 10));
-        mainPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        JPanel mainPanel = new JPanel(new BorderLayout(5, 5));
+        mainPanel.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
 
         // Add main components
-        mainPanel.add(createHeaderPanel(), BorderLayout.NORTH);
+        JPanel topPanel = new JPanel(new BorderLayout(5, 5));
+        topPanel.add(createHeaderPanel(), BorderLayout.NORTH);
+        topPanel.add(createMonitoringPanel(), BorderLayout.CENTER);
+        
+        mainPanel.add(topPanel, BorderLayout.NORTH);
         mainPanel.add(createMainContentPanel(), BorderLayout.CENTER);
 
         add(mainPanel);
@@ -76,69 +87,162 @@ public class ServerDashboard extends JFrame {
     
     // --- START OF UNCHANGED METHODS (for context) ---
     private JPanel createHeaderPanel() {
-        JPanel headerPanel = new JPanel(new GridBagLayout());
-        GridBagConstraints gbc = new GridBagConstraints();
-        gbc.fill = GridBagConstraints.BOTH;
-        gbc.insets = new Insets(0, 5, 0, 5);
-        gbc.weighty = 1.0;
-
-        // Server Status Panel
-        JPanel statusPanel = new JPanel(new GridLayout(1, 3, 10, 0));
-        statusPanel.setBorder(BorderFactory.createTitledBorder("Server Status"));
-        statusLabel = new JLabel("Status: Starting...", SwingConstants.CENTER);
-        portLabel = new JLabel("Port: --", SwingConstants.CENTER);
-        clientsLabel = new JLabel("Connected Clients: 0", SwingConstants.CENTER);
-        statusPanel.add(statusLabel);
-        statusPanel.add(portLabel);
-        statusPanel.add(clientsLabel);
-        gbc.gridx = 0;
-        gbc.weightx = 0.35; // MODIFIED: Adjusted weight
-        headerPanel.add(statusPanel, gbc);
-
-        // System Info Panel
-        JPanel systemPanel = new JPanel(new GridLayout(1, 3, 10, 0));
-        systemPanel.setBorder(BorderFactory.createTitledBorder("System Information"));
-        memoryLabel = new JLabel("Memory Usage: --", SwingConstants.CENTER);
-        cpuLabel = new JLabel("CPU Usage: --", SwingConstants.CENTER);
-        JLabel osLabel = new JLabel("OS: " + System.getProperty("os.name"), SwingConstants.CENTER);
-        systemPanel.add(memoryLabel);
-        systemPanel.add(cpuLabel);
-        systemPanel.add(osLabel);
-        gbc.gridx = 1;
-        gbc.weightx = 0.35; // MODIFIED: Adjusted weight
-        headerPanel.add(systemPanel, gbc);
-
-        // Google Drive Panel
-        JPanel drivePanel = new JPanel(new BorderLayout(10, 0));
-        drivePanel.setBorder(BorderFactory.createTitledBorder("Google Drive"));
-        googleDriveLabel = new JLabel("Status: Checking...", SwingConstants.CENTER);
-        googleDriveButton = new JButton("Retry");
-        googleDriveButton.addActionListener(e -> retryGoogleDriveConnection());
-        drivePanel.add(googleDriveLabel, BorderLayout.CENTER);
-        drivePanel.add(googleDriveButton, BorderLayout.EAST);
-        gbc.gridx = 2;
-        gbc.weightx = 0.2; // MODIFIED: Adjusted weight
-        headerPanel.add(drivePanel, gbc);
+        JPanel headerPanel = new JPanel(new BorderLayout(5, 5));
         
-        // --- NEW: Actions Panel ---
-        JPanel actionsPanel = new JPanel(new BorderLayout());
-        actionsPanel.setBorder(BorderFactory.createTitledBorder("Actions"));
-        backupDbButton = new JButton("Backup DB to Drive");
-        backupDbButton.setToolTipText("Upload a timestamped copy of the database to Google Drive.");
+        // Top row - Status and Clients
+        JPanel topRow = new JPanel(new GridLayout(1, 4, 10, 0));
+        Font headerFont = new Font("Arial", Font.BOLD, 16);
+        
+        statusLabel = new JLabel("Trạng thái: Đang khởi động...", SwingConstants.CENTER);
+        statusLabel.setFont(headerFont);
+        statusLabel.setBorder(BorderFactory.createTitledBorder(
+            BorderFactory.createLineBorder(Color.GRAY), 
+            "Trạng thái máy chủ", 
+            TitledBorder.CENTER, 
+            TitledBorder.TOP, 
+            new Font("Arial", Font.PLAIN, 14)));
+        
+        portLabel = new JLabel("Cổng: --", SwingConstants.CENTER);
+        portLabel.setFont(headerFont);
+        portLabel.setBorder(BorderFactory.createTitledBorder(
+            BorderFactory.createLineBorder(Color.GRAY), 
+            "Cổng kết nối", 
+            TitledBorder.CENTER, 
+            TitledBorder.TOP, 
+            new Font("Arial", Font.PLAIN, 14)));
+        
+        clientsLabel = new JLabel("Máy con: 0", SwingConstants.CENTER);
+        clientsLabel.setFont(headerFont);
+        clientsLabel.setBorder(BorderFactory.createTitledBorder(
+            BorderFactory.createLineBorder(Color.GRAY), 
+            "Số máy kết nối", 
+            TitledBorder.CENTER, 
+            TitledBorder.TOP, 
+            new Font("Arial", Font.PLAIN, 14)));
+        
+        googleDriveLabel = new JLabel("Đang kiểm tra...", SwingConstants.CENTER);
+        googleDriveLabel.setFont(headerFont);
+        googleDriveLabel.setBorder(BorderFactory.createTitledBorder(
+            BorderFactory.createLineBorder(Color.GRAY), 
+            "Google Drive", 
+            TitledBorder.CENTER, 
+            TitledBorder.TOP, 
+            new Font("Arial", Font.PLAIN, 14)));
+        
+        topRow.add(statusLabel);
+        topRow.add(portLabel);
+        topRow.add(clientsLabel);
+        topRow.add(googleDriveLabel);
+        
+        // Bottom row - System info and actions
+        JPanel bottomRow = new JPanel(new GridLayout(1, 4, 10, 0));
+        
+        memoryLabel = new JLabel("Bộ nhớ: --", SwingConstants.CENTER);
+        memoryLabel.setFont(new Font("Arial", Font.PLAIN, 15));
+        memoryLabel.setBorder(BorderFactory.createTitledBorder(
+            BorderFactory.createLineBorder(Color.LIGHT_GRAY), 
+            "RAM", 
+            TitledBorder.CENTER, 
+            TitledBorder.TOP, 
+            new Font("Arial", Font.PLAIN, 13)));
+        
+        cpuLabel = new JLabel("CPU: --", SwingConstants.CENTER);
+        cpuLabel.setFont(new Font("Arial", Font.PLAIN, 15));
+        cpuLabel.setBorder(BorderFactory.createTitledBorder(
+            BorderFactory.createLineBorder(Color.LIGHT_GRAY), 
+            "CPU", 
+            TitledBorder.CENTER, 
+            TitledBorder.TOP, 
+            new Font("Arial", Font.PLAIN, 13)));
+        
+        JPanel buttonPanel = new JPanel(new GridLayout(1, 1));
+        googleDriveButton = new JButton("Thử lại kết nối");
+        googleDriveButton.setFont(new Font("Arial", Font.BOLD, 14));
+        googleDriveButton.addActionListener(e -> retryGoogleDriveConnection());
+        buttonPanel.add(googleDriveButton);
+        buttonPanel.setBorder(BorderFactory.createTitledBorder(
+            BorderFactory.createLineBorder(Color.LIGHT_GRAY), 
+            "Hành động Drive", 
+            TitledBorder.CENTER, 
+            TitledBorder.TOP, 
+            new Font("Arial", Font.PLAIN, 13)));
+        
+        backupDbButton = new JButton("Sao lưu DB lên Drive");
+        backupDbButton.setFont(new Font("Arial", Font.BOLD, 14));
+        backupDbButton.setToolTipText("Tải bản sao cơ sở dữ liệu lên Google Drive");
         backupDbButton.addActionListener(e -> performDatabaseBackup());
-        actionsPanel.add(backupDbButton, BorderLayout.CENTER);
-        gbc.gridx = 3;
-        gbc.weightx = 0.1; // MODIFIED: Adjusted weight
-        headerPanel.add(actionsPanel, gbc);
-
-
+        JPanel backupPanel = new JPanel(new GridLayout(1, 1));
+        backupPanel.add(backupDbButton);
+        backupPanel.setBorder(BorderFactory.createTitledBorder(
+            BorderFactory.createLineBorder(Color.LIGHT_GRAY), 
+            "Sao lưu dữ liệu", 
+            TitledBorder.CENTER, 
+            TitledBorder.TOP, 
+            new Font("Arial", Font.PLAIN, 13)));
+        
+        bottomRow.add(memoryLabel);
+        bottomRow.add(cpuLabel);
+        bottomRow.add(buttonPanel);
+        bottomRow.add(backupPanel);
+        
+        headerPanel.add(topRow, BorderLayout.NORTH);
+        headerPanel.add(bottomRow, BorderLayout.CENTER);
+        
         return headerPanel;
+    }
+    
+    private JPanel createMonitoringPanel() {
+        JPanel monitoringPanel = new JPanel(new GridLayout(1, 4, 10, 0));
+        Font monitorFont = new Font("Arial", Font.PLAIN, 15);
+        
+        uptimeLabel = new JLabel("00:00:00", SwingConstants.CENTER);
+        uptimeLabel.setFont(monitorFont);
+        uptimeLabel.setBorder(BorderFactory.createTitledBorder(
+            BorderFactory.createLineBorder(Color.GRAY), 
+            "Thời gian hoạt động", 
+            TitledBorder.CENTER, 
+            TitledBorder.TOP, 
+            new Font("Arial", Font.PLAIN, 14)));
+        
+        diskSpaceLabel = new JLabel("-- GB", SwingConstants.CENTER);
+        diskSpaceLabel.setFont(monitorFont);
+        diskSpaceLabel.setBorder(BorderFactory.createTitledBorder(
+            BorderFactory.createLineBorder(Color.GRAY), 
+            "Dung lượng còn lại", 
+            TitledBorder.CENTER, 
+            TitledBorder.TOP, 
+            new Font("Arial", Font.PLAIN, 14)));
+        
+        dbSizeLabel = new JLabel("-- MB", SwingConstants.CENTER);
+        dbSizeLabel.setFont(monitorFont);
+        dbSizeLabel.setBorder(BorderFactory.createTitledBorder(
+            BorderFactory.createLineBorder(Color.GRAY), 
+            "Kích thước CSDL", 
+            TitledBorder.CENTER, 
+            TitledBorder.TOP, 
+            new Font("Arial", Font.PLAIN, 14)));
+        
+        peakConnectionsLabel = new JLabel("Đỉnh: 0", SwingConstants.CENTER);
+        peakConnectionsLabel.setFont(monitorFont);
+        peakConnectionsLabel.setBorder(BorderFactory.createTitledBorder(
+            BorderFactory.createLineBorder(Color.GRAY), 
+            "Kết nối đồng thời", 
+            TitledBorder.CENTER, 
+            TitledBorder.TOP, 
+            new Font("Arial", Font.PLAIN, 14)));
+        
+        monitoringPanel.add(uptimeLabel);
+        monitoringPanel.add(diskSpaceLabel);
+        monitoringPanel.add(dbSizeLabel);
+        monitoringPanel.add(peakConnectionsLabel);
+        
+        return monitoringPanel;
     }
     
     private void performDatabaseBackup() {
         // Disable button to prevent multiple clicks
         backupDbButton.setEnabled(false);
-        addLog("▶️ Starting database backup to Google Drive...");
+        addLog("Bắt đầu sao lưu cơ sở dữ liệu lên Google Drive...");
 
         // Run the backup in a background thread to not freeze the UI
         new Thread(() -> {
@@ -148,10 +252,10 @@ public class ServerDashboard extends JFrame {
 
                 // Update UI on success
                 SwingUtilities.invokeLater(() -> {
-                    addLog("✅ Database backup completed successfully.");
+                    addLog("Sao lưu cơ sở dữ liệu thành công.");
                     JOptionPane.showMessageDialog(this,
-                            "Database backup was successfully uploaded to Google Drive.",
-                            "Backup Successful",
+                            "Cơ sở dữ liệu đã được sao lưu thành công lên Google Drive.",
+                            "Sao lưu thành công",
                             JOptionPane.INFORMATION_MESSAGE);
                 });
 
@@ -159,10 +263,10 @@ public class ServerDashboard extends JFrame {
                 log.error("Database backup failed", e);
                 // Update UI on failure
                 SwingUtilities.invokeLater(() -> {
-                    addLog("❌ Database backup failed: " + e.getMessage());
+                    addLog("Sao lưu cơ sở dữ liệu thất bại: " + e.getMessage());
                         JOptionPane.showMessageDialog(this,
-                                "Failed to backup the database.\nError: " + e.getMessage() + "\n\nCheck logs for more details.",
-                                "Backup Failed",
+                                "Không thể sao lưu cơ sở dữ liệu.\nLỗi: " + e.getMessage() + "\n\nKiểm tra nhật ký để biết thêm chi tiết.",
+                                "Sao lưu thất bại",
                                 JOptionPane.ERROR_MESSAGE);
                 });
             } finally {
@@ -175,44 +279,74 @@ public class ServerDashboard extends JFrame {
     private JSplitPane createMainContentPanel() {
         // --- Log Panel ---
         JPanel logPanel = new JPanel(new BorderLayout());
-        logPanel.setBorder(BorderFactory.createTitledBorder("Server Logs"));
+        TitledBorder logBorder = BorderFactory.createTitledBorder(
+            BorderFactory.createLineBorder(Color.DARK_GRAY, 2), 
+            "Nhật ký máy chủ", 
+            TitledBorder.LEFT, 
+            TitledBorder.TOP, 
+            new Font("Arial", Font.BOLD, 16));
+        logPanel.setBorder(logBorder);
+        
         logArea = new JTextPane();
         logArea.setEditable(false);
-        logArea.setFont(new Font("Monospaced", Font.PLAIN, 12));
+        logArea.setFont(new Font("Consolas", Font.PLAIN, 14));
         JScrollPane logScrollPane = new JScrollPane(logArea);
         logPanel.add(createLogControlsPanel(), BorderLayout.NORTH);
         logPanel.add(logScrollPane, BorderLayout.CENTER);
 
         // --- Network Panel ---
         JPanel networkPanel = new JPanel(new BorderLayout());
-        networkPanel.setBorder(BorderFactory.createTitledBorder("Network Information"));
-        String[] columnNames = {"Session ID", "IP Address", "Port", "Role", "Connected Time", "Last Activity"};
+        TitledBorder networkBorder = BorderFactory.createTitledBorder(
+            BorderFactory.createLineBorder(Color.DARK_GRAY, 2), 
+            "Thông tin kết nối", 
+            TitledBorder.LEFT, 
+            TitledBorder.TOP, 
+            new Font("Arial", Font.BOLD, 16));
+        networkPanel.setBorder(networkBorder);
+        
+        String[] columnNames = {"ID Phiên", "Địa chỉ IP", "Cổng", "Vai trò", "Thời gian kết nối", "Hoạt động cuối"};
         networkTableModel = new DefaultTableModel(columnNames, 0) {
             @Override
             public boolean isCellEditable(int row, int column) { return false; }
         };
         networkTable = new JTable(networkTableModel);
+        networkTable.setFont(new Font("Arial", Font.PLAIN, 14));
+        networkTable.setRowHeight(28);
+        networkTable.getTableHeader().setFont(new Font("Arial", Font.BOLD, 15));
         networkTable.setFillsViewportHeight(true);
         networkPanel.add(new JScrollPane(networkTable), BorderLayout.CENTER);
 
         // --- Split Pane ---
         JSplitPane splitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT, logPanel, networkPanel);
-        splitPane.setResizeWeight(0.80); // Give 80% of space to the logs
+        splitPane.setResizeWeight(0.75); // Give 75% of space to the logs, 25% to network table
+        splitPane.setDividerSize(8);
         
         return splitPane;
     }
 
     private JPanel createLogControlsPanel() {
-        JPanel logControlsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        JPanel logControlsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 5));
+        Font controlFont = new Font("Arial", Font.PLAIN, 14);
+        
+        JLabel searchLabel = new JLabel("Tìm kiếm:");
+        searchLabel.setFont(controlFont);
+        
         searchField = new JTextField(20);
-        JButton searchButton = new JButton("Search");
+        searchField.setFont(controlFont);
+        
+        JButton searchButton = new JButton("Tìm");
+        searchButton.setFont(new Font("Arial", Font.BOLD, 14));
         searchButton.addActionListener(e -> searchInLogs());
-        JButton clearButton = new JButton("Clear Logs");
+        
+        JButton clearButton = new JButton("Xóa nhật ký");
+        clearButton.setFont(new Font("Arial", Font.BOLD, 14));
         clearButton.addActionListener(e -> clearLogs());
-        autoScrollToggle = new JToggleButton("Auto-scroll", true);
+        
+        autoScrollToggle = new JToggleButton("Tự động cuộn", true);
+        autoScrollToggle.setFont(new Font("Arial", Font.BOLD, 14));
         autoScrollToggle.addActionListener(e -> isAutoScrollEnabled = autoScrollToggle.isSelected());
 
-        logControlsPanel.add(new JLabel("Search: "));
+        logControlsPanel.add(searchLabel);
         logControlsPanel.add(searchField);
         logControlsPanel.add(searchButton);
         logControlsPanel.add(Box.createHorizontalStrut(20));
@@ -227,17 +361,81 @@ public class ServerDashboard extends JFrame {
         OperatingSystemMXBean osBean = ManagementFactory.getOperatingSystemMXBean();
 
         statsTimer = new Timer(2000, e -> {
+            // Memory stats
             long usedMemory = memoryBean.getHeapMemoryUsage().getUsed() / (1024 * 1024);
             long maxMemory = memoryBean.getHeapMemoryUsage().getMax() / (1024 * 1024);
             SwingUtilities.invokeLater(() ->
-                memoryLabel.setText(String.format("Memory: %d MB / %d MB", usedMemory, maxMemory))
+                memoryLabel.setText(String.format("Bộ nhớ: %d MB / %d MB", usedMemory, maxMemory))
             );
 
+            // CPU stats
             if (osBean instanceof com.sun.management.OperatingSystemMXBean) {
                 double cpuLoad = ((com.sun.management.OperatingSystemMXBean) osBean).getSystemCpuLoad() * 100;
                 SwingUtilities.invokeLater(() ->
                     cpuLabel.setText(String.format("CPU: %.1f%%", cpuLoad))
                 );
+            }
+            
+            // Uptime
+            long uptimeSeconds = (System.currentTimeMillis() - serverStartTime) / 1000;
+            long hours = uptimeSeconds / 3600;
+            long minutes = (uptimeSeconds % 3600) / 60;
+            long seconds = uptimeSeconds % 60;
+            String uptime = String.format("%02d:%02d:%02d", hours, minutes, seconds);
+            SwingUtilities.invokeLater(() -> uptimeLabel.setText(uptime));
+            
+            // Disk space
+            try {
+                java.io.File root = new java.io.File(".");
+                long freeSpace = root.getFreeSpace() / (1024 * 1024 * 1024); // GB
+                long totalSpace = root.getTotalSpace() / (1024 * 1024 * 1024); // GB
+                String diskInfo = String.format("%d GB / %d GB", freeSpace, totalSpace);
+                
+                // Alert if low disk space
+                Color diskColor = Color.BLACK;
+                if (freeSpace < 5) {
+                    diskColor = Color.RED;
+                    if (uptimeSeconds % 60 == 0) { // Log warning every minute
+                        addLog("CẢNH BÁO: Dung lượng đĩa thấp - Chỉ còn " + freeSpace + " GB!");
+                    }
+                } else if (freeSpace < 10) {
+                    diskColor = Color.ORANGE;
+                }
+                
+                Color finalDiskColor = diskColor;
+                SwingUtilities.invokeLater(() -> {
+                    diskSpaceLabel.setText(diskInfo);
+                    diskSpaceLabel.setForeground(finalDiskColor);
+                });
+            } catch (Exception ex) {
+                SwingUtilities.invokeLater(() -> diskSpaceLabel.setText("N/A"));
+            }
+            
+            // Database size
+            try {
+                java.io.File dbFile = new java.io.File("database/BSK.db");
+                if (dbFile.exists()) {
+                    long dbSize = dbFile.length() / (1024 * 1024); // MB
+                    SwingUtilities.invokeLater(() -> 
+                        dbSizeLabel.setText(String.format("%d MB", dbSize))
+                    );
+                }
+            } catch (Exception ex) {
+                SwingUtilities.invokeLater(() -> dbSizeLabel.setText("N/A"));
+            }
+            
+            // Peak connections
+            if (connectedClients > peakConnections) {
+                peakConnections = connectedClients;
+                SwingUtilities.invokeLater(() -> 
+                    peakConnectionsLabel.setText(String.format("Đỉnh: %d", peakConnections))
+                );
+            }
+            
+            // Memory alert
+            double memoryUsage = (double) usedMemory / maxMemory * 100;
+            if (memoryUsage > 90 && uptimeSeconds % 60 == 0) {
+                addLog("CẢNH BÁO: Bộ nhớ cao - " + String.format("%.1f%%", memoryUsage));
             }
         });
         statsTimer.start();
@@ -292,7 +490,7 @@ public class ServerDashboard extends JFrame {
         SwingUtilities.invokeLater(() -> {
             try {
                 logArea.getDocument().remove(0, logArea.getDocument().getLength());
-                addLog("Logs cleared");
+                addLog("Đã xóa nhật ký");
             } catch (BadLocationException e) {
                 log.error("Error clearing logs", e);
             }
@@ -301,14 +499,14 @@ public class ServerDashboard extends JFrame {
 
     public void updateStatus(String status, Color color) {
         SwingUtilities.invokeLater(() -> {
-            statusLabel.setText("Status: " + status);
+            statusLabel.setText(status);
             statusLabel.setForeground(color);
         });
     }
 
     public void updatePort(int port) {
         SwingUtilities.invokeLater(() ->
-            portLabel.setText("Port: " + port)
+            portLabel.setText("Cổng: " + port)
         );
     }
 
@@ -325,7 +523,7 @@ public class ServerDashboard extends JFrame {
     private static void updateClientCount() {
         if (instance != null) {
             SwingUtilities.invokeLater(() -> {
-                instance.clientsLabel.setText("Connected Clients: " + connectedClients);
+                instance.clientsLabel.setText("Máy con: " + connectedClients);
                 instance.refreshNetworkTable();
             });
         }
@@ -356,25 +554,25 @@ public class ServerDashboard extends JFrame {
     public void updateGoogleDriveStatus(boolean connected, String statusMessage) {
         SwingUtilities.invokeLater(() -> {
             if (connected) {
-                googleDriveLabel.setText("✅ " + statusMessage);
+                googleDriveLabel.setText("Đã kết nối");
                 googleDriveLabel.setForeground(new Color(34, 139, 34)); // Forest Green
-                googleDriveButton.setText("Test");
-                googleDriveButton.setToolTipText("Test Google Drive connection");
+                googleDriveButton.setText("Kiểm tra");
+                googleDriveButton.setToolTipText("Kiểm tra kết nối Google Drive");
             } else {
-                googleDriveLabel.setText("❌ " + statusMessage);
+                googleDriveLabel.setText("Chưa kết nối");
                 googleDriveLabel.setForeground(Color.RED);
-                googleDriveButton.setText("Retry");
-                googleDriveButton.setToolTipText("Retry Google Drive connection");
+                googleDriveButton.setText("Thử lại");
+                googleDriveButton.setToolTipText("Thử kết nối lại Google Drive");
             }
         });
     }
 
     private void retryGoogleDriveConnection() {
         SwingUtilities.invokeLater(() -> {
-            googleDriveLabel.setText("🔄 Connecting...");
+            googleDriveLabel.setText("Đang kết nối...");
             googleDriveLabel.setForeground(Color.ORANGE);
             googleDriveButton.setEnabled(false);
-            addLog("Testing Google Drive connection...");
+            addLog("Đang kiểm tra kết nối Google Drive...");
         });
 
         // Run connection attempt in a background thread
@@ -385,17 +583,16 @@ public class ServerDashboard extends JFrame {
 
                 // After the attempt, get the result from the server's state
                 boolean isConnected = BsK.server.Server.isGoogleDriveConnected();
-                String message = isConnected ? "Connection test successful" : "Connection test failed";
+                String message = isConnected ? "Kết nối thành công" : "Kết nối thất bại";
 
-                // *** THIS IS THE FIX ***
                 // Call the standard UI update method with the result.
                 updateGoogleDriveStatus(isConnected, message);
 
             } catch (Exception e) {
                 log.error("Google Drive connection test failed with an exception", e);
                 // Also update the UI in case of an exception
-                updateGoogleDriveStatus(false, "Connection error");
-                addLog("Google Drive connection error: " + e.getMessage());
+                updateGoogleDriveStatus(false, "Lỗi kết nối");
+                addLog("Lỗi kết nối Google Drive: " + e.getMessage());
             } finally {
                 // ALWAYS re-enable the button on the UI thread
                 SwingUtilities.invokeLater(() -> googleDriveButton.setEnabled(true));

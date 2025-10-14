@@ -109,7 +109,7 @@ public class ClientHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         log.info("Handshake complete");
         ClientHandler.ctx = ctx;
         ClientHandler.frame = frame;
-        UIHandler.INSTANCE.showUI();
+        SwingUtilities.invokeLater(UIHandler.INSTANCE::showUI);
         return; 
       }
 
@@ -147,7 +147,7 @@ public class ClientHandler extends SimpleChannelInboundHandler<TextWebSocketFram
       // Handle PongResponse
       if (packet instanceof PongResponse pongResponse) {
         long roundTripTime = System.currentTimeMillis() - pongResponse.getTimestamp();
-        log.debug("Received PongResponse (round trip: {}ms)", roundTripTime);
+        // log.debug("Received PongResponse (round trip: {}ms)", roundTripTime);
         
         // Reset missed pong counter on successful pong
         missedPongCount = 0;
@@ -193,7 +193,7 @@ public class ClientHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         }
         
         // Send new ping packet
-        log.debug("Sending PingRequest to server (missed count: {})", missedPongCount);
+        // log.debug("Sending PingRequest to server (missed count: {})", missedPongCount);
         lastPingRequestTime = System.currentTimeMillis();
         awaitingPongResponse = true;
         

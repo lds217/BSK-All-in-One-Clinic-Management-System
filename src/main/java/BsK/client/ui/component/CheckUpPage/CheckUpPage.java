@@ -406,7 +406,7 @@ public class CheckUpPage extends JPanel {
             // Reset filters to "Tất cả" to avoid index/filter/sort mismatch on open
             if (queueManagementPage != null) {
                 queueManagementPage.checkupTypeFilter.setSelectedItem("Tất cả");
-                queueManagementPage.patientNameFilter.setText("");
+
                 queueManagementPage.applyFilters();
             }
             queueManagementPage.setVisible(true);
@@ -4318,7 +4318,6 @@ public class CheckUpPage extends JPanel {
         private JTable queueTable;
         private DefaultTableModel queueTableModel;
         private JComboBox<String> checkupTypeFilter;
-        private JTextField patientNameFilter;
         private List<Patient> filteredPatients;
 
         public QueueManagementPage() {
@@ -4346,8 +4345,6 @@ public class CheckUpPage extends JPanel {
                 
                 @Override
                 public void windowClosing(WindowEvent e) {
-                    // Reset patient name filter when closing dialog
-                    patientNameFilter.setText("");
                     applyFilters();
                     // Hide instead of closing to maintain state
                     setVisible(false);
@@ -4440,8 +4437,6 @@ public class CheckUpPage extends JPanel {
                                 if (selected != null) {
                                     CheckUpPage.this.handleRowSelection(-1, selected);
                                 }
-                                // Reset patient name filter when closing dialog after selection
-                                patientNameFilter.setText("");
                                 applyFilters();
                                 // Hide the dialog after selection
                                 QueueManagementPage.this.setVisible(false);
@@ -4495,8 +4490,6 @@ public class CheckUpPage extends JPanel {
                             if (selected != null) {
                                 CheckUpPage.this.handleRowSelection(-1, selected);
                             }
-                            // Reset patient name filter when closing dialog after selection
-                            patientNameFilter.setText("");
                             applyFilters();
                             // Hide the dialog after selection
                             QueueManagementPage.this.setVisible(false);
@@ -4513,8 +4506,6 @@ public class CheckUpPage extends JPanel {
             actionMap.put("ESCAPE", new AbstractAction() {
                 @Override
                 public void actionPerformed(ActionEvent e) {
-                    // Same logic as windowClosing event to ensure filters are cleared
-                    patientNameFilter.setText("");
                     applyFilters();
                     setVisible(false);
                 }
@@ -4548,38 +4539,14 @@ public class CheckUpPage extends JPanel {
             // Separator
             filterPanel.add(Box.createHorizontalStrut(20));
 
-            // Patient Name Filter
-            JLabel nameLabel = new JLabel("Tên bệnh nhân:");
-            nameLabel.setFont(new Font("Arial", Font.BOLD, 14));
-            filterPanel.add(nameLabel);
-
-            patientNameFilter = new JTextField(15);
-            patientNameFilter.setFont(new Font("Arial", Font.PLAIN, 14));
-            patientNameFilter.setPreferredSize(new Dimension(200, 30));
-            patientNameFilter.addKeyListener(new java.awt.event.KeyAdapter() {
-                @Override
-                public void keyReleased(java.awt.event.KeyEvent evt) {
-                    applyFilters();
-                }
-            });
-            filterPanel.add(patientNameFilter);
-
             // Clear Filter Button
             filterPanel.add(Box.createHorizontalStrut(20));
-            JButton clearButton = new JButton("Xóa bộ lọc");
-            clearButton.setFont(new Font("Arial", Font.BOLD, 14));
-            clearButton.setBackground(new Color(255, 152, 0));
-            clearButton.setForeground(Color.WHITE);
-            clearButton.setFocusPainted(false);
-            clearButton.addActionListener(e -> clearFilters());
-            filterPanel.add(clearButton);
 
             return filterPanel;
         }
 
         private void applyFilters() {
             String selectedCheckupType = (String) checkupTypeFilter.getSelectedItem();
-            String nameFilter = patientNameFilter.getText().trim();
         
             // 1. Filter your master list into a temporary list
             filteredPatients = patientQueue.stream()
@@ -4593,17 +4560,7 @@ public class CheckUpPage extends JPanel {
                             return false;
                         }
                     }
-                    if (!nameFilter.isEmpty()) {
-                        String patientFirstName = patient.getCustomerFirstName();
-                        if (patientFirstName == null) {
-                            return false;
-                        }
-                        String normalizedPatientName = TextUtils.removeAccents(patientFirstName.toLowerCase());
-                        String normalizedFilter = TextUtils.removeAccents(nameFilter.toLowerCase());
-                        if (!normalizedPatientName.contains(normalizedFilter)) {
-                            return false;
-                        }
-                    }
+
                     return true;
                 })
                 .collect(Collectors.toList());
@@ -4625,12 +4582,6 @@ public class CheckUpPage extends JPanel {
                 queueTable.setRowSelectionInterval(0, 0);
                 queueTable.requestFocusInWindow();
             }
-        }
-
-        private void clearFilters() {
-            checkupTypeFilter.setSelectedIndex(0); // "Tất cả"
-            patientNameFilter.setText("");
-            applyFilters();
         }
 
         private int findRowByCheckupId(String checkupId) {
@@ -4675,9 +4626,7 @@ public class CheckUpPage extends JPanel {
                                 String type = target.getCheckupType();
                                 checkupTypeFilter.setSelectedItem(type == null || type.isEmpty() ? "Tất cả" : type);
                             }
-                            if (patientNameFilter != null) {
-                                patientNameFilter.setText("");
-                            }
+
                             applyFilters();
                             int rowAgain = findRowByCheckupId(previouslySelectedId);
                             if (rowAgain != -1) {
