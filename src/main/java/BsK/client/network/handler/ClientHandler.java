@@ -123,16 +123,16 @@ public class ClientHandler extends SimpleChannelInboundHandler<TextWebSocketFram
       }
 
       if (packet instanceof GetDoctorGeneralInfoResponse) {
+        //receive doctor general info response
         GetDoctorGeneralInfoResponse res = (GetDoctorGeneralInfoResponse) packet;
         LocalStorage.doctorsName.clear();
-        if (res.getDoctorsName() != null) {
-            for (String[] doctorData : res.getDoctorsName()) {
-                if (doctorData != null && doctorData.length >= 2) {
-                    LocalStorage.doctorsName.add(new DoctorItem(doctorData[1], doctorData[0])); // id, name
-                }
+        for (String[] doctorData : res.getDoctorsName()) {
+            // doctorData[0] = full name, doctorData[1] = doctor_id, doctorData[2] = deleted
+            if (doctorData != null && doctorData.length >= 3 && doctorData[2].equals("0")) {
+                LocalStorage.doctorsName.add(new DoctorItem(doctorData[1], doctorData[0])); // id, name
             }
         }
-        log.info("Updated doctors list in LocalStorage. Total doctors: {}", LocalStorage.doctorsName.size());
+        log.info("Updated doctors list in LocalStorage. Total active doctors: {}", LocalStorage.doctorsName.size());
       } else if (packet instanceof GetMedInfoResponse res) {
           log.debug("GetMedInfoResponse received: {}", res.getClass().getSimpleName());
       }

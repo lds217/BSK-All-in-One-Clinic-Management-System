@@ -732,6 +732,8 @@ public class CheckUpPage extends JPanel {
             addSelectAllOnFocus(tf);
         }
         patientInfoInnerPanel.add(customerWeightSpinner, gbcPatient);
+        // customerWeightSpinner.setEnabled(false);
+
 
         gbcPatient.gridx = 2;
         JLabel heightLabel = new JLabel("Chiều cao (cm)", SwingConstants.RIGHT);
@@ -749,6 +751,8 @@ public class CheckUpPage extends JPanel {
             addSelectAllOnFocus(tf);
         }
         patientInfoInnerPanel.add(customerHeightSpinner, gbcPatient);
+        // temporarily disable height spinner
+        customerHeightSpinner.setEnabled(false);
 
         // Row 5: Heart Rate and Blood Pressure
         gbcPatient.gridy++;
@@ -1171,12 +1175,12 @@ public class CheckUpPage extends JPanel {
         // Set preferred size for notes field
         notesField.setPreferredSize(new Dimension(0, 400)); // Make it tall
 
+
         // Enhanced Toolbar for notes with more formatting options
         JToolBar notesToolbar = new JToolBar(JToolBar.HORIZONTAL);
         notesToolbar.setFloatable(false);
         notesToolbar.setBorder(BorderFactory.createEmptyBorder(4, 4, 4, 4));
         notesToolbar.setBackground(new Color(245, 245, 245));
-
         // Style buttons with better visual appearance
         JButton boldButton = new JButton(new StyledEditorKit.BoldAction());
         boldButton.setText("B");
