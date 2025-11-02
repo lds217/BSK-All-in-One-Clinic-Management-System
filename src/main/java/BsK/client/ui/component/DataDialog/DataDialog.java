@@ -12,6 +12,7 @@ import BsK.common.packet.res.DeleteCheckupResponse;
 import BsK.common.packet.res.GetCheckupDataResponse;
 import BsK.common.util.network.NetworkUtil;
 import BsK.client.ui.component.CheckUpPage.CheckUpPage;
+import BsK.common.entity.CheckupData;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -28,7 +29,9 @@ import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 public class DataDialog extends JDialog {
 
     //<editor-fold desc="Properties for Checkup Data Tab">
@@ -57,6 +60,7 @@ public class DataDialog extends JDialog {
     // --- Panels for the other tabs
     private MedicineManagementPanel medicinePanel;
     private ServiceManagementPanel servicePanel;
+    private DoctorManagementPanel doctorPanel;
     private UserManagementPanel userPanel;
 
     public DataDialog(JFrame parent, CheckUpPage checkUpPage) {
@@ -100,6 +104,10 @@ public class DataDialog extends JDialog {
         userPanel = new UserManagementPanel();
         tabbedPane.addTab("<html><body style='padding: 5px 10px;'>Quản Lý Người Dùng</body></html>", userPanel);
 
+        // --- Tab 5: Doctor Management ---
+        doctorPanel = new DoctorManagementPanel();
+        tabbedPane.addTab("<html><body style='padding: 5px 10px;'>Quản Lý Bác Sĩ</body></html>", doctorPanel);
+
         add(tabbedPane, BorderLayout.CENTER);
 
         loadFiltersFromLocalStorage();
@@ -123,6 +131,9 @@ public class DataDialog extends JDialog {
                 }
                 if (userPanel != null) {
                     userPanel.cleanup();
+                }
+                if (doctorPanel != null) {
+                    doctorPanel.cleanup();
                 }
                 super.windowClosing(e);
             }
@@ -285,7 +296,7 @@ public class DataDialog extends JDialog {
         });
 
         getAllButton.addActionListener(e -> {
-            GetCheckupDataRequest request = new GetCheckupDataRequest(null, null,null, null, null, 1, recordsPerPage);
+            GetCheckupDataRequest request = new GetCheckupDataRequest(null, null,null, null, null, 1, recordsPerPage, LocalStorage.currentShift);
             NetworkUtil.sendPacket(ClientHandler.ctx.channel(), request);
             resultCountLabel.setText("Đang tải tất cả dữ liệu...");
         });
@@ -380,7 +391,7 @@ public class DataDialog extends JDialog {
             }
         }
 
-        GetCheckupDataRequest request = new GetCheckupDataRequest(searchTerm, checkupIdSearch, fromTimestamp, toTimestamp, doctorId, page, recordsPerPage);
+        GetCheckupDataRequest request = new GetCheckupDataRequest(searchTerm, checkupIdSearch, fromTimestamp, toTimestamp, doctorId, page, recordsPerPage, LocalStorage.currentShift);
         NetworkUtil.sendPacket(ClientHandler.ctx.channel(), request);
 
         resultCountLabel.setText("Đang tải dữ liệu cho trang " + page + "...");
@@ -679,7 +690,7 @@ public class DataDialog extends JDialog {
                 if (confirmation == JOptionPane.YES_OPTION) {
                     try {
                         long checkupId = Long.parseLong(checkupIdStr);
-                        DeleteCheckupRequest deleteRequest = new DeleteCheckupRequest(checkupId);
+                        DeleteCheckupRequest deleteRequest = new DeleteCheckupRequest(checkupId, LocalStorage.currentShift);
                         NetworkUtil.sendPacket(ClientHandler.ctx.channel(), deleteRequest);
                     } catch (NumberFormatException ex) {
                         JOptionPane.showMessageDialog(parentDialog, "Mã khám không hợp lệ: " + checkupIdStr, "Lỗi", JOptionPane.ERROR_MESSAGE);

@@ -1,0 +1,14 @@
+package BsK.common.packet.req;
+
+import BsK.common.packet.Packet;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+
+@Data
+@AllArgsConstructor
+public class EditDoctorRequest implements Packet {
+    private String id;
+    private String lastName;
+    private String firstName;
+    private Boolean deleted;
+}

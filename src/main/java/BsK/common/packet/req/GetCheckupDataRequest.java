@@ -16,4 +16,5 @@ public class GetCheckupDataRequest implements Packet {
     private Integer doctorId;
     private int page = 1;
     private int pageSize = 20;
+    private int shift;
 }

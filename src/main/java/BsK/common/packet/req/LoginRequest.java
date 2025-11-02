@@ -12,4 +12,5 @@ import java.time.LocalDateTime;
 public class LoginRequest implements Packet {
   String username;
   String password;
+  int shift;
 }

@@ -1868,7 +1868,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         }
     }
     
-    if (packet instanceof EditServiceRequest editServiceRequest) {
+      if (packet instanceof EditServiceRequest editServiceRequest) {
         if (!currentUser.getRole().equals(Role.ADMIN)) {
             UserUtil.sendPacket(currentUser.getSessionId(), new ErrorResponse(Error.ACCESS_DENIED));
             return;
@@ -1894,6 +1894,66 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
     
         } catch (SQLException e) {
             log.error("Error updating service", e);
+            UserUtil.sendPacket(currentUser.getSessionId(), new ErrorResponse(Error.SQL_EXCEPTION));
+        }
+      }
+
+      if (packet instanceof GetDoctorInfoRequest getDoctorInfoRequest) {
+        log.debug("Received GetDoctorInfoRequest");
+        getDoctorInfo(currentUser.getSessionId());
+      }
+
+      if (packet instanceof AddDoctorRequest addDoctorRequest) {
+        if (!currentUser.getRole().equals(Role.ADMIN)) {
+            UserUtil.sendPacket(currentUser.getSessionId(), new ErrorResponse(Error.ACCESS_DENIED));
+            return;
+        }
+        log.info("Received AddDoctorRequest for doctor: {} {}", addDoctorRequest.getLastName(), addDoctorRequest.getFirstName());
+    
+        String sql = "INSERT INTO Doctor (doctor_last_name, doctor_first_name, deleted) VALUES (?, ?, ?)";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            
+            stmt.setString(1, addDoctorRequest.getLastName());
+            stmt.setString(2, addDoctorRequest.getFirstName());
+            stmt.setBoolean(3, addDoctorRequest.getDeleted());
+            
+            stmt.executeUpdate();
+            log.info("Added doctor successfully: {} {}", addDoctorRequest.getLastName(), addDoctorRequest.getFirstName());
+            getDoctorInfo(currentUser.getSessionId());
+    
+        } catch (SQLException e) {
+            log.error("Error adding doctor", e);
+            UserUtil.sendPacket(currentUser.getSessionId(), new ErrorResponse(Error.SQL_EXCEPTION));
+        }
+      }
+
+      if (packet instanceof EditDoctorRequest editDoctorRequest) {
+        if (!currentUser.getRole().equals(Role.ADMIN)) {
+            UserUtil.sendPacket(currentUser.getSessionId(), new ErrorResponse(Error.ACCESS_DENIED));
+            return;
+        }
+        log.info("Received EditDoctorRequest for doctor ID: {}", editDoctorRequest.getId());
+    
+        String sql = "UPDATE Doctor SET doctor_last_name = ?, doctor_first_name = ?, deleted = ? WHERE doctor_id = ?";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            
+            stmt.setString(1, editDoctorRequest.getLastName());
+            stmt.setString(2, editDoctorRequest.getFirstName());
+            stmt.setBoolean(3, editDoctorRequest.getDeleted());
+            stmt.setString(4, editDoctorRequest.getId());
+            
+            int affectedRows = stmt.executeUpdate();
+            if (affectedRows > 0) {
+                log.info("Updated doctor successfully: {} {}", editDoctorRequest.getLastName(), editDoctorRequest.getFirstName());
+                getDoctorInfo(currentUser.getSessionId());
+            } else {
+                log.warn("No doctor found with ID {} to update.", editDoctorRequest.getId());
+            }
+    
+        } catch (SQLException e) {
+            log.error("Error updating doctor", e);
             UserUtil.sendPacket(currentUser.getSessionId(), new ErrorResponse(Error.SQL_EXCEPTION));
         }
       }
@@ -2155,6 +2215,55 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
     } catch (SQLException e) {
         log.error("Error fetching medicines", e);
         // SỬA LỖI: Gửi gói tin lỗi thay vì làm sập server
+        UserUtil.sendPacket(sessionId, new ErrorResponse(Error.SQL_EXCEPTION));
+    }
+  }
+
+  /**
+   * Lấy danh sách tất cả bác sĩ và gửi cho một session cụ thể.
+   *
+   * @param sessionId ID của session sẽ nhận dữ liệu.
+   */
+  private void getDoctorInfo(int sessionId) {
+    log.debug("Fetching all doctors for session: {}", sessionId);
+    String sql = """
+        SELECT doctor_id, doctor_last_name, doctor_first_name, deleted 
+        FROM Doctor 
+        ORDER BY doctor_id
+        """;
+    
+    try (Connection conn = DatabaseManager.getConnection();
+        PreparedStatement stmt = conn.prepareStatement(sql);
+        ResultSet rs = stmt.executeQuery()) {
+        
+        ArrayList<String> resultList = new ArrayList<>();
+        while (rs.next()) {
+            String doctorId = rs.getString("doctor_id");
+            String doctorLastName = rs.getString("doctor_last_name");
+            String doctorFirstName = rs.getString("doctor_first_name");
+            
+            // Lấy giá trị boolean một cách an toàn và chuyển thành String "1" hoặc "0"
+            String deleted = rs.getBoolean("deleted") ? "1" : "0";
+
+            String result = String.join("|", 
+                doctorId, 
+                doctorLastName != null ? doctorLastName : "", 
+                doctorFirstName != null ? doctorFirstName : "", 
+                deleted
+            );
+            resultList.add(result);
+        }
+
+        String[] resultString = resultList.toArray(new String[0]);
+        String[][] resultArray = new String[resultString.length][];
+        for (int i = 0; i < resultString.length; i++) {
+            resultArray[i] = resultString[i].split("\\|", -1);
+        }
+
+        UserUtil.sendPacket(sessionId, new GetDoctorInfoResponse(resultArray));
+
+    } catch (SQLException e) {
+        log.error("Error fetching doctors", e);
         UserUtil.sendPacket(sessionId, new ErrorResponse(Error.SQL_EXCEPTION));
     }
   }
