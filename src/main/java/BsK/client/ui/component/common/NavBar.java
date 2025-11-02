@@ -32,6 +32,11 @@ import java.awt.event.ActionListener;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Calendar;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Slf4j
 public class NavBar extends JPanel {
@@ -279,6 +284,15 @@ public class NavBar extends JPanel {
                 navItemsPanel.add(separatorPanel);
             }
             // --- END MODIFIED SEPARATOR ---
+        }
+
+        String version = getClientVersion();
+        if (!"N/A".equals(version)) {
+            JLabel versionLabel = new JLabel("Phiên bản: " + version);
+            versionLabel.setFont(new Font("Arial", Font.PLAIN, 10));
+            versionLabel.setForeground(new Color(120, 120, 120));
+            versionLabel.setBorder(BorderFactory.createEmptyBorder(0, 15, 0, 0)); 
+            navItemsPanel.add(versionLabel);
         }
 
         this.add(navItemsPanel);
@@ -751,5 +765,19 @@ public class NavBar extends JPanel {
         ClientHandler.deleteListener(SimpleMessageResponse.class, navBarMessageListener);
         ClientHandler.deleteListener(SetCounterResponse.class, setCounterResponseListener); // NEW: Clean up counter listener
         log.info("All NavBar listeners removed.");
+    }
+
+    private String getClientVersion() {
+        try {
+            String content = new String(Files.readAllBytes(Paths.get("version_client.json")));
+            Pattern pattern = Pattern.compile("\"currentVersion\":\\s*\"([^\"]*)\"");
+            Matcher matcher = pattern.matcher(content);
+            if (matcher.find()) {
+                return matcher.group(1);
+            }
+        } catch (IOException e) {
+            log.error("Error reading client version file", e);
+        }
+        return "N/A";
     }
 }

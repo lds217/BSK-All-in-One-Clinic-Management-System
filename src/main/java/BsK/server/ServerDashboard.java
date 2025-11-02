@@ -7,12 +7,17 @@ import javax.swing.text.*;
 import java.awt.*;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
 import java.lang.management.OperatingSystemMXBean;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Vector;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import BsK.server.network.entity.ClientConnection;
 import BsK.server.network.manager.SessionManager;
 import lombok.extern.slf4j.Slf4j;
@@ -55,7 +60,12 @@ public class ServerDashboard extends JFrame {
     }
 
     private ServerDashboard() {
-        setTitle("Bảng Điều Khiển Máy Chủ BSK");
+        String version = getServerVersion();
+        String title = "Bảng Điều Khiển Máy Chủ BSK";
+        if (!"N/A".equals(version)) {
+            title += " - Phiên bản " + version;
+        }
+        setTitle(title);
         setSize(1400, 900);
         setLocationRelativeTo(null);
         
@@ -649,6 +659,20 @@ public class ServerDashboard extends JFrame {
             System.exit(0);
         }
         // If the user chooses "No", the dialog closes and nothing else happens.
+    }
+
+    private String getServerVersion() {
+        try {
+            String content = new String(Files.readAllBytes(Paths.get("version_server.json")));
+            Pattern pattern = Pattern.compile("\"currentVersion\":\\s*\"([^\"]*)\"");
+            Matcher matcher = pattern.matcher(content);
+            if (matcher.find()) {
+                return matcher.group(1);
+            }
+        } catch (IOException e) {
+            log.error("Error reading server version file", e);
+        }
+        return "N/A";
     }
     // --- MODIFICATION END ---
 }
