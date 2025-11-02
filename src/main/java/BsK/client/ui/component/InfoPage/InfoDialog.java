@@ -101,7 +101,6 @@ public class InfoDialog extends JDialog {
                 + "<ul style='font-size: 14px; margin: 0; padding-left: 20px;'>"
                 + "<li style='margin-bottom: 10px;'>Đề xuất tính năng mới hoặc báo cáo lỗi thông qua GitHub Issues.</li>"
                 + "<li style='margin-bottom: 10px;'>Đóng góp code thông qua Pull Requests.</li>"
-                + "<li style='margin-bottom: 0;'>Ủng hộ dự án một ly cà phê qua <strong style='color: #d69e2e;'>MB Bank: 0908308878</strong></li>"
                 + "</ul>"
                 + "</div>"
                 + "</div>"

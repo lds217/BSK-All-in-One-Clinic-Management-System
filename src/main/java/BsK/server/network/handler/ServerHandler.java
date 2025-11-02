@@ -217,7 +217,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
 
       if (packet instanceof GetDoctorGeneralInfo) {
         log.debug("Received GetDoctorGeneralInfo");
-        String sql = "SELECT doctor_last_name || ' ' || doctor_first_name, doctor_id FROM Doctor";
+        String sql = "SELECT doctor_last_name || ' ' || doctor_first_name, doctor_id, deleted FROM Doctor ORDER BY doctor_id";
 
         try (Connection conn = DatabaseManager.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql);
@@ -229,9 +229,11 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
             } else {
                 ArrayList<String> resultList = new ArrayList<>();
                 while (rs.next()) {
-                    String doctorName = rs.getString(1); // Lấy theo chỉ số cột
-                    String doctorId = rs.getString(2);   // Lấy theo chỉ số cột
-                    resultList.add(doctorName + "|" + doctorId);
+                    String doctorName = rs.getString(1); // Full name (concatenated)
+                    String doctorId = rs.getString(2);   // Doctor ID
+                    boolean deleted = rs.getBoolean(3);  // Deleted flag
+                    String deletedStr = deleted ? "1" : "0";
+                    resultList.add(doctorName + "|" + doctorId + "|" + deletedStr);
                 }
                 
                 String[] resultString = resultList.toArray(new String[0]);
