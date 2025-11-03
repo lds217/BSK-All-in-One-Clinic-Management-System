@@ -332,9 +332,13 @@ public class Server {
     }
 
     /**
-     * Initiates the backup of the main database file to Google Drive.
-     * This is intended to be called from the ServerDashboard.
-     * @throws IOException if the file cannot be found or the upload fails.
+     * Backs up the complete database set (BSK.db + WAL files) to Google Drive.
+     * Creates a timestamped folder and uploads all database files.
+     * 
+     * This method backs up ALL database files (BSK.db, BSK.db-wal, BSK.db-shm) 
+     * to prevent data loss from uncommitted WAL transactions.
+     * 
+     * @throws IOException if the backup fails
      */
     public static void backupDatabaseToDrive() throws IOException {
         ServerDashboard dashboard = ServerDashboard.getInstance();
@@ -344,7 +348,7 @@ public class Server {
             throw new IOException("Dịch vụ Google Drive không khả dụng.");
         }
 
-        // Define the path to the database
+        // Verify main database file exists
         String dbPath = "database/BSK.db";
         java.io.File dbFile = new java.io.File(dbPath);
 
@@ -353,7 +357,26 @@ public class Server {
             throw new IOException("Không tìm thấy tệp cơ sở dữ liệu: " + dbPath);
         }
 
-        // Call the service to perform the backup
-        googleDriveService.backupDatabaseFile(dbFile);
+        // Check for WAL files
+        java.io.File walFile = new java.io.File(dbPath + "-wal");
+        java.io.File shmFile = new java.io.File(dbPath + "-shm");
+        
+        dashboard.addLog("Đang kiểm tra các tệp cơ sở dữ liệu...");
+        dashboard.addLog("  • BSK.db: " + (dbFile.length() / (1024 * 1024)) + " MB");
+        
+        if (walFile.exists() && walFile.length() > 0) {
+            dashboard.addLog("  • BSK.db-wal: " + (walFile.length() / (1024 * 1024)) + " MB (chứa dữ liệu chưa commit)");
+        }
+        
+        if (shmFile.exists()) {
+            dashboard.addLog("  • BSK.db-shm: " + (shmFile.length() / 1024) + " KB");
+        }
+
+        // Backup all files to a timestamped folder
+        dashboard.addLog("Đang tải lên tất cả các tệp database...");
+        String folderId = googleDriveService.backupCompleteDatabaseSet();
+        
+        dashboard.addLog("✅ Sao lưu hoàn tất! Tất cả tệp đã được lưu vào Google Drive.");
+        log.info("Database backup completed successfully. Folder ID: {}", folderId);
     }   
 }

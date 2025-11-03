@@ -250,3 +250,13 @@ image/checkup_media/8/IMG_8_20250807_001010.jpg
 image/checkup_media/8/IMG_8_20250807_001050.jpg
 image/checkup_media/8/ultrasound_8_20250807_001232_940.jpg
 image/checkup_media/8/ultrasound_8_20250807_001253_394.jpg
+database/BSK.db
+database/BSK.db
+database/BSK.db-shm
+database/BSK.db-wal
+*.jar
+*.db
+*.db-shm
+*.db-wal
+database/*.db
+*.old

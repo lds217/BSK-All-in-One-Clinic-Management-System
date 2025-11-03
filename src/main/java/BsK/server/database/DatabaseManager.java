@@ -47,4 +47,69 @@ public class DatabaseManager {
             log.info("Database connection pool closed.");
         }
     }
+
+    /**
+     * Performs a WAL checkpoint to merge all WAL data into the main database file.
+     * This ensures the main .db file contains all recent data.
+     * 
+     * IMPORTANT: Call this before backing up the database!
+     * 
+     * Checkpoint modes:
+     * - PASSIVE: Tries to checkpoint without blocking (default)
+     * - FULL: Waits for all transactions to complete, then checkpoints
+     * - RESTART: Like FULL, then restarts the WAL
+     * - TRUNCATE: Like RESTART, then truncates WAL file to 0 bytes
+     * 
+     * @param mode Checkpoint mode: "PASSIVE", "FULL", "RESTART", or "TRUNCATE"
+     * @return true if checkpoint succeeded, false otherwise
+     */
+    public static boolean checkpointWAL(String mode) {
+        log.info("Starting WAL checkpoint with mode: {}", mode);
+        
+        try (Connection conn = getConnection();
+             var stmt = conn.createStatement()) {
+            
+            // Execute checkpoint
+            var rs = stmt.executeQuery("PRAGMA wal_checkpoint(" + mode + ")");
+            
+            if (rs.next()) {
+                int busy = rs.getInt(1);  // 0 if successful, 1 if blocked
+                int walPages = rs.getInt(2);   // Number of modified pages in WAL
+                int checkpointed = rs.getInt(3); // Number of pages checkpointed
+                
+                if (busy == 0) {
+                    log.info("✅ WAL checkpoint succeeded: {} pages checkpointed out of {} WAL pages", 
+                            checkpointed, walPages);
+                    return true;
+                } else {
+                    log.warn("⚠️ WAL checkpoint blocked by active transactions. " +
+                            "Close all connections and try again.");
+                    return false;
+                }
+            }
+            
+        } catch (SQLException e) {
+            log.error("❌ Failed to checkpoint WAL", e);
+            return false;
+        }
+        
+        return false;
+    }
+
+    /**
+     * Performs a FULL WAL checkpoint (recommended before backup).
+     * This ensures all data is written to the main database file.
+     * 
+     * Usage example:
+     * <pre>
+     * // Before backing up database:
+     * DatabaseManager.checkpointWAL();
+     * // Now safe to copy BSK.db
+     * </pre>
+     * 
+     * @return true if checkpoint succeeded, false otherwise
+     */
+    public static boolean checkpointWAL() {
+        return checkpointWAL("TRUNCATE");
+    }
 }

@@ -385,10 +385,22 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
             boolean hasNameSearch = getRecentPatientRequest.getSearchName() != null && !getRecentPatientRequest.getSearchName().trim().isEmpty();
             boolean hasPhoneSearch = getRecentPatientRequest.getSearchPhone() != null && !getRecentPatientRequest.getSearchPhone().trim().isEmpty();
             
+            // Prepare wildcard search pattern and accent-stripped term for precise filtering
+            String wildcardSearchPattern = null;
+            String accentStrippedSearchName = null;
+            if (hasNameSearch) {
+                String searchInput = getRecentPatientRequest.getSearchName().toLowerCase().trim();
+                // First remove accents from user input (so "võ" becomes "vo")
+                accentStrippedSearchName = TextUtils.removeAccents(searchInput);
+                // Then convert to wildcard pattern: replace Vietnamese vowels with _ to match any accented variant
+                // "vo" -> "v_" which matches "võ", "vò", "ve", "va", etc.
+                wildcardSearchPattern = createVietnameseWildcardPattern(accentStrippedSearchName);
+            }
+            
             if (hasNameSearch || hasPhoneSearch) {
                 queryBuilder.append(" WHERE ");
                 if (hasNameSearch) {
-                    // SỬA LỖI SQL: Dùng || thay vì CONCAT cho SQLite
+                    // Use wildcard pattern that matches accented variants
                     queryBuilder.append("(LOWER(customer_first_name) LIKE ? OR LOWER(customer_last_name) LIKE ? OR ")
                                 .append("LOWER(customer_last_name || ' ' || customer_first_name) LIKE ?)");
                 }
@@ -412,7 +424,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
             try (PreparedStatement countStmt = conn.prepareStatement(countQuery)) {
                 int paramIndex = 1;
                 if (hasNameSearch) {
-                    String searchName = "%" + getRecentPatientRequest.getSearchName().toLowerCase().trim() + "%";
+                    String searchName = "%" + wildcardSearchPattern + "%";
                     countStmt.setString(paramIndex++, searchName);
                     countStmt.setString(paramIndex++, searchName);
                     countStmt.setString(paramIndex++, searchName);
@@ -441,7 +453,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
             try (PreparedStatement stmt = conn.prepareStatement(queryBuilder.toString())) {
                 int paramIndex = 1;
                 if (hasNameSearch) {
-                    String searchName = "%" + getRecentPatientRequest.getSearchName().toLowerCase().trim() + "%";
+                    String searchName = "%" + wildcardSearchPattern + "%";
                     stmt.setString(paramIndex++, searchName);
                     stmt.setString(paramIndex++, searchName);
                     stmt.setString(paramIndex++, searchName);
@@ -451,10 +463,10 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                     stmt.setString(paramIndex++, searchPhone);
                 }
                 stmt.setInt(paramIndex++, pageSize);
-                stmt.setInt(paramIndex, offset); // Sửa lại: Dùng paramIndex thay vì paramIndex++
+                stmt.setInt(paramIndex, offset);
                 
                 try (ResultSet rs = stmt.executeQuery()) {
-                    // Xử lý kết quả (phần này không thay đổi)
+                    // Xử lý kết quả với wildcard-based matching (no filtering needed - wildcards handle it)
                     ArrayList<String> resultList = new ArrayList<>();
                     while (rs.next()) {
                         String customerId = rs.getString("customer_id");
@@ -466,6 +478,9 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                         String customerAddress = rs.getString("customer_address");
                         String customerGender = rs.getString("customer_gender");
                         String cccdDdcn = rs.getString("cccd_ddcn");
+                        
+                        // No additional Java filtering - SQL wildcards handle everything
+                        // "v_" matches "võ", "ve", "va", etc. - all are valid matches
     
                         String result = String.join("|", customerId, customerLastName + " " + customerFirstName,
                                 year, customerNumber, customerAddress, customerGender, customerDob, cccdDdcn);
@@ -478,8 +493,10 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                         resultArray[i] = resultString[i].split("\\|");
                     }
                     
+                    // Update total count based on actual filtered results
+                    int actualCount = resultArray.length;
    
-                    UserUtil.sendPacket(currentUser.getSessionId(), new GetRecentPatientResponse(resultArray, totalCount, currentPage, totalPages, pageSize));
+                    UserUtil.sendPacket(currentUser.getSessionId(), new GetRecentPatientResponse(resultArray, actualCount, currentPage, totalPages, pageSize));
                 }
             }
         } catch (SQLException e) {
@@ -2340,6 +2357,43 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         UserUtil.sendPacket(sessionId, new ErrorResponse(Error.SQL_EXCEPTION));
     }
   }
+  
+  /**
+   * Creates a wildcard pattern for Vietnamese name search.
+   * Replaces Vietnamese vowels with SQL wildcards (_) to match any accented variant.
+   * 
+   * Examples:
+   *   "vo" -> "v_"  (matches võ, vò, vó, vô, vơ, etc.)
+   *   "nguyen" -> "n_u__n"  (matches nguyễn, nguyen, etc.)
+   *   "dat" -> "d_t"  (matches đạt, dat, đát, etc.)
+   * 
+   * @param input The search input (already lowercased and accent-stripped)
+   * @return SQL LIKE pattern with wildcards for accented characters
+   */
+  private String createVietnameseWildcardPattern(String input) {
+      StringBuilder pattern = new StringBuilder();
+      
+      for (char c : input.toCharArray()) {
+          // Check if character is a Vietnamese vowel (including đ/d)
+          if (isVietnameseVowelOrD(c)) {
+              pattern.append('_'); // SQL wildcard for any single character
+          } else {
+              pattern.append(c);
+          }
+      }
+      
+      return pattern.toString();
+  }
+  
+  /**
+   * Checks if a character is a Vietnamese vowel or 'd/đ' that can have accents.
+   * Vietnamese vowels: a, ă, â, e, ê, i, o, ô, ơ, u, ư, y
+   * Also includes 'd' which can be 'đ'
+   */
+  private boolean isVietnameseVowelOrD(char c) {
+      return "aăâeêioôơuưyd".indexOf(c) >= 0;
+  }
+  
   @Override
   public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
     if (cause instanceof IOException) {
