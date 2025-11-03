@@ -503,7 +503,9 @@ public class GoogleDriveServiceOAuth {
      * @param dbFile The local database file to upload.
      * @return The ID of the uploaded file in Google Drive.
      * @throws IOException if the upload fails.
+     * @deprecated Use {@link #backupCompleteDatabaseSet()} instead to backup all WAL files
      */
+    @Deprecated
     public String backupDatabaseFile(java.io.File dbFile) throws IOException {
         // 1. Define the dedicated, private backup folder name
         String backupFolderName = "_Database_Backups"; // Using underscore to sort it to the top
@@ -522,6 +524,79 @@ public class GoogleDriveServiceOAuth {
         log.info("✅ Successfully uploaded database backup. File ID: {}", fileId);
 
         return fileId;
+    }
+
+    /**
+     * Backs up the complete database set (BSK.db, BSK.db-wal, BSK.db-shm) to Google Drive.
+     * Creates a timestamped folder and uploads all database files to prevent data loss.
+     * 
+     * IMPORTANT: This method backs up ALL database files including WAL files to ensure
+     * no data is lost during backup.
+     * 
+     * @return The folder ID of the backup folder containing all database files
+     * @throws IOException if any file upload fails
+     */
+    public String backupCompleteDatabaseSet() throws IOException {
+        // 1. Define the main backup folder name
+        String backupFolderName = "_Database_Backups";
+        
+        // 2. Get or create the main backup folder
+        String mainBackupFolderId = findOrCreateFolder(this.rootFolderId, backupFolderName);
+        log.info("Using main database backup folder: {} (ID: {})", backupFolderName, mainBackupFolderId);
+        
+        // 3. Create a timestamped subfolder for this backup session
+        String timestamp = new java.text.SimpleDateFormat("yyyy-MM-dd_HH-mm-ss").format(new java.util.Date());
+        String sessionFolderName = "Backup_" + timestamp;
+        String sessionFolderId = findOrCreateFolder(mainBackupFolderId, sessionFolderName);
+        log.info("Created backup session folder: {} (ID: {})", sessionFolderName, sessionFolderId);
+        
+        // 4. Define all database files
+        String dbBasePath = "database/BSK.db";
+        java.io.File mainDbFile = new java.io.File(dbBasePath);
+        java.io.File walFile = new java.io.File(dbBasePath + "-wal");
+        java.io.File shmFile = new java.io.File(dbBasePath + "-shm");
+        
+        int filesUploaded = 0;
+        
+        // 5. Upload main database file (required)
+        if (!mainDbFile.exists()) {
+            throw new IOException("Main database file not found: " + dbBasePath);
+        }
+        
+        log.info("Uploading main database file: BSK.db ({} MB)", mainDbFile.length() / (1024 * 1024));
+        uploadFileToFolder(sessionFolderId, mainDbFile, "BSK.db");
+        filesUploaded++;
+        log.info("✅ Uploaded BSK.db");
+        
+        // 6. Upload WAL file (if exists)
+        if (walFile.exists()) {
+            long walSizeMB = walFile.length() / (1024 * 1024);
+            log.info("Uploading WAL file: BSK.db-wal ({} MB)", walSizeMB);
+            
+            if (walSizeMB > 0) {
+                uploadFileToFolder(sessionFolderId, walFile, "BSK.db-wal");
+                filesUploaded++;
+                log.info("✅ Uploaded BSK.db-wal");
+            } else {
+                log.info("⏭️  Skipping empty WAL file");
+            }
+        } else {
+            log.info("ℹ️  No WAL file found (database may have been checkpointed)");
+        }
+        
+        // 7. Upload SHM file (if exists)
+        if (shmFile.exists()) {
+            log.info("Uploading shared memory file: BSK.db-shm");
+            uploadFileToFolder(sessionFolderId, shmFile, "BSK.db-shm");
+            filesUploaded++;
+            log.info("✅ Uploaded BSK.db-shm");
+        } else {
+            log.info("ℹ️  No shared memory file found");
+        }
+        
+        log.info("🎉 Database backup complete! {} file(s) uploaded to folder: {}", filesUploaded, sessionFolderName);
+        
+        return sessionFolderId;
     }
 
     /**

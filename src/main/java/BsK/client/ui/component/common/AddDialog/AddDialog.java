@@ -997,10 +997,10 @@ private void setupDebounceSearch() {
         JPanel searchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         searchPanel.setBorder(BorderFactory.createTitledBorder("Tìm kiếm bệnh nhân"));
 
-        //searchPanel.add(new JLabel("Tên BN:"));
+        searchPanel.add(new JLabel("Họ tên:"));
         searchNameField = new JTextField(15);
-        //searchPanel.add(searchNameField);
-
+        searchNameField.setToolTipText("Tìm kiếm theo họ tên (không cần dấu)");
+        searchPanel.add(searchNameField);
 
         searchPanel.add(new JLabel("SĐT:"));
         searchPhoneField = new JTextField(10);

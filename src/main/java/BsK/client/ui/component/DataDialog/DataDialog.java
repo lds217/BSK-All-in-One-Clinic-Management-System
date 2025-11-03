@@ -12,7 +12,7 @@ import BsK.common.packet.res.DeleteCheckupResponse;
 import BsK.common.packet.res.GetCheckupDataResponse;
 import BsK.common.util.network.NetworkUtil;
 import BsK.client.ui.component.CheckUpPage.CheckUpPage;
-import BsK.common.entity.CheckupData;
+ // import BsK.common.entity.CheckupData;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
