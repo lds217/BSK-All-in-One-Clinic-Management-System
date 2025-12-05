@@ -3379,19 +3379,36 @@ public class CheckUpPage extends JPanel {
     private void handleUltrasoundImageDetected(Path imagePath, String patientId) {
         log.info("=== HANDLING ULTRASOUND IMAGE: {} ===", imagePath.toAbsolutePath());
         log.info("Patient ID for this operation: {}", patientId);
-        log.info("Current media path: {}", currentCheckupMediaPath);
         
-        // Snapshot the current media state atomically to avoid races
-        final String capturedPatientId;
-        final Path capturedMediaPath;
-        synchronized (mediaStateLock) {
-            capturedPatientId = (patientId == null) ? currentCheckupIdForMedia : patientId;
-            capturedMediaPath = currentCheckupMediaPath;
-        }
-        if (capturedPatientId == null || capturedPatientId.trim().isEmpty() || capturedMediaPath == null) {
-            log.warn("Media state not ready (patientId or mediaPath null). Skipping: {}", imagePath);
+        // CRITICAL FIX: Use the patient ID passed as parameter (from folder scan)
+        // Do NOT fall back to currentCheckupIdForMedia as it may have changed
+        if (patientId == null || patientId.trim().isEmpty()) {
+            log.error("CRITICAL: Patient ID is null when processing ultrasound image. This should never happen. Aborting to prevent data corruption.");
             return;
         }
+        
+        // Snapshot the current media state atomically to avoid races
+        final String capturedPatientId = patientId; // Always use the parameter, never currentCheckupIdForMedia
+        final Path capturedMediaPath;
+        synchronized (mediaStateLock) {
+            // Only read the path from shared state, but use the patient ID from parameter
+            capturedMediaPath = currentCheckupMediaPath;
+        }
+        
+        // Validate we have the necessary state
+        if (capturedMediaPath == null) {
+            log.warn("Media path is null. This may happen if no patient is currently selected. Skipping: {}", imagePath);
+            return;
+        }
+        
+        // Additional safety check: Ensure the patient ID in the path matches the captured patient ID
+        String pathPatientId = capturedMediaPath.getFileName().toString();
+        if (!capturedPatientId.equals(pathPatientId)) {
+            log.error("CRITICAL RACE CONDITION DETECTED: Patient ID mismatch! Folder scan ID: {}, Current media path ID: {}. Aborting to prevent data corruption.", capturedPatientId, pathPatientId);
+            return;
+        }
+        
+        log.info("Validated patient ID: {} matches current media path", capturedPatientId);
         
         try {
             // Final safety check - ensure file still exists before processing
@@ -3586,7 +3603,15 @@ public class CheckUpPage extends JPanel {
     }
 
     private void handleTakePicture() {
-        if (currentCheckupMediaPath == null) {
+        // Atomically capture the media state to prevent race conditions
+        final String capturedCheckupId;
+        final Path capturedMediaPath;
+        synchronized (mediaStateLock) {
+            capturedCheckupId = currentCheckupIdForMedia;
+            capturedMediaPath = currentCheckupMediaPath;
+        }
+        
+        if (capturedMediaPath == null || capturedCheckupId == null || capturedCheckupId.trim().isEmpty()) {
             JOptionPane.showMessageDialog(this, "Vui lòng chọn một lượt khám để lưu ảnh.", "Chưa chọn lượt khám", JOptionPane.WARNING_MESSAGE);
             return;
         }
@@ -3598,8 +3623,10 @@ public class CheckUpPage extends JPanel {
             }
 
             String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss_SSS").format(new Date());
-            String fileName = "IMG_" + currentCheckupIdForMedia + "_" + timestamp + ".jpg";
-            Path filePath = currentCheckupMediaPath.resolve(fileName);
+            String fileName = "IMG_" + capturedCheckupId + "_" + timestamp + ".jpg";
+            Path filePath = capturedMediaPath.resolve(fileName);
+            
+            log.info("Taking picture for checkup ID: {} with filename: {}", capturedCheckupId, fileName);
 
             try {
                 BufferedImage image = selectedWebcam.getImage();
@@ -3608,11 +3635,12 @@ public class CheckUpPage extends JPanel {
                     ImageIO.write(image, "JPG", filePath.toFile());
                     log.info("Picture taken and saved locally as JPG at: {}", filePath);
 
-                    // Refresh UI to show the new image immediately
-                    loadAndDisplayImages(currentCheckupMediaPath);
+                    // Refresh UI to show the new image immediately (use captured path, not currentCheckupMediaPath)
+                    loadAndDisplayImages(capturedMediaPath);
 
-                    // Now, upload in the background (server will convert to PNG for archival)
-                    uploadImageInBackground(filePath.getFileName().toString(), image);
+                    // Now, upload in the background
+                    // The filename already contains the checkup ID, so uploadImageInBackground will extract it safely
+                    uploadImageInBackground(fileName, image);
 
                 } else {
                     throw new IOException("Không thể lấy ảnh từ webcam");
@@ -3632,6 +3660,16 @@ public class CheckUpPage extends JPanel {
     private void uploadImageInBackground(String fileName, BufferedImage image) {
         imageUploadExecutor.submit(() -> {
             try {
+                // CRITICAL FIX: Extract checkup ID from filename instead of using volatile field
+                // This prevents race conditions when user switches patients during upload
+                String checkupId = extractCheckupIdFromFilename(fileName);
+                if (checkupId == null || checkupId.isEmpty()) {
+                    log.error("CRITICAL: Failed to extract checkup ID from filename: {}. Upload aborted to prevent data corruption.", fileName);
+                    return;
+                }
+                
+                log.info("Uploading image {} for checkup ID: {}", fileName, checkupId);
+                
                 ByteArrayOutputStream baos = new ByteArrayOutputStream();
                 
                 // CHANGE 1: Write the image as a JPG instead of PNG.
@@ -3641,19 +3679,50 @@ public class CheckUpPage extends JPanel {
                 byte[] imageData = baos.toByteArray();
                 baos.close();
     
-                String checkupId = currentCheckupIdForMedia;
-    
                 // CHANGE 2: Use the original fileName (which should already be .jpg).
                 // No need to rename it to .png anymore.
                 UploadCheckupImageRequest request = new UploadCheckupImageRequest(checkupId, imageData, fileName);
                 
                 NetworkUtil.sendPacket(ClientHandler.ctx.channel(), request);
-                log.info("Sent UploadCheckupImageRequest for {}", fileName);
+                log.info("Sent UploadCheckupImageRequest for {} (checkupId: {})", fileName, checkupId);
     
             } catch (IOException e) {
                 log.error("Failed to convert image to JPG for upload: {}", fileName, e);
             }
         });
+    }
+
+    /**
+     * Extracts checkup ID from filename format: IMG_{checkupId}_{timestamp}.jpg
+     * This prevents race conditions where currentCheckupIdForMedia changes while processing.
+     * 
+     * @param fileName The image filename
+     * @return The checkup ID, or null if extraction fails
+     */
+    private String extractCheckupIdFromFilename(String fileName) {
+        if (fileName == null || fileName.isEmpty()) {
+            return null;
+        }
+        
+        // Expected format: IMG_{checkupId}_{timestamp}.jpg or ultrasound_{checkupId}_{timestamp}.jpg
+        try {
+            String[] parts = fileName.split("_");
+            if (parts.length >= 2) {
+                // The checkup ID is always the second part (index 1)
+                String checkupId = parts[1];
+                
+                // Validate it's a number
+                Integer.parseInt(checkupId);
+                
+                log.debug("Extracted checkup ID '{}' from filename '{}'", checkupId, fileName);
+                return checkupId;
+            }
+        } catch (NumberFormatException e) {
+            log.warn("Invalid checkup ID format in filename: {}", fileName);
+        }
+        
+        log.error("Failed to extract checkup ID from filename: {}", fileName);
+        return null;
     }
 
     private void deleteImage(File imageFile) {
@@ -3663,16 +3732,21 @@ public class CheckUpPage extends JPanel {
         }
 
         String fileName = imageFile.getName();
-        String checkupId = currentCheckupIdForMedia;
+        
+        // CRITICAL FIX: Extract checkup ID from filename instead of using volatile field
+        // This prevents race conditions when user switches patients during deletion
+        String checkupId = extractCheckupIdFromFilename(fileName);
 
         if (checkupId == null || checkupId.trim().isEmpty()) {
-            log.error("Cannot delete image - no checkup ID available");
+            log.error("Cannot delete image - failed to extract checkup ID from filename: {}", fileName);
             JOptionPane.showMessageDialog(this,
-                    "Không thể xóa ảnh - không có mã khám.",
+                    "Không thể xóa ảnh - tên file không hợp lệ: " + fileName,
                     "Lỗi",
                     JOptionPane.ERROR_MESSAGE);
             return;
         }
+
+        log.info("Deleting image {} for checkup ID: {}", fileName, checkupId);
 
         // Send delete request to server
         DeleteCheckupImageRequest request = new DeleteCheckupImageRequest(checkupId, fileName);
@@ -3850,8 +3924,15 @@ public class CheckUpPage extends JPanel {
                     log.debug("Saved synced image as JPG: {}", imageFile.getAbsolutePath());
     
                     // If this image belongs to the currently selected patient, refresh the gallery to show it.
-                    if (response.getCheckupId().equals(currentCheckupIdForMedia)) {
-                        loadAndDisplayImages(currentCheckupMediaPath);
+                    // Use atomic read to prevent race conditions
+                    String currentId;
+                    Path currentPath;
+                    synchronized (mediaStateLock) {
+                        currentId = currentCheckupIdForMedia;
+                        currentPath = currentCheckupMediaPath;
+                    }
+                    if (currentId != null && response.getCheckupId().equals(currentId) && currentPath != null) {
+                        loadAndDisplayImages(currentPath);
                     }
     
                 } catch (IOException e) {
@@ -3866,7 +3947,15 @@ public class CheckUpPage extends JPanel {
 
 
     private void handleRecordVideo() {
-        if (currentCheckupMediaPath == null) {
+        // Atomically capture the media state to prevent race conditions
+        final String capturedCheckupId;
+        final Path capturedMediaPath;
+        synchronized (mediaStateLock) {
+            capturedCheckupId = currentCheckupIdForMedia;
+            capturedMediaPath = currentCheckupMediaPath;
+        }
+        
+        if (capturedMediaPath == null || capturedCheckupId == null || capturedCheckupId.trim().isEmpty()) {
             JOptionPane.showMessageDialog(this, "Vui lòng chọn một lượt khám để lưu video.", "Chưa chọn lượt khám", JOptionPane.WARNING_MESSAGE);
             return;
         }
@@ -3880,8 +3969,10 @@ public class CheckUpPage extends JPanel {
             if (!isRecording) {
                 // Start recording
                 String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
-                String fileName = "VID_" + currentCheckupIdForMedia + "_" + timestamp + ".mp4";
-                Path filePath = currentCheckupMediaPath.resolve(fileName);
+                String fileName = "VID_" + capturedCheckupId + "_" + timestamp + ".mp4";
+                Path filePath = capturedMediaPath.resolve(fileName);
+                
+                log.info("Starting video recording for checkup ID: {} with filename: {}", capturedCheckupId, fileName);
 
                 try {
                     // Check if JavaCV classes are available
