@@ -1266,6 +1266,30 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
             return;
         }
     
+        // SECURITY: Validate that filename matches the claimed checkup ID (defense in depth)
+        String fileNameCheckupId = extractCheckupIdFromFilename(originalFileName);
+        if (fileNameCheckupId != null && !fileNameCheckupId.equals(checkupId.trim())) {
+            // CRITICAL SECURITY VIOLATION: Filename contains a DIFFERENT checkup ID than claimed!
+            log.error("SECURITY VIOLATION: Filename checkup ID '{}' does NOT match claimed checkup ID '{}' for file '{}'", 
+                      fileNameCheckupId, checkupId, originalFileName);
+            log.error("This indicates a potential race condition or malicious upload attempt. Upload REJECTED.");
+            
+            UserUtil.sendPacket(currentUser.getSessionId(), 
+                new UploadCheckupImageResponse(false, 
+                    String.format("Lỗi bảo mật: Tên file không khớp với mã khám (file: %s, claimed: %s). Upload bị từ chối.", 
+                                  fileNameCheckupId, checkupId), 
+                    originalFileName));
+            return;
+        }
+        
+        if (fileNameCheckupId != null) {
+            log.info("Security check passed: Filename checkup ID '{}' matches claimed checkup ID '{}'", 
+                     fileNameCheckupId, checkupId);
+        } else {
+            log.debug("Filename '{}' does not contain checkup ID - allowing upload (legacy format or manual upload)", 
+                      originalFileName);
+        }
+    
         try {
             // 1. Define the storage directory
             Path storageDir = Paths.get(Server.imageDbPath, checkupId.trim());
@@ -1306,6 +1330,30 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
             UserUtil.sendPacket(currentUser.getSessionId(), 
                 new DeleteCheckupImageResponse(false, "CheckupID không hợp lệ.", fileName));
             return;
+        }
+    
+        // SECURITY: Validate that filename matches the claimed checkup ID (defense in depth)
+        String fileNameCheckupId = extractCheckupIdFromFilename(fileName);
+        if (fileNameCheckupId != null && !fileNameCheckupId.equals(checkupId.trim())) {
+            // CRITICAL SECURITY VIOLATION: Attempting to delete an image from the WRONG checkup!
+            log.error("SECURITY VIOLATION: Filename checkup ID '{}' does NOT match claimed checkup ID '{}' for file '{}'", 
+                      fileNameCheckupId, checkupId, fileName);
+            log.error("This could result in deleting images from the wrong patient folder. Delete REJECTED.");
+            
+            UserUtil.sendPacket(currentUser.getSessionId(), 
+                new DeleteCheckupImageResponse(false, 
+                    String.format("Lỗi bảo mật: Tên file không khớp với mã khám (file: %s, claimed: %s). Xóa bị từ chối.", 
+                                  fileNameCheckupId, checkupId), 
+                    fileName));
+            return;
+        }
+        
+        if (fileNameCheckupId != null) {
+            log.info("Security check passed: Filename checkup ID '{}' matches claimed checkup ID '{}'", 
+                     fileNameCheckupId, checkupId);
+        } else {
+            log.debug("Filename '{}' does not contain checkup ID - allowing delete (legacy format or manual upload)", 
+                      fileName);
         }
     
         if (fileName == null || fileName.trim().isEmpty()) {
@@ -2385,6 +2433,52 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
       return pattern.toString();
   }
   
+  /**
+   * Extracts checkup ID from image filename for security validation.
+   * 
+   * Expected filename formats:
+   *   - IMG_{checkupId}_{timestamp}.jpg      (e.g., IMG_123_20251205_143000.jpg)
+   *   - ultrasound_{checkupId}_{timestamp}.jpg
+   *   - VID_{checkupId}_{timestamp}.mp4
+   * 
+   * This method is used for server-side validation to ensure the claimed checkup ID
+   * matches the checkup ID embedded in the filename, preventing race conditions where
+   * an image might be uploaded to the wrong patient folder due to client-side timing issues.
+   * 
+   * @param fileName The image/video filename
+   * @return The checkup ID extracted from the filename, or null if not found or invalid format
+   */
+  private String extractCheckupIdFromFilename(String fileName) {
+      if (fileName == null || fileName.isEmpty()) {
+          return null;
+      }
+      
+      try {
+          // Expected format: PREFIX_{checkupId}_{timestamp}.extension
+          // Split by underscore to extract parts
+          String[] parts = fileName.split("_");
+          
+          // Need at least 3 parts: prefix, checkupId, timestamp
+          if (parts.length >= 2) {
+              // The checkup ID is always the second part (index 1)
+              String checkupId = parts[1];
+              
+              // Validate it's a valid integer (checkup IDs are numeric)
+              Integer.parseInt(checkupId);
+              
+              log.debug("Extracted checkup ID '{}' from filename '{}'", checkupId, fileName);
+              return checkupId;
+          }
+      } catch (NumberFormatException e) {
+          // Filename has underscores but second part is not a number
+          log.debug("Filename '{}' does not follow expected format (second part is not a valid checkup ID)", fileName);
+      }
+      
+      // Return null if filename doesn't follow expected format
+      // This is OK - allows legacy files or manually uploaded files without checkup ID
+      return null;
+  }
+
   /**
    * Checks if a character is a Vietnamese vowel or 'd/đ' that can have accents.
    * Vietnamese vowels: a, ă, â, e, ê, i, o, ô, ơ, u, ư, y

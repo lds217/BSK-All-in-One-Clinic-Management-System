@@ -260,3 +260,10 @@ database/BSK.db-wal
 *.db-wal
 database/*.db
 *.old
+*.jar
+*.db
+*.db-shm
+*.db-wal
+database/*.db
+database/*.db-shm
+database/*.db-wal
