@@ -233,18 +233,11 @@
 						<expression><![CDATA[$P{image1}]]></expression>
 					</element>
 				</element>
-				<element kind="staticText" uuid="8f35aa72-22a4-45f0-a35e-8e35e832404e" x="-68" y="51" width="66" height="21" fontName="Times New Roman" fontSize="8.0" bold="true" hTextAlign="Right">
-					<printWhenExpression><![CDATA[$P{driveURL} != null && !$P{driveURL}.trim().isEmpty()]]></printWhenExpression>
-					<text><![CDATA[Xem KQ online]]></text>
-				</element>
 				<element kind="textField" uuid="6d7df7cd-924f-4306-bcea-d643f7a977f0" x="-117" y="23" width="60" height="12" fontName="Times New Roman" fontSize="8.0" hTextAlign="Center">
 					<expression><![CDATA[$P{id}]]></expression>
 				</element>
 				<element kind="image" uuid="16aab6b9-7618-451e-ae48-8bf7bd857bbc" x="-118" y="0" width="61" height="23">
 					<expression><![CDATA[$P{barcodeNumber}]]></expression>
-				</element>
-				<element kind="image" uuid="14220495-3e07-4322-9c5f-ebf98a8083c8" x="-50" y="3" width="48" height="48">
-					<expression><![CDATA[$P{driveURL}]]></expression>
 				</element>
 				<element kind="staticText" uuid="fbffa5e9-b68c-4bd9-be86-34d3537fbfa5" x="2" y="538" width="196" height="15" fontName="Times New Roman" fontSize="12.0" italic="true" bold="true" hTextAlign="Left">
 					<text><![CDATA[Lưu ý: Mang phiếu khi tái khám]]></text>
