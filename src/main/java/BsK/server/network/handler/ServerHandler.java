@@ -657,7 +657,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                 if (queueNumber == -1) { // if queue number is -1, means the queue number is not provided, so we need to get the queue number from the database
                     String queueSql = """
                             INSERT INTO DailyQueueCounter (date, shift, current_count) 
-                            VALUES (date('now', 'localtime'), ?, 1) 
+                            VALUES (date('now', '+7 hours'), ?, 1) 
                             ON CONFLICT(date, shift) DO UPDATE SET current_count = current_count + 1 
                             RETURNING current_count
                             """;
@@ -674,7 +674,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                     }
                 } else { // Custom queue number provided
                     int currentMax = 0;
-                    String getMaxSql = "SELECT current_count FROM DailyQueueCounter WHERE date = date('now', 'localtime') AND shift = ?";
+                    String getMaxSql = "SELECT current_count FROM DailyQueueCounter WHERE date = date('now', '+7 hours') AND shift = ?";
                     try (PreparedStatement stmt = conn.prepareStatement(getMaxSql)) {
                         stmt.setInt(1, shift);
                         ResultSet rs = stmt.executeQuery();
@@ -686,7 +686,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                     if (queueNumber > currentMax) {
                         String upsertSql = """
                             INSERT INTO DailyQueueCounter (date, shift, current_count) 
-                            VALUES (date('now', 'localtime'), ?, ?) 
+                            VALUES (date('now', '+7 hours'), ?, ?) 
                             ON CONFLICT(date, shift) DO UPDATE SET current_count = ?
                             """;
                         try (PreparedStatement stmt = conn.prepareStatement(upsertSql)) {
@@ -785,7 +785,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
     
         try (Connection conn = DatabaseManager.getConnection()) {
             int currentMax = 0;
-            String getMaxSql = "SELECT current_count FROM DailyQueueCounter WHERE date = date('now', 'localtime') AND shift = ?";
+            String getMaxSql = "SELECT current_count FROM DailyQueueCounter WHERE date = date('now', '+7 hours') AND shift = ?";
             try (PreparedStatement stmt = conn.prepareStatement(getMaxSql)) {
                 stmt.setInt(1, shift);
                 ResultSet rs = stmt.executeQuery();
@@ -798,7 +798,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
             if (newCounter > currentMax) {
                 String upsertSql = """
                     INSERT INTO DailyQueueCounter (date, shift, current_count) 
-                    VALUES (date('now', 'localtime'), ?, ?) 
+                    VALUES (date('now', '+7 hours'), ?, ?) 
                     ON CONFLICT(date, shift) DO UPDATE SET current_count = ?
                     """;
                 try (PreparedStatement stmt = conn.prepareStatement(upsertSql)) {
@@ -822,7 +822,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
       if (packet instanceof GetCounterRequest getCounterRequest) {
         log.debug("Received GetCounterRequest");
         int shift = getCounterRequest.getShift();
-        String sql = "SELECT current_count FROM DailyQueueCounter WHERE date = date('now', 'localtime') AND shift = ?;";
+        String sql = "SELECT current_count FROM DailyQueueCounter WHERE date = date('now', '+7 hours') AND shift = ?;";
         try (Connection conn = DatabaseManager.getConnection()) {
             try (PreparedStatement preparedStatement = conn.prepareStatement(sql)) {
                 preparedStatement.setInt(1, shift);
