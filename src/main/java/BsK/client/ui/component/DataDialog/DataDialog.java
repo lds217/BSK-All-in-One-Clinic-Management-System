@@ -16,7 +16,6 @@ import BsK.client.ui.component.CheckUpPage.CheckUpPage;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
-import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableCellRenderer;
 import javax.swing.table.TableColumn;
@@ -483,21 +482,34 @@ public class DataDialog extends JDialog {
     }
 
     private void handleExportToExcel() {
-        JFileChooser fileChooser = new JFileChooser();
-        fileChooser.setDialogTitle("Lưu file Excel");
-        fileChooser.setFileFilter(new FileNameExtensionFilter("Excel Workbook (*.xlsx)", "xlsx"));
-        fileChooser.setSelectedFile(new File("DanhSachKhamBenh.xlsx"));
-
-        if (fileChooser.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
-            this.fileForExport = fileChooser.getSelectedFile();
-            if (!this.fileForExport.getName().toLowerCase().endsWith(".xlsx")) {
-                this.fileForExport = new File(this.fileForExport.getParentFile(), this.fileForExport.getName() + ".xlsx");
-            }
-
-            this.isExporting = true;
-            JOptionPane.showMessageDialog(this, "Đang chuẩn bị dữ liệu để xuất file...", "Thông báo", JOptionPane.INFORMATION_MESSAGE);
-            fetchData(-1); // Fetch all data for export
-        }
+        ExcelExportDialog exportDialog = new ExcelExportDialog(this, 
+            (fromTimestamp, toTimestamp, doctorId, includeMedicine, includeService, exportFile) -> {
+                this.fileForExport = exportFile;
+                this.isExporting = true;
+                
+                // TODO: When backend supports medicine/service export:
+                // Create and send a new request type: GetExportDataRequest
+                // that includes includeMedicine and includeService flags
+                // For now, we use the existing GetCheckupDataRequest
+                
+                JOptionPane.showMessageDialog(this, 
+                    "Đang chuẩn bị dữ liệu để xuất file...\nVui lòng đợi trong giây lát.", 
+                    "Thông báo", JOptionPane.INFORMATION_MESSAGE);
+                
+                // Fetch data with the specified date range and doctor filter
+                GetCheckupDataRequest request = new GetCheckupDataRequest(
+                    null,           // searchTerm
+                    null,           // checkupIdSearch
+                    fromTimestamp,  // from date
+                    toTimestamp,    // to date
+                    doctorId,       // doctor filter
+                    -1,             // page = -1 means fetch all
+                    recordsPerPage, 
+                    LocalStorage.currentShift
+                );
+                NetworkUtil.sendPacket(ClientHandler.ctx.channel(), request);
+            });
+        exportDialog.setVisible(true);
     }
 
     private void updatePaginationControls() {
