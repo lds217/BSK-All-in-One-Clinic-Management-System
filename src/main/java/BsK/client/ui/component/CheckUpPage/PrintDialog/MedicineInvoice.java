@@ -2,6 +2,7 @@ package BsK.client.ui.component.CheckUpPage.PrintDialog;
 
 import BsK.client.LocalStorage;
 import BsK.client.ui.component.CheckUpPage.PrintDialog.InvoiceItem;
+import BsK.common.util.date.DateUtils; // Added import
 // JasperReports imports
 import net.sf.jasperreports.engine.*;
 import net.sf.jasperreports.engine.data.JRBeanCollectionDataSource;
@@ -191,8 +192,8 @@ public class MedicineInvoice{
         this.diagnosis = diagnosis;
         this.notes = notes;
         this.driveURL = driveURL;
-        // Get today's date
-        LocalDate today = LocalDate.now();
+        // Get today's date in Vietnam Timezone
+        LocalDate today = LocalDate.now(DateUtils.VIETNAM_ZONE);
 
         // Format the date
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");

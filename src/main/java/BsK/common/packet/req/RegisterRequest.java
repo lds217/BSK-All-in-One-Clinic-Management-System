@@ -3,6 +3,7 @@ package BsK.common.packet.req;
 import BsK.common.packet.Packet;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import BsK.common.util.date.DateUtils;
 
 import java.time.LocalDateTime;
 
@@ -21,6 +22,6 @@ public class RegisterRequest implements Packet {
     this.password = password;
     this.name = name;
     this.role = role;
-    this.timestamp = LocalDateTime.now(); // Automatically sets the current time
+    this.timestamp = LocalDateTime.now(DateUtils.VIETNAM_ZONE); // Automatically sets the current time in Vietnam Timezone
   }
 }

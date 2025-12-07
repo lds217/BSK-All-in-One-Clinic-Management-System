@@ -370,7 +370,8 @@ public class DashboardPage extends JPanel {
 
     private void updateDateTime() {
         if (dateTimeLabel != null) {
-            LocalDateTime now = LocalDateTime.now();
+            // Use Vietnam timezone (UTC+7) for consistent time display
+            LocalDateTime now = LocalDateTime.now(DateUtils.VIETNAM_ZONE);
             String date = now.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
             String time = now.format(DateTimeFormatter.ofPattern("HH:mm:ss"));
             dateTimeLabel.setText("<html><div style='text-align: center;'>" + date + "<br>" + time + "</div></html>");
@@ -432,6 +433,6 @@ public class DashboardPage extends JPanel {
     }
 
     private String getCurrentTime() {
-        return LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss"));
+        return LocalDateTime.now(DateUtils.VIETNAM_ZONE).format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss"));
     }
 }

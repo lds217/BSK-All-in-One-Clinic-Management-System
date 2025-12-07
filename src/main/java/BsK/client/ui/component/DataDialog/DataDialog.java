@@ -10,8 +10,10 @@ import BsK.common.packet.req.DeleteCheckupRequest;
 import BsK.common.packet.req.GetCheckupDataRequest;
 import BsK.common.packet.res.DeleteCheckupResponse;
 import BsK.common.packet.res.GetCheckupDataResponse;
+import BsK.common.packet.res.GetExportDataResponse;
 import BsK.common.util.network.NetworkUtil;
 import BsK.client.ui.component.CheckUpPage.CheckUpPage;
+import BsK.common.util.date.DateUtils; // Added import
  // import BsK.common.entity.CheckupData;
 
 import javax.swing.*;
@@ -43,13 +45,16 @@ public class DataDialog extends JDialog {
     private DefaultTableModel tableModel;
     private JLabel resultCountLabel;
     private final ResponseListener<GetCheckupDataResponse> dataResponseListener = this::handleGetCheckupDataResponse;
-    private final ResponseListener<DeleteCheckupResponse> deleteResponseListener = this::handleDeleteCheckupResponse; // --- NEW ---
+    private final ResponseListener<DeleteCheckupResponse> deleteResponseListener = this::handleDeleteCheckupResponse;
+    private final ResponseListener<GetExportDataResponse> exportDataResponseListener = this::handleGetExportDataResponse;
     private int currentPage = 1;
     private int totalPages = 1;
     private int recordsPerPage = 20;
     private int totalRecords = 0;
     private boolean isExporting = false;
     private File fileForExport = null;
+    private boolean exportIncludeMedicine = false;
+    private boolean exportIncludeService = false;
     private JPanel mainPanel;
     private JPanel paginationPanel;
     private CheckUpPage checkUpPageInstance;
@@ -114,14 +119,16 @@ public class DataDialog extends JDialog {
 
     private void setupNetworking() {
         ClientHandler.addResponseListener(GetCheckupDataResponse.class, dataResponseListener);
-        ClientHandler.addResponseListener(DeleteCheckupResponse.class, deleteResponseListener); // --- NEW ---
+        ClientHandler.addResponseListener(DeleteCheckupResponse.class, deleteResponseListener);
+        ClientHandler.addResponseListener(GetExportDataResponse.class, exportDataResponseListener);
 
         this.addWindowListener(new WindowAdapter() {
             @Override
             public void windowClosing(WindowEvent e) {
                 // Clean up all listeners
                 ClientHandler.deleteListener(GetCheckupDataResponse.class, dataResponseListener);
-                ClientHandler.deleteListener(DeleteCheckupResponse.class, deleteResponseListener); // --- NEW ---
+                ClientHandler.deleteListener(DeleteCheckupResponse.class, deleteResponseListener);
+                ClientHandler.deleteListener(GetExportDataResponse.class, exportDataResponseListener);
                 if (medicinePanel != null) {
                     medicinePanel.cleanup();
                 }
@@ -152,7 +159,7 @@ public class DataDialog extends JDialog {
         if (LocalStorage.dataDialogFromDate != null) {
             fromDateSpinner.setValue(LocalStorage.dataDialogFromDate);
         } else {
-            fromDateSpinner.setValue(new Date());
+            fromDateSpinner.setValue(new Date()); // Spinner handles Date object, DateUtils handles timezone during processing
         }
 
         if (LocalStorage.dataDialogToDate != null) {
@@ -359,7 +366,7 @@ public class DataDialog extends JDialog {
         Date fromDate = (Date) fromDateSpinner.getValue();
         Date toDate = (Date) toDateSpinner.getValue();
 
-        Calendar cal = Calendar.getInstance();
+        Calendar cal = Calendar.getInstance(DateUtils.VIETNAM_TIMEZONE); // Use Vietnam Timezone
         cal.setTime(fromDate);
         cal.set(Calendar.HOUR_OF_DAY, 0);
         cal.set(Calendar.MINUTE, 0);
@@ -471,6 +478,62 @@ public class DataDialog extends JDialog {
         });
     }
 
+    private void handleGetExportDataResponse(GetExportDataResponse response) {
+        SwingUtilities.invokeLater(() -> {
+            if (response.isSuccess()) {
+                log.info("Received export data response with {} patient records", 
+                    response.getPatientData() != null ? response.getPatientData().length : 0);
+                
+                if (response.getMedicineData() != null) {
+                    log.info("Medicine data included for {} checkups", response.getMedicineData().size());
+                }
+                if (response.getServiceData() != null) {
+                    log.info("Service data included for {} checkups", response.getServiceData().size());
+                }
+                
+                // Export to Excel with real data
+                if (fileForExport != null) {
+                    try {
+                        ExcelExporter.exportWithData(
+                            response.getPatientData(),
+                            response.getMedicineData(),
+                            response.getServiceData(),
+                            exportIncludeMedicine,
+                            exportIncludeService,
+                            fileForExport
+                        );
+                        JOptionPane.showMessageDialog(this, 
+                            "Xuất file thành công!\n" + fileForExport.getAbsolutePath(), 
+                            "Thành công", 
+                            JOptionPane.INFORMATION_MESSAGE);
+                    } catch (IOException ex) {
+                        log.error("Error exporting to Excel", ex);
+                        JOptionPane.showMessageDialog(this, 
+                            "Lỗi khi ghi file Excel: " + ex.getMessage(), 
+                            "Lỗi", 
+                            JOptionPane.ERROR_MESSAGE);
+                    } finally {
+                        // Reset export state
+                        fileForExport = null;
+                        exportIncludeMedicine = false;
+                        exportIncludeService = false;
+                    }
+                }
+                
+            } else {
+                log.error("Export data request failed: {}", response.getMessage());
+                JOptionPane.showMessageDialog(this, 
+                    "Lỗi khi lấy dữ liệu xuất: " + response.getMessage(), 
+                    "Lỗi", 
+                    JOptionPane.ERROR_MESSAGE);
+                // Reset export state
+                fileForExport = null;
+                exportIncludeMedicine = false;
+                exportIncludeService = false;
+            }
+        });
+    }
+
     private void updateResultCountLabel() {
         if (totalRecords == 0) {
             resultCountLabel.setText("Không tìm thấy kết quả nào.");
@@ -484,30 +547,13 @@ public class DataDialog extends JDialog {
     private void handleExportToExcel() {
         ExcelExportDialog exportDialog = new ExcelExportDialog(this, 
             (fromTimestamp, toTimestamp, doctorId, includeMedicine, includeService, exportFile) -> {
+                // Store export settings for when response comes back
                 this.fileForExport = exportFile;
-                this.isExporting = true;
+                this.exportIncludeMedicine = includeMedicine;
+                this.exportIncludeService = includeService;
                 
-                // TODO: When backend supports medicine/service export:
-                // Create and send a new request type: GetExportDataRequest
-                // that includes includeMedicine and includeService flags
-                // For now, we use the existing GetCheckupDataRequest
-                
-                JOptionPane.showMessageDialog(this, 
-                    "Đang chuẩn bị dữ liệu để xuất file...\nVui lòng đợi trong giây lát.", 
-                    "Thông báo", JOptionPane.INFORMATION_MESSAGE);
-                
-                // Fetch data with the specified date range and doctor filter
-                GetCheckupDataRequest request = new GetCheckupDataRequest(
-                    null,           // searchTerm
-                    null,           // checkupIdSearch
-                    fromTimestamp,  // from date
-                    toTimestamp,    // to date
-                    doctorId,       // doctor filter
-                    -1,             // page = -1 means fetch all
-                    recordsPerPage, 
-                    LocalStorage.currentShift
-                );
-                NetworkUtil.sendPacket(ClientHandler.ctx.channel(), request);
+                // Request is already sent by ExcelExportDialog
+                // Response will be handled by handleGetExportDataResponse
             });
         exportDialog.setVisible(true);
     }

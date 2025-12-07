@@ -134,8 +134,8 @@ public class GoogleDriveOAuthTest {
         writer.write("=========================================\n\n");
         writer.write("Patient ID: " + patientId + "\n");
         writer.write("Checkup ID: " + checkupId + "\n");
-        writer.write("Examination Date: " + java.time.LocalDate.now() + "\n");
-        writer.write("Examination Time: " + java.time.LocalTime.now() + "\n\n");
+        writer.write("Examination Date: " + java.time.LocalDate.now(BsK.common.util.date.DateUtils.VIETNAM_ZONE) + "\n");
+        writer.write("Examination Time: " + java.time.LocalTime.now(BsK.common.util.date.DateUtils.VIETNAM_ZONE) + "\n\n");
         writer.write("EXAMINATION RESULTS:\n");
         writer.write("- Blood Pressure: 120/80 mmHg\n");
         writer.write("- Heart Rate: 72 bpm\n");
@@ -163,8 +163,8 @@ public class GoogleDriveOAuthTest {
         writer.write("==========================================\n\n");
         writer.write("Patient ID: " + patientId + "\n");
         writer.write("Checkup ID: " + checkupId + "\n");
-        writer.write("Examination Date: " + java.time.LocalDate.now() + "\n");
-        writer.write("Examination Time: " + java.time.LocalTime.now() + "\n\n");
+        writer.write("Examination Date: " + java.time.LocalDate.now(BsK.common.util.date.DateUtils.VIETNAM_ZONE) + "\n");
+        writer.write("Examination Time: " + java.time.LocalTime.now(BsK.common.util.date.DateUtils.VIETNAM_ZONE) + "\n\n");
         writer.write("ULTRASOUND FINDINGS:\n");
         writer.write("- Liver: Normal size and echogenicity\n");
         writer.write("- Gallbladder: Normal\n");
@@ -190,7 +190,7 @@ public class GoogleDriveOAuthTest {
         writer.write("Patient ID: " + patientId + "\n");
         writer.write("Checkup ID: " + checkupId + "\n");
         writer.write("Image Type: Blood test microscopy\n");
-        writer.write("Capture Date: " + java.time.LocalDateTime.now() + "\n\n");
+        writer.write("Capture Date: " + java.time.LocalDateTime.now(BsK.common.util.date.DateUtils.VIETNAM_ZONE) + "\n\n");
         writer.write("Note: This is a mock text file representing blood test image data.\n");
         writer.write("In production, this would be actual medical image files (JPG/PNG).\n");
         writer.close();
@@ -208,7 +208,7 @@ public class GoogleDriveOAuthTest {
         writer.write("Checkup ID: " + checkupId + "\n");
         writer.write("Image ID: " + imageId + "\n");
         writer.write("Image Type: Abdominal ultrasound\n");
-        writer.write("Capture Date: " + java.time.LocalDateTime.now() + "\n\n");
+        writer.write("Capture Date: " + java.time.LocalDateTime.now(BsK.common.util.date.DateUtils.VIETNAM_ZONE) + "\n\n");
         writer.write("Note: This is a mock text file representing ultrasound image data.\n");
         writer.write("In production, this would be actual medical image files (JPG/PNG/DICOM).\n");
         writer.close();

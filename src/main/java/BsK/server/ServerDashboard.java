@@ -20,6 +20,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import BsK.server.network.entity.ClientConnection;
 import BsK.server.network.manager.SessionManager;
+import BsK.common.util.date.DateUtils;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -36,7 +37,8 @@ public class ServerDashboard extends JFrame {
     private JTextField searchField;
     private static int connectedClients = 0;
     private static ServerDashboard instance;
-    private final SimpleDateFormat timeFormat = new SimpleDateFormat("HH:mm:ss");
+    // Use Vietnam timezone (UTC+7) for consistent time display
+    private final SimpleDateFormat timeFormat = DateUtils.createVietnamDateFormat("HH:mm:ss");
     private Timer statsTimer;
     private Timer networkStatsTimer;
     private boolean isAutoScrollEnabled = true;

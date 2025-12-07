@@ -3,6 +3,7 @@ package BsK.common.util.text;
 import java.text.Normalizer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import BsK.common.util.date.DateUtils;
 
 public final class TextUtils {
 
@@ -89,8 +90,8 @@ public final class TextUtils {
      * @return A standardized checkup folder name (e.g., "Kham_benh_20241218_Tran_Van_A")
      */
     public static String createCheckupFolderName(String patientLastName, String patientFirstName) {
-        // Get today's date in YYYYMMDD format
-        java.time.LocalDate today = java.time.LocalDate.now();
+        // Get today's date in YYYYMMDD format using Vietnam timezone (UTC+7)
+        java.time.LocalDate today = java.time.LocalDate.now(DateUtils.VIETNAM_ZONE);
         String dateStr = today.format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd"));
         
         // Create English patient name
@@ -110,8 +111,8 @@ public final class TextUtils {
      * @return A standardized checkup folder name (e.g., "Checkup_123_20241218_Tran_Van_A")
      */
     public static String createCheckupFolderNameWithId(int checkupId, String patientLastName, String patientFirstName) {
-        // Get today's date in YYYYMMDD format
-        java.time.LocalDate today = java.time.LocalDate.now();
+        // Get today's date in YYYYMMDD format using Vietnam timezone (UTC+7)
+        java.time.LocalDate today = java.time.LocalDate.now(DateUtils.VIETNAM_ZONE);
         String dateStr = today.format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd"));
         
         // Create English patient name
