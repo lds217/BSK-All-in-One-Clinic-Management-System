@@ -26,6 +26,7 @@ import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.Properties;
+import BsK.common.util.date.DateUtils;
 
 
 @Slf4j
@@ -841,7 +842,8 @@ public class AddDialog extends JDialog {
             String lastNameStr = lastName.toString();
             String dateText = dobPicker.getJFormattedTextField().getText();
 
-            SimpleDateFormat dateFormat = new SimpleDateFormat("dd/MM/yyyy");
+            // Use Vietnam timezone (UTC+7) for consistent date handling
+            SimpleDateFormat dateFormat = DateUtils.createVietnamDateFormat("dd/MM/yyyy");
             try {
                 Date date = dateFormat.parse(dateText);
                 long timestamp = date.getTime(); // This converts the Date to milliseconds since epoch (long)
@@ -1071,18 +1073,19 @@ private void setupDebounceSearch() {
             provinceComboBox.setSelectedIndex(0);
         }
         
-        SimpleDateFormat dobFormat;
         try {
             Date parsedDate;
             if (patientDob.matches("\\d+")) {  // Check if the string is a timestamp
                 long timestamp = Long.parseLong(patientDob); // Convert the string to a long
                 parsedDate = new Date(timestamp); // Convert the timestamp to a Date
             } else {
-                dobFormat = new SimpleDateFormat("dd/MM/yyyy");
+                // Use Vietnam timezone (UTC+7) for consistent date handling
+                SimpleDateFormat dobFormat = DateUtils.createVietnamDateFormat("dd/MM/yyyy");
                 parsedDate = dobFormat.parse(patientDob); // Parse formatted date string
             }
 
-            Calendar calendar = Calendar.getInstance();
+            // Use Vietnam timezone calendar for consistent date display
+            Calendar calendar = Calendar.getInstance(DateUtils.VIETNAM_TIMEZONE);
             calendar.setTime(parsedDate);
 
             dobPicker.getModel().setDate(calendar.get(Calendar.YEAR), calendar.get(Calendar.MONTH), calendar.get(Calendar.DAY_OF_MONTH));

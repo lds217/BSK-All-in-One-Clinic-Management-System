@@ -4,17 +4,22 @@
     import java.text.SimpleDateFormat;
     import java.util.Calendar;
     import java.util.Locale;
+    import java.util.TimeZone;
 
     import org.jdatepicker.*;
+    import BsK.common.util.date.DateUtils;
 
     import javax.swing.*;
 
     public class DateLabelFormatter extends JFormattedTextField.AbstractFormatter {
 
         private String datePattern = "dd/MM/yyyy";
-        private SimpleDateFormat dateFormatter = new SimpleDateFormat(datePattern, Locale.ENGLISH);
+        private SimpleDateFormat dateFormatter;
 
         public DateLabelFormatter() {
+            // Use Vietnam timezone (UTC+7) for consistent date handling
+            dateFormatter = new SimpleDateFormat(datePattern, Locale.ENGLISH);
+            dateFormatter.setTimeZone(DateUtils.VIETNAM_TIMEZONE);
             // Enable lenient parsing to be more flexible with user input
             dateFormatter.setLenient(false);
         }
@@ -54,7 +59,8 @@
             }
 
             if (parsedDate != null) {
-                Calendar cal = Calendar.getInstance();
+                // Use Vietnam timezone (UTC+7) for consistent date handling
+                Calendar cal = Calendar.getInstance(DateUtils.VIETNAM_TIMEZONE);
                 cal.setTime(parsedDate);
                 return cal;
             }

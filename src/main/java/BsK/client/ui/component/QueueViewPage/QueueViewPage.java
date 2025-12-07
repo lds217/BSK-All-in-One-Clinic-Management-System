@@ -292,7 +292,8 @@ public class QueueViewPage extends JFrame {
         // --- END OF CHANGE ---
 
         List<Object[]> tvDataList = new ArrayList<>();
-        SimpleDateFormat inputDateFormat = new SimpleDateFormat("dd/MM/yyyy");
+        // Use Vietnam timezone (UTC+7) for consistent date handling
+        SimpleDateFormat inputDateFormat = DateUtils.createVietnamDateFormat("dd/MM/yyyy");
 
         for (String[] row : fullQueueData) {
             if (row.length > 24) { 
@@ -312,7 +313,7 @@ public class QueueViewPage extends JFrame {
                         try {
                             Date dobDate = DateUtils.convertToDate(customerDob);
                             if (dobDate != null) {
-                                Calendar calendar = Calendar.getInstance();
+                                Calendar calendar = Calendar.getInstance(DateUtils.VIETNAM_TIMEZONE);
                                 calendar.setTime(dobDate);
                                 namSinh = String.valueOf(calendar.get(Calendar.YEAR));
                             }

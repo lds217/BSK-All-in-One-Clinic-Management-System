@@ -1,8 +1,12 @@
 package BsK.client.ui.component.DataDialog;
 
 import BsK.client.LocalStorage;
+import BsK.client.network.handler.ClientHandler;
 import BsK.client.ui.component.common.DateLabelFormatter;
 import BsK.common.entity.DoctorItem;
+import BsK.common.packet.req.GetExportDataRequest;
+import BsK.common.util.network.NetworkUtil;
+import BsK.common.util.date.DateUtils; // Added import
 import org.jdatepicker.impl.JDatePanelImpl;
 import org.jdatepicker.impl.JDatePickerImpl;
 import org.jdatepicker.impl.UtilDateModel;
@@ -97,7 +101,7 @@ public class ExcelExportDialog extends JDialog {
         fromDatePicker = createDatePicker();
         // Remove fixed preferred size to let layout manager handle it
         // Set default to first day of current month
-        Calendar cal = Calendar.getInstance();
+        Calendar cal = Calendar.getInstance(DateUtils.VIETNAM_TIMEZONE);
         cal.set(Calendar.DAY_OF_MONTH, 1);
         fromDatePicker.getModel().setDate(cal.get(Calendar.YEAR), cal.get(Calendar.MONTH), cal.get(Calendar.DAY_OF_MONTH));
         fromDatePicker.getModel().setSelected(true);
@@ -115,7 +119,7 @@ public class ExcelExportDialog extends JDialog {
         gbc.weightx = 1.0;
         toDatePicker = createDatePicker();
         // Set default to today
-        Calendar today = Calendar.getInstance();
+        Calendar today = Calendar.getInstance(DateUtils.VIETNAM_TIMEZONE);
         toDatePicker.getModel().setDate(today.get(Calendar.YEAR), today.get(Calendar.MONTH), today.get(Calendar.DAY_OF_MONTH));
         toDatePicker.getModel().setSelected(true);
         formPanel.add(toDatePicker, gbc);
@@ -127,7 +131,7 @@ public class ExcelExportDialog extends JDialog {
             
             if (fromDate != null && toDate != null && fromDate.after(toDate)) {
                 // If From Date > To Date, set To Date = From Date
-                Calendar c = Calendar.getInstance();
+                Calendar c = Calendar.getInstance(DateUtils.VIETNAM_TIMEZONE);
                 c.setTime(fromDate);
                 toDatePicker.getModel().setDate(c.get(Calendar.YEAR), c.get(Calendar.MONTH), c.get(Calendar.DAY_OF_MONTH));
             }
@@ -139,7 +143,7 @@ public class ExcelExportDialog extends JDialog {
             
             if (fromDate != null && toDate != null && toDate.before(fromDate)) {
                 // If To Date < From Date, set From Date = To Date
-                Calendar c = Calendar.getInstance();
+                Calendar c = Calendar.getInstance(DateUtils.VIETNAM_TIMEZONE);
                 c.setTime(toDate);
                 fromDatePicker.getModel().setDate(c.get(Calendar.YEAR), c.get(Calendar.MONTH), c.get(Calendar.DAY_OF_MONTH));
             }
@@ -175,8 +179,6 @@ public class ExcelExportDialog extends JDialog {
         includeMedicineCheckbox = new JCheckBox("Bao gồm thông tin thuốc (đơn thuốc)");
         includeMedicineCheckbox.setFont(textFont);
         includeMedicineCheckbox.setSelected(false);
-        includeMedicineCheckbox.setEnabled(false); // TODO: Enable when backend is ready
-        includeMedicineCheckbox.setToolTipText("Tính năng đang phát triển");
         formPanel.add(includeMedicineCheckbox, gbc);
 
         // --- Row 4: Include Service Checkbox ---
@@ -187,19 +189,7 @@ public class ExcelExportDialog extends JDialog {
         includeServiceCheckbox = new JCheckBox("Bao gồm thông tin dịch vụ");
         includeServiceCheckbox.setFont(textFont);
         includeServiceCheckbox.setSelected(false);
-        includeServiceCheckbox.setEnabled(false); // TODO: Enable when backend is ready
-        includeServiceCheckbox.setToolTipText("Tính năng đang phát triển");
         formPanel.add(includeServiceCheckbox, gbc);
-
-        // --- Row 5: Note Label ---
-        gbc.gridx = 0;
-        gbc.gridy = 5;
-        gbc.gridwidth = 2;
-        gbc.insets = new Insets(10, 8, 8, 8);
-        JLabel noteLabel = new JLabel("<html><i>* Các tùy chọn thuốc và dịch vụ sẽ được hỗ trợ trong phiên bản tới.</i></html>");
-        noteLabel.setFont(new Font("Arial", Font.ITALIC, 11));
-        noteLabel.setForeground(Color.GRAY);
-        formPanel.add(noteLabel, gbc);
 
         return formPanel;
     }
@@ -290,7 +280,7 @@ public class ExcelExportDialog extends JDialog {
         }
 
         // Calculate timestamps
-        Calendar cal = Calendar.getInstance();
+        Calendar cal = Calendar.getInstance(DateUtils.VIETNAM_TIMEZONE);
         cal.setTime(fromDate);
         cal.set(Calendar.HOUR_OF_DAY, 0);
         cal.set(Calendar.MINUTE, 0);
@@ -340,17 +330,22 @@ public class ExcelExportDialog extends JDialog {
                 exportFile = new File(exportFile.getParentFile(), exportFile.getName() + ".xlsx");
             }
 
-            // TODO: When backend is ready for medicine/service data:
-            // 1. Create new packet: GetExportDataRequest(fromTimestamp, toTimestamp, doctorId, includeMedicine, includeService)
-            // 2. Send request to server
-            // 3. Handle response in callback with full data including medicine/service
-
             boolean includeMedicine = includeMedicineCheckbox.isSelected();
             boolean includeService = includeServiceCheckbox.isSelected();
 
+            // Store export settings via callback
             if (callback != null) {
                 callback.onExportConfirmed(fromTimestamp, toTimestamp, doctorId, includeMedicine, includeService, exportFile);
             }
+
+            // Send request to backend
+            NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetExportDataRequest(fromTimestamp, toTimestamp, doctorId, includeMedicine, includeService));
+            
+            // Show loading message
+            JOptionPane.showMessageDialog(this, 
+                "Đang tải dữ liệu từ máy chủ...\nVui lòng đợi.", 
+                "Thông báo", 
+                JOptionPane.INFORMATION_MESSAGE);
 
             dispose();
         }

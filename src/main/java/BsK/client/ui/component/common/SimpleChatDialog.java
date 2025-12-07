@@ -6,6 +6,7 @@ import BsK.client.network.handler.ResponseListener;
 import BsK.common.packet.req.SimpleMessageRequest;
 import BsK.common.packet.res.SimpleMessageResponse;
 import BsK.common.util.network.NetworkUtil;
+import BsK.common.util.date.DateUtils; // Added import
 
 import javax.swing.*;
 import java.awt.*;
@@ -115,7 +116,8 @@ public class SimpleChatDialog extends JDialog {
     // --- MODIFIED handleNewMessage METHOD ---
     private void handleNewMessage(SimpleMessageResponse response) {
         SwingUtilities.invokeLater(() -> {
-            String timestamp = new SimpleDateFormat("HH:mm").format(new Date());
+            // Use Vietnam timezone for timestamp
+            String timestamp = DateUtils.createVietnamDateFormat("HH:mm").format(new Date());
             String formattedMessage = String.format("[%s] %s: %s\n",
                     timestamp,
                     response.getSenderName(),

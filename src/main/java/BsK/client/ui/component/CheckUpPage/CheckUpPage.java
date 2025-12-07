@@ -112,6 +112,9 @@ import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.io.StringReader;
 
+// --- DateUtils Import ---
+import BsK.common.util.date.DateUtils;
+
 // --- JasperReports Imports ---
 import net.sf.jasperreports.engine.JasperPrint;
 import net.sf.jasperreports.engine.JasperPrintManager;
@@ -1724,7 +1727,8 @@ public class CheckUpPage extends JPanel {
      */
     private Comparator<String> createDateComparator() {
         return new Comparator<String>() {
-            private final SimpleDateFormat dateFormat = new SimpleDateFormat("dd/MM/yyyy");
+            // Use Vietnam timezone (UTC+7) for consistent date comparison
+            private final SimpleDateFormat dateFormat = DateUtils.createVietnamDateFormat("dd/MM/yyyy");
             
             @Override
             public int compare(String date1, String date2) {
@@ -2239,7 +2243,8 @@ public class CheckUpPage extends JPanel {
         // Set checkup date using utility function
         Date checkupDate = DateUtils.convertToDate(selectedPatient.getCheckupDate());
         if (checkupDate != null) {
-            Calendar calendar = Calendar.getInstance();
+            // Use Vietnam timezone (UTC+7) for consistent date display
+            Calendar calendar = Calendar.getInstance(DateUtils.VIETNAM_TIMEZONE);
             calendar.setTime(checkupDate);
             datePicker.getModel().setDate(calendar.get(Calendar.YEAR), calendar.get(Calendar.MONTH), calendar.get(Calendar.DAY_OF_MONTH));
             datePicker.getModel().setSelected(true);
@@ -2260,7 +2265,8 @@ public class CheckUpPage extends JPanel {
             // Parse and set the re-checkup date
             Date recheckupDate = DateUtils.convertToDate(selectedPatient.getReCheckupDate());
             if (recheckupDate != null) {
-                Calendar calendar = Calendar.getInstance();
+                // Use Vietnam timezone (UTC+7) for consistent date display
+                Calendar calendar = Calendar.getInstance(DateUtils.VIETNAM_TIMEZONE);
                 calendar.setTime(recheckupDate);
                 recheckupDatePicker.getModel().setDate(calendar.get(Calendar.YEAR), calendar.get(Calendar.MONTH), calendar.get(Calendar.DAY_OF_MONTH));
                 recheckupDatePicker.getModel().setSelected(true);
@@ -2282,7 +2288,8 @@ public class CheckUpPage extends JPanel {
         // Set DOB using utility function
         Date dobDate = DateUtils.convertToDate(selectedPatient.getCustomerDob());
         if (dobDate != null) {
-            Calendar calendar = Calendar.getInstance();
+            // Use Vietnam timezone (UTC+7) for consistent date display
+            Calendar calendar = Calendar.getInstance(DateUtils.VIETNAM_TIMEZONE);
             calendar.setTime(dobDate);
             dobPicker.getModel().setDate(calendar.get(Calendar.YEAR), calendar.get(Calendar.MONTH), calendar.get(Calendar.DAY_OF_MONTH));
             dobPicker.getModel().setSelected(true);
@@ -2601,7 +2608,8 @@ public class CheckUpPage extends JPanel {
                                     // Try to parse as date string and extract year
                                     Date dobDate = DateUtils.convertToDate(customerDob);
                                     if (dobDate != null) {
-                                        Calendar calendar = Calendar.getInstance();
+                                        // Use Vietnam timezone (UTC+7) for consistent date display
+                                        Calendar calendar = Calendar.getInstance(DateUtils.VIETNAM_TIMEZONE);
                                         calendar.setTime(dobDate);
                                         namSinh = String.valueOf(calendar.get(Calendar.YEAR));
                                     }
@@ -3436,7 +3444,8 @@ public class CheckUpPage extends JPanel {
                 fileExtension = originalFileName.substring(lastDotIndex);
             }
             
-            String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss_SSS").format(new Date());
+            // Use Vietnam timezone (UTC+7) for consistent timestamp in filenames
+            String timestamp = DateUtils.createVietnamDateFormat("yyyyMMdd_HHmmss_SSS").format(new Date());
             String newFileName = "ultrasound_" + capturedPatientId + "_" + timestamp + fileExtension;
             
             Path targetPath = capturedMediaPath.resolve(newFileName);
@@ -3622,7 +3631,8 @@ public class CheckUpPage extends JPanel {
                 return;
             }
 
-            String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss_SSS").format(new Date());
+            // Use Vietnam timezone (UTC+7) for consistent timestamp in filenames
+            String timestamp = DateUtils.createVietnamDateFormat("yyyyMMdd_HHmmss_SSS").format(new Date());
             String fileName = "IMG_" + capturedCheckupId + "_" + timestamp + ".jpg";
             Path filePath = capturedMediaPath.resolve(fileName);
             
@@ -3967,8 +3977,8 @@ public class CheckUpPage extends JPanel {
             }
 
             if (!isRecording) {
-                // Start recording
-                String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
+                // Start recording - Use Vietnam timezone (UTC+7) for consistent timestamp
+                String timestamp = DateUtils.createVietnamDateFormat("yyyyMMdd_HHmmss").format(new Date());
                 String fileName = "VID_" + capturedCheckupId + "_" + timestamp + ".mp4";
                 Path filePath = capturedMediaPath.resolve(fileName);
                 

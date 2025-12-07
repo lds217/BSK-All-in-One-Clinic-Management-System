@@ -33,6 +33,7 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Calendar;
 import java.io.IOException;
+import BsK.common.util.date.DateUtils; // Added import
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.regex.Matcher;
@@ -425,7 +426,8 @@ public class NavBar extends JPanel {
                 BorderFactory.createEmptyBorder(10, 30, 10, 30)
             ));
 
-            String timestamp = new SimpleDateFormat("HH:mm").format(new Date());
+            // Use Vietnam timezone for timestamp
+            String timestamp = DateUtils.createVietnamDateFormat("HH:mm").format(new Date());
             String formattedMessage = String.format("[%s] %s: %s\n",
                     timestamp,
                     response.getSenderName(),

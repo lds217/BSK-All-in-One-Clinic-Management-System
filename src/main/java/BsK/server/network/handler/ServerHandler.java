@@ -51,6 +51,7 @@ import BsK.common.entity.Service;
 import BsK.common.entity.PatientHistory;
 import BsK.common.entity.Template;
 import BsK.common.util.text.TextUtils;
+import BsK.common.util.date.DateUtils;
 import java.time.Instant;
 import java.time.format.DateTimeFormatter;
 import java.util.concurrent.CompletableFuture;
@@ -157,7 +158,8 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                     long checkupDateLong = Long.parseLong(checkupDate);
                     Timestamp timestamp = new Timestamp(checkupDateLong);
                     Date date = new Date(timestamp.getTime());
-                    SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy");
+                    // Use Vietnam timezone (UTC+7) for consistent date formatting
+                    SimpleDateFormat sdf = DateUtils.createVietnamDateFormat("dd/MM/yyyy");
                     checkupDate = sdf.format(date);
                     String customerLastName = rs.getString("customer_last_name");
                     String customerFirstName = rs.getString("customer_first_name");
@@ -296,7 +298,8 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                             long checkupDateLong = Long.parseLong(checkupDateStr);
                             Timestamp timestamp = new Timestamp(checkupDateLong);
                             Date date = new Date(timestamp.getTime());
-                            SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy");
+                            // Use Vietnam timezone (UTC+7) for consistent date formatting
+                            SimpleDateFormat sdf = DateUtils.createVietnamDateFormat("dd/MM/yyyy");
                             historyEntry[0] = sdf.format(date);
                         } catch (Exception e) {
                             historyEntry[0] = checkupDateStr;
@@ -2133,6 +2136,200 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
             }
         }
       }
+      if (packet instanceof GetExportDataRequest getExportDataRequest) {
+        log.info("Received GetExportDataRequest: fromDate={}, toDate={}, doctorId={}, includeMedicine={}, includeService={}",
+            getExportDataRequest.getFromDate(), getExportDataRequest.getToDate(),
+            getExportDataRequest.getDoctorId(), getExportDataRequest.isIncludeMedicine(), getExportDataRequest.isIncludeService());
+        
+        if (currentUser.getRole() != Role.ADMIN) {
+            UserUtil.sendPacket(currentUser.getSessionId(), new ErrorResponse(Error.ACCESS_DENIED));
+            return;
+        }
+
+        try (Connection conn = DatabaseManager.getConnection()) {
+            // ==================== 1. GET PATIENT/CHECKUP DATA ====================
+            String patientQuery = """
+                SELECT 
+                    a.checkup_id, 
+                    c.customer_last_name || ' ' || c.customer_first_name AS full_name,
+                    c.customer_dob,
+                    c.customer_address,
+                    c.customer_number,
+                    a.checkup_date,
+                    a.conclusion,
+                    a.diagnosis,
+                    a.suggestion
+                FROM Checkup AS a
+                JOIN Customer AS c ON a.customer_id = c.customer_id
+                WHERE a.checkup_date BETWEEN ? AND ?
+                """;
+            
+            // Adjust for UTC+7: The client sends timestamps in local time (UTC+7)
+            // We use them directly since checkup_date is stored in the same timezone
+            Long fromDate = getExportDataRequest.getFromDate();
+            Long toDate = getExportDataRequest.getToDate();
+            Integer doctorId = getExportDataRequest.getDoctorId();
+            
+            if (doctorId != null) {
+                patientQuery += " AND a.doctor_id = ?";
+            }
+            patientQuery += " ORDER BY a.checkup_date DESC, a.checkup_id DESC";
+            
+            java.util.List<String[]> patientList = new java.util.ArrayList<>();
+            java.util.List<String> checkupIds = new java.util.ArrayList<>();
+            
+            try (PreparedStatement stmt = conn.prepareStatement(patientQuery)) {
+                stmt.setLong(1, fromDate);
+                stmt.setLong(2, toDate);
+                if (doctorId != null) {
+                    stmt.setInt(3, doctorId);
+                }
+                
+                try (ResultSet rs = stmt.executeQuery()) {
+                    while (rs.next()) {
+                        String checkupId = rs.getString("checkup_id");
+                        checkupIds.add(checkupId);
+                        
+                        // Format date from timestamp
+                        long checkupDateTs = rs.getLong("checkup_date");
+                        String checkupDateStr = "";
+                        if (checkupDateTs > 0) {
+                            java.time.Instant instant = java.time.Instant.ofEpochMilli(checkupDateTs);
+                            java.time.ZonedDateTime zdt = instant.atZone(java.time.ZoneId.of("Asia/Ho_Chi_Minh"));
+                            checkupDateStr = zdt.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+                        }
+                        
+                        // Format DOB from timestamp
+                        long dobTs = rs.getLong("customer_dob");
+                        String dobStr = "";
+                        if (dobTs > 0) {
+                            java.time.Instant instant = java.time.Instant.ofEpochMilli(dobTs);
+                            java.time.ZonedDateTime zdt = instant.atZone(java.time.ZoneId.of("Asia/Ho_Chi_Minh"));
+                            dobStr = zdt.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+                        }
+                        
+                        String[] row = new String[] {
+                            checkupId,
+                            rs.getString("full_name"),
+                            dobStr,
+                            rs.getString("customer_address"),
+                            rs.getString("customer_number"),
+                            checkupDateStr,
+                            rs.getString("diagnosis") != null ? rs.getString("diagnosis") : "",
+                            rs.getString("conclusion") != null ? rs.getString("conclusion") : "",
+                            rs.getString("suggestion") != null ? rs.getString("suggestion") : ""
+                        };
+                        patientList.add(row);
+                    }
+                }
+            }
+            
+            String[][] patientData = patientList.toArray(new String[0][]);
+            log.info("Found {} patient records for export", patientData.length);
+            
+            // ==================== 2. GET MEDICINE DATA (if requested) ====================
+            java.util.Map<String, java.util.List<String[]>> medicineData = null;
+            
+            if (getExportDataRequest.isIncludeMedicine() && !checkupIds.isEmpty()) {
+                medicineData = new java.util.HashMap<>();
+                
+                // Build IN clause for checkup IDs
+                String placeholders = checkupIds.stream().map(id -> "?").collect(java.util.stream.Collectors.joining(","));
+                
+                String medicineQuery = "SELECT oi.checkup_id, m.med_name, oi.quantity_ordered, m.med_unit, " +
+                    "oi.price_per_unit, oi.total_price, oi.dosage " +
+                    "FROM OrderItem AS oi " +
+                    "JOIN Medicine AS m ON oi.med_id = m.med_id " +
+                    "WHERE oi.checkup_id IN (" + placeholders + ") " +
+                    "ORDER BY oi.checkup_id, oi.order_item_id";
+                
+                try (PreparedStatement stmt = conn.prepareStatement(medicineQuery)) {
+                    int paramIndex = 1;
+                    for (String cid : checkupIds) {
+                        stmt.setString(paramIndex++, cid);
+                    }
+                    
+                    try (ResultSet rs = stmt.executeQuery()) {
+                        while (rs.next()) {
+                            String checkupId = rs.getString("checkup_id");
+                            String[] medRow = new String[] {
+                                checkupId,
+                                rs.getString("med_name") != null ? rs.getString("med_name") : "",
+                                String.valueOf(rs.getInt("quantity_ordered")),
+                                rs.getString("med_unit") != null ? rs.getString("med_unit") : "",
+                                String.valueOf(rs.getDouble("price_per_unit")),
+                                String.valueOf(rs.getDouble("total_price")),
+                                rs.getString("dosage") != null ? rs.getString("dosage") : ""
+                            };
+                            
+                            medicineData.computeIfAbsent(checkupId, k -> new java.util.ArrayList<>()).add(medRow);
+                        }
+                    }
+                }
+                log.info("Found medicine data for {} checkups", medicineData.size());
+            }
+            
+            // ==================== 3. GET SERVICE DATA (if requested) ====================
+            java.util.Map<String, java.util.List<String[]>> serviceData = null;
+            
+            if (getExportDataRequest.isIncludeService() && !checkupIds.isEmpty()) {
+                serviceData = new java.util.HashMap<>();
+                
+                String placeholders = checkupIds.stream().map(id -> "?").collect(java.util.stream.Collectors.joining(","));
+                
+                String serviceQuery = "SELECT cs.checkup_id, s.service_name, cs.quantity, s.service_cost, cs.total_cost " +
+                    "FROM CheckupService AS cs " +
+                    "JOIN Service AS s ON cs.service_id = s.service_id " +
+                    "WHERE cs.checkup_id IN (" + placeholders + ") " +
+                    "ORDER BY cs.checkup_id, cs.order_id";
+                
+                try (PreparedStatement stmt = conn.prepareStatement(serviceQuery)) {
+                    int paramIndex = 1;
+                    for (String cid : checkupIds) {
+                        stmt.setString(paramIndex++, cid);
+                    }
+                    
+                    try (ResultSet rs = stmt.executeQuery()) {
+                        while (rs.next()) {
+                            String checkupId = rs.getString("checkup_id");
+                            String[] svcRow = new String[] {
+                                checkupId,
+                                rs.getString("service_name") != null ? rs.getString("service_name") : "",
+                                String.valueOf(rs.getInt("quantity")),
+                                String.valueOf(rs.getDouble("service_cost")),
+                                String.valueOf(rs.getDouble("total_cost"))
+                            };
+                            
+                            serviceData.computeIfAbsent(checkupId, k -> new java.util.ArrayList<>()).add(svcRow);
+                        }
+                    }
+                }
+                log.info("Found service data for {} checkups", serviceData.size());
+            }
+            
+            // ==================== 4. SEND RESPONSE ====================
+            GetExportDataResponse response = new GetExportDataResponse(
+                true,
+                "Export data retrieved successfully",
+                patientData,
+                medicineData,
+                serviceData
+            );
+            UserUtil.sendPacket(currentUser.getSessionId(), response);
+            log.info("Sent GetExportDataResponse with {} patients", patientData.length);
+            
+        } catch (SQLException e) {
+            log.error("Error processing GetExportDataRequest", e);
+            GetExportDataResponse errorResponse = new GetExportDataResponse(
+                false,
+                "Database error: " + e.getMessage(),
+                null,
+                null,
+                null
+            );
+            UserUtil.sendPacket(currentUser.getSessionId(), errorResponse);
+        }
+      }
   }
 }
 
@@ -2954,7 +3151,8 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                 long checkupDateLong = Long.parseLong(checkupDate);
                 Timestamp timestamp = new Timestamp(checkupDateLong);
                 Date date = new Date(timestamp.getTime());
-                SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy");
+                // Use Vietnam timezone (UTC+7) for consistent date formatting
+                SimpleDateFormat sdf = DateUtils.createVietnamDateFormat("dd/MM/yyyy");
                 checkupDate = sdf.format(date);
                 String customerLastName = rs.getString("customer_last_name");
                 String customerFirstName = rs.getString("customer_first_name");

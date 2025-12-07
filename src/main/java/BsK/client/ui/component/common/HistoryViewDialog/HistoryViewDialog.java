@@ -27,6 +27,7 @@ import java.util.List;
 import javax.imageio.ImageIO;
 import javax.swing.text.rtf.RTFEditorKit;
 import lombok.extern.slf4j.Slf4j;
+import BsK.common.util.date.DateUtils;
 import BsK.client.network.handler.ClientHandler;
 import BsK.client.network.handler.ResponseListener;
 import BsK.common.packet.req.GetImagesByCheckupIdReq;
@@ -773,9 +774,9 @@ public class HistoryViewDialog extends JDialog {
     private String formatDate(String dateStr) {
         try {
             if (dateStr != null && dateStr.matches("\\d+")) {
-                // Timestamp
+                // Timestamp - Use Vietnam timezone (UTC+7) for consistent display
                 Date date = new Date(Long.parseLong(dateStr));
-                return new SimpleDateFormat("dd/MM/yyyy HH:mm").format(date);
+                return DateUtils.createVietnamDateFormat("dd/MM/yyyy HH:mm").format(date);
             } else if (dateStr != null && !dateStr.trim().isEmpty()) {
                 // Already formatted date
                 return dateStr;

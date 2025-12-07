@@ -324,7 +324,8 @@ public class GoogleDriveServiceOAuth {
         try {
             java.io.FileWriter writer = new java.io.FileWriter(testFile);
             writer.write("BSK Clinic - Google Drive OAuth Connection Test\n");
-            writer.write("Timestamp: " + java.time.LocalDateTime.now() + "\n");
+            // Use Vietnam timezone for timestamp
+            writer.write("Timestamp: " + java.time.LocalDateTime.now(BsK.common.util.date.DateUtils.VIETNAM_ZONE) + "\n");
             writer.write("This file verifies that the Google Drive OAuth integration is working correctly.\n");
             writer.write("Authentication method: OAuth2 with user consent\n");
             writer.close();
@@ -515,7 +516,8 @@ public class GoogleDriveServiceOAuth {
         log.info("Using database backup folder: {} (ID: {})", backupFolderName, backupFolderId);
 
         // 3. Create a unique, timestamped filename for the backup
-        String timestamp = new java.text.SimpleDateFormat("yyyy-MM-dd_HH-mm-ss").format(new java.util.Date());
+        // Use Vietnam timezone for timestamp
+        String timestamp = BsK.common.util.date.DateUtils.createVietnamDateFormat("yyyy-MM-dd_HH-mm-ss").format(new java.util.Date());
         String backupFileName = "BSK_Backup_" + timestamp + ".db";
 
         // 4. Upload the file
@@ -545,7 +547,8 @@ public class GoogleDriveServiceOAuth {
         log.info("Using main database backup folder: {} (ID: {})", backupFolderName, mainBackupFolderId);
         
         // 3. Create a timestamped subfolder for this backup session
-        String timestamp = new java.text.SimpleDateFormat("yyyy-MM-dd_HH-mm-ss").format(new java.util.Date());
+        // Use Vietnam timezone for timestamp
+        String timestamp = BsK.common.util.date.DateUtils.createVietnamDateFormat("yyyy-MM-dd_HH-mm-ss").format(new java.util.Date());
         String sessionFolderName = "Backup_" + timestamp;
         String sessionFolderId = findOrCreateFolder(mainBackupFolderId, sessionFolderName);
         log.info("Created backup session folder: {} (ID: {})", sessionFolderName, sessionFolderId);

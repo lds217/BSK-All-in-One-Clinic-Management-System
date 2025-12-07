@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.*;
 import BsK.client.network.handler.ClientHandler;
 import BsK.common.util.network.NetworkUtil;
+import BsK.common.util.date.DateUtils;
 import BsK.common.packet.req.GetRecheckUpListRequest;
 import BsK.common.packet.res.GetRecheckUpListResponse;
 import BsK.client.network.handler.ResponseListener;
@@ -276,7 +277,7 @@ public class RecheckUpDialog extends JDialog {
              selectedFilter = "Hôm nay"; // Default case
         }
 
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(DateUtils.VIETNAM_ZONE);
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
         for (String[] row : allRecheckUpData) {

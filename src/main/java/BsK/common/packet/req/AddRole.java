@@ -3,6 +3,7 @@ package BsK.common.packet.req;
 import BsK.common.packet.Packet;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import BsK.common.util.date.DateUtils;
 
 import java.time.LocalDateTime;
 
@@ -15,6 +16,6 @@ public class AddRole implements Packet {
 
     public AddRole(String roleName) {
         this.roleName = roleName;
-        this.lastUpdate = LocalDateTime.now();
+        this.lastUpdate = LocalDateTime.now(DateUtils.VIETNAM_ZONE);
     }
 }
