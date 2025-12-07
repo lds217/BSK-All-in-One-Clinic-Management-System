@@ -3856,13 +3856,17 @@ public class CheckUpPage extends JPanel {
                     
                     // Step 2 (Optional but Recommended): Clear the local directory to ensure it perfectly matches the server.
                     // This prevents images deleted on the server from lingering on the client.
+                    // MODIFICATION: Do NOT clear local directory to preserve unsynced/locally-captured images
+                    // This fixes the issue where images disappear if network disconnects before upload completes.
+                    /*
                     try (DirectoryStream<Path> stream = Files.newDirectoryStream(mediaDir)) {
                         for (Path entry : stream) {
                             Files.delete(entry);
                         }
                     }
                     log.info("Cleared local media directory for checkup {}", checkupId);
-    
+                    */
+
                     // Step 3: Request each image from the server one by one
                     if (imageCount > 0) {
                         for (String imageName : response.getImageNames()) {
