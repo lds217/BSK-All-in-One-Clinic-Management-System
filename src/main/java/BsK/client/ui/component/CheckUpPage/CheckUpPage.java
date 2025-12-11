@@ -1633,45 +1633,9 @@ public class CheckUpPage extends JPanel {
         // In the constructor, after creating notesField:
         setupNotesPasteHandler();
         setupShortcuts();
-
-        // Listen for CallPatientResponse to update the TV queue display
-        ClientHandler.addResponseListener(CallPatientResponse.class, response -> {
-            log.info("Received CallPatientResponse: PatientId={}, RoomId={}, Status={}, QueueNumber={}",
-                    response.getPatientId(), response.getRoomId(), response.getStatus(), response.getQueueNumber());
-
-            if (tvQueueFrame != null && tvQueueFrame.isShowing()) {
-                // Find the full patient name and birth year from patient queue
-                String patientName = "";
-                String birthYear = "";
-                
-                // Look up the patient in our patient queue by checkup ID
-                for (Patient patient : patientQueue) {
-                    if (patient.getCheckupId().equals(String.valueOf(response.getPatientId()))) {
-                        patientName = patient.getCustomerLastName() + " " + patient.getCustomerFirstName();
-                        
-                        // Extract year from DOB
-                        if (patient.getCustomerDob() != null && !patient.getCustomerDob().isEmpty()) {
-                            int year = DateUtils.extractYearFromTimestamp(patient.getCustomerDob());
-                            if (year != -1) {
-                                birthYear = String.valueOf(year);
-                            }
-                        }
-                        break;
-                    }
-                }
-
-                String fullPatientInfo = patientName + " (" + birthYear + ")";
-
-                // Pass the QUEUE NUMBER to be displayed in the small room status box
-                tvQueueFrame.updateSpecificRoomStatus(
-                        response.getRoomId(),
-                        String.valueOf(response.getPatientId()),
-                        response.getQueueNumber(), // Use the queue number here
-                        fullPatientInfo,           // Full info for the central display
-                        response.getStatus()
-                );
-            }
-        });
+        
+        // NOTE: CallPatientResponse is already handled by callPatientResponseListener (handleCallPatientResponse method)
+        // which updates both tvQueueFrame and room status panels. No duplicate listener needed here.
     }
 
     private void addSelectAllOnFocus(JTextComponent textComponent) {
@@ -4931,24 +4895,48 @@ public class CheckUpPage extends JPanel {
             return;
         }
 
+        // CRITICAL FIX: Convert all dates to UTC+7 timezone to ensure consistency with server
+        // This fixes the issue where checkups disappear from queue when saved from different timezones
+        
+        // Convert checkupDate to start-of-day in Vietnam timezone (UTC+7)
+        Calendar checkupCal = Calendar.getInstance(DateUtils.VIETNAM_TIMEZONE);
+        checkupCal.set(datePicker.getModel().getYear(), datePicker.getModel().getMonth(), datePicker.getModel().getDay(), 0, 0, 0);
+        checkupCal.set(Calendar.MILLISECOND, 0);
+        long checkupTimestamp = checkupCal.getTimeInMillis();
+        
+        // Convert DOB to start-of-day in Vietnam timezone (UTC+7)
+        Calendar dobCal = Calendar.getInstance(DateUtils.VIETNAM_TIMEZONE);
+        dobCal.set(dobPicker.getModel().getYear(), dobPicker.getModel().getMonth(), dobPicker.getModel().getDay(), 0, 0, 0);
+        dobCal.set(Calendar.MILLISECOND, 0);
+        long dobTimestamp = dobCal.getTimeInMillis();
+        
+        // Convert recheckupDate to start-of-day in Vietnam timezone (UTC+7) if present
+        Long recheckupTimestamp = null;
+        if (recheckupDate != null) {
+            Calendar recheckupCal = Calendar.getInstance(DateUtils.VIETNAM_TIMEZONE);
+            recheckupCal.set(recheckupDatePicker.getModel().getYear(), recheckupDatePicker.getModel().getMonth(), recheckupDatePicker.getModel().getDay(), 0, 0, 0);
+            recheckupCal.set(Calendar.MILLISECOND, 0);
+            recheckupTimestamp = recheckupCal.getTimeInMillis();
+        }
+
         try {
         SaveCheckupRequest request = new SaveCheckupRequest(
                 Integer.parseInt(checkupIdField.getText()),
                 Integer.parseInt(customerIdField.getText()),
                 Integer.parseInt(doctorIdStr),
                 ultrasoundDoctorIdStr != null ? Integer.parseInt(ultrasoundDoctorIdStr) : null,
-                checkupDate.getTime(),
+                checkupTimestamp,
                 suggestionField.getText(),
                 diagnosisField.getText(),
                 getRtfContentAsString(),
                 (String) statusComboBox.getSelectedItem(),
                 (String) checkupTypeComboBox.getSelectedItem(),
                 conclusionField.getText(),
-                recheckupDate != null ? recheckupDate.getTime() : null,
+                recheckupTimestamp,
                 needRecheckupCheckbox.isSelected(),
                 customerFirstNameField.getText(),
                 customerLastNameField.getText(),
-                dob.getTime(),
+                dobTimestamp,
                 (String) genderComboBox.getSelectedItem(),
                 customerAddressField.getText() + ", " + (wardComboBox.getSelectedItem() != null ? wardComboBox.getSelectedItem().toString() : "") + ", " + (provinceComboBox.getSelectedItem() != null ? provinceComboBox.getSelectedItem().toString() : ""),
                 customerPhoneField.getText(),
