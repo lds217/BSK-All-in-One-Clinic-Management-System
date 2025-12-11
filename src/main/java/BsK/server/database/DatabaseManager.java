@@ -20,9 +20,15 @@ public class DatabaseManager {
         String dbPath = "database/BSK.db";
         config.setJdbcUrl("jdbc:sqlite:" + dbPath);
         
-        // Cấu hình cho SQLite
-        config.addDataSourceProperty("journal_mode", "WAL"); // Rất quan trọng để tăng khả năng ghi đồng thời
-        config.addDataSourceProperty("busy_timeout", "5000"); // Chờ 5 giây nếu DB bị lock
+        // Cấu hình cho SQLite - Use connection init SQL to ensure PRAGMAs are applied
+        // PRAGMA journal_mode=WAL: Enables Write-Ahead Logging for better concurrent writes
+        // PRAGMA busy_timeout=5000: Wait 5 seconds if database is locked
+        // PRAGMA synchronous=FULL: CRITICAL - Forces fsync after each commit to prevent data loss on power outage
+        config.setConnectionInitSql(
+            "PRAGMA journal_mode=WAL; " +
+            "PRAGMA busy_timeout=5000; " +
+            "PRAGMA synchronous=FULL;"
+        );
         config.setConnectionTestQuery("SELECT 1");
 
         // Cấu hình pool

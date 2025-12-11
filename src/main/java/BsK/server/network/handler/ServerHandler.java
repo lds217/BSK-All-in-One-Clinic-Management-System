@@ -703,7 +703,12 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                 }
     
                 // 3. CHÈN VÀO BẢNG CHECKUP VÀ LẤY LẠI CHECKUP_ID
-                String checkupSql = "INSERT INTO Checkup (customer_id, doctor_id, checkup_type, status, queue_number, shift) VALUES (?, ?, ?, ?, ?, ?)";
+                // CRITICAL FIX: Explicitly set checkup_date to current time in UTC+7 timezone
+                // This ensures consistency with the queue filter which uses date('now', '+7 hours')
+                java.time.ZonedDateTime nowInVietnam = java.time.ZonedDateTime.now(java.time.ZoneId.of("Asia/Ho_Chi_Minh"));
+                long checkupDateTimestamp = nowInVietnam.toInstant().toEpochMilli();
+                
+                String checkupSql = "INSERT INTO Checkup (customer_id, doctor_id, checkup_type, status, queue_number, shift, checkup_date) VALUES (?, ?, ?, ?, ?, ?, ?)";
                 try (PreparedStatement checkupStmt = conn.prepareStatement(checkupSql, PreparedStatement.RETURN_GENERATED_KEYS)) {
                     checkupStmt.setInt(1, addCheckupRequest.getCustomerId());
                     checkupStmt.setInt(2, addCheckupRequest.getDoctorId());
@@ -711,6 +716,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                     checkupStmt.setString(4, addCheckupRequest.getStatus());
                     checkupStmt.setInt(5, queueNumber);
                     checkupStmt.setInt(6, shift);
+                    checkupStmt.setLong(7, checkupDateTimestamp);
                     checkupStmt.executeUpdate();
     
                     try (ResultSet generatedKeys = checkupStmt.getGeneratedKeys()) {

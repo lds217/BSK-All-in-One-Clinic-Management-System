@@ -1,12 +1,10 @@
 package BsK.client.ui.component.DataDialog;
 
-import BsK.client.LocalStorage;
 import BsK.client.network.handler.ClientHandler;
 import BsK.client.ui.component.common.DateLabelFormatter;
-import BsK.common.entity.DoctorItem;
 import BsK.common.packet.req.GetExportDataRequest;
 import BsK.common.util.network.NetworkUtil;
-import BsK.common.util.date.DateUtils; // Added import
+import BsK.common.util.date.DateUtils;
 import org.jdatepicker.impl.JDatePanelImpl;
 import org.jdatepicker.impl.JDatePickerImpl;
 import org.jdatepicker.impl.UtilDateModel;
@@ -26,7 +24,7 @@ public class ExcelExportDialog extends JDialog {
 
     private JDatePickerImpl fromDatePicker;
     private JDatePickerImpl toDatePicker;
-    private JComboBox<String> doctorComboBox;
+    // private JComboBox<String> doctorComboBox; // Disabled - always exports all doctors
     private JCheckBox includeMedicineCheckbox;
     private JCheckBox includeServiceCheckbox;
     private JButton exportButton;
@@ -149,27 +147,26 @@ public class ExcelExportDialog extends JDialog {
             }
         });
 
-        // --- Row 2: Doctor Filter ---
-        gbc.gridx = 0;
-        gbc.gridy = 2;
-        gbc.weightx = 0;
-        JLabel doctorLabel = new JLabel("Bác sĩ:");
-        doctorLabel.setFont(labelFont);
-        formPanel.add(doctorLabel, gbc);
+        // --- Row 2: Doctor Filter (DISABLED - always exports all doctors) ---
+        // gbc.gridx = 0;
+        // gbc.gridy = 2;
+        // gbc.weightx = 0;
+        // JLabel doctorLabel = new JLabel("Bác sĩ:");
+        // doctorLabel.setFont(labelFont);
+        // formPanel.add(doctorLabel, gbc);
 
-        gbc.gridx = 1;
-        gbc.weightx = 1.0;
-        doctorComboBox = new JComboBox<>();
-        doctorComboBox.setFont(textFont);
-        doctorComboBox.addItem("Tất cả");
-        if (LocalStorage.doctorsName != null) {
-            for (DoctorItem doctor : LocalStorage.doctorsName) {
-                doctorComboBox.addItem(doctor.getName());
-            }
-        }
-        // Consistent height with date picker
-        doctorComboBox.setPreferredSize(new Dimension(doctorComboBox.getPreferredSize().width, 30)); 
-        formPanel.add(doctorComboBox, gbc);
+        // gbc.gridx = 1;
+        // gbc.weightx = 1.0;
+        // doctorComboBox = new JComboBox<>();
+        // doctorComboBox.setFont(textFont);
+        // doctorComboBox.addItem("Tất cả");
+        // if (LocalStorage.doctorsName != null) {
+        //     for (DoctorItem doctor : LocalStorage.doctorsName) {
+        //         doctorComboBox.addItem(doctor.getName());
+        //     }
+        // }
+        // doctorComboBox.setPreferredSize(new Dimension(doctorComboBox.getPreferredSize().width, 30)); 
+        // formPanel.add(doctorComboBox, gbc);
 
         // --- Row 3: Include Medicine Checkbox ---
         gbc.gridx = 0;
@@ -295,24 +292,8 @@ public class ExcelExportDialog extends JDialog {
         cal.set(Calendar.MILLISECOND, 999);
         long toTimestamp = cal.getTimeInMillis();
 
-        // Get doctor ID
-        String selectedDoctor = (String) doctorComboBox.getSelectedItem();
+        // Doctor filter disabled - always export all doctors
         Integer doctorId = null;
-
-        if (selectedDoctor != null && !selectedDoctor.equals("Tất cả")) {
-            if (LocalStorage.doctorsName != null) {
-                for (DoctorItem doctor : LocalStorage.doctorsName) {
-                    if (doctor.getName().equals(selectedDoctor)) {
-                        try {
-                            doctorId = Integer.parseInt(doctor.getId());
-                        } catch (NumberFormatException e) {
-                            System.err.println("Invalid doctor ID format: " + doctor.getId());
-                        }
-                        break;
-                    }
-                }
-            }
-        }
 
         // Show file chooser
         JFileChooser fileChooser = new JFileChooser();
@@ -339,7 +320,7 @@ public class ExcelExportDialog extends JDialog {
             }
 
             // Send request to backend
-            NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetExportDataRequest(fromTimestamp, toTimestamp, doctorId, includeMedicine, includeService));
+            NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetExportDataRequest(fromTimestamp, toTimestamp, null, includeMedicine, includeService));
             
             // Show loading message
             JOptionPane.showMessageDialog(this, 
