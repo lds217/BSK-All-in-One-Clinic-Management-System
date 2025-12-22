@@ -1021,14 +1021,15 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                 // Nếu có lỗi, ROLLBACK toàn bộ giao dịch
                 log.error("Error during save checkup transaction, rolling back.", e);
                 conn.rollback();
-                UserUtil.sendPacket(currentUser.getSessionId(), new ErrorResponse(Error.SQL_EXCEPTION));
+                // Send SaveCheckupRes with error instead of generic ErrorResponse for better client handling
+                UserUtil.sendPacket(currentUser.getSessionId(), new SaveCheckupRes(false, "Lỗi database: " + e.getMessage()));
             }
             // Không cần khối `finally` để reset auto-commit. HikariCP sẽ tự lo việc này.
     
         } catch (SQLException e) {
             // Lỗi này xảy ra nếu không thể lấy kết nối từ pool hoặc có lỗi khi rollback
             log.error("Critical error during database transaction management for SaveCheckupRequest.", e);
-            UserUtil.sendPacket(currentUser.getSessionId(), new ErrorResponse(Error.SQL_EXCEPTION));
+            UserUtil.sendPacket(currentUser.getSessionId(), new SaveCheckupRes(false, "Lỗi hệ thống: Không thể xử lý giao dịch CSDL."));
         }
       }
       
