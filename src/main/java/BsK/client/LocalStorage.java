@@ -53,6 +53,9 @@ public class LocalStorage {
     public static String serverPort = "1999";
     public static boolean googleDriveEnabled = true;
     public static String googleDriveRootFolder = "BSK_Clinic_Patient_Files";
+
+    // public static int defaultDoctorId = 0;
+
     
     // does not need restart
     public static Boolean autoChangeStatusToFinished = false;

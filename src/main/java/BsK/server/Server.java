@@ -326,6 +326,12 @@ public class Server {
         } finally {
           dashboard.updateStatus("Đang tắt", Color.ORANGE);
           dashboard.addLog("Máy chủ đang tắt...");
+          
+          // Close database connection pool gracefully (performs final WAL checkpoint)
+          dashboard.addLog("Đang đóng kết nối database...");
+          DatabaseManager.close();
+          dashboard.addLog("Database đã đóng an toàn.");
+          
           parentGroup.shutdownGracefully();
           childGroup.shutdownGracefully();
         }

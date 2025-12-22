@@ -190,6 +190,7 @@ public class CheckUpPage extends JPanel {
     private final ResponseListener<SyncCheckupImagesResponse> syncImagesResponseListener = this::handleSyncImagesResponse;
     private final ResponseListener<GetCheckupImageResponse> getImageResponseListener = this::handleGetCheckupImageResponse;
     private final ResponseListener<DeleteCheckupImageResponse> deleteImageResponseListener = this::handleDeleteImageResponse;
+    private final ResponseListener<SaveCheckupRes> saveCheckupResponseListener = this::handleSaveCheckupResponse;
     private JTextField checkupIdField, customerLastNameField, customerFirstNameField,customerAddressField, customerPhoneField, customerIdField, customerCccdDdcnField;
     private JTextArea suggestionField, diagnosisField, conclusionField; // Changed symptomsField to suggestionField
     private JTextPane notesField;
@@ -370,6 +371,7 @@ public class CheckUpPage extends JPanel {
         ClientHandler.addResponseListener(SyncCheckupImagesResponse.class, syncImagesResponseListener);
         ClientHandler.addResponseListener(GetCheckupImageResponse.class, getImageResponseListener);
         ClientHandler.addResponseListener(DeleteCheckupImageResponse.class, deleteImageResponseListener);
+        ClientHandler.addResponseListener(SaveCheckupRes.class, saveCheckupResponseListener);
 
         // Instantiate the new queue page but don't show it yet
         queueManagementPage = new QueueManagementPage();
@@ -2680,6 +2682,36 @@ public class CheckUpPage extends JPanel {
         });
     }
 
+    /**
+     * Handles the response from the server after saving a checkup.
+     * CRITICAL: Only sets saved=true if the server confirms success.
+     * If the server fails, shows error message and keeps the form data.
+     */
+    private void handleSaveCheckupResponse(SaveCheckupRes response) {
+        log.info("Received SaveCheckupResponse: success={}, message={}", response.isSuccess(), response.getMessage());
+        
+        SwingUtilities.invokeLater(() -> {
+            if (response.isSuccess()) {
+                saved = true;
+                JOptionPane.showMessageDialog(this, 
+                    response.getMessage() != null ? response.getMessage() : "Lưu thành công!", 
+                    "Thành công", 
+                    JOptionPane.INFORMATION_MESSAGE);
+                // clear the form
+                clearPatientDetails();
+                // Refresh the queue to reflect changes
+                updateQueue();
+            } else {
+                saved = false;
+                JOptionPane.showMessageDialog(this, 
+                    "Lưu thất bại: " + (response.getMessage() != null ? response.getMessage() : "Lỗi không xác định"), 
+                    "Lỗi", 
+                    JOptionPane.ERROR_MESSAGE);
+                // Form is NOT cleared - user can fix the issue and retry
+            }
+        });
+    }
+
     private JPanel createImageGalleryViewPanel() {
         JPanel panel = new JPanel(new BorderLayout(5, 5));
         panel.setBorder(BorderFactory.createCompoundBorder(
@@ -4950,7 +4982,8 @@ public class CheckUpPage extends JPanel {
             LocalStorage.currentShift
         );
         NetworkUtil.sendPacket(ClientHandler.ctx.channel(), request);
-        saved = true;
+        // NOTE: Do NOT set saved=true here! Wait for server response in handleSaveCheckupResponse()
+        // The response handler will set saved=true only if the server confirms success
         } catch (Exception e) {
             log.error("Failed to create or send SaveCheckupRequest", e);
             JOptionPane.showMessageDialog(this, "Lỗi khi lưu dữ liệu: " + e.getMessage(), "Lỗi", JOptionPane.ERROR_MESSAGE);
