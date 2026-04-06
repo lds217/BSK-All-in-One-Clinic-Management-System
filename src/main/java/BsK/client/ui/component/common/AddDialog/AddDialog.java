@@ -1075,7 +1075,7 @@ private void setupDebounceSearch() {
         
         try {
             Date parsedDate;
-            if (patientDob.matches("\\d+")) {  // Check if the string is a timestamp
+            if (patientDob.matches("-?\\d+")) {  // Check if the string is a timestamp
                 long timestamp = Long.parseLong(patientDob); // Convert the string to a long
                 parsedDate = new Date(timestamp); // Convert the timestamp to a Date
             } else {

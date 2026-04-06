@@ -773,7 +773,7 @@ public class HistoryViewDialog extends JDialog {
     
     private String formatDate(String dateStr) {
         try {
-            if (dateStr != null && dateStr.matches("\\d+")) {
+            if (dateStr != null && dateStr.matches("-?\\d+")) {
                 // Timestamp - Use Vietnam timezone (UTC+7) for consistent display
                 Date date = new Date(Long.parseLong(dateStr));
                 return DateUtils.createVietnamDateFormat("dd/MM/yyyy HH:mm").format(date);
