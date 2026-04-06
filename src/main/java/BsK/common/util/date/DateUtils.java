@@ -55,7 +55,7 @@ public class DateUtils {
         
         try {
             // Check if it's a timestamp (all digits)
-            if (dateInput.matches("\\d+")) {
+            if (dateInput.matches("-?\\d+")) {
                 Date date = new Date(Long.parseLong(dateInput));
                 synchronized (DISPLAY_FORMAT) {
                     return DISPLAY_FORMAT.format(date);
@@ -90,7 +90,7 @@ public class DateUtils {
         
         try {
             // Check if it's a timestamp (all digits)
-            if (dateInput.matches("\\d+")) {
+            if (dateInput.matches("-?\\d+")) {
                 return new Date(Long.parseLong(dateInput));
             } else {
                 // Try to parse as dd/MM/yyyy format using Vietnam timezone
