@@ -132,6 +132,7 @@ import BsK.common.packet.res.UploadCheckupImageResponse;
 import BsK.common.packet.res.UploadCheckupPdfResponse;
 import BsK.common.util.date.DateUtils;
 import javax.swing.text.JTextComponent;
+import javax.swing.undo.UndoManager;
 
 import java.nio.file.DirectoryStream;
 import java.util.Collections;
@@ -194,6 +195,7 @@ public class CheckUpPage extends JPanel {
     private JTextField checkupIdField, customerLastNameField, customerFirstNameField,customerAddressField, customerPhoneField, customerIdField, customerCccdDdcnField;
     private JTextArea suggestionField, diagnosisField, conclusionField; // Changed symptomsField to suggestionField
     private JTextPane notesField;
+    private UndoManager notesUndoManager;
     private JComboBox<DoctorItem> doctorComboBox, ultrasoundDoctorComboBox;
     private JComboBox<String> statusComboBox, genderComboBox, provinceComboBox, wardComboBox, checkupTypeComboBox, templateComboBox, orientationComboBox; // Added orientationComboBox
     private JCheckBox needRecheckupCheckbox; // Checkbox to indicate if re-checkup is needed
@@ -1179,6 +1181,30 @@ public class CheckUpPage extends JPanel {
         
         // Set preferred size for notes field
         notesField.setPreferredSize(new Dimension(0, 400)); // Make it tall
+
+        // Add UndoManager
+        notesUndoManager = new UndoManager();
+        notesField.getDocument().addUndoableEditListener(notesUndoManager);
+        
+        notesField.getInputMap().put(KeyStroke.getKeyStroke(KeyEvent.VK_Z, Toolkit.getDefaultToolkit().getMenuShortcutKeyMask()), "Undo");
+        notesField.getActionMap().put("Undo", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (notesUndoManager.canUndo()) {
+                    notesUndoManager.undo();
+                }
+            }
+        });
+        
+        notesField.getInputMap().put(KeyStroke.getKeyStroke(KeyEvent.VK_Y, Toolkit.getDefaultToolkit().getMenuShortcutKeyMask()), "Redo");
+        notesField.getActionMap().put("Redo", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (notesUndoManager.canRedo()) {
+                    notesUndoManager.redo();
+                }
+            }
+        });
 
 
         // Enhanced Toolbar for notes with more formatting options
@@ -4863,6 +4889,11 @@ public class CheckUpPage extends JPanel {
             // Load RTF content directly without any conversion
             notesField.getEditorKit().read(new ByteArrayInputStream(rtfContent.getBytes("ISO-8859-1")), 
                                          notesField.getDocument(), 0);
+                                         
+            // Clear undo history after loading new content
+            if (notesUndoManager != null) {
+                notesUndoManager.discardAllEdits();
+            }
         } catch (Exception e) {
             log.error("Error setting RTF content from string", e);
         }
@@ -5027,6 +5058,11 @@ public class CheckUpPage extends JPanel {
             
             if (template.getContent() != null && !template.getContent().isEmpty()) {
                 rtfEditorKit.read(new StringReader(template.getContent()), notesField.getDocument(), 0);
+            }
+            
+            // Clear undo history after loading template
+            if (notesUndoManager != null) {
+                notesUndoManager.discardAllEdits();
             }
         } catch (Exception e) {
             log.error("Failed to apply RTF content from template '{}'", template.getTemplateName(), e);
