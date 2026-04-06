@@ -441,9 +441,9 @@ public class DataDialog extends JDialog {
                                 String.valueOf(stt++),
                                 patient.getCheckupId(), // Changed from getCustomerId() to getCheckupId()
                                 patient.getCustomerLastName() + " " + patient.getCustomerFirstName(),
-                                patient.getCustomerDob(),
+                                String.valueOf(DateUtils.extractYearFromTimestamp(patient.getCustomerDob())),
                                 patient.getCustomerGender(),
-                                patient.getCheckupDate(),
+                                DateUtils.convertToDisplayFormat(patient.getCheckupDate()),
                                 patient.getDoctorName(),
                                 patient.getDiagnosis(),
                                 patient.getConclusion(),

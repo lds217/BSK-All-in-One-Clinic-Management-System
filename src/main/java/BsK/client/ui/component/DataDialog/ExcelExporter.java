@@ -2,6 +2,7 @@ package BsK.client.ui.component.DataDialog;
 
 import BsK.common.entity.DoctorItem;
 import BsK.common.entity.Patient;
+import BsK.common.util.date.DateUtils;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.xssf.usermodel.XSSFSheet;
@@ -62,11 +63,11 @@ public class ExcelExporter {
                 row.createCell(1).setCellValue(patient.getCustomerId());
                 row.createCell(2).setCellValue(patient.getCustomerLastName());
                 row.createCell(3).setCellValue(patient.getCustomerFirstName());
-                row.createCell(4).setCellValue(patient.getCustomerDob());
+                row.createCell(4).setCellValue(String.valueOf(DateUtils.extractYearFromTimestamp(patient.getCustomerDob())));
                 row.createCell(5).setCellValue(patient.getCustomerGender());
                 row.createCell(6).setCellValue(patient.getCustomerNumber());
                 row.createCell(7).setCellValue(patient.getCustomerAddress());
-                row.createCell(8).setCellValue(patient.getCheckupDate());
+                row.createCell(8).setCellValue(DateUtils.convertToDisplayFormat(patient.getCheckupDate()));
                 row.createCell(9).setCellValue(patient.getCheckupType());
                 row.createCell(10).setCellValue(patient.getDoctorName());
                 String ultrasoundDoctorName = getDoctorNameById(patient.getDoctorUltrasoundId(), doctorList);
@@ -80,7 +81,7 @@ public class ExcelExporter {
                 row.createCell(18).setCellValue(patient.getConclusion());
                 row.createCell(19).setCellValue(patient.getSuggestion());
                 row.createCell(20).setCellValue(patient.getNotes());
-                row.createCell(21).setCellValue(patient.getReCheckupDate());
+                row.createCell(21).setCellValue(DateUtils.convertToDisplayFormat(patient.getReCheckupDate()));
             }
 
             // Write the output to a file
