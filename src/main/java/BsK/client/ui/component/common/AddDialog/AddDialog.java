@@ -1119,7 +1119,7 @@ private void setupDebounceSearch() {
                 sendGetRecentPatientRequest();
     
             } else {
-                JOptionPane.showMessageDialog(this, response.getMessage());
+                JOptionPane.showMessageDialog(this, response.getMessage(), "Không thể thêm bệnh nhân", JOptionPane.WARNING_MESSAGE);
             }
         });
     }

@@ -17,7 +17,6 @@ import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpServerCodec;
 import io.netty.handler.codec.http.websocketx.WebSocketServerProtocolHandler;
 import io.netty.handler.stream.ChunkedWriteHandler;
-import io.netty.handler.timeout.IdleStateHandler;
 import java.awt.Color;
 import java.io.File;
 import java.io.IOException;
@@ -294,10 +293,6 @@ public class Server {
                               .addLast(new ChunkedWriteHandler())
                               .addLast(new HttpObjectAggregator(50  * 1024 * 1024))
                               .addLast(new WebSocketServerProtocolHandler("/", null, true, 50  * 1024 * 1024))
-                              // Add IdleStateHandler to detect inactive clients
-                              // Reader timeout: 40 seconds - disconnect if no data from client (ping should arrive every 10s)
-                              // Allow up to 4 missed pings (10s * 4 = 40s) before disconnecting
-                              .addLast(new IdleStateHandler(40, 0, 0))
                               .addLast(new ServerHandler());
                         }
                       });
