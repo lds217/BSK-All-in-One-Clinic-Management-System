@@ -13,7 +13,6 @@ import io.netty.handler.codec.http.HttpClientCodec;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.websocketx.WebSocketClientProtocolHandler;
 import io.netty.handler.codec.http.websocketx.WebSocketVersion;
-import io.netty.handler.timeout.IdleStateHandler;
 import java.net.URI;
 import java.net.URISyntaxException;
 import lombok.extern.slf4j.Slf4j;
@@ -189,9 +188,6 @@ public class Client {
                                                                         true,
                                                                         new DefaultHttpHeaders(),
                                                                         50  * 1024 * 1024))
-                                                        // Read timeout: 5 minutes (300s) - disconnect if no data from server
-                                                        // Write timeout: 2 seconds - send ping every 2 seconds (CLINIC MODE - CRITICAL)
-                                                        .addLast(new IdleStateHandler(40, 2, 0))
                                                         .addLast("ws", ClientHandler.INSTANCE);
                                             }
                                         });

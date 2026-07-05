@@ -30,6 +30,10 @@ public class LocalStorage {
     public static Date dataDialogToDate = new Date();
     public static String dataDialogDoctorName = "Tất cả";
     public static String dataDialogIdSearchTerm = "";
+    public static String dataDialogNameSearch = "";
+    public static String dataDialogPatientIdSearch = "";
+    public static String dataDialogPhoneSearch = "";
+    public static boolean dataDialogDateFilterEnabled = false;
     public static int unreadMessageCnt = 0;
 
     public static List<DoctorItem> doctorsName = new ArrayList<>();

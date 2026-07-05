@@ -361,19 +361,7 @@ public class CheckUpPage extends JPanel {
                 JOptionPane.ERROR_MESSAGE);
         }
 
-        ClientHandler.addResponseListener(GetCheckUpQueueResponse.class, checkUpQueueListener);
-        ClientHandler.addResponseListener(GetCheckUpQueueUpdateResponse.class, checkUpQueueUpdateListener);
-        ClientHandler.addResponseListener(GetPatientHistoryResponse.class, patientHistoryListener);
-        ClientHandler.addResponseListener(GetOrderInfoByCheckupRes.class, orderInfoByCheckupListener);
-        ClientHandler.addResponseListener(GetWardResponse.class, wardResponseListener);
-        ClientHandler.addResponseListener(CallPatientResponse.class, callPatientResponseListener);
-        ClientHandler.addResponseListener(GetAllTemplatesRes.class, getAllTemplatesListener);
-        ClientHandler.addResponseListener(UploadCheckupImageResponse.class, uploadImageResponseListener);
-        ClientHandler.addResponseListener(UploadCheckupPdfResponse.class, uploadPdfResponseListener);
-        ClientHandler.addResponseListener(SyncCheckupImagesResponse.class, syncImagesResponseListener);
-        ClientHandler.addResponseListener(GetCheckupImageResponse.class, getImageResponseListener);
-        ClientHandler.addResponseListener(DeleteCheckupImageResponse.class, deleteImageResponseListener);
-        ClientHandler.addResponseListener(SaveCheckupRes.class, saveCheckupResponseListener);
+        registerResponseListeners();
 
         // Instantiate the new queue page but don't show it yet
         queueManagementPage = new QueueManagementPage();
@@ -397,82 +385,7 @@ public class CheckUpPage extends JPanel {
         add(navBar, BorderLayout.NORTH);
 
         // --- Central Control Panel (New) ---
-        JPanel controlPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 15, 5)); // Reduced vertical gap from 10 to 5
-        controlPanel.setBorder(BorderFactory.createEmptyBorder(3, 5, 3, 5)); // Reduced top/bottom from 5 to 3
-        controlPanel.setBackground(Color.WHITE);
-
-        openQueueButton = new JButton("<html>Danh sách chờ <font color='red'><b>(F1)</b></font></html>");
-        openQueueButton.setBackground(new Color(255, 152, 0)); // Amber
-        openQueueButton.setForeground(Color.WHITE);
-        openQueueButton.setFocusPainted(false);
-        openQueueButton.setBorder(BorderFactory.createEmptyBorder(8, 15, 8, 15)); // Reduced vertical padding from 10 to 8
-        openQueueButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        openQueueButton.addActionListener(e -> {
-            // Always fetch the latest queue to avoid cross-client mismatch
-            updateQueue();
-            // Reset filters to "Tất cả" to avoid index/filter/sort mismatch on open
-            if (queueManagementPage != null) {
-                queueManagementPage.checkupTypeFilter.setSelectedItem("Tất cả");
-
-                queueManagementPage.applyFilters();
-            }
-            queueManagementPage.setVisible(true);
-            queueManagementPage.toFront();
-        });
-
-        JButton tvQueueButton = new JButton("Màn hình chờ TV");
-        tvQueueButton.setBackground(new Color(0, 150, 136));
-        tvQueueButton.setForeground(Color.WHITE);
-        tvQueueButton.setFocusPainted(false);
-        tvQueueButton.setBorder(BorderFactory.createEmptyBorder(8, 15, 8, 15)); // Reduced vertical padding from 10 to 8
-        tvQueueButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        tvQueueButton.addActionListener(e -> {
-            if (tvQueueFrame == null || !tvQueueFrame.isDisplayable()) {
-                tvQueueFrame = new QueueViewPage();
-            } else {
-                tvQueueFrame.toFront(); 
-            }
-            tvQueueFrame.updateQueueData(this.rawQueueForTv); 
-            tvQueueFrame.setVisible(true);
-        });
-
-        addPatientButton = new JButton("<html>THÊM BN <font color='red'><b>(F2)</b></font></html>");
-        addPatientButton.setBackground(new Color(63, 81, 181));
-        addPatientButton.setForeground(Color.WHITE);
-        addPatientButton.setFocusPainted(false);
-        addPatientButton.setBorder(BorderFactory.createEmptyBorder(8, 20, 8, 20)); // Reduced vertical padding from 10 to 8
-        addPatientButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        addPatientButton.addActionListener(e -> {
-            // Unregister the listener from the parent page to avoid conflicts
-            ClientHandler.deleteListener(GetWardResponse.class, wardResponseListener);
-
-            // Dispose any existing dialog to ensure clean listener removal
-            if (addDialog != null) {
-                addDialog.dispose();
-            }
-            addDialog = new AddDialog(mainFrame) {
-                @Override
-                public void dispose() {
-                    super.dispose();
-                    addDialog = null;  // Clear the reference when dialog is disposed
-                    // Re-register the listener after the dialog is actually disposed
-                    ClientHandler.addResponseListener(GetWardResponse.class, wardResponseListener);
-                    log.info("AddDialog disposed, re-registered ward listener for CheckUpPage.");
-                }
-            };
-            
-            // Show the dialog without blocking the main thread
-            SwingUtilities.invokeLater(() -> {
-                addDialog.setVisible(true);
-                // The re-registration will now happen inside the dispose() override
-            });
-
-            updateUpdateQueue();
-        });
-
-        controlPanel.add(openQueueButton);
-        controlPanel.add(tvQueueButton);
-        controlPanel.add(addPatientButton);
+        JPanel controlPanel = buildTopControlPanel(mainFrame);
 
         // --- Status Label ---
         callingStatusLabel = new JLabel(" ", SwingConstants.CENTER);
@@ -856,82 +769,7 @@ public class CheckUpPage extends JPanel {
         patientInfoInnerPanel.add(wardComboBox, gbcPatient);
 
         // Add Room Selection Panel
-        JPanel roomControlPanel = new JPanel(new GridBagLayout());
-        roomControlPanel.setBorder(BorderFactory.createTitledBorder(
-                BorderFactory.createEtchedBorder(),
-                "Điều khiển phòng khám",
-                TitledBorder.LEADING, TitledBorder.TOP,
-                new Font("Arial", Font.BOLD, 14),
-                new Color(50, 50, 50)
-        ));
-
-        GridBagConstraints gbcRoom = new GridBagConstraints();
-        gbcRoom.insets = new Insets(5, 8, 5, 8);
-
-        // --- Left Side: Controls ---
-
-        // Room Selection Label
-        gbcRoom.fill = GridBagConstraints.HORIZONTAL;
-        gbcRoom.gridx = 0; gbcRoom.gridy = 0;
-        JLabel roomLabel = new JLabel("Phòng khám:", SwingConstants.RIGHT);
-        roomLabel.setFont(labelFont);
-        roomControlPanel.add(roomLabel, gbcRoom);
-
-        // Room Selection ComboBox
-        gbcRoom.gridx = 1;
-        String[] roomOptions = {"Phòng 1", "Phòng 2"};
-        callRoomComboBox = new JComboBox<>(roomOptions);
-        callRoomComboBox.setFont(fieldFont);
-        roomControlPanel.add(callRoomComboBox, gbcRoom);
-
-        // Call Patient Button
-        gbcRoom.gridx = 2;
-        callPatientButton = new JButton("Gọi bệnh nhân");
-        callPatientButton.setFont(fieldFont);
-        callPatientButton.setBackground(new Color(33, 150, 243));
-        callPatientButton.setForeground(Color.WHITE);
-        callPatientButton.setFocusPainted(false);
-        callPatientButton.addActionListener(e -> handleCallPatient()); // Ensure this method updates the panels
-        roomControlPanel.add(callPatientButton, gbcRoom);
-
-        // Free Room Button (spans the width of the controls)
-        gbcRoom.gridx = 0; gbcRoom.gridy = 1; gbcRoom.gridwidth = 3;
-        JButton freeRoomButton = new JButton("Đánh dấu phòng trống");
-        freeRoomButton.setFont(fieldFont);
-        freeRoomButton.setBackground(new Color(46, 204, 113));
-        freeRoomButton.setForeground(Color.WHITE);
-        freeRoomButton.setFocusPainted(false);
-        freeRoomButton.addActionListener(e -> handleFreeRoom()); // Ensure this method updates the panels
-        roomControlPanel.add(freeRoomButton, gbcRoom);
-
-
-        // --- Right Side: Status Panels ---
-
-        // Reset constraints for status panels
-        gbcRoom.gridwidth = 1;
-        gbcRoom.gridheight = 2; // Make panels span 2 rows vertically
-        gbcRoom.fill = GridBagConstraints.BOTH; // Fill available space
-
-        // Room 1 Status Panel
-        gbcRoom.gridx = 3; gbcRoom.gridy = 0;
-        room1StatusPanel = new JPanel(new BorderLayout());
-        room1StatusPanel.setPreferredSize(new Dimension(110, 0)); // Set width, height is controlled by layout
-        room1StatusLabel = new JLabel("", SwingConstants.CENTER);
-        room1StatusLabel.putClientProperty("baseText", "PHÒNG 1"); // Store base text for reuse
-        styleRoomStatusPanel(room1StatusPanel, room1StatusLabel, Color.GREEN.darker(), "TRỐNG"); // Initial state
-        room1StatusPanel.add(room1StatusLabel, BorderLayout.CENTER);
-        roomControlPanel.add(room1StatusPanel, gbcRoom);
-
-        // Room 2 Status Panel
-        gbcRoom.gridx = 4; gbcRoom.gridy = 0;
-        room2StatusPanel = new JPanel(new BorderLayout());
-        room2StatusPanel.setPreferredSize(new Dimension(110, 0)); // Set width, height is controlled by layout
-        room2StatusLabel = new JLabel("", SwingConstants.CENTER);
-        room2StatusLabel.putClientProperty("baseText", "PHÒNG 2"); // Store base text for reuse
-        styleRoomStatusPanel(room2StatusPanel, room2StatusLabel, Color.GREEN.darker(), "TRỐNG"); // Initial state
-        room2StatusPanel.add(room2StatusLabel, BorderLayout.CENTER);
-        roomControlPanel.add(room2StatusPanel, gbcRoom);
-
+        JPanel roomControlPanel = buildRoomControlPanel(labelFont, fieldFont);
 
         // --- Add the completed panel to your main layout ---
         // This part remains the same
@@ -1128,6 +966,361 @@ public class CheckUpPage extends JPanel {
         mainContentPanel.setBorder(BorderFactory.createEmptyBorder(5, 5, 3, 5)); // Reduced top from 10 to 5, bottom from 5 to 3
 
         // Create left panel for Nội dung (larger)
+        JPanel leftPanel = buildNotesEditorPanel();
+
+        // Create right panel for Triệu chứng and Chẩn đoán
+        JPanel rightPanel = buildSymptomsPanel(fieldFont);
+
+        // Create split pane for left and right panels
+        JSplitPane contentSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, leftPanel, rightPanel);
+        contentSplitPane.setResizeWeight(0.85); // Give maximum weight to the left panel
+        contentSplitPane.setDividerSize(3); // Make divider even smaller
+        contentSplitPane.setBorder(null);
+        contentSplitPane.setOneTouchExpandable(true); // Add one-touch expand/collapse buttons
+
+        // Add to main content panel
+        mainContentPanel.add(templatePanel, BorderLayout.NORTH);
+        mainContentPanel.add(contentSplitPane, BorderLayout.CENTER);
+
+        // Create a container panel to hold the top rows with vertical layout
+        JPanel topContainer = new JPanel();
+        topContainer.setLayout(new BoxLayout(topContainer, BoxLayout.Y_AXIS));
+        topContainer.add(topRowPanel);
+        topContainer.add(doctorPanel);
+
+        // Assemble checkup info panel
+        checkupInfoPanel.add(topContainer, BorderLayout.NORTH);
+        checkupInfoPanel.add(mainContentPanel, BorderLayout.CENTER);
+
+                // Create tabbed pane for patient info and checkup info
+        JTabbedPane tabbedPane = new JTabbedPane();
+        tabbedPane.setFont(new Font("Arial", Font.BOLD, 14));
+        tabbedPane.setBackground(Color.WHITE);
+        tabbedPane.setForeground(new Color(63, 81, 181));
+        
+        // Add tabs with icons
+        ImageIcon patientIcon = new ImageIcon("src/main/java/BsK/client/ui/assets/icon/user.png");
+        ImageIcon checkupIcon = new ImageIcon("src/main/java/BsK/client/ui/assets/icon/health-check.png");
+        
+        // Scale icons if needed
+        if (patientIcon.getIconWidth() > 20) {
+            Image scaledImage = patientIcon.getImage().getScaledInstance(20, 20, Image.SCALE_SMOOTH);
+            patientIcon = new ImageIcon(scaledImage);
+        }
+        if (checkupIcon.getIconWidth() > 20) {
+            Image scaledImage = checkupIcon.getImage().getScaledInstance(20, 20, Image.SCALE_SMOOTH);
+            checkupIcon = new ImageIcon(scaledImage);
+        }
+
+        // Create a container for patient info and history
+        JPanel patientInfoContainer = new JPanel(new BorderLayout(0, 10));
+        patientInfoContainer.add(patientInfoInnerPanel, BorderLayout.CENTER);
+
+        // Add history panel to the bottom of patient info
+        JPanel historyPanel = buildHistoryPanel();
+        patientInfoContainer.add(historyPanel, BorderLayout.SOUTH);
+
+        // Create scroll panes for each panel
+        JScrollPane patientScrollPane = new JScrollPane(patientInfoContainer);
+        patientScrollPane.setBorder(BorderFactory.createEmptyBorder());
+        patientScrollPane.getVerticalScrollBar().setUnitIncrement(16);
+        
+        JScrollPane checkupScrollPane = new JScrollPane(checkupInfoPanel);
+        checkupScrollPane.setBorder(BorderFactory.createEmptyBorder());
+        checkupScrollPane.getVerticalScrollBar().setUnitIncrement(16);
+
+        // Add tabs with icons
+        tabbedPane.addTab("Thông tin bệnh nhân", patientIcon, patientScrollPane);
+        tabbedPane.addTab("Thông tin khám bệnh", checkupIcon, checkupScrollPane);
+
+        // Style the tabs
+        for (int i = 0; i < tabbedPane.getTabCount(); i++) {
+            tabbedPane.setBackgroundAt(i, new Color(245, 245, 245));
+        }
+
+        // Add some padding around the tabbed pane
+        JPanel tabbedPaneContainer = new JPanel(new BorderLayout());
+        tabbedPaneContainer.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
+        tabbedPaneContainer.add(tabbedPane, BorderLayout.CENTER);
+
+        // New panel to hold controls at the top of the details panel
+        JPanel topActionPanel = new JPanel(new BorderLayout(20, 0)); // Horizontal gap
+        topActionPanel.add(controlPanel, BorderLayout.WEST);
+        topActionPanel.add(callingStatusLabel, BorderLayout.CENTER);
+        
+        rightBottomPanel.add(topActionPanel, BorderLayout.NORTH);
+        rightBottomPanel.add(tabbedPaneContainer, BorderLayout.CENTER);
+        
+        // --- Assemble New Layout ---
+        UIManager.getDefaults().put("SplitPane.border", BorderFactory.createEmptyBorder());
+
+        // Main Split Pane (Horizontal): Details on left, Right Panel on right
+        JSplitPane mainSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, rightBottomPanel, rightContainer);
+        mainSplitPane.setResizeWeight(0.7); // Left side gets 70% of space
+        mainSplitPane.setDividerSize(5); // Reduced from 8 to 5
+        mainSplitPane.setContinuousLayout(true);
+        mainSplitPane.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 0));
+
+        // Configure webcam container
+        webcamControlContainer.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createEmptyBorder(5, 10, 3, 5), // Reduced top from 10 to 5, bottom from 5 to 3
+                BorderFactory.createTitledBorder(
+                        BorderFactory.createLineBorder(new Color(63, 81, 181), 1, true),
+                        "Webcam",
+                        TitledBorder.LEADING, TitledBorder.TOP,
+                        new Font("Arial", Font.BOLD, 16), new Color(63, 81, 181)
+                )
+        ));
+        webcamControlContainer.setPreferredSize(new Dimension(0, 280)); // Reduced height from 300 to 280
+
+        // New Right Split Pane (Vertical): Webcam on top, Gallery in middle, Prescription on bottom
+        JSplitPane topRightSplitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT, webcamControlContainer, rightTopPanel);
+        topRightSplitPane.setResizeWeight(0.4); // Webcam gets 40% of space
+        topRightSplitPane.setDividerSize(3); // Reduced from 5 to 3
+        
+        JSplitPane newRightSplitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT, topRightSplitPane, prescriptionDisplayPanel);
+        newRightSplitPane.setResizeWeight(0.7); // Top part gets 70% of space
+        newRightSplitPane.setDividerSize(3); // Reduced from 5 to 3
+
+        // Create a container for the right side that includes the split pane and action buttons
+        rightContainer = new JPanel(new BorderLayout());
+        rightContainer.add(newRightSplitPane, BorderLayout.CENTER);
+
+        // Create a more modern action panel
+        JPanel iconPanel = new JPanel(new GridLayout(2, 3, 10, 10)); // 2x3 grid with 10px gaps
+        iconPanel.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10)); // Reduced top/bottom from 10 to 5
+        iconPanel.setBackground(Color.WHITE);
+
+        // Define button properties
+        Object[][] buttonData = {
+            {"medicine", "Thêm thuốc", new Color(0, 150, 136)},
+            {"service", "Thêm DV", new Color(255, 152, 0)},
+            {"printer", "<html><center>In toa thuốc<br><font color='red'>(F7)</font></center></html>", new Color(156, 39, 176)},
+            {"save", "<html><center>Lưu<br><font color='red'>(F8)</font></center></html>", new Color(63, 81, 181)},
+            {"loupe", "<html><center>Lưu & Xem KQ<br><font color='red'>(F9)</font></center></html>", new Color(0, 172, 193)},
+            {"ultrasound", "<html><center>Lưu & In KQ<br><font color='red'>(F10)</font></center></html>", new Color(21, 101, 192)}
+        };
+
+        // Create array to store action buttons for later access
+        actionButtons = new JButton[buttonData.length];
+
+        for (int i = 0; i < buttonData.length; i++) {
+            String name = (String) buttonData[i][0];
+            String text = (String) buttonData[i][1];
+            Color color = (Color) buttonData[i][2];
+
+            JButton button = createActionButton(name, text, color);
+            button.setEnabled(false); // Disabled by default
+            button.addActionListener(e -> handleActionPanelClick(name));
+            iconPanel.add(button);
+            actionButtons[i] = button;
+        }
+
+        rightContainer.add(iconPanel, BorderLayout.SOUTH);
+
+        // Main Split Pane (Horizontal)
+        mainSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, rightBottomPanel, rightContainer);
+        mainSplitPane.setResizeWeight(0.7); // Left side gets 70% of space
+        mainSplitPane.setDividerSize(5); // Reduced from 8 to 5
+        mainSplitPane.setContinuousLayout(true);
+        mainSplitPane.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 0));
+
+        // --- Add components to the main panel ---
+        JPanel centerContentPanel = new JPanel(new BorderLayout(0, 3)); // Reduced vertical gap from 5 to 3
+        centerContentPanel.setBorder(BorderFactory.createEmptyBorder(0, 10, 5, 10)); // Reduced bottom from 10 to 5
+
+        centerContentPanel.add(mainSplitPane, BorderLayout.CENTER);
+
+        add(centerContentPanel, BorderLayout.CENTER);
+
+        // In the constructor, after creating notesField:
+        setupNotesPasteHandler();
+        setupShortcuts();
+        
+        // NOTE: CallPatientResponse is already handled by callPatientResponseListener (handleCallPatientResponse method)
+        // which updates both tvQueueFrame and room status panels. No duplicate listener needed here.
+    }
+
+    /** Builds the "Điều khiển phòng khám" panel with room selection, call/free buttons and status panels. */
+    private JPanel buildRoomControlPanel(Font labelFont, Font fieldFont) {
+        JPanel roomControlPanel = new JPanel(new GridBagLayout());
+        roomControlPanel.setBorder(BorderFactory.createTitledBorder(
+                BorderFactory.createEtchedBorder(),
+                "Điều khiển phòng khám",
+                TitledBorder.LEADING, TitledBorder.TOP,
+                new Font("Arial", Font.BOLD, 14),
+                new Color(50, 50, 50)
+        ));
+
+        GridBagConstraints gbcRoom = new GridBagConstraints();
+        gbcRoom.insets = new Insets(5, 8, 5, 8);
+
+        // --- Left Side: Controls ---
+
+        // Room Selection Label
+        gbcRoom.fill = GridBagConstraints.HORIZONTAL;
+        gbcRoom.gridx = 0; gbcRoom.gridy = 0;
+        JLabel roomLabel = new JLabel("Phòng khám:", SwingConstants.RIGHT);
+        roomLabel.setFont(labelFont);
+        roomControlPanel.add(roomLabel, gbcRoom);
+
+        // Room Selection ComboBox
+        gbcRoom.gridx = 1;
+        String[] roomOptions = {"Phòng 1", "Phòng 2"};
+        callRoomComboBox = new JComboBox<>(roomOptions);
+        callRoomComboBox.setFont(fieldFont);
+        roomControlPanel.add(callRoomComboBox, gbcRoom);
+
+        // Call Patient Button
+        gbcRoom.gridx = 2;
+        callPatientButton = new JButton("Gọi bệnh nhân");
+        callPatientButton.setFont(fieldFont);
+        callPatientButton.setBackground(new Color(33, 150, 243));
+        callPatientButton.setForeground(Color.WHITE);
+        callPatientButton.setFocusPainted(false);
+        callPatientButton.addActionListener(e -> handleCallPatient()); // Ensure this method updates the panels
+        roomControlPanel.add(callPatientButton, gbcRoom);
+
+        // Free Room Button (spans the width of the controls)
+        gbcRoom.gridx = 0; gbcRoom.gridy = 1; gbcRoom.gridwidth = 3;
+        JButton freeRoomButton = new JButton("Đánh dấu phòng trống");
+        freeRoomButton.setFont(fieldFont);
+        freeRoomButton.setBackground(new Color(46, 204, 113));
+        freeRoomButton.setForeground(Color.WHITE);
+        freeRoomButton.setFocusPainted(false);
+        freeRoomButton.addActionListener(e -> handleFreeRoom()); // Ensure this method updates the panels
+        roomControlPanel.add(freeRoomButton, gbcRoom);
+
+
+        // --- Right Side: Status Panels ---
+
+        // Reset constraints for status panels
+        gbcRoom.gridwidth = 1;
+        gbcRoom.gridheight = 2; // Make panels span 2 rows vertically
+        gbcRoom.fill = GridBagConstraints.BOTH; // Fill available space
+
+        // Room 1 Status Panel
+        gbcRoom.gridx = 3; gbcRoom.gridy = 0;
+        room1StatusPanel = new JPanel(new BorderLayout());
+        room1StatusPanel.setPreferredSize(new Dimension(110, 0)); // Set width, height is controlled by layout
+        room1StatusLabel = new JLabel("", SwingConstants.CENTER);
+        room1StatusLabel.putClientProperty("baseText", "PHÒNG 1"); // Store base text for reuse
+        styleRoomStatusPanel(room1StatusPanel, room1StatusLabel, Color.GREEN.darker(), "TRỐNG"); // Initial state
+        room1StatusPanel.add(room1StatusLabel, BorderLayout.CENTER);
+        roomControlPanel.add(room1StatusPanel, gbcRoom);
+
+        // Room 2 Status Panel
+        gbcRoom.gridx = 4; gbcRoom.gridy = 0;
+        room2StatusPanel = new JPanel(new BorderLayout());
+        room2StatusPanel.setPreferredSize(new Dimension(110, 0)); // Set width, height is controlled by layout
+        room2StatusLabel = new JLabel("", SwingConstants.CENTER);
+        room2StatusLabel.putClientProperty("baseText", "PHÒNG 2"); // Store base text for reuse
+        styleRoomStatusPanel(room2StatusPanel, room2StatusLabel, Color.GREEN.darker(), "TRỐNG"); // Initial state
+        room2StatusPanel.add(room2StatusLabel, BorderLayout.CENTER);
+        roomControlPanel.add(room2StatusPanel, gbcRoom);
+        return roomControlPanel;
+    }
+
+    /** Builds the top control bar (queue list / TV screen / add patient buttons). */
+    private JPanel buildTopControlPanel(MainFrame mainFrame) {
+        JPanel controlPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 15, 5)); // Reduced vertical gap from 10 to 5
+        controlPanel.setBorder(BorderFactory.createEmptyBorder(3, 5, 3, 5)); // Reduced top/bottom from 5 to 3
+        controlPanel.setBackground(Color.WHITE);
+
+        openQueueButton = new JButton("<html>Danh sách chờ <font color='red'><b>(F1)</b></font></html>");
+        openQueueButton.setBackground(new Color(255, 152, 0)); // Amber
+        openQueueButton.setForeground(Color.WHITE);
+        openQueueButton.setFocusPainted(false);
+        openQueueButton.setBorder(BorderFactory.createEmptyBorder(8, 15, 8, 15)); // Reduced vertical padding from 10 to 8
+        openQueueButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        openQueueButton.addActionListener(e -> {
+            // Always fetch the latest queue to avoid cross-client mismatch
+            updateQueue();
+            // Reset filters to "Tất cả" to avoid index/filter/sort mismatch on open
+            if (queueManagementPage != null) {
+                queueManagementPage.checkupTypeFilter.setSelectedItem("Tất cả");
+
+                queueManagementPage.applyFilters();
+            }
+            queueManagementPage.setVisible(true);
+            queueManagementPage.toFront();
+        });
+
+        JButton tvQueueButton = new JButton("Màn hình chờ TV");
+        tvQueueButton.setBackground(new Color(0, 150, 136));
+        tvQueueButton.setForeground(Color.WHITE);
+        tvQueueButton.setFocusPainted(false);
+        tvQueueButton.setBorder(BorderFactory.createEmptyBorder(8, 15, 8, 15)); // Reduced vertical padding from 10 to 8
+        tvQueueButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        tvQueueButton.addActionListener(e -> {
+            if (tvQueueFrame == null || !tvQueueFrame.isDisplayable()) {
+                tvQueueFrame = new QueueViewPage();
+            } else {
+                tvQueueFrame.toFront(); 
+            }
+            tvQueueFrame.updateQueueData(this.rawQueueForTv); 
+            tvQueueFrame.setVisible(true);
+        });
+
+        addPatientButton = new JButton("<html>THÊM BN <font color='red'><b>(F2)</b></font></html>");
+        addPatientButton.setBackground(new Color(63, 81, 181));
+        addPatientButton.setForeground(Color.WHITE);
+        addPatientButton.setFocusPainted(false);
+        addPatientButton.setBorder(BorderFactory.createEmptyBorder(8, 20, 8, 20)); // Reduced vertical padding from 10 to 8
+        addPatientButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        addPatientButton.addActionListener(e -> {
+            // Unregister the listener from the parent page to avoid conflicts
+            ClientHandler.deleteListener(GetWardResponse.class, wardResponseListener);
+
+            // Dispose any existing dialog to ensure clean listener removal
+            if (addDialog != null) {
+                addDialog.dispose();
+            }
+            addDialog = new AddDialog(mainFrame) {
+                @Override
+                public void dispose() {
+                    super.dispose();
+                    addDialog = null;  // Clear the reference when dialog is disposed
+                    // Re-register the listener after the dialog is actually disposed
+                    ClientHandler.addResponseListener(GetWardResponse.class, wardResponseListener);
+                    log.info("AddDialog disposed, re-registered ward listener for CheckUpPage.");
+                }
+            };
+            
+            // Show the dialog without blocking the main thread
+            SwingUtilities.invokeLater(() -> {
+                addDialog.setVisible(true);
+                // The re-registration will now happen inside the dispose() override
+            });
+
+            updateUpdateQueue();
+        });
+
+        controlPanel.add(openQueueButton);
+        controlPanel.add(tvQueueButton);
+        controlPanel.add(addPatientButton);
+        return controlPanel;
+    }
+
+    /** Registers all server response listeners used by this page. */
+    private void registerResponseListeners() {
+        ClientHandler.addResponseListener(GetCheckUpQueueResponse.class, checkUpQueueListener);
+        ClientHandler.addResponseListener(GetCheckUpQueueUpdateResponse.class, checkUpQueueUpdateListener);
+        ClientHandler.addResponseListener(GetPatientHistoryResponse.class, patientHistoryListener);
+        ClientHandler.addResponseListener(GetOrderInfoByCheckupRes.class, orderInfoByCheckupListener);
+        ClientHandler.addResponseListener(GetWardResponse.class, wardResponseListener);
+        ClientHandler.addResponseListener(CallPatientResponse.class, callPatientResponseListener);
+        ClientHandler.addResponseListener(GetAllTemplatesRes.class, getAllTemplatesListener);
+        ClientHandler.addResponseListener(UploadCheckupImageResponse.class, uploadImageResponseListener);
+        ClientHandler.addResponseListener(UploadCheckupPdfResponse.class, uploadPdfResponseListener);
+        ClientHandler.addResponseListener(SyncCheckupImagesResponse.class, syncImagesResponseListener);
+        ClientHandler.addResponseListener(GetCheckupImageResponse.class, getImageResponseListener);
+        ClientHandler.addResponseListener(DeleteCheckupImageResponse.class, deleteImageResponseListener);
+        ClientHandler.addResponseListener(SaveCheckupRes.class, saveCheckupResponseListener);
+    }
+
+    /** Builds the RTF notes editor ("Nội dung") panel including its formatting toolbar. */
+    private JPanel buildNotesEditorPanel() {
         JPanel leftPanel = new JPanel(new BorderLayout(5, 5));
         leftPanel.setBorder(BorderFactory.createTitledBorder(
             BorderFactory.createEtchedBorder(),
@@ -1311,8 +1504,11 @@ public class CheckUpPage extends JPanel {
         JScrollPane notesScrollPane = new JScrollPane(notesField);
         notesScrollPane.setPreferredSize(new Dimension(0, 400)); // Set scroll pane size too
         leftPanel.add(notesScrollPane, BorderLayout.CENTER);
+        return leftPanel;
+    }
 
-        // Create right panel for Triệu chứng and Chẩn đoán
+    /** Builds the right-hand panel containing Đề nghị / Chẩn đoán / Kết luận and the re-checkup picker. */
+    private JPanel buildSymptomsPanel(Font fieldFont) {
         JPanel rightPanel = new JPanel();
         rightPanel.setLayout(new BoxLayout(rightPanel, BoxLayout.Y_AXIS));
         rightPanel.setPreferredSize(new Dimension(250, 0)); // Set a smaller fixed width for right panel
@@ -1442,53 +1638,11 @@ public class CheckUpPage extends JPanel {
         rightPanel.add(diagnosisPanel);
         rightPanel.add(Box.createRigidArea(new Dimension(0, 5))); // Reduced from 10 to 5
         rightPanel.add(conclusionPanel);
+        return rightPanel;
+    }
 
-        // Create split pane for left and right panels
-        JSplitPane contentSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, leftPanel, rightPanel);
-        contentSplitPane.setResizeWeight(0.85); // Give maximum weight to the left panel
-        contentSplitPane.setDividerSize(3); // Make divider even smaller
-        contentSplitPane.setBorder(null);
-        contentSplitPane.setOneTouchExpandable(true); // Add one-touch expand/collapse buttons
-
-        // Add to main content panel
-        mainContentPanel.add(templatePanel, BorderLayout.NORTH);
-        mainContentPanel.add(contentSplitPane, BorderLayout.CENTER);
-
-        // Create a container panel to hold the top rows with vertical layout
-        JPanel topContainer = new JPanel();
-        topContainer.setLayout(new BoxLayout(topContainer, BoxLayout.Y_AXIS));
-        topContainer.add(topRowPanel);
-        topContainer.add(doctorPanel);
-
-        // Assemble checkup info panel
-        checkupInfoPanel.add(topContainer, BorderLayout.NORTH);
-        checkupInfoPanel.add(mainContentPanel, BorderLayout.CENTER);
-
-                // Create tabbed pane for patient info and checkup info
-        JTabbedPane tabbedPane = new JTabbedPane();
-        tabbedPane.setFont(new Font("Arial", Font.BOLD, 14));
-        tabbedPane.setBackground(Color.WHITE);
-        tabbedPane.setForeground(new Color(63, 81, 181));
-        
-        // Add tabs with icons
-        ImageIcon patientIcon = new ImageIcon("src/main/java/BsK/client/ui/assets/icon/user.png");
-        ImageIcon checkupIcon = new ImageIcon("src/main/java/BsK/client/ui/assets/icon/health-check.png");
-        
-        // Scale icons if needed
-        if (patientIcon.getIconWidth() > 20) {
-            Image scaledImage = patientIcon.getImage().getScaledInstance(20, 20, Image.SCALE_SMOOTH);
-            patientIcon = new ImageIcon(scaledImage);
-        }
-        if (checkupIcon.getIconWidth() > 20) {
-            Image scaledImage = checkupIcon.getImage().getScaledInstance(20, 20, Image.SCALE_SMOOTH);
-            checkupIcon = new ImageIcon(scaledImage);
-        }
-
-        // Create a container for patient info and history
-        JPanel patientInfoContainer = new JPanel(new BorderLayout(0, 10));
-        patientInfoContainer.add(patientInfoInnerPanel, BorderLayout.CENTER);
-
-        // Add history panel to the bottom of patient info
+    /** Builds the "Lịch sử khám bệnh" (patient history) table panel. */
+    private JPanel buildHistoryPanel() {
         JPanel historyPanel = new JPanel(new BorderLayout());
         historyPanel.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createEmptyBorder(5, 5, 5, 5),
@@ -1543,127 +1697,7 @@ public class CheckUpPage extends JPanel {
         tableScroll2.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
         historyPanel.add(tableScroll2, BorderLayout.CENTER);
         historyPanel.setPreferredSize(new Dimension(0, 200)); // Set fixed height for history panel
-        patientInfoContainer.add(historyPanel, BorderLayout.SOUTH);
-
-        // Create scroll panes for each panel
-        JScrollPane patientScrollPane = new JScrollPane(patientInfoContainer);
-        patientScrollPane.setBorder(BorderFactory.createEmptyBorder());
-        patientScrollPane.getVerticalScrollBar().setUnitIncrement(16);
-        
-        JScrollPane checkupScrollPane = new JScrollPane(checkupInfoPanel);
-        checkupScrollPane.setBorder(BorderFactory.createEmptyBorder());
-        checkupScrollPane.getVerticalScrollBar().setUnitIncrement(16);
-
-        // Add tabs with icons
-        tabbedPane.addTab("Thông tin bệnh nhân", patientIcon, patientScrollPane);
-        tabbedPane.addTab("Thông tin khám bệnh", checkupIcon, checkupScrollPane);
-
-        // Style the tabs
-        for (int i = 0; i < tabbedPane.getTabCount(); i++) {
-            tabbedPane.setBackgroundAt(i, new Color(245, 245, 245));
-        }
-
-        // Add some padding around the tabbed pane
-        JPanel tabbedPaneContainer = new JPanel(new BorderLayout());
-        tabbedPaneContainer.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
-        tabbedPaneContainer.add(tabbedPane, BorderLayout.CENTER);
-
-        // New panel to hold controls at the top of the details panel
-        JPanel topActionPanel = new JPanel(new BorderLayout(20, 0)); // Horizontal gap
-        topActionPanel.add(controlPanel, BorderLayout.WEST);
-        topActionPanel.add(callingStatusLabel, BorderLayout.CENTER);
-        
-        rightBottomPanel.add(topActionPanel, BorderLayout.NORTH);
-        rightBottomPanel.add(tabbedPaneContainer, BorderLayout.CENTER);
-        
-        // --- Assemble New Layout ---
-        UIManager.getDefaults().put("SplitPane.border", BorderFactory.createEmptyBorder());
-
-        // Main Split Pane (Horizontal): Details on left, Right Panel on right
-        JSplitPane mainSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, rightBottomPanel, rightContainer);
-        mainSplitPane.setResizeWeight(0.7); // Left side gets 70% of space
-        mainSplitPane.setDividerSize(5); // Reduced from 8 to 5
-        mainSplitPane.setContinuousLayout(true);
-        mainSplitPane.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 0));
-
-        // Configure webcam container
-        webcamControlContainer.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createEmptyBorder(5, 10, 3, 5), // Reduced top from 10 to 5, bottom from 5 to 3
-                BorderFactory.createTitledBorder(
-                        BorderFactory.createLineBorder(new Color(63, 81, 181), 1, true),
-                        "Webcam",
-                        TitledBorder.LEADING, TitledBorder.TOP,
-                        new Font("Arial", Font.BOLD, 16), new Color(63, 81, 181)
-                )
-        ));
-        webcamControlContainer.setPreferredSize(new Dimension(0, 280)); // Reduced height from 300 to 280
-
-        // New Right Split Pane (Vertical): Webcam on top, Gallery in middle, Prescription on bottom
-        JSplitPane topRightSplitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT, webcamControlContainer, rightTopPanel);
-        topRightSplitPane.setResizeWeight(0.4); // Webcam gets 40% of space
-        topRightSplitPane.setDividerSize(3); // Reduced from 5 to 3
-        
-        JSplitPane newRightSplitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT, topRightSplitPane, prescriptionDisplayPanel);
-        newRightSplitPane.setResizeWeight(0.7); // Top part gets 70% of space
-        newRightSplitPane.setDividerSize(3); // Reduced from 5 to 3
-
-        // Create a container for the right side that includes the split pane and action buttons
-        rightContainer = new JPanel(new BorderLayout());
-        rightContainer.add(newRightSplitPane, BorderLayout.CENTER);
-
-        // Create a more modern action panel
-        JPanel iconPanel = new JPanel(new GridLayout(2, 3, 10, 10)); // 2x3 grid with 10px gaps
-        iconPanel.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10)); // Reduced top/bottom from 10 to 5
-        iconPanel.setBackground(Color.WHITE);
-
-        // Define button properties
-        Object[][] buttonData = {
-            {"medicine", "Thêm thuốc", new Color(0, 150, 136)},
-            {"service", "Thêm DV", new Color(255, 152, 0)},
-            {"printer", "<html><center>In toa thuốc<br><font color='red'>(F7)</font></center></html>", new Color(156, 39, 176)},
-            {"save", "<html><center>Lưu<br><font color='red'>(F8)</font></center></html>", new Color(63, 81, 181)},
-            {"loupe", "<html><center>Lưu & Xem KQ<br><font color='red'>(F9)</font></center></html>", new Color(0, 172, 193)},
-            {"ultrasound", "<html><center>Lưu & In KQ<br><font color='red'>(F10)</font></center></html>", new Color(21, 101, 192)}
-        };
-
-        // Create array to store action buttons for later access
-        actionButtons = new JButton[buttonData.length];
-
-        for (int i = 0; i < buttonData.length; i++) {
-            String name = (String) buttonData[i][0];
-            String text = (String) buttonData[i][1];
-            Color color = (Color) buttonData[i][2];
-
-            JButton button = createActionButton(name, text, color);
-            button.setEnabled(false); // Disabled by default
-            button.addActionListener(e -> handleActionPanelClick(name));
-            iconPanel.add(button);
-            actionButtons[i] = button;
-        }
-
-        rightContainer.add(iconPanel, BorderLayout.SOUTH);
-
-        // Main Split Pane (Horizontal)
-        mainSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, rightBottomPanel, rightContainer);
-        mainSplitPane.setResizeWeight(0.7); // Left side gets 70% of space
-        mainSplitPane.setDividerSize(5); // Reduced from 8 to 5
-        mainSplitPane.setContinuousLayout(true);
-        mainSplitPane.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 0));
-
-        // --- Add components to the main panel ---
-        JPanel centerContentPanel = new JPanel(new BorderLayout(0, 3)); // Reduced vertical gap from 5 to 3
-        centerContentPanel.setBorder(BorderFactory.createEmptyBorder(0, 10, 5, 10)); // Reduced bottom from 10 to 5
-
-        centerContentPanel.add(mainSplitPane, BorderLayout.CENTER);
-
-        add(centerContentPanel, BorderLayout.CENTER);
-
-        // In the constructor, after creating notesField:
-        setupNotesPasteHandler();
-        setupShortcuts();
-        
-        // NOTE: CallPatientResponse is already handled by callPatientResponseListener (handleCallPatientResponse method)
-        // which updates both tvQueueFrame and room status panels. No duplicate listener needed here.
+        return historyPanel;
     }
 
     private void addSelectAllOnFocus(JTextComponent textComponent) {
@@ -2809,27 +2843,14 @@ public class CheckUpPage extends JPanel {
                 initializeWebcam(selectedDevice);
             } else {
                 cleanupWebcam();
-                if (webcamContainer != null) {
-                    webcamContainer.removeAll();
-                    JLabel noWebcamLabel = new JLabel("Chọn thiết bị webcam", SwingConstants.CENTER);
-                    noWebcamLabel.setPreferredSize(new Dimension(180, 140));
-                    webcamContainer.add(noWebcamLabel);
-                    webcamContainer.revalidate();
-                    webcamContainer.repaint();
-                }
+                showWebcamPlaceholder("Chọn thiết bị webcam");
             }
         });
         devicePanel.add(webcamDeviceComboBox);
         
         // Add refresh button with reload icon
-        ImageIcon reloadIcon = getReloadIcon();
-        if (reloadIcon != null) {
-            webcamRefreshButton = new JButton(reloadIcon);
-        } else {
-            // Fallback to emoji if icon fails to load
-            webcamRefreshButton = new JButton("🔄");
-            log.warn("Failed to load reload icon, using emoji fallback");
-        }
+        webcamRefreshButton = new JButton();
+        applyRefreshButtonIcon();
         webcamRefreshButton.setPreferredSize(new Dimension(30, 25));
         webcamRefreshButton.setToolTipText("Tìm kiếm thiết bị webcam (thay vì tự động tìm)");
         webcamRefreshButton.setFocusPainted(false);
@@ -2917,6 +2938,30 @@ public class CheckUpPage extends JPanel {
             return null;
         }
     }
+
+    // Applies the reload icon to the webcam refresh button, falling back to an emoji.
+    private void applyRefreshButtonIcon() {
+        ImageIcon reloadIcon = getReloadIcon();
+        if (reloadIcon != null) {
+            webcamRefreshButton.setText("");
+            webcamRefreshButton.setIcon(reloadIcon);
+        } else {
+            webcamRefreshButton.setText("🔄"); // Fallback to emoji
+            webcamRefreshButton.setIcon(null);
+            log.warn("Failed to load reload icon, using emoji fallback");
+        }
+    }
+
+    // Shows a centered placeholder message in the webcam preview area.
+    private void showWebcamPlaceholder(String text) {
+        if (webcamContainer == null) return;
+        webcamContainer.removeAll();
+        JLabel label = new JLabel(text, SwingConstants.CENTER);
+        label.setPreferredSize(new Dimension(180, 140));
+        webcamContainer.add(label);
+        webcamContainer.revalidate();
+        webcamContainer.repaint();
+    }
     
     // Manual webcam device refresh
     private void refreshWebcamDevices() {
@@ -2967,15 +3012,7 @@ public class CheckUpPage extends JPanel {
                     
                     // Restore button with icon
                     webcamRefreshButton.setEnabled(true);
-                    ImageIcon reloadIcon = getReloadIcon();
-                    if (reloadIcon != null) {
-                        webcamRefreshButton.setText("");
-                        webcamRefreshButton.setIcon(reloadIcon);
-                    } else {
-                        webcamRefreshButton.setText("🔄"); // Fallback to emoji
-                        webcamRefreshButton.setIcon(null);
-                        log.warn("Failed to restore reload icon, using emoji");
-                    }
+                    applyRefreshButtonIcon();
                     
                     if (webcams.isEmpty()) {
                         log.warn("No webcam devices found");
@@ -2992,15 +3029,7 @@ public class CheckUpPage extends JPanel {
                     webcamDeviceComboBox.addItem("Lỗi tìm thiết bị");
                     webcamRefreshButton.setEnabled(true);
                     // Restore reload icon on error
-                    ImageIcon reloadIcon = getReloadIcon();
-                    if (reloadIcon != null) {
-                        webcamRefreshButton.setText("");
-                        webcamRefreshButton.setIcon(reloadIcon);
-                    } else {
-                        webcamRefreshButton.setText("🔄"); // Fallback to emoji
-                        webcamRefreshButton.setIcon(null);
-                        log.warn("Failed to restore reload icon after error, using emoji");
-                    }
+                    applyRefreshButtonIcon();
                 });
             }
         });
@@ -3030,16 +3059,7 @@ public class CheckUpPage extends JPanel {
             try {
                 // Quick cleanup without waiting
                 if (webcamPanel != null) {
-                    SwingUtilities.invokeLater(() -> {
-                        if (webcamContainer != null) {
-                            webcamContainer.removeAll();
-                            JLabel placeholderLabel = new JLabel("Webcam đã tắt", SwingConstants.CENTER);
-                            placeholderLabel.setPreferredSize(new Dimension(180, 140));
-                            webcamContainer.add(placeholderLabel);
-                            webcamContainer.revalidate();
-                            webcamContainer.repaint();
-                        }
-                    });
+                    SwingUtilities.invokeLater(() -> showWebcamPlaceholder("Webcam đã tắt"));
                     
                     // Stop webcam panel in background
                     try {

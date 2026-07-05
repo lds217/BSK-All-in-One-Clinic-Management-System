@@ -35,10 +35,18 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class DataDialog extends JDialog {
 
+    private static final String NAME_PLACEHOLDER = "Họ và tên...";
+    private static final String PATIENT_ID_PLACEHOLDER = "Mã BN...";
+    private static final String PHONE_PLACEHOLDER = "Số điện thoại...";
+    private static final String CHECKUP_ID_PLACEHOLDER = "Mã phiếu khám...";
+
     //<editor-fold desc="Properties for Checkup Data Tab">
-    private JTextField searchField;
-    private JTextField idSearchField;
+    private JTextField nameField;
+    private JTextField patientIdField;
+    private JTextField phoneField;
+    private JTextField checkupIdField;
     private JComboBox<String> doctorComboBox;
+    private JCheckBox dateFilterCheckBox;
     private JSpinner fromDateSpinner;
     private JSpinner toDateSpinner;
     private JTable dataTable;
@@ -148,13 +156,10 @@ public class DataDialog extends JDialog {
 
     //<editor-fold desc="Checkup Data Tab Methods">
     private void loadFiltersFromLocalStorage() {
-        if (LocalStorage.dataDialogSearchTerm == null || LocalStorage.dataDialogSearchTerm.isEmpty()) {
-            searchField.setText("Tìm theo tên bệnh nhân, mã bệnh nhân...");
-            searchField.setForeground(Color.GRAY);
-        } else {
-            searchField.setText(LocalStorage.dataDialogSearchTerm);
-            searchField.setForeground(Color.BLACK);
-        }
+        setFieldValue(nameField, NAME_PLACEHOLDER, LocalStorage.dataDialogNameSearch);
+        setFieldValue(patientIdField, PATIENT_ID_PLACEHOLDER, LocalStorage.dataDialogPatientIdSearch);
+        setFieldValue(phoneField, PHONE_PLACEHOLDER, LocalStorage.dataDialogPhoneSearch);
+        setFieldValue(checkupIdField, CHECKUP_ID_PLACEHOLDER, LocalStorage.dataDialogIdSearchTerm);
 
         if (LocalStorage.dataDialogFromDate != null) {
             fromDateSpinner.setValue(LocalStorage.dataDialogFromDate);
@@ -168,18 +173,69 @@ public class DataDialog extends JDialog {
             toDateSpinner.setValue(new Date());
         }
 
+        dateFilterCheckBox.setSelected(LocalStorage.dataDialogDateFilterEnabled);
+        setDateSpinnersEnabled(LocalStorage.dataDialogDateFilterEnabled);
+
         if (LocalStorage.dataDialogDoctorName != null) {
             doctorComboBox.setSelectedItem(LocalStorage.dataDialogDoctorName);
         } else {
             doctorComboBox.setSelectedIndex(0);
         }
+    }
 
-        if (LocalStorage.dataDialogIdSearchTerm != null && !LocalStorage.dataDialogIdSearchTerm.isEmpty()) {
-            idSearchField.setText(LocalStorage.dataDialogIdSearchTerm);
-            idSearchField.setForeground(Color.BLACK);
+    /**
+     * Creates a text field showing gray placeholder text that clears on focus.
+     */
+    private JTextField createPlaceholderField(String placeholder, int columns) {
+        JTextField field = new JTextField(placeholder, columns);
+        field.setForeground(Color.GRAY);
+        field.addFocusListener(new java.awt.event.FocusAdapter() {
+            public void focusGained(java.awt.event.FocusEvent evt) {
+                if (field.getText().equals(placeholder)) {
+                    field.setText("");
+                    field.setForeground(Color.BLACK);
+                }
+            }
+            public void focusLost(java.awt.event.FocusEvent evt) {
+                if (field.getText().isEmpty()) {
+                    field.setText(placeholder);
+                    field.setForeground(Color.GRAY);
+                }
+            }
+        });
+        return field;
+    }
+
+    /**
+     * Returns the real value of a placeholder field, or null if it is empty/showing the placeholder.
+     */
+    private String getFieldValue(JTextField field, String placeholder) {
+        String text = field.getText().trim();
+        if (text.isEmpty() || text.equals(placeholder)) {
+            return null;
+        }
+        return text;
+    }
+
+    /**
+     * Sets a placeholder field to the given value, restoring gray placeholder text when empty.
+     */
+    private void setFieldValue(JTextField field, String placeholder, String value) {
+        if (value == null || value.isEmpty()) {
+            field.setText(placeholder);
+            field.setForeground(Color.GRAY);
         } else {
-            idSearchField.setText("Tìm theo mã phiếu khám...");
-            idSearchField.setForeground(Color.GRAY);
+            field.setText(value);
+            field.setForeground(Color.BLACK);
+        }
+    }
+
+    private void setDateSpinnersEnabled(boolean enabled) {
+        if (fromDateSpinner != null) {
+            fromDateSpinner.setEnabled(enabled);
+        }
+        if (toDateSpinner != null) {
+            toDateSpinner.setEnabled(enabled);
         }
     }
 
@@ -187,23 +243,17 @@ public class DataDialog extends JDialog {
         JPanel controlPanel = new JPanel(new BorderLayout());
         controlPanel.setBorder(BorderFactory.createTitledBorder("Tìm kiếm và Lọc dữ liệu"));
 
-        JPanel topRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 10));
-        searchField = new JTextField("Tìm theo tên bệnh nhân, mã bệnh nhân...", 25);
-        searchField.setForeground(Color.GRAY);
-        searchField.addFocusListener(new java.awt.event.FocusAdapter() {
-            public void focusGained(java.awt.event.FocusEvent evt) {
-                if (searchField.getText().equals("Tìm theo tên bệnh nhân, mã bệnh nhân...")) {
-                    searchField.setText("");
-                    searchField.setForeground(Color.BLACK);
-                }
-            }
-            public void focusLost(java.awt.event.FocusEvent evt) {
-                if (searchField.getText().isEmpty()) {
-                    searchField.setText("Tìm theo tên bệnh nhân, mã bệnh nhân...");
-                    searchField.setForeground(Color.GRAY);
-                }
-            }
-        });
+        // --- Row 1: individual search fields (combined together with AND) ---
+        JPanel searchRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 10));
+
+        nameField = createPlaceholderField(NAME_PLACEHOLDER, 15);
+        nameField.setPreferredSize(new Dimension(170, 25));
+        patientIdField = createPlaceholderField(PATIENT_ID_PLACEHOLDER, 8);
+        patientIdField.setPreferredSize(new Dimension(110, 25));
+        phoneField = createPlaceholderField(PHONE_PLACEHOLDER, 10);
+        phoneField.setPreferredSize(new Dimension(130, 25));
+        checkupIdField = createPlaceholderField(CHECKUP_ID_PLACEHOLDER, 10);
+        checkupIdField.setPreferredSize(new Dimension(130, 25));
 
         JButton filterButton = new JButton("Lọc");
         filterButton.setBackground(new Color(51, 135, 204));
@@ -213,29 +263,25 @@ public class DataDialog extends JDialog {
         JButton clearFilterButton = new JButton("Xóa bộ lọc");
         clearFilterButton.setPreferredSize(new Dimension(100, 30));
 
-        JButton getAllButton = new JButton("Lấy tất cả");
-        getAllButton.setPreferredSize(new Dimension(100, 30));
+        searchRow.add(new JLabel("🔍"));
+        searchRow.add(new JLabel("Họ tên:"));
+        searchRow.add(nameField);
+        searchRow.add(new JLabel("Mã BN:"));
+        searchRow.add(patientIdField);
+        searchRow.add(new JLabel("SĐT:"));
+        searchRow.add(phoneField);
+        searchRow.add(new JLabel("Mã phiếu:"));
+        searchRow.add(checkupIdField);
+        searchRow.add(filterButton);
+        searchRow.add(clearFilterButton);
 
-        JButton exportExcelButton = new JButton("Xuất Excel");
-        exportExcelButton.setBackground(new Color(66, 157, 21));
-        exportExcelButton.setForeground(Color.WHITE);
-        exportExcelButton.setPreferredSize(new Dimension(100, 30));
-
-        JButton addNewButton = new JButton("+ Thêm mới");
-        addNewButton.setBackground(new Color(200, 138, 16));
-        addNewButton.setForeground(Color.WHITE);
-        addNewButton.setPreferredSize(new Dimension(120, 30));
-
-        topRow.add(new JLabel("🔍"));
-        topRow.add(searchField);
-        topRow.add(filterButton);
-        topRow.add(clearFilterButton);
-        topRow.add(getAllButton);
-        topRow.add(Box.createHorizontalStrut(20));
-        topRow.add(exportExcelButton);
-        topRow.add(addNewButton);
-
+        // --- Row 2: date range, doctor and action buttons ---
         JPanel bottomRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 5));
+
+        // Date filtering is optional: off by default, only applied when checked
+        dateFilterCheckBox = new JCheckBox("Lọc theo ngày");
+        bottomRow.add(dateFilterCheckBox);
+
         bottomRow.add(new JLabel("Từ ngày:"));
         fromDateSpinner = new JSpinner(new SpinnerDateModel());
         fromDateSpinner.setEditor(new JSpinner.DateEditor(fromDateSpinner, "dd/MM/yyyy"));
@@ -247,6 +293,10 @@ public class DataDialog extends JDialog {
         toDateSpinner.setEditor(new JSpinner.DateEditor(toDateSpinner, "dd/MM/yyyy"));
         toDateSpinner.setPreferredSize(new Dimension(100, 25));
         bottomRow.add(toDateSpinner);
+
+        // Enable/disable date spinners with the checkbox
+        dateFilterCheckBox.addActionListener(e -> setDateSpinnersEnabled(dateFilterCheckBox.isSelected()));
+        setDateSpinnersEnabled(false);
 
         bottomRow.add(Box.createHorizontalStrut(20));
         bottomRow.add(new JLabel("Bác sĩ:"));
@@ -262,28 +312,26 @@ public class DataDialog extends JDialog {
         doctorComboBox.setPreferredSize(new Dimension(150, 25));
         bottomRow.add(doctorComboBox);
 
-        bottomRow.add(Box.createHorizontalStrut(15));
-        bottomRow.add(new JLabel("Mã Phiếu:"));
-        idSearchField = new JTextField("Tìm theo mã phiếu khám...", 12);
-        idSearchField.setForeground(Color.GRAY);
-        idSearchField.setPreferredSize(new Dimension(150, 25));
-        idSearchField.addFocusListener(new java.awt.event.FocusAdapter() {
-            public void focusGained(java.awt.event.FocusEvent evt) {
-                if (idSearchField.getText().equals("Tìm theo mã phiếu khám...")) {
-                    idSearchField.setText("");
-                    idSearchField.setForeground(Color.BLACK);
-                }
-            }
-            public void focusLost(java.awt.event.FocusEvent evt) {
-                if (idSearchField.getText().isEmpty()) {
-                    idSearchField.setText("Tìm theo mã phiếu khám...");
-                    idSearchField.setForeground(Color.GRAY);
-                }
-            }
-        });
-        bottomRow.add(idSearchField);
+        bottomRow.add(Box.createHorizontalStrut(20));
 
-        controlPanel.add(topRow, BorderLayout.NORTH);
+        JButton getAllButton = new JButton("Lấy tất cả");
+        getAllButton.setPreferredSize(new Dimension(100, 30));
+
+        JButton exportExcelButton = new JButton("Xuất Excel");
+        exportExcelButton.setBackground(new Color(66, 157, 21));
+        exportExcelButton.setForeground(Color.WHITE);
+        exportExcelButton.setPreferredSize(new Dimension(100, 30));
+
+        JButton addNewButton = new JButton("+ Thêm mới");
+        addNewButton.setBackground(new Color(200, 138, 16));
+        addNewButton.setForeground(Color.WHITE);
+        addNewButton.setPreferredSize(new Dimension(120, 30));
+
+        bottomRow.add(getAllButton);
+        bottomRow.add(exportExcelButton);
+        bottomRow.add(addNewButton);
+
+        controlPanel.add(searchRow, BorderLayout.NORTH);
         controlPanel.add(bottomRow, BorderLayout.SOUTH);
 
         addNewButton.addActionListener(e -> {
@@ -302,7 +350,10 @@ public class DataDialog extends JDialog {
         });
 
         getAllButton.addActionListener(e -> {
-            GetCheckupDataRequest request = new GetCheckupDataRequest(null, null,null, null, null, 1, recordsPerPage, LocalStorage.currentShift);
+            GetCheckupDataRequest request = new GetCheckupDataRequest();
+            request.setPage(1);
+            request.setPageSize(recordsPerPage);
+            request.setShift(LocalStorage.currentShift);
             NetworkUtil.sendPacket(ClientHandler.ctx.channel(), request);
             resultCountLabel.setText("Đang tải tất cả dữ liệu...");
         });
@@ -317,11 +368,11 @@ public class DataDialog extends JDialog {
         resultCountLabel.setFont(new Font("Arial", Font.PLAIN, 12));
         gridPanel.add(resultCountLabel, BorderLayout.NORTH);
 
-        String[] columnNames = {"STT", "Mã khám", "Họ và Tên", "Năm sinh", "Giới tính", "Ngày khám", "Bác sĩ khám", "Chẩn đoán", "Kết luận", "Hành động"};
+        String[] columnNames = {"STT", "Mã khám", "Mã BN", "Họ và Tên", "Năm sinh", "Giới tính", "Ngày khám", "Bác sĩ khám", "Chẩn đoán", "Kết luận", "Hành động"};
         tableModel = new DefaultTableModel(columnNames, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
-                return column == 9; // Only the "Hành động" column is editable
+                return column == 10; // Only the "Hành động" column is editable
             }
         };
         dataTable = new JTable(tableModel);
@@ -332,7 +383,7 @@ public class DataDialog extends JDialog {
         dataTable.setSelectionBackground(new Color(230, 240, 255));
 
         TableColumn column;
-        int[] columnWidths = {40, 80, 150, 80, 60, 100, 130, 150, 150, 120}; // Adjusted widths
+        int[] columnWidths = {40, 80, 70, 150, 80, 60, 100, 130, 150, 150, 120}; // Adjusted widths
         for (int i = 0; i < columnWidths.length; i++) {
             column = dataTable.getColumnModel().getColumn(i);
             column.setPreferredWidth(columnWidths[i]);
@@ -347,37 +398,38 @@ public class DataDialog extends JDialog {
     }
 
     private void fetchData(int page) {
-        String searchTerm = searchField.getText();
-        if (searchTerm.equals("Tìm theo tên bệnh nhân, mã bệnh nhân...")) {
-            searchTerm = null;
+        String nameSearch = getFieldValue(nameField, NAME_PLACEHOLDER);
+        String patientIdSearch = getFieldValue(patientIdField, PATIENT_ID_PLACEHOLDER);
+        String phoneSearch = getFieldValue(phoneField, PHONE_PLACEHOLDER);
+        String checkupIdSearch = getFieldValue(checkupIdField, CHECKUP_ID_PLACEHOLDER);
+
+        // Date range is only applied when the user enables it
+        Long fromTimestamp = null;
+        Long toTimestamp = null;
+        if (dateFilterCheckBox.isSelected()) {
+            Date fromDate = (Date) fromDateSpinner.getValue();
+            Date toDate = (Date) toDateSpinner.getValue();
+
+            Calendar cal = Calendar.getInstance(DateUtils.VIETNAM_TIMEZONE); // Use Vietnam Timezone
+            cal.setTime(fromDate);
+            cal.set(Calendar.HOUR_OF_DAY, 0);
+            cal.set(Calendar.MINUTE, 0);
+            cal.set(Calendar.SECOND, 0);
+            fromTimestamp = cal.getTimeInMillis();
+
+            cal.setTime(toDate);
+            cal.set(Calendar.HOUR_OF_DAY, 23);
+            cal.set(Calendar.MINUTE, 59);
+            cal.set(Calendar.SECOND, 59);
+            toTimestamp = cal.getTimeInMillis();
+
+            if (fromTimestamp > toTimestamp) {
+                JOptionPane.showMessageDialog(this,
+                        "Ngày bắt đầu phải trước hoặc bằng ngày kết thúc.",
+                        "Khoảng ngày không hợp lệ", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
         }
-
-        String checkupIdSearch = idSearchField.getText();
-        if (checkupIdSearch == null || checkupIdSearch.equals("Tìm theo mã phiếu khám...") || checkupIdSearch.trim().isEmpty()) {
-            checkupIdSearch = null;
-        }
-
-        if (checkupIdSearch != null) {
-            searchTerm = null;
-            searchField.setText("Tìm theo tên bệnh nhân, mã bệnh nhân...");
-            searchField.setForeground(Color.GRAY);
-        }
-
-        Date fromDate = (Date) fromDateSpinner.getValue();
-        Date toDate = (Date) toDateSpinner.getValue();
-
-        Calendar cal = Calendar.getInstance(DateUtils.VIETNAM_TIMEZONE); // Use Vietnam Timezone
-        cal.setTime(fromDate);
-        cal.set(Calendar.HOUR_OF_DAY, 0);
-        cal.set(Calendar.MINUTE, 0);
-        cal.set(Calendar.SECOND, 0);
-        long fromTimestamp = cal.getTimeInMillis();
-
-        cal.setTime(toDate);
-        cal.set(Calendar.HOUR_OF_DAY, 23);
-        cal.set(Calendar.MINUTE, 59);
-        cal.set(Calendar.SECOND, 59);
-        long toTimestamp = cal.getTimeInMillis();
 
         String selectedDoctor = (String) doctorComboBox.getSelectedItem();
         Integer doctorId = null;
@@ -397,7 +449,17 @@ public class DataDialog extends JDialog {
             }
         }
 
-        GetCheckupDataRequest request = new GetCheckupDataRequest(searchTerm, checkupIdSearch, fromTimestamp, toTimestamp, doctorId, page, recordsPerPage, LocalStorage.currentShift);
+        GetCheckupDataRequest request = new GetCheckupDataRequest();
+        request.setCheckupIdSearch(checkupIdSearch);
+        request.setNameSearch(nameSearch);
+        request.setPatientIdSearch(patientIdSearch);
+        request.setPhoneSearch(phoneSearch);
+        request.setFromDate(fromTimestamp);
+        request.setToDate(toTimestamp);
+        request.setDoctorId(doctorId);
+        request.setPage(page);
+        request.setPageSize(recordsPerPage);
+        request.setShift(LocalStorage.currentShift);
         NetworkUtil.sendPacket(ClientHandler.ctx.channel(), request);
 
         resultCountLabel.setText("Đang tải dữ liệu cho trang " + page + "...");
@@ -440,6 +502,7 @@ public class DataDialog extends JDialog {
                         String[] tableRow = {
                                 String.valueOf(stt++),
                                 patient.getCheckupId(), // Changed from getCustomerId() to getCheckupId()
+                                patient.getCustomerId(),
                                 patient.getCustomerLastName() + " " + patient.getCustomerFirstName(),
                                 String.valueOf(DateUtils.extractYearFromTimestamp(patient.getCustomerDob())),
                                 patient.getCustomerGender(),
@@ -610,32 +673,42 @@ public class DataDialog extends JDialog {
     }
 
     private void saveFiltersToLocalStorage() {
-        String searchTerm = searchField.getText();
-        LocalStorage.dataDialogSearchTerm = searchTerm.equals("Tìm theo tên bệnh nhân, mã bệnh nhân...") ? "" : searchTerm;
+        String nameSearch = getFieldValue(nameField, NAME_PLACEHOLDER);
+        String patientIdSearch = getFieldValue(patientIdField, PATIENT_ID_PLACEHOLDER);
+        String phoneSearch = getFieldValue(phoneField, PHONE_PLACEHOLDER);
+        String checkupIdSearch = getFieldValue(checkupIdField, CHECKUP_ID_PLACEHOLDER);
 
-        String idSearchTerm = idSearchField.getText();
-        LocalStorage.dataDialogIdSearchTerm = idSearchTerm.equals("Tìm theo mã phiếu khám...") ? "" : idSearchTerm;
+        LocalStorage.dataDialogNameSearch = nameSearch == null ? "" : nameSearch;
+        LocalStorage.dataDialogPatientIdSearch = patientIdSearch == null ? "" : patientIdSearch;
+        LocalStorage.dataDialogPhoneSearch = phoneSearch == null ? "" : phoneSearch;
+        LocalStorage.dataDialogIdSearchTerm = checkupIdSearch == null ? "" : checkupIdSearch;
 
         LocalStorage.dataDialogFromDate = (Date) fromDateSpinner.getValue();
         LocalStorage.dataDialogToDate = (Date) toDateSpinner.getValue();
+        LocalStorage.dataDialogDateFilterEnabled = dateFilterCheckBox.isSelected();
         LocalStorage.dataDialogDoctorName = (String) doctorComboBox.getSelectedItem();
     }
 
     private void clearFilters() {
-        searchField.setText("Tìm theo tên bệnh nhân, mã bệnh nhân...");
-        searchField.setForeground(Color.GRAY);
-        idSearchField.setText("Tìm theo mã phiếu khám...");
-        idSearchField.setForeground(Color.GRAY);
+        setFieldValue(nameField, NAME_PLACEHOLDER, null);
+        setFieldValue(patientIdField, PATIENT_ID_PLACEHOLDER, null);
+        setFieldValue(phoneField, PHONE_PLACEHOLDER, null);
+        setFieldValue(checkupIdField, CHECKUP_ID_PLACEHOLDER, null);
         doctorComboBox.setSelectedIndex(0);
 
         Date today = new Date();
         fromDateSpinner.setValue(today);
         toDateSpinner.setValue(today);
+        dateFilterCheckBox.setSelected(false);
+        setDateSpinnersEnabled(false);
 
-        LocalStorage.dataDialogSearchTerm = "";
+        LocalStorage.dataDialogNameSearch = "";
+        LocalStorage.dataDialogPatientIdSearch = "";
+        LocalStorage.dataDialogPhoneSearch = "";
         LocalStorage.dataDialogIdSearchTerm = "";
         LocalStorage.dataDialogFromDate = today;
         LocalStorage.dataDialogToDate = today;
+        LocalStorage.dataDialogDateFilterEnabled = false;
         LocalStorage.dataDialogDoctorName = "Tất cả";
     }
 
@@ -735,7 +808,7 @@ public class DataDialog extends JDialog {
                 int modelRow = dataTable.convertRowIndexToModel(selectedViewRow);
 
                 String checkupIdStr = (String) tableModel.getValueAt(modelRow, 1);
-                String patientName = (String) tableModel.getValueAt(modelRow, 2);
+                String patientName = (String) tableModel.getValueAt(modelRow, 3);
 
                 int confirmation = JOptionPane.showConfirmDialog(
                         parentDialog,

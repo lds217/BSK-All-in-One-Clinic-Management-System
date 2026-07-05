@@ -20,8 +20,6 @@ import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.Utf8FrameValidator;
 import io.netty.handler.codec.http.websocketx.WebSocketServerProtocolHandler.HandshakeComplete;
-import io.netty.handler.timeout.IdleState;
-import io.netty.handler.timeout.IdleStateEvent;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.FileOutputStream;
@@ -110,11 +108,6 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
       // Check if user is authenticated
       var currentUser = SessionManager.getUserByChannel(ctx.channel().id().asLongText());
 
-      if (packet instanceof PingRequest pingRequest) {
-        // Respond immediately to ping with pong
-       // log.debug("Received PingRequest from session {}, responding with PongResponse", currentUser.getSessionId());
-        UserUtil.sendPacket(currentUser.getSessionId(), new PongResponse(pingRequest.getTimestamp()));
-      }
       if (currentUser == null || !currentUser.isAuthenticated()) {
         log.warn("Received packet from unauthenticated user: {}", packet);
         return;
@@ -587,7 +580,23 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         
         // SỬA ĐỔI: Bắt đầu bằng try-with-resources để lấy Connection từ pool
         try (Connection conn = DatabaseManager.getConnection()) {
-            
+
+            // Kiểm tra bệnh nhân đã tồn tại theo số điện thoại
+            String checkPhoneSql = "SELECT customer_last_name, customer_first_name FROM Customer WHERE customer_number = ?";
+            try (PreparedStatement checkStatement = conn.prepareStatement(checkPhoneSql)) {
+                checkStatement.setString(1, addPatientRequest.getPatientPhone());
+                try (ResultSet existingPatient = checkStatement.executeQuery()) {
+                    if (existingPatient.next()) {
+                        String existingName = (existingPatient.getString(1) + " " + existingPatient.getString(2)).trim();
+                        log.info("Duplicate phone number detected: {}", addPatientRequest.getPatientPhone());
+                        UserUtil.sendPacket(currentUser.getSessionId(), new AddPatientResponse(false, -1,
+                                "Bệnh nhân đã tồn tại! Số điện thoại " + addPatientRequest.getPatientPhone()
+                                        + " đã được đăng ký cho bệnh nhân: " + existingName));
+                        return;
+                    }
+                }
+            }
+
             // 1. Bắt đầu transaction trên kết nối vừa mượn
             conn.setAutoCommit(false);
             
@@ -1701,40 +1710,73 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
     
             StringBuilder whereClause = new StringBuilder();
             java.util.List<Object> params = new java.util.ArrayList<>();
-            boolean hasWhere = false;
-    
+            // Mỗi bộ lọc được thêm độc lập và kết hợp với nhau bằng AND
+            java.util.List<String> conditions = new java.util.ArrayList<>();
+
+            // Mã phiếu khám (khớp chính xác)
             String checkupIdSearch = getCheckupDataRequest.getCheckupIdSearch();
             if (checkupIdSearch != null && !checkupIdSearch.trim().isEmpty()) {
-                whereClause.append("WHERE a.checkup_id = ?");
+                conditions.add("a.checkup_id = ?");
                 try {
                     params.add(Integer.parseInt(checkupIdSearch.trim()));
                 } catch (NumberFormatException e) {
-                    params.add(-1); 
+                    params.add(-1);
                 }
-                hasWhere = true;
-            } 
-            else if (getCheckupDataRequest.getSearchTerm() != null && !getCheckupDataRequest.getSearchTerm().trim().isEmpty()) {
-                // SỬA LỖI: SQLite dùng || để nối chuỗi, không phải CONCAT()
-                whereClause.append("WHERE (LOWER(c.customer_first_name) LIKE ? OR LOWER(c.customer_last_name) LIKE ? OR " +
-                                   "LOWER(c.customer_last_name || ' ' || c.customer_first_name) LIKE ? OR c.customer_number LIKE ?)");
-                String searchTerm = "%" + getCheckupDataRequest.getSearchTerm().toLowerCase().trim() + "%";
-                params.add(searchTerm); 
-                params.add(searchTerm); 
-                params.add(searchTerm); 
-                params.add(searchTerm);
-                hasWhere = true;
             }
-    
+
+            // Họ tên (khớp một phần: tên, họ, họ tên đầy đủ)
+            String nameSearch = getCheckupDataRequest.getNameSearch();
+            if (nameSearch != null && !nameSearch.trim().isEmpty()) {
+                // SỬA LỖI: SQLite dùng || để nối chuỗi, không phải CONCAT()
+                conditions.add("(LOWER(c.customer_first_name) LIKE ? OR LOWER(c.customer_last_name) LIKE ? OR " +
+                               "LOWER(c.customer_last_name || ' ' || c.customer_first_name) LIKE ?)");
+                String t = "%" + nameSearch.toLowerCase().trim() + "%";
+                params.add(t);
+                params.add(t);
+                params.add(t);
+            }
+
+            // Mã bệnh nhân (khớp một phần)
+            String patientIdSearch = getCheckupDataRequest.getPatientIdSearch();
+            if (patientIdSearch != null && !patientIdSearch.trim().isEmpty()) {
+                conditions.add("CAST(c.customer_id AS TEXT) LIKE ?");
+                params.add("%" + patientIdSearch.trim() + "%");
+            }
+
+            // Số điện thoại (khớp một phần)
+            String phoneSearch = getCheckupDataRequest.getPhoneSearch();
+            if (phoneSearch != null && !phoneSearch.trim().isEmpty()) {
+                conditions.add("c.customer_number LIKE ?");
+                params.add("%" + phoneSearch.trim() + "%");
+            }
+
+            // Tìm kiếm chung (tương thích ngược): tên, SĐT, mã bệnh nhân
+            String searchTerm = getCheckupDataRequest.getSearchTerm();
+            if (searchTerm != null && !searchTerm.trim().isEmpty()) {
+                conditions.add("(LOWER(c.customer_first_name) LIKE ? OR LOWER(c.customer_last_name) LIKE ? OR " +
+                               "LOWER(c.customer_last_name || ' ' || c.customer_first_name) LIKE ? OR c.customer_number LIKE ? OR " +
+                               "CAST(c.customer_id AS TEXT) LIKE ?)");
+                String t = "%" + searchTerm.toLowerCase().trim() + "%";
+                params.add(t);
+                params.add(t);
+                params.add(t);
+                params.add(t);
+                params.add(t);
+            }
+
             if (getCheckupDataRequest.getFromDate() != null && getCheckupDataRequest.getToDate() != null) {
-                whereClause.append(hasWhere ? " AND " : "WHERE ").append("a.checkup_date BETWEEN ? AND ?");
+                conditions.add("a.checkup_date BETWEEN ? AND ?");
                 params.add(getCheckupDataRequest.getFromDate());
                 params.add(getCheckupDataRequest.getToDate());
-                hasWhere = true;
             }
-    
+
             if (getCheckupDataRequest.getDoctorId() != null && getCheckupDataRequest.getDoctorId() > 0) {
-                whereClause.append(hasWhere ? " AND " : "WHERE ").append("a.doctor_id = ?");
+                conditions.add("a.doctor_id = ?");
                 params.add(getCheckupDataRequest.getDoctorId());
+            }
+
+            if (!conditions.isEmpty()) {
+                whereClause.append("WHERE ").append(String.join(" AND ", conditions));
             }
     
             int totalRecords = 0;
@@ -2708,23 +2750,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
 
   @Override
   public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
-    if (evt instanceof IdleStateEvent event) {
-      if (event.state() == IdleState.READER_IDLE) {
-        try {
-          var user = SessionManager.getUserByChannel(ctx.channel().id().asLongText());
-          if (user != null) {
-            ServerDashboard.getInstance().addLog("Client timed out: Session " + user.getSessionId());
-          }
-          SessionManager.onUserDisconnect(ctx.channel());
-              if (user != null) {
-        user.resetAuthentication();
-      }
-          ctx.channel().close();
-        } catch (Exception e) {
-          ServerDashboard.getInstance().addLog("Error during client timeout: " + e.getMessage());
-        }
-      }
-    } else if (evt instanceof HandshakeComplete) {
+    if (evt instanceof HandshakeComplete) {
       int SessionId = SessionManager.onUserLogin(ctx.channel());
       log.info("Session {} logged in", SessionId);
       ServerDashboard.getInstance().addLog("New client connected: Session " + SessionId);
