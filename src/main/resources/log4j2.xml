@@ -1,50 +1,115 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Configuration status="WARN">
+  <Properties>
+    <!-- Shared settings - change these in one place -->
+    <Property name="pattern">%d{yyyy-MM-dd HH:mm:ss.SSS} %5p - %-40.40c{1.}:%L : %m%n</Property>
+    <Property name="logDir">logs</Property>
+    <Property name="maxFileSize">50 MB</Property>
+    <Property name="retentionDays">30</Property>
+  </Properties>
+
   <Appenders>
-    <Console name="ConsoleAppender" target="SYSTEM_OUT">
-      <PatternLayout
-        pattern="%d{yyyy-MM-dd HH:mm:ss.SSS} %5p - %-40.40c{1.}:%L : %m%n"/>
+    <Console name="Console" target="SYSTEM_OUT">
+      <PatternLayout pattern="${pattern}"/>
     </Console>
 
-    <RollingFile name="ServerFileAppender" fileName="logs/bsk_server.log"
-                 filePattern="logs/bsk_server-%i.log.gz">
-      <PatternLayout>
-        <Pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %5p - %-40.40c{1.}:%L : %m%n</Pattern>
-      </PatternLayout>
+    <!-- ===== SERVER ===== -->
+    <!-- Full log: everything INFO and above -->
+    <RollingFile name="ServerFile" fileName="${logDir}/bsk_server.log"
+                 filePattern="${logDir}/bsk_server-%d{yyyy-MM-dd}-%i.log.gz">
+      <PatternLayout pattern="${pattern}"/>
       <Policies>
-        <SizeBasedTriggeringPolicy size="50 MB" />
+        <TimeBasedTriggeringPolicy/>
+        <SizeBasedTriggeringPolicy size="${maxFileSize}"/>
       </Policies>
-      <DefaultRolloverStrategy max="5"/>
+      <DefaultRolloverStrategy>
+        <Delete basePath="${logDir}" maxDepth="1">
+          <IfFileName glob="bsk_server-*.log.gz"/>
+          <IfLastModified age="${retentionDays}d"/>
+        </Delete>
+      </DefaultRolloverStrategy>
     </RollingFile>
 
-    <RollingFile name="ClientFileAppender" fileName="logs/bsk_client.log"
-                 filePattern="logs/bsk_client-%i.log.gz">
-      <PatternLayout>
-        <Pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %5p - %-40.40c{1.}:%L : %m%n</Pattern>
-      </PatternLayout>
+    <!-- Errors only: WARN and above (easy to scan when something breaks) -->
+    <RollingFile name="ServerErrorFile" fileName="${logDir}/bsk_server_error.log"
+                 filePattern="${logDir}/bsk_server_error-%d{yyyy-MM-dd}-%i.log.gz">
+      <PatternLayout pattern="${pattern}"/>
+      <ThresholdFilter level="WARN" onMatch="ACCEPT" onMismatch="DENY"/>
       <Policies>
-        <SizeBasedTriggeringPolicy size="50 MB" />
+        <TimeBasedTriggeringPolicy/>
+        <SizeBasedTriggeringPolicy size="${maxFileSize}"/>
       </Policies>
-      <DefaultRolloverStrategy max="5"/>
+      <DefaultRolloverStrategy>
+        <Delete basePath="${logDir}" maxDepth="1">
+          <IfFileName glob="bsk_server_error-*.log.gz"/>
+          <IfLastModified age="${retentionDays}d"/>
+        </Delete>
+      </DefaultRolloverStrategy>
     </RollingFile>
+
+    <!-- ===== CLIENT ===== -->
+    <!-- Full log: everything INFO and above -->
+    <RollingFile name="ClientFile" fileName="${logDir}/bsk_client.log"
+                 filePattern="${logDir}/bsk_client-%d{yyyy-MM-dd}-%i.log.gz">
+      <PatternLayout pattern="${pattern}"/>
+      <Policies>
+        <TimeBasedTriggeringPolicy/>
+        <SizeBasedTriggeringPolicy size="${maxFileSize}"/>
+      </Policies>
+      <DefaultRolloverStrategy>
+        <Delete basePath="${logDir}" maxDepth="1">
+          <IfFileName glob="bsk_client-*.log.gz"/>
+          <IfLastModified age="${retentionDays}d"/>
+        </Delete>
+      </DefaultRolloverStrategy>
+    </RollingFile>
+
+    <!-- Errors only: WARN and above -->
+    <RollingFile name="ClientErrorFile" fileName="${logDir}/bsk_client_error.log"
+                 filePattern="${logDir}/bsk_client_error-%d{yyyy-MM-dd}-%i.log.gz">
+      <PatternLayout pattern="${pattern}"/>
+      <ThresholdFilter level="WARN" onMatch="ACCEPT" onMismatch="DENY"/>
+      <Policies>
+        <TimeBasedTriggeringPolicy/>
+        <SizeBasedTriggeringPolicy size="${maxFileSize}"/>
+      </Policies>
+      <DefaultRolloverStrategy>
+        <Delete basePath="${logDir}" maxDepth="1">
+          <IfFileName glob="bsk_client_error-*.log.gz"/>
+          <IfLastModified age="${retentionDays}d"/>
+        </Delete>
+      </DefaultRolloverStrategy>
+    </RollingFile>
+
+    <!-- Async wrappers for the high-volume full logs (better performance).
+         The error files stay synchronous so crash/disconnect errors are
+         always flushed to disk even if the app exits abruptly. -->
+    <Async name="ServerFileAsync">
+      <AppenderRef ref="ServerFile"/>
+    </Async>
+    <Async name="ClientFileAsync">
+      <AppenderRef ref="ClientFile"/>
+    </Async>
   </Appenders>
+
   <Loggers>
-    <!-- Logger for server-side classes -->
-    <Logger name="BsK.server" level="DEBUG" additivity="false">
-      <AppenderRef ref="ConsoleAppender"/>
-      <AppenderRef ref="ServerFileAppender"/>
+    <!-- Server-side classes -->
+    <Logger name="BsK.server" level="INFO" additivity="false">
+      <AppenderRef ref="Console"/>
+      <AppenderRef ref="ServerFileAsync"/>
+      <AppenderRef ref="ServerErrorFile"/>
     </Logger>
 
-    <!-- Logger for client-side classes -->
-    <Logger name="BsK.client" level="DEBUG" additivity="false">
-      <AppenderRef ref="ConsoleAppender"/>
-      <AppenderRef ref="ClientFileAppender"/>
+    <!-- Client-side classes -->
+    <Logger name="BsK.client" level="INFO" additivity="false">
+      <AppenderRef ref="Console"/>
+      <AppenderRef ref="ClientFileAsync"/>
+      <AppenderRef ref="ClientErrorFile"/>
     </Logger>
 
-    <!-- Root logger: catches all other logs -->
-    <Root level="DEBUG">
-      <AppenderRef ref="ConsoleAppender"/>
-      <!-- Optionally, add a default file appender for root logs if desired, e.g., logs/application.log -->
+    <!-- Everything else (third-party libraries): warnings and errors only -->
+    <Root level="WARN">
+      <AppenderRef ref="Console"/>
     </Root>
   </Loggers>
 </Configuration>

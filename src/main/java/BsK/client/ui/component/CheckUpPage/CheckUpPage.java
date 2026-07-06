@@ -1996,7 +1996,8 @@ public class CheckUpPage extends JPanel {
                         customerWeightSpinner.getValue().toString(),
                         patientHeartRateSpinner.getValue().toString(),
                         bloodPressureSystolicSpinner.getValue() + "/" + bloodPressureDiastolicSpinner.getValue(),
-                        currentPatientDriveUrl // Google Drive URL for QR code
+                        currentPatientDriveUrl, // Google Drive URL for QR code
+                        customerIdField.getText() // Patient ID
                 );
                 
                 JasperPrint jasperPrintToPrint;
@@ -2071,7 +2072,8 @@ public class CheckUpPage extends JPanel {
                         customerWeightSpinner.getValue().toString(),
                         patientHeartRateSpinner.getValue().toString(),
                         bloodPressureSystolicSpinner.getValue() + "/" + bloodPressureDiastolicSpinner.getValue(),
-                        viewPatientDriveUrl // Google Drive URL for QR code
+                        viewPatientDriveUrl, // Google Drive URL for QR code
+                        customerIdField.getText() // Patient ID
                 );
 
                 JasperPrint jasperPrintToView;

@@ -45,6 +45,7 @@
 	<parameter name="ultrasoundDoctorName" class="java.lang.String"/>
 	<parameter name="clinicPrefix" class="java.lang.String"/>
 	<parameter name="id" class="java.lang.String"/>
+	<parameter name="patientId" class="java.lang.String"/>
 	<query language="sql"><![CDATA[]]></query>
 	<background splitType="Stretch"/>
 	<title splitType="Stretch"/>
@@ -65,7 +66,7 @@
 				<element kind="staticText" uuid="0a9ca0c8-f2bd-4ade-a025-a6d79c13613f" x="1" y="83" width="80" height="15" fontName="Times New Roman" fontSize="12.0" bold="true" hTextAlign="Left">
 					<text><![CDATA[Ngày sinh:]]></text>
 				</element>
-				<element kind="staticText" uuid="21917ab8-ae07-44c8-ba4e-bc6c4c54b440" x="338" y="67" width="80" height="15" fontName="Times New Roman" fontSize="12.0" bold="true" hTextAlign="Left">
+				<element kind="staticText" uuid="21917ab8-ae07-44c8-ba4e-bc6c4c54b440" x="2" y="150" width="80" height="16" fontName="Times New Roman" fontSize="12.0" bold="true" hTextAlign="Left">
 					<text><![CDATA[Giới tính:]]></text>
 				</element>
 				<element kind="staticText" uuid="bcbb614e-7a4d-48a3-83c2-198e4fb62c5f" x="1" y="101" width="49" height="15" fontName="Times New Roman" fontSize="12.0" bold="true" hTextAlign="Left">
@@ -80,7 +81,7 @@
 				<element kind="textField" uuid="5bdac267-523d-4931-926b-76233ce9b84d" x="60" y="83" width="70" height="15" fontName="Times New Roman" fontSize="12.0">
 					<expression><![CDATA[$P{patientDOB}]]></expression>
 				</element>
-				<element kind="textField" uuid="f4df20b4-920c-491e-882b-6e0733cb4866" x="393" y="67" width="36" height="15" fontName="Times New Roman" fontSize="12.0">
+				<element kind="textField" uuid="f4df20b4-920c-491e-882b-6e0733cb4866" x="57" y="150" width="36" height="16" fontName="Times New Roman" fontSize="12.0">
 					<expression><![CDATA[$P{patientGender}]]></expression>
 				</element>
 				<element kind="textField" uuid="3b8ac40e-85aa-4ab8-8445-64bcddb8b267" x="50" y="101" width="350" height="15" fontName="Times New Roman" fontSize="12.0">
@@ -101,22 +102,22 @@
 				<element kind="textField" uuid="6d652a25-b701-45bd-91ba-750842650004" x="0" y="177" width="400" height="421" markup="rtf" fontName="Times New Roman" fontSize="16.0">
 					<expression><![CDATA[$P{checkupNote}]]></expression>
 				</element>
-				<element kind="staticText" uuid="a57e7a9d-4ac7-4219-b268-cd08ce943327" x="123" y="150" width="59" height="16" fontName="Times New Roman" fontSize="12.0" bold="true" hTextAlign="Left">
+				<element kind="staticText" uuid="a57e7a9d-4ac7-4219-b268-cd08ce943327" x="216" y="150" width="59" height="16" fontName="Times New Roman" fontSize="12.0" bold="true" hTextAlign="Left">
 					<text><![CDATA[Cân nặng:]]></text>
 				</element>
-				<element kind="staticText" uuid="2b9cfd9d-ec8f-4036-9c96-039fd7855e24" x="215" y="150" width="59" height="16" fontName="Times New Roman" fontSize="12.0" bold="true" hTextAlign="Left">
+				<element kind="staticText" uuid="2b9cfd9d-ec8f-4036-9c96-039fd7855e24" x="308" y="150" width="59" height="16" fontName="Times New Roman" fontSize="12.0" bold="true" hTextAlign="Left">
 					<text><![CDATA[Nhịp tim:]]></text>
 				</element>
-				<element kind="staticText" uuid="c1356370-11ce-4b68-97d6-ce6e18e306c5" x="0" y="150" width="59" height="16" fontName="Times New Roman" fontSize="12.0" bold="true" hTextAlign="Left">
+				<element kind="staticText" uuid="c1356370-11ce-4b68-97d6-ce6e18e306c5" x="93" y="150" width="59" height="16" fontName="Times New Roman" fontSize="12.0" bold="true" hTextAlign="Left">
 					<text><![CDATA[Huyết áp:]]></text>
 				</element>
-				<element kind="textField" uuid="fb080012-3196-4535-bcd2-e87274c66fa5" x="178" y="150" width="45" height="16" fontName="Times New Roman" fontSize="12.0">
+				<element kind="textField" uuid="fb080012-3196-4535-bcd2-e87274c66fa5" x="271" y="150" width="45" height="16" fontName="Times New Roman" fontSize="12.0">
 					<expression><![CDATA[$P{checkupWeight} + " kg"]]></expression>
 				</element>
-				<element kind="textField" uuid="e4185ffe-8712-41e3-a9ff-2be6569dff15" x="266" y="150" width="39" height="16" fontName="Times New Roman" fontSize="12.0">
+				<element kind="textField" uuid="e4185ffe-8712-41e3-a9ff-2be6569dff15" x="359" y="150" width="39" height="16" fontName="Times New Roman" fontSize="12.0">
 					<expression><![CDATA[$P{checkupHeartBeat} + " l/p"]]></expression>
 				</element>
-				<element kind="textField" uuid="6b0b21be-2ca3-4594-bbe9-34868e13eb1e" x="52" y="150" width="78" height="16" fontName="Times New Roman" fontSize="12.0">
+				<element kind="textField" uuid="6b0b21be-2ca3-4594-bbe9-34868e13eb1e" x="145" y="150" width="78" height="16" fontName="Times New Roman" fontSize="12.0">
 					<expression><![CDATA[$P{checkupBloodPressure} +" mmHg"]]></expression>
 				</element>
 				<element kind="textField" uuid="9763a634-05c2-4f64-a903-c914455b7ee6" x="1" y="32" width="398" height="26" forecolor="#FF0905" fontName="Times New Roman" fontSize="16.0" bold="true" hTextAlign="Center">
@@ -144,10 +145,16 @@
 				<element kind="textField" uuid="989a8031-ea1b-406a-98a4-e797b98c0ccd" x="405" y="34" width="80" height="15" fontName="Times New Roman" fontSize="10.0" hTextAlign="Center">
 					<expression><![CDATA[$P{id}]]></expression>
 				</element>
+				<element kind="textField" uuid="51735377-49e4-4e4e-9bf4-0cebbf7fc1d0" x="379" y="66" width="106" height="16" fontName="Times New Roman" fontSize="12.0">
+					<expression><![CDATA[$P{patientId}]]></expression>
+				</element>
+				<element kind="staticText" uuid="330c02ac-16c1-49f6-b024-033b3547c914" x="337" y="66" width="80" height="16" fontName="Times New Roman" fontSize="12.0" bold="true" hTextAlign="Left">
+					<text><![CDATA[Mã BN:]]></text>
+				</element>
 			</element>
 		</band>
 	</detail>
-	<summary height="187">
+	<summary height="191">
 		<element kind="staticText" uuid="b6ee4329-aeb1-4ddf-99e8-41ebebaff12b" x="0" y="0" width="100" height="30" forecolor="#FF0905" fontName="Times New Roman" fontSize="15.0" bold="true">
 			<text><![CDATA[III.Kết luận]]></text>
 		</element>
@@ -157,7 +164,7 @@
 		<element kind="staticText" uuid="d1d33b8f-b79a-45a1-b33b-1eecb656f49a" x="400" y="87" width="96" height="15" fontName="Times New Roman" fontSize="12.0" bold="true" hTextAlign="Center">
 			<text><![CDATA[Bác sĩ siêu âm]]></text>
 		</element>
-		<element kind="textField" uuid="de0d077c-f1d6-4d0c-8bbd-fb08c19b07c6" x="347" y="165" width="200" height="21" fontName="Times New Roman" fontSize="14.0" bold="true" hTextAlign="Center">
+		<element kind="textField" uuid="de0d077c-f1d6-4d0c-8bbd-fb08c19b07c6" x="347" y="168" width="200" height="21" fontName="Times New Roman" fontSize="14.0" bold="true" hTextAlign="Center">
 			<expression><![CDATA[$P{ultrasoundDoctorName}]]></expression>
 		</element>
 		<element kind="staticText" uuid="0b4ca7da-4831-4ca6-8272-94af19fd3089" x="0" y="155" width="110" height="14" forecolor="#FF0905" fontName="Times New Roman" fontSize="10.0" bold="true">
@@ -174,6 +181,9 @@
 		</element>
 		<element kind="staticText" uuid="f1223127-533c-4ecf-a950-7324b8aae0fa" x="0" y="170" width="196" height="15" fontName="Times New Roman" fontSize="12.0" italic="true" bold="true" hTextAlign="Left">
 			<text><![CDATA[Lưu ý: Mang phiếu khi tái khám]]></text>
+		</element>
+		<element kind="textField" uuid="93adbf9b-46a3-4bbb-af54-7306fadc0f2b" x="347" y="152" width="200" height="21" fontName="Times New Roman" fontSize="10.0" bold="false" hTextAlign="Center" vTextAlign="Middle">
+			<expression><![CDATA[$P{checkupDate}]]></expression>
 		</element>
 	</summary>
 </jasperReport>
