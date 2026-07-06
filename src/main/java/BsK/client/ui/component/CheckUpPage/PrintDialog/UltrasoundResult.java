@@ -156,6 +156,7 @@ public class UltrasoundResult {
 
     private JDialog dialog;
     private final String checkupId;
+    private final String patientId;
     private final String patientName;
     private final String patientDOB;
     private final String patientGender;
@@ -186,11 +187,13 @@ public class UltrasoundResult {
                             String rtfContent, String conclusion, String suggestion, String diagnosis,
                             String recheckupDate, List<File> selectedImages, 
                             String printType, String templateTitle, String customerHeight, 
-                            String customerWeight, String heartRate, String bloodPressure, String driveUrl) {
+                            String customerWeight, String heartRate, String bloodPressure, String driveUrl,
+                            String patientId) {
 
         // Defensive null checks to prevent JasperReports from crashing on null parameters
         // Also handle "null" string values by converting them to empty strings
         this.checkupId = convertNullToEmpty(checkupId);
+        this.patientId = convertNullToEmpty(patientId);
         this.patientName = convertNullToEmpty(patientName);
         this.patientDOB = convertNullToEmpty(patientDOB);
         this.patientGender = convertNullToEmpty(patientGender);
@@ -292,6 +295,7 @@ public class UltrasoundResult {
             parameters.put("ultrasoundDoctorName", this.ultrasoundDoctorName);
             parameters.put("checkupDate", this.checkupDate);
             parameters.put("id", this.checkupId);
+            parameters.put("patientId", this.patientId);
 
             // RTF and plain text content
             parameters.put("checkupNote", this.rtfContent != null ? this.rtfContent : "");

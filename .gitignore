@@ -264,6 +264,12 @@ database/*.db
 *.db
 *.db-shm
 *.db-wal
+*.png
+*.jpg
+*.gz
 database/*.db
 database/*.db-shm
 database/*.db-wal
+image/checkup_media/2202/IMG_2202_20260706_121924_684.jpg
+temp/barcodes/invoice_barcode.png
+temp/qrcodes/invoice_qrcode.png
