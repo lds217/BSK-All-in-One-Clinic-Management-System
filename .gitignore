@@ -1,122 +1,29 @@
-### Intellij template
-# Covers JetBrains IDEs: IntelliJ, RubyMine, PhpStorm, AppCode, PyCharm, CLion, Android Studio, WebStorm and Rider
-# Reference: https://intellij-support.jetbrains.com/hc/en-us/articles/206544839
-
-# User-specific stuff
-.idea/**/workspace.xml
-.idea/**/tasks.xml
-.idea/**/usage.statistics.xml
-.idea/**/dictionaries
-.idea/**/shelf
-
-# AWS User-specific
-.idea/**/aws.xml
-
-# Generated files
-.idea/**/contentModel.xml
-
-# Sensitive or high-churn files
-.idea/**/dataSources/
-.idea/**/dataSources.ids
-.idea/**/dataSources.local.xml
-.idea/**/sqlDataSources.xml
-.idea/**/dynamic.xml
-.idea/**/uiDesigner.xml
-.idea/**/dbnavigator.xml
-
-# Gradle
-.idea/**/gradle.xml
-.idea/**/libraries
-
-# Gradle and Maven with auto-import
-# When using Gradle or Maven with auto-import, you should exclude module files,
-# since they will be recreated, and may cause churn.  Uncomment if using
-# auto-import.
-# .idea/artifacts
-# .idea/compiler.xml
-# .idea/jarRepositories.xml
-# .idea/modules.xml
-# .idea/*.iml
-# .idea/modules
-# *.iml
-# *.ipr
-
-# CMake
-cmake-build-*/
-
-# Mongo Explorer plugin
-.idea/**/mongoSettings.xml
-
-# File-based project format
+# ===== IDE =====
+.idea/
+*.iml
 *.iws
-
-# IntelliJ
+*.ipr
 out/
-
-# mpeltonen/sbt-idea plugin
-.idea_modules/
-
-# JIRA plugin
+cmake-build-*/
+.project
+.classpath
+.settings/
 atlassian-ide-plugin.xml
 
-# Cursive Clojure plugin
-.idea/replstate.xml
+# ===== OS =====
+.DS_Store
+Thumbs.db
 
-# SonarLint plugin
-.idea/sonarlint/
-
-# Crashlytics plugin (for Android Studio and IntelliJ)
-com_crashlytics_export_strings.xml
-crashlytics.properties
-crashlytics-build.properties
-fabric.properties
-
-# Editor-based Rest Client
-.idea/httpRequests
-
-# Android studio 3.1+ serialized cache file
-.idea/caches/build_file_checksums.ser
-
-### Java template
-# Compiled class file
+# ===== Java =====
 *.class
-
-# Log file
-*.log
-
-# BlueJ files
 *.ctxt
-
-# Mobile Tools for Java (J2ME)
 .mtj.tmp/
-
-# Package Files #
-*.jar
-*.war
-*.nar
-*.ear
-*.zip
-*.tar.gz
-*.rar
-
-# Video and Media Files
-*.mp4
-*.avi
-*.mov
-*.wmv
-*.flv
-*.mkv
-
-# Application Build Output
-BSK-Application/
-BSK-Application/**
-
-# virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
 hs_err_pid*
 replay_pid*
 
-### Maven template
+# ===== Maven / build output =====
 target/
+BSK-Application/
 pom.xml.tag
 pom.xml.releaseBackup
 pom.xml.versionsBackup
@@ -125,151 +32,54 @@ release.properties
 dependency-reduced-pom.xml
 buildNumber.properties
 .mvn/timing.properties
-# https://github.com/takari/maven-wrapper#usage-without-binary-jar
 .mvn/wrapper/maven-wrapper.jar
-# ignore all json
-*.json
 
-# User-generated content
-img_db/
-src/main/resources/image/checkup_media/
-
-# Eclipse m2e generated files
-# Eclipse Core
-.project
-# JDT-specific (Eclipse Java Development Tools)
-.classpath
-src/main/resources/database/BSK.db
-src/main/resources/image/checkup_media/13/VID_13_20250604_115233.mp4
-src/main/resources/image/checkup_media/13/VID_13_20250604_115540.mp4
-src/main/resources/image/checkup_media/15/VID_15_20250604_115942.mp4
-src/main/resources/image/checkup_media/32/IMG_32_20250604_112118.png
-src/main/resources/image/checkup_media/32/IMG_32_20250604_112120.png
-src/main/resources/image/checkup_media/32/IMG_32_20250604_112123.png
-src/main/resources/image/checkup_media/34/IMG_34_20250604_120802.png
-src/main/resources/image/checkup_media/34/VID_34_20250604_120241.mp4
-src/main/resources/image/checkup_media/8/IMG_8_20250604_112523.png
-src/main/resources/image/checkup_media/8/IMG_8_20250604_112526.png                                                          
-src/main/resources/image/checkup_media/8/VID_8_20250604_115008.mp4
-src/main/resources/client_secret_1063629801433-01ubsp30l0sabhbk28q2esh9c3bhjgka.apps.googleusercontent.com.json
-GOOGLE_DRIVE_SETUP.md
-src/main/resources/google-drive-service-account.json
-
-tokens/StoredCredential
-src/main/resources/database/BSK.db
-src/main/resources/database/BSK.db
-src/main/resources/database/BSK.db
-GoogleDriveTest_README.md
-patient_P002_checkup_CHK001_qr.png
-patient_P002_checkup_CHK002_qr.png
-test-qr-code.png
-patient_P002_folder_qr.png
-BSK-Client.exe
-BSK-Server.exe
-image/checkup_media/11/IMG_11_20250807_003753_010.jpg
-image/checkup_media/11/ultrasound_11_20250807_003847_781.jpg
-image/checkup_media/11/ultrasound_11_20250807_003858_890.jpg
-image/checkup_media/11/ultrasound_11_20250807_003906_933.jpg
-image/checkup_media/11/ultrasound_11_20250807_003914_997.jpg
-image/checkup_media/11/ultrasound_11_20250807_003915_084.jpg
-image/checkup_media/11/ultrasound_11_20250807_003923_212.jpg
-image/checkup_media/11/ultrasound_11_20250807_003923_242.jpg
-image/checkup_media/11/ultrasound_11_20250807_003923_264.jpg
-image/checkup_media/11/ultrasound_11_20250807_004608_225.jpg
-image/checkup_media/11/ultrasound_11_20250807_004819_530.jpg
-image/checkup_media/11/ultrasound_11_20250807_004819_620.jpg
-image/checkup_media/11/ultrasound_11_20250807_013046_645.jpg
-image/checkup_media/11/ultrasound_11_20250807_013107_151.jpg
-image/checkup_media/11/ultrasound_11_20250807_013112_326.jpg
-image/checkup_media/11/ultrasound_11_20250807_013208_111.jpg
-image/checkup_media/14/ultrasound_14_20250806_174214_972.jpg
-image/checkup_media/14/ultrasound_14_20250806_174510_971.jpg
-image/checkup_media/14/ultrasound_14_20250806_195036_269.jpg
-image/checkup_media/14/ultrasound_14_20250806_195036_269.png
-image/checkup_media/14/ultrasound_14_20250806_195153_854.jpg
-image/checkup_media/15/ultrasound_15_20250806_173652_645.jpg
-image/checkup_media/15/ultrasound_15_20250806_175028_824.png
-image/checkup_media/15/ultrasound_15_20250806_180021_719.png
-image/checkup_media/15/ultrasound_15_20250806_193225_786.png
-image/checkup_media/17/ultrasound_17_20250806_190846_084.png
-image/checkup_media/18/ultrasound_18_20250806_201110_018.jpg
-image/checkup_media/18/ultrasound_18_20250806_201110_018.png
-image/checkup_media/19/ultrasound_19_20250806_193443_309.png
-image/checkup_media/21/IMG_21_20250806_194138.jpg
-image/checkup_media/21/IMG_21_20250806_194146.jpg
-image/checkup_media/21/ultrasound_21_20250806_193903_008.png
-image/checkup_media/21/ultrasound_21_20250806_200943_018.jpg
-image/checkup_media/21/ultrasound_21_20250806_200951_145.jpg
-image/checkup_media/21/ultrasound_21_20250806_200956_217.jpg
-image/checkup_media/22/IMG_22_20250806_201405.jpg
-image/checkup_media/22/IMG_22_20250806_201406.jpg
-image/checkup_media/22/ultrasound_22_20250806_201421_818.jpg
-image/checkup_media/22/ultrasound_22_20250806_202012_092.jpg
-image/checkup_media/23/IMG_23_20250806_194657.jpg
-image/checkup_media/23/ultrasound_23_20250806_194603_710.png
-image/checkup_media/23/ultrasound_23_20250806_200659_652.jpg
-image/checkup_media/23/ultrasound_23_20250806_200713_833.jpg
-image/checkup_media/23/ultrasound_23_20250806_200713_833.png
-image/checkup_media/23/ultrasound_23_20250806_200722_021.jpg
-image/checkup_media/23/ultrasound_23_20250806_200722_021.png
-image/checkup_media/23/ultrasound_23_20250806_200727_120.jpg
-image/checkup_media/23/ultrasound_23_20250806_200727_120.png
-image/checkup_media/23/ultrasound_23_20250807_000218_556.jpg
-image/checkup_media/23/ultrasound_23_20250807_001116_025.jpg
-image/checkup_media/23/ultrasound_23_20250807_001116_040.jpg
-image/checkup_media/23/ultrasound_23_20250807_001237_342.jpg
-image/checkup_media/24/IMG_24_20250806_235843.jpg
-image/checkup_media/24/IMG_24_20250806_235844.jpg
-image/checkup_media/24/IMG_24_20250806_235850.jpg
-image/checkup_media/24/IMG_24_20250806_235851.jpg
-image/checkup_media/24/IMG_24_20250806_235856.jpg
-image/checkup_media/24/IMG_24_20250806_235909.jpg
-image/checkup_media/24/IMG_24_20250806_235912.jpg
-image/checkup_media/24/IMG_24_20250807_000144.jpg
-image/checkup_media/24/IMG_24_20250807_000145.jpg
-image/checkup_media/25/IMG_25_20250807_013413_631.jpg
-image/checkup_media/25/ultrasound_25_20250807_004559_019.jpg
-image/checkup_media/25/ultrasound_25_20250807_004603_120.jpg
-image/checkup_media/25/ultrasound_25_20250807_004728_046.jpg
-image/checkup_media/25/ultrasound_25_20250807_004839_727.jpg
-image/checkup_media/25/ultrasound_25_20250807_004846_911.jpg
-image/checkup_media/25/ultrasound_25_20250807_012733_392.jpg
-image/checkup_media/25/ultrasound_25_20250807_012837_496.jpg
-image/checkup_media/25/ultrasound_25_20250807_012847_663.jpg
-image/checkup_media/26/IMG_26_20250807_014535_293.jpg
-image/checkup_media/26/IMG_26_20250807_014536_259.jpg
-image/checkup_media/27/IMG_27_20250807_015905_367.jpg
-image/checkup_media/27/IMG_27_20250807_015908_874.jpg
-image/checkup_media/27/IMG_27_20250807_015915_538.jpg
-image/checkup_media/27/ultrasound_27_20250807_015955_956.jpg
-image/checkup_media/27/ultrasound_27_20250807_020013_235.jpg
-image/checkup_media/27/ultrasound_27_20250807_020016_272.jpg
-image/checkup_media/28/IMG_28_20250807_023922_126.jpg
-image/checkup_media/28/ultrasound_28_20250807_023901_955.jpg
-image/checkup_media/8/IMG_8_20250807_001010.jpg
-image/checkup_media/8/IMG_8_20250807_001050.jpg
-image/checkup_media/8/ultrasound_8_20250807_001232_940.jpg
-image/checkup_media/8/ultrasound_8_20250807_001253_394.jpg
-database/BSK.db
-database/BSK.db
-database/BSK.db-shm
-database/BSK.db-wal
+# ===== Archives / packages =====
 *.jar
-*.db
-*.db-shm
-*.db-wal
-database/*.db
+*.war
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.gz
+*.rar
 *.old
-*.jar
-*.db
-*.db-shm
-*.db-wal
+
+# ===== Executables =====
+*.exe
+
+# ===== Logs =====
+*.log
+
+# ===== Media =====
+*.mp4
+*.avi
+*.mov
+*.wmv
+*.flv
+*.mkv
 *.png
 *.jpg
-*.gz
-database/*.db
-database/*.db-shm
-database/*.db-wal
-image/checkup_media/2202/IMG_2202_20260706_121924_684.jpg
-temp/barcodes/invoice_barcode.png
-temp/qrcodes/invoice_qrcode.png
+
+# ===== Database =====
+*.db
+*.db-shm
+*.db-wal
+database/
+src/main/resources/database/
+
+# ===== User-generated content =====
+img_db/
+temp/
+image/checkup_media/
+src/main/resources/image/checkup_media/
+
+# ===== Secrets / credentials (DO NOT COMMIT) =====
+*.json
+tokens/
+client_secret_*.json
+src/main/resources/google-drive-service-account.json
+
+# ===== Local docs =====
+GOOGLE_DRIVE_SETUP.md
+GoogleDriveTest_README.md
