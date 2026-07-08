@@ -16,7 +16,8 @@
     <!-- ===== SERVER ===== -->
     <!-- Full log: everything INFO and above -->
     <RollingFile name="ServerFile" fileName="${logDir}/bsk_server.log"
-                 filePattern="${logDir}/bsk_server-%d{yyyy-MM-dd}-%i.log.gz">
+                 filePattern="${logDir}/bsk_server-%d{yyyy-MM-dd}-%i.log.gz"
+                 createOnDemand="true">
       <PatternLayout pattern="${pattern}"/>
       <Policies>
         <TimeBasedTriggeringPolicy/>
@@ -32,7 +33,8 @@
 
     <!-- Errors only: WARN and above (easy to scan when something breaks) -->
     <RollingFile name="ServerErrorFile" fileName="${logDir}/bsk_server_error.log"
-                 filePattern="${logDir}/bsk_server_error-%d{yyyy-MM-dd}-%i.log.gz">
+                 filePattern="${logDir}/bsk_server_error-%d{yyyy-MM-dd}-%i.log.gz"
+                 createOnDemand="true">
       <PatternLayout pattern="${pattern}"/>
       <ThresholdFilter level="WARN" onMatch="ACCEPT" onMismatch="DENY"/>
       <Policies>
@@ -50,7 +52,8 @@
     <!-- ===== CLIENT ===== -->
     <!-- Full log: everything INFO and above -->
     <RollingFile name="ClientFile" fileName="${logDir}/bsk_client.log"
-                 filePattern="${logDir}/bsk_client-%d{yyyy-MM-dd}-%i.log.gz">
+                 filePattern="${logDir}/bsk_client-%d{yyyy-MM-dd}-%i.log.gz"
+                 createOnDemand="true">
       <PatternLayout pattern="${pattern}"/>
       <Policies>
         <TimeBasedTriggeringPolicy/>
@@ -66,7 +69,8 @@
 
     <!-- Errors only: WARN and above -->
     <RollingFile name="ClientErrorFile" fileName="${logDir}/bsk_client_error.log"
-                 filePattern="${logDir}/bsk_client_error-%d{yyyy-MM-dd}-%i.log.gz">
+                 filePattern="${logDir}/bsk_client_error-%d{yyyy-MM-dd}-%i.log.gz"
+                 createOnDemand="true">
       <PatternLayout pattern="${pattern}"/>
       <ThresholdFilter level="WARN" onMatch="ACCEPT" onMismatch="DENY"/>
       <Policies>
@@ -81,29 +85,20 @@
       </DefaultRolloverStrategy>
     </RollingFile>
 
-    <!-- Async wrappers for the high-volume full logs (better performance).
-         The error files stay synchronous so crash/disconnect errors are
-         always flushed to disk even if the app exits abruptly. -->
-    <Async name="ServerFileAsync">
-      <AppenderRef ref="ServerFile"/>
-    </Async>
-    <Async name="ClientFileAsync">
-      <AppenderRef ref="ClientFile"/>
-    </Async>
   </Appenders>
 
   <Loggers>
     <!-- Server-side classes -->
     <Logger name="BsK.server" level="INFO" additivity="false">
       <AppenderRef ref="Console"/>
-      <AppenderRef ref="ServerFileAsync"/>
+      <AppenderRef ref="ServerFile"/>
       <AppenderRef ref="ServerErrorFile"/>
     </Logger>
 
     <!-- Client-side classes -->
     <Logger name="BsK.client" level="INFO" additivity="false">
       <AppenderRef ref="Console"/>
-      <AppenderRef ref="ClientFileAsync"/>
+      <AppenderRef ref="ClientFile"/>
       <AppenderRef ref="ClientErrorFile"/>
     </Logger>
 

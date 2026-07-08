@@ -380,6 +380,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
             
             boolean hasNameSearch = getRecentPatientRequest.getSearchName() != null && !getRecentPatientRequest.getSearchName().trim().isEmpty();
             boolean hasPhoneSearch = getRecentPatientRequest.getSearchPhone() != null && !getRecentPatientRequest.getSearchPhone().trim().isEmpty();
+            boolean hasIdSearch = getRecentPatientRequest.getSearchId() != null && !getRecentPatientRequest.getSearchId().trim().isEmpty();
             
             // Prepare wildcard search pattern and accent-stripped term for precise filtering
             String wildcardSearchPattern = null;
@@ -393,18 +394,24 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                 wildcardSearchPattern = createVietnameseWildcardPattern(accentStrippedSearchName);
             }
             
-            if (hasNameSearch || hasPhoneSearch) {
+            if (hasNameSearch || hasPhoneSearch || hasIdSearch) {
                 queryBuilder.append(" WHERE ");
+                boolean needsAnd = false;
                 if (hasNameSearch) {
                     // Use wildcard pattern that matches accented variants
                     queryBuilder.append("(LOWER(customer_first_name) LIKE ? OR LOWER(customer_last_name) LIKE ? OR ")
                                 .append("LOWER(customer_last_name || ' ' || customer_first_name) LIKE ?)");
-                }
-                if (hasNameSearch && hasPhoneSearch) {
-                    queryBuilder.append(" AND ");
+                    needsAnd = true;
                 }
                 if (hasPhoneSearch) {
+                    if (needsAnd) queryBuilder.append(" AND ");
                     queryBuilder.append("customer_number LIKE ?");
+                    needsAnd = true;
+                }
+                if (hasIdSearch) {
+                    if (needsAnd) queryBuilder.append(" AND ");
+                    queryBuilder.append("CAST(customer_id AS TEXT) LIKE ?");
+                    needsAnd = true;
                 }
             }
             
@@ -428,6 +435,10 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                 if (hasPhoneSearch) {
                     String searchPhone = "%" + getRecentPatientRequest.getSearchPhone().trim() + "%";
                     countStmt.setString(paramIndex++, searchPhone);
+                }
+                if (hasIdSearch) {
+                    String searchId = "%" + getRecentPatientRequest.getSearchId().trim() + "%";
+                    countStmt.setString(paramIndex++, searchId);
                 }
                 
                 try (ResultSet countRs = countStmt.executeQuery()) {
@@ -457,6 +468,10 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                 if (hasPhoneSearch) {
                     String searchPhone = "%" + getRecentPatientRequest.getSearchPhone().trim() + "%";
                     stmt.setString(paramIndex++, searchPhone);
+                }
+                if (hasIdSearch) {
+                    String searchId = "%" + getRecentPatientRequest.getSearchId().trim() + "%";
+                    stmt.setString(paramIndex++, searchId);
                 }
                 stmt.setInt(paramIndex++, pageSize);
                 stmt.setInt(paramIndex, offset);
