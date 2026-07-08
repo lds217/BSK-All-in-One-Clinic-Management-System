@@ -107,9 +107,11 @@ import javax.swing.text.MutableAttributeSet;
 import javax.swing.text.SimpleAttributeSet;
 import javax.swing.text.StyleConstants;
 import javax.swing.text.Document;
+import javax.swing.text.BadLocationException;
 import java.io.ByteArrayOutputStream;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
+import java.io.Reader;
 import java.io.StringReader;
 
 // --- DateUtils Import ---
@@ -1133,8 +1135,6 @@ public class CheckUpPage extends JPanel {
 
         add(centerContentPanel, BorderLayout.CENTER);
 
-        // In the constructor, after creating notesField:
-        setupNotesPasteHandler();
         setupShortcuts();
         
         // NOTE: CallPatientResponse is already handled by callPatientResponseListener (handleCallPatientResponse method)
@@ -1375,29 +1375,10 @@ public class CheckUpPage extends JPanel {
         // Set preferred size for notes field
         notesField.setPreferredSize(new Dimension(0, 400)); // Make it tall
 
-        // Add UndoManager
+        // Undo/redo + copy/cut/paste key bindings
         notesUndoManager = new UndoManager();
         notesField.getDocument().addUndoableEditListener(notesUndoManager);
-        
-        notesField.getInputMap().put(KeyStroke.getKeyStroke(KeyEvent.VK_Z, Toolkit.getDefaultToolkit().getMenuShortcutKeyMask()), "Undo");
-        notesField.getActionMap().put("Undo", new AbstractAction() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                if (notesUndoManager.canUndo()) {
-                    notesUndoManager.undo();
-                }
-            }
-        });
-        
-        notesField.getInputMap().put(KeyStroke.getKeyStroke(KeyEvent.VK_Y, Toolkit.getDefaultToolkit().getMenuShortcutKeyMask()), "Redo");
-        notesField.getActionMap().put("Redo", new AbstractAction() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                if (notesUndoManager.canRedo()) {
-                    notesUndoManager.redo();
-                }
-            }
-        });
+        setupNotesEditorKeyBindings();
 
 
         // Enhanced Toolbar for notes with more formatting options
@@ -1528,6 +1509,7 @@ public class CheckUpPage extends JPanel {
         suggestionField.setFont(fieldFont);
         suggestionField.setLineWrap(true);
         suggestionField.setWrapStyleWord(true);
+        setupTextAreaEditorKeyBindings(suggestionField);
         // addSelectAllOnFocus(suggestionField);
         JScrollPane suggestionScrollPane = new JScrollPane(suggestionField);
         suggestionScrollPane.setPreferredSize(new Dimension(0, 50)); // Reduced height
@@ -1614,6 +1596,7 @@ public class CheckUpPage extends JPanel {
         diagnosisField.setFont(new Font("Arial", Font.BOLD, 16)); // Slightly smaller font
         diagnosisField.setLineWrap(true);
         diagnosisField.setWrapStyleWord(true);
+        setupTextAreaEditorKeyBindings(diagnosisField);
         // addSelectAllOnFocus(diagnosisField);
         diagnosisPanel.add(new JScrollPane(diagnosisField), BorderLayout.CENTER);
 
@@ -1630,6 +1613,7 @@ public class CheckUpPage extends JPanel {
         conclusionField.setFont(new Font("Arial", Font.BOLD, 16)); // Slightly smaller font
         conclusionField.setLineWrap(true);
         conclusionField.setWrapStyleWord(true);
+        setupTextAreaEditorKeyBindings(conclusionField);
         // addSelectAllOnFocus(conclusionField);
         conclusionPanel.add(new JScrollPane(conclusionField), BorderLayout.CENTER);
 
@@ -2013,10 +1997,10 @@ public class CheckUpPage extends JPanel {
                 }
 
                 // Step 3: If report creation is successful, commit by saving and printing.
-                // This will be turn on later
-                // if ("ĐANG KHÁM".equals(statusComboBox.getSelectedItem())) {
-                //     statusComboBox.setSelectedItem("ĐÃ KHÁM");
-                // }
+                // When enabled in Settings, automatically mark the checkup as done ("ĐÃ KHÁM") on print.
+                if (LocalStorage.autoChangeStatusToFinished) {
+                    statusComboBox.setSelectedItem("ĐÃ KHÁM");
+                }
                 String statusToSavePrint = (String) statusComboBox.getSelectedItem();
                 handleSave();
                 
@@ -4820,63 +4804,455 @@ public class CheckUpPage extends JPanel {
 
     }
 
-    private void handleRtfPaste() {
-        try {
-            Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
-            Transferable content = clipboard.getContents(null);
-            
-            if (content != null) {
-                // Try to get RTF data first
-                if (content.isDataFlavorSupported(new DataFlavor("text/rtf"))) {
-                    Object rtfData = content.getTransferData(new DataFlavor("text/rtf"));
-                    if (rtfData instanceof InputStream) {
-                        RTFEditorKit kit = (RTFEditorKit) notesField.getEditorKit();
-                        kit.read((InputStream) rtfData, notesField.getDocument(), notesField.getCaretPosition());
-                        return;
-                    }
-                }
-                
-                // Fall back to plain text if RTF is not available
-                if (content.isDataFlavorSupported(DataFlavor.stringFlavor)) {
-                    String text = (String) content.getTransferData(DataFlavor.stringFlavor);
-                    
-                    // Convert plain text to RTF with proper Vietnamese encoding
-                    StringBuilder rtfContent = new StringBuilder();
-                    rtfContent.append("{\\rtf1\\ansi\\ansicpg1252\\deff0\\deflang1033{\\fonttbl{\\f0\\fnil\\fcharset163 Arial;}}\n");
-                    rtfContent.append("{\\colortbl ;\\red0\\green0\\blue0;}\n");
-                    rtfContent.append("\\viewkind4\\uc1\\pard\\cf1\\f0\\fs32 ");
-                    
-                    // Convert Vietnamese characters to RTF Unicode escape sequences
-                    for (char c : text.toCharArray()) {
-                        if (c < 128) {
-                            rtfContent.append(c);
-                        } else {
-                            rtfContent.append("\\u").append((int) c).append("?");
-                        }
-                    }
-                    
-                    rtfContent.append("\\par}");
-                    
-                    // Insert the RTF content
-                    ByteArrayInputStream in = new ByteArrayInputStream(rtfContent.toString().getBytes("ISO-8859-1"));
-                    RTFEditorKit kit = (RTFEditorKit) notesField.getEditorKit();
-                    kit.read(in, notesField.getDocument(), notesField.getCaretPosition());
-                }
+    private void setupTextAreaEditorKeyBindings(JTextArea textArea) {
+        UndoManager undoManager = new UndoManager();
+        textArea.getDocument().addUndoableEditListener(undoManager);
+
+        int shortcutMask = Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx();
+        InputMap inputMap = textArea.getInputMap(JComponent.WHEN_FOCUSED);
+        ActionMap actionMap = textArea.getActionMap();
+
+        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_Z, shortcutMask), "textArea-undo");
+        actionMap.put("textArea-undo", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                performUndo(undoManager);
             }
+        });
+
+        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_Y, shortcutMask), "textArea-redo");
+        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_Z, shortcutMask | KeyEvent.SHIFT_DOWN_MASK), "textArea-redo");
+        actionMap.put("textArea-redo", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                performRedo(undoManager);
+            }
+        });
+
+        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_C, shortcutMask), "textArea-copy");
+        actionMap.put("textArea-copy", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                handleTextAreaCopy(textArea);
+            }
+        });
+
+        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_X, shortcutMask), "textArea-cut");
+        actionMap.put("textArea-cut", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                handleTextAreaCut(textArea);
+            }
+        });
+
+        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_V, shortcutMask), "textArea-paste");
+        actionMap.put("textArea-paste", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                handleTextAreaPaste(textArea);
+            }
+        });
+    }
+
+    private void handleTextAreaCopy(JTextArea textArea) {
+        int start = textArea.getSelectionStart();
+        int end = textArea.getSelectionEnd();
+        if (start == end) {
+            return;
+        }
+
+        try {
+            String selected = textArea.getSelectedText();
+            if (selected == null) {
+                selected = textArea.getDocument().getText(start, end - start);
+            }
+            Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
+            clipboard.setContents(new StringSelection(selected), null);
         } catch (Exception e) {
-            log.error("Error handling RTF paste", e);
+            log.warn("Custom text area copy failed, falling back to default", e);
+            textArea.copy();
         }
     }
 
-    // Add paste key binding to the notes field
-    private void setupNotesPasteHandler() {
-        notesField.getInputMap().put(KeyStroke.getKeyStroke(KeyEvent.VK_V, Toolkit.getDefaultToolkit().getMenuShortcutKeyMask()), "customPaste");
-        notesField.getActionMap().put("customPaste", new AbstractAction() {
+    private void handleTextAreaCut(JTextArea textArea) {
+        if (textArea.getSelectionStart() == textArea.getSelectionEnd()) {
+            return;
+        }
+        handleTextAreaCopy(textArea);
+        textArea.replaceSelection("");
+    }
+
+    private void handleTextAreaPaste(JTextArea textArea) {
+        try {
+            int insertPos = preparePasteInsertionPoint(textArea);
+
+            Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
+            Transferable content = clipboard.getContents(null);
+            if (content == null) {
+                return;
+            }
+
+            if (content.isDataFlavorSupported(DataFlavor.stringFlavor)) {
+                String text = (String) content.getTransferData(DataFlavor.stringFlavor);
+                if (text != null) {
+                    insertPlainTextAtPosition(textArea, insertPos, text);
+                    return;
+                }
+            }
+
+            if (content.isDataFlavorSupported(DataFlavor.allHtmlFlavor)) {
+                String html = (String) content.getTransferData(DataFlavor.allHtmlFlavor);
+                insertPlainTextAtPosition(textArea, insertPos, htmlToPlainText(html));
+                return;
+            }
+        } catch (Exception e) {
+            log.warn("Custom text area paste failed, falling back to default", e);
+        }
+
+        try {
+            int insertPos = preparePasteInsertionPoint(textArea);
+            textArea.setCaretPosition(insertPos);
+            textArea.paste();
+        } catch (Exception e) {
+            log.warn("Default text area paste failed", e);
+        }
+    }
+
+    /**
+     * Returns the document offset where pasted content should be inserted.
+     * Removes any current selection first and moves the caret to that point.
+     */
+    private int preparePasteInsertionPoint(JTextComponent component) throws BadLocationException {
+        if (!component.hasFocus()) {
+            component.requestFocusInWindow();
+        }
+
+        int start = component.getSelectionStart();
+        int end = component.getSelectionEnd();
+        if (start > end) {
+            int temp = start;
+            start = end;
+            end = temp;
+        }
+
+        Document doc = component.getDocument();
+        if (start != end) {
+            doc.remove(start, end - start);
+        } else {
+            start = component.getCaretPosition();
+        }
+
+        component.setCaretPosition(start);
+        return start;
+    }
+
+    private void insertPlainTextAtPosition(JTextComponent component, int position, String text)
+            throws BadLocationException {
+        if (text == null || text.isEmpty()) {
+            return;
+        }
+        component.getDocument().insertString(position, text, null);
+        component.setCaretPosition(position + text.length());
+    }
+
+    private void performUndo(UndoManager undoManager) {
+        if (undoManager == null || !undoManager.canUndo()) {
+            return;
+        }
+        try {
+            undoManager.undo();
+        } catch (Exception e) {
+            log.warn("Undo failed", e);
+        }
+    }
+
+    private void performRedo(UndoManager undoManager) {
+        if (undoManager == null || !undoManager.canRedo()) {
+            return;
+        }
+        try {
+            undoManager.redo();
+        } catch (Exception e) {
+            log.warn("Redo failed", e);
+        }
+    }
+
+    private void setupNotesEditorKeyBindings() {
+        int shortcutMask = Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx();
+        InputMap inputMap = notesField.getInputMap(JComponent.WHEN_FOCUSED);
+        ActionMap actionMap = notesField.getActionMap();
+
+        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_Z, shortcutMask), "notes-undo");
+        actionMap.put("notes-undo", new AbstractAction() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                handleRtfPaste();
+                performNotesUndo();
             }
         });
+
+        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_Y, shortcutMask), "notes-redo");
+        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_Z, shortcutMask | KeyEvent.SHIFT_DOWN_MASK), "notes-redo");
+        actionMap.put("notes-redo", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                performNotesRedo();
+            }
+        });
+
+        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_C, shortcutMask), "notes-copy");
+        actionMap.put("notes-copy", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                handleNotesCopy();
+            }
+        });
+
+        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_X, shortcutMask), "notes-cut");
+        actionMap.put("notes-cut", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                handleNotesCut();
+            }
+        });
+
+        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_V, shortcutMask), "notes-paste");
+        actionMap.put("notes-paste", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                handleNotesPaste();
+            }
+        });
+    }
+
+    private void performNotesUndo() {
+        performUndo(notesUndoManager);
+    }
+
+    private void performNotesRedo() {
+        performRedo(notesUndoManager);
+    }
+
+    private void handleNotesCopy() {
+        int start = notesField.getSelectionStart();
+        int end = notesField.getSelectionEnd();
+        if (start == end) {
+            return;
+        }
+
+        try {
+            ByteArrayOutputStream rtfOut = new ByteArrayOutputStream();
+            notesField.getEditorKit().write(rtfOut, notesField.getDocument(), start, end - start);
+            byte[] rtfBytes = rtfOut.toByteArray();
+            String plainText = notesField.getSelectedText();
+            if (plainText == null) {
+                plainText = notesField.getDocument().getText(start, end - start);
+            }
+
+            Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
+            clipboard.setContents(new RtfTransferable(rtfBytes, plainText), null);
+        } catch (Exception e) {
+            log.warn("Custom notes copy failed, falling back to default", e);
+            notesField.copy();
+        }
+    }
+
+    private void handleNotesCut() {
+        if (notesField.getSelectionStart() == notesField.getSelectionEnd()) {
+            return;
+        }
+        handleNotesCopy();
+        notesField.replaceSelection("");
+    }
+
+    private void handleNotesPaste() {
+        try {
+            int insertPos = preparePasteInsertionPoint(notesField);
+
+            Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
+            Transferable content = clipboard.getContents(null);
+            if (content == null) {
+                return;
+            }
+
+            if (tryPasteRtfAtPosition(content, insertPos)) {
+                return;
+            }
+
+            if (content.isDataFlavorSupported(DataFlavor.stringFlavor)) {
+                String text = (String) content.getTransferData(DataFlavor.stringFlavor);
+                if (text != null) {
+                    insertPlainTextAtPosition(notesField, insertPos, text);
+                    return;
+                }
+            }
+
+            if (content.isDataFlavorSupported(DataFlavor.allHtmlFlavor)) {
+                String html = (String) content.getTransferData(DataFlavor.allHtmlFlavor);
+                insertPlainTextAtPosition(notesField, insertPos, htmlToPlainText(html));
+                return;
+            }
+        } catch (Exception e) {
+            log.warn("Custom notes paste failed, falling back to default", e);
+        }
+
+        try {
+            int insertPos = preparePasteInsertionPoint(notesField);
+            notesField.setCaretPosition(insertPos);
+            notesField.paste();
+        } catch (Exception e) {
+            log.warn("Default notes paste failed", e);
+        }
+    }
+
+    private boolean tryPasteRtfAtPosition(Transferable content, int insertPos) throws Exception {
+        byte[] rtfBytes = extractRtfBytes(content);
+        if (rtfBytes == null || rtfBytes.length == 0) {
+            return false;
+        }
+
+        // Read RTF into a temporary pane first, then insert the fragment at the caret.
+        // Reading a full RTF document directly into the main pane often appends at the end.
+        JEditorPane tempPane = new JEditorPane();
+        tempPane.setContentType("text/rtf");
+        tempPane.setEditorKit(new RTFEditorKit());
+        tempPane.read(new ByteArrayInputStream(rtfBytes), null);
+
+        Document tempDoc = tempPane.getDocument();
+        int tempLen = tempDoc.getLength();
+        if (tempLen <= 0) {
+            return false;
+        }
+
+        // DefaultStyledDocument always ends with a newline; exclude it from pasted fragment.
+        int fragmentLen = tempLen;
+        if (fragmentLen > 0 && "\n".equals(tempDoc.getText(fragmentLen - 1, 1))) {
+            fragmentLen--;
+        }
+        if (fragmentLen <= 0) {
+            return false;
+        }
+
+        ByteArrayOutputStream fragmentOut = new ByteArrayOutputStream();
+        tempPane.getEditorKit().write(fragmentOut, tempDoc, 0, fragmentLen);
+
+        notesField.setCaretPosition(insertPos);
+        RTFEditorKit kit = (RTFEditorKit) notesField.getEditorKit();
+        int lengthBefore = notesField.getDocument().getLength();
+        kit.read(new ByteArrayInputStream(fragmentOut.toByteArray()), notesField.getDocument(), insertPos);
+        int insertedLength = notesField.getDocument().getLength() - lengthBefore;
+        notesField.setCaretPosition(insertPos + insertedLength);
+        return true;
+    }
+
+    private byte[] extractRtfBytes(Transferable content) throws Exception {
+        DataFlavor[] flavors = content.getTransferDataFlavors();
+        for (DataFlavor flavor : flavors) {
+            if (flavor == null || !flavor.isMimeTypeEqual("text/rtf")) {
+                continue;
+            }
+
+            Object data = content.getTransferData(flavor);
+            if (data instanceof byte[]) {
+                return (byte[]) data;
+            }
+            if (data instanceof InputStream) {
+                return readAllBytes((InputStream) data);
+            }
+            if (data instanceof String) {
+                return ((String) data).getBytes("ISO-8859-1");
+            }
+            if (data instanceof Reader) {
+                char[] buffer = new char[4096];
+                StringBuilder sb = new StringBuilder();
+                Reader reader = (Reader) data;
+                int read;
+                while ((read = reader.read(buffer)) != -1) {
+                    sb.append(buffer, 0, read);
+                }
+                return sb.toString().getBytes("ISO-8859-1");
+            }
+        }
+        return null;
+    }
+
+    private byte[] readAllBytes(InputStream in) throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        byte[] buffer = new byte[4096];
+        int read;
+        while ((read = in.read(buffer)) != -1) {
+            out.write(buffer, 0, read);
+        }
+        return out.toByteArray();
+    }
+
+    private String htmlToPlainText(String html) {
+        if (html == null || html.isEmpty()) {
+            return "";
+        }
+        String text = html
+                .replaceAll("(?i)<br\\s*/?>", "\n")
+                .replaceAll("(?i)</p>", "\n")
+                .replaceAll("(?i)</div>", "\n")
+                .replaceAll("<[^>]+>", "");
+        return text
+                .replace("&nbsp;", " ")
+                .replace("&amp;", "&")
+                .replace("&lt;", "<")
+                .replace("&gt;", ">")
+                .replace("\r\n", "\n")
+                .trim();
+    }
+
+    /** Clipboard payload that exposes both RTF and plain text for copy/paste interoperability. */
+    private static final class RtfTransferable implements Transferable {
+        private static final DataFlavor RTF_BYTES_FLAVOR;
+
+        static {
+            DataFlavor flavor = null;
+            try {
+                flavor = new DataFlavor("text/rtf;class=\"[B\"");
+            } catch (Exception ignored) {
+                // Fallback handled at runtime via supported flavors list.
+            }
+            RTF_BYTES_FLAVOR = flavor;
+        }
+
+        private final byte[] rtfBytes;
+        private final String plainText;
+
+        private RtfTransferable(byte[] rtfBytes, String plainText) {
+            this.rtfBytes = rtfBytes;
+            this.plainText = plainText != null ? plainText : "";
+        }
+
+        @Override
+        public DataFlavor[] getTransferDataFlavors() {
+            if (RTF_BYTES_FLAVOR != null) {
+                return new DataFlavor[]{RTF_BYTES_FLAVOR, DataFlavor.stringFlavor};
+            }
+            return new DataFlavor[]{DataFlavor.stringFlavor};
+        }
+
+        @Override
+        public boolean isDataFlavorSupported(DataFlavor flavor) {
+            for (DataFlavor supported : getTransferDataFlavors()) {
+                if (supported.equals(flavor)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        @Override
+        public Object getTransferData(DataFlavor flavor) throws UnsupportedFlavorException {
+            if (DataFlavor.stringFlavor.equals(flavor)) {
+                return plainText;
+            }
+            if (RTF_BYTES_FLAVOR != null && RTF_BYTES_FLAVOR.equals(flavor)) {
+                return rtfBytes;
+            }
+            throw new UnsupportedFlavorException(flavor);
+        }
     }
 
     /**

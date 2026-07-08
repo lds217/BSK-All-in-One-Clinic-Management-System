@@ -46,6 +46,7 @@ public class AddDialog extends JDialog {
     // --- Right Panel (Search & Table) ---
     private JTextField searchNameField; // Dedicated search field
     private JTextField searchPhoneField; // Dedicated search field
+    private JTextField searchIdField; // Dedicated search field for Mã BN (patient ID)
     private DefaultTableModel patientTableModel;
     private JTable patientTable;
     private String[] patientColumns = {"Mã BN", "Tên Bệnh Nhân", "Năm sinh", "Số điện thoại" ,"Địa chỉ"};
@@ -79,6 +80,7 @@ public class AddDialog extends JDialog {
     // --- Debounce Search ---
     private Timer nameSearchTimer;
     private Timer phoneSearchTimer;
+    private Timer idSearchTimer;
 
     private void handleAddCheckupResponse(AddCheckupResponse response) {
         log.info("Received AddCheckupResponse");
@@ -116,12 +118,24 @@ public class AddDialog extends JDialog {
     }
 
     private void sendGetRecentPatientRequest() {
-        sendPatientSearchRequest(null, null, 1);
+        sendPatientSearchRequest(null, null, null, 1);
     }
     
-    private void sendPatientSearchRequest(String searchName, String searchPhone, int page) {
-        log.info("Sending GetRecentPatientRequest with search: name='{}', phone='{}', page={}", searchName, searchPhone, page);
-        NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetRecentPatientRequest(searchName, searchPhone, page, pageSize));
+    private void sendPatientSearchRequest(String searchName, String searchPhone, String searchId, int page) {
+        log.info("Sending GetRecentPatientRequest with search: name='{}', phone='{}', id='{}', page={}", searchName, searchPhone, searchId, page);
+        NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetRecentPatientRequest(searchName, searchPhone, searchId, page, pageSize));
+    }
+    
+    // Reads the current search fields and issues a search request for the given page.
+    private void triggerSearch(int page) {
+        String searchName = searchNameField.getText().trim();
+        String searchPhone = searchPhoneField.getText().trim();
+        String searchId = searchIdField.getText().trim();
+        sendPatientSearchRequest(
+                searchName.isEmpty() ? null : searchName,
+                searchPhone.isEmpty() ? null : searchPhone,
+                searchId.isEmpty() ? null : searchId,
+                page);
     }
 
     private void getRecentPatientHandler(GetRecentPatientResponse response) {
@@ -190,7 +204,7 @@ public class AddDialog extends JDialog {
                     // Search on page 1 if we're not already there
                     if (currentPage != 1) {
                         log.info("Patient not found on current page, searching on page 1");
-                        sendPatientSearchRequest(null, null, 1);
+                        sendPatientSearchRequest(null, null, null, 1);
                         return; // Don't reset autoSelectPatientId yet, let the next response handle it
                     } else {
                         log.warn("Could not find newly added patient with ID: {}", autoSelectPatientId);
@@ -244,6 +258,9 @@ public class AddDialog extends JDialog {
         if (phoneSearchTimer != null && phoneSearchTimer.isRunning()) {
             phoneSearchTimer.stop();
         }
+        if (idSearchTimer != null && idSearchTimer.isRunning()) {
+            idSearchTimer.stop();
+        }
         
         super.dispose();
     }
@@ -255,7 +272,7 @@ public class AddDialog extends JDialog {
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
 
         // Set size of the dialog
-        setSize(1200, 800);
+        setSize(1450, 820);
         // Put in the middle of parent window
         setLocationRelativeTo(parent);
         setResizable(true);
@@ -739,6 +756,9 @@ public class AddDialog extends JDialog {
         inputScrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
         inputScrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER); // Usually not needed for forms
         inputScrollPane.setBorder(BorderFactory.createEmptyBorder()); // Remove scroll pane's own border
+        // Enforce a usable width for the form so the split pane can't squeeze it when the
+        // right side (search bar) needs more room, and so the bold labels aren't clipped.
+        inputScrollPane.setMinimumSize(new Dimension(560, 0));
 
         // Create right panel for table and pagination
         JPanel rightPanel = new JPanel(new BorderLayout());
@@ -767,9 +787,10 @@ public class AddDialog extends JDialog {
         rightPanel.add(paginationPanel, BorderLayout.SOUTH);
 
         JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, inputScrollPane, rightPanel);
-        // Favor the right panel; set an initial divider position and resize weight
-        splitPane.setDividerLocation(0.25);
-        splitPane.setResizeWeight(0.2);
+        // Keep the form at a fixed, readable width (wide enough for the bold labels)
+        // and give all extra space to the table/search side.
+        splitPane.setDividerLocation(680);
+        splitPane.setResizeWeight(0.0);
         add(splitPane, BorderLayout.CENTER);
 
 
@@ -880,6 +901,7 @@ public class AddDialog extends JDialog {
             dobPicker.getJFormattedTextField().setText("");
             
             // Clear right-side search fields
+            searchIdField.setText("");
             searchNameField.setText("");
             searchPhoneField.setText("");
             
@@ -902,12 +924,7 @@ public class AddDialog extends JDialog {
         int selectedPage = (Integer) pageSpinner.getValue();
         if (selectedPage != currentPage && selectedPage >= 1 && selectedPage <= totalPages) {
             // Determine current search parameters from the dedicated search fields
-            String searchName = searchNameField.getText().trim();
-            String searchPhone = searchPhoneField.getText().trim();
-            searchName = searchName.isEmpty() ? null : searchName;
-            searchPhone = searchPhone.isEmpty() ? null : searchPhone;
-            
-            sendPatientSearchRequest(searchName, searchPhone, selectedPage);
+            triggerSearch(selectedPage);
         }
     });
     setDefaultLocation();
@@ -915,19 +932,14 @@ public class AddDialog extends JDialog {
     
 private void setupDebounceSearch() {
     // Initialize timers for debounce search (1 second delay)
-    nameSearchTimer = new Timer(1000, e -> {
-        String searchName = searchNameField.getText().trim();
-        String searchPhone = searchPhoneField.getText().trim();
-        sendPatientSearchRequest(searchName.isEmpty() ? null : searchName, searchPhone.isEmpty() ? null : searchPhone, 1);
-    });
+    nameSearchTimer = new Timer(1000, e -> triggerSearch(1));
     nameSearchTimer.setRepeats(false);
 
-    phoneSearchTimer = new Timer(1000, e -> {
-        String searchName = searchNameField.getText().trim();
-        String searchPhone = searchPhoneField.getText().trim();
-        sendPatientSearchRequest(searchName.isEmpty() ? null : searchName, searchPhone.isEmpty() ? null : searchPhone, 1);
-    });
+    phoneSearchTimer = new Timer(1000, e -> triggerSearch(1));
     phoneSearchTimer.setRepeats(false);
+
+    idSearchTimer = new Timer(1000, e -> triggerSearch(1));
+    idSearchTimer.setRepeats(false);
 
     // Add DocumentListener to searchNameField for debounced search
     searchNameField.getDocument().addDocumentListener(new DocumentListener() {
@@ -965,6 +977,24 @@ private void setupDebounceSearch() {
         }
     });
 
+    // Add DocumentListener to searchIdField for debounced search
+    searchIdField.getDocument().addDocumentListener(new DocumentListener() {
+        @Override
+        public void insertUpdate(DocumentEvent e) {
+            resetAndStartTimer(idSearchTimer);
+        }
+
+        @Override
+        public void removeUpdate(DocumentEvent e) {
+            resetAndStartTimer(idSearchTimer);
+        }
+
+        @Override
+        public void changedUpdate(DocumentEvent e) {
+            resetAndStartTimer(idSearchTimer);
+        }
+    });
+
 
     patientPhoneField.getDocument().addDocumentListener(new DocumentListener() {
         private void syncPhoneFields() {
@@ -996,20 +1026,26 @@ private void setupDebounceSearch() {
     }
 
     private JPanel createSearchPanel() {
-        JPanel searchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        JPanel searchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 4));
         searchPanel.setBorder(BorderFactory.createTitledBorder("Tìm kiếm bệnh nhân"));
 
+        searchPanel.add(new JLabel("Mã BN:"));
+        searchIdField = new JTextField(5);
+        searchIdField.setToolTipText("Tìm kiếm theo mã bệnh nhân");
+        searchPanel.add(searchIdField);
+
         searchPanel.add(new JLabel("Họ tên:"));
-        searchNameField = new JTextField(15);
+        searchNameField = new JTextField(12);
         searchNameField.setToolTipText("Tìm kiếm theo họ tên (không cần dấu)");
         searchPanel.add(searchNameField);
 
         searchPanel.add(new JLabel("SĐT:"));
-        searchPhoneField = new JTextField(10);
+        searchPhoneField = new JTextField(9);
         searchPanel.add(searchPhoneField);
 
         JButton clearSearchButton = new JButton("Xóa tìm kiếm");
         clearSearchButton.addActionListener(e -> {
+            searchIdField.setText("");
             searchNameField.setText("");
             searchPhoneField.setText("");
             sendGetRecentPatientRequest(); // Fetch initial list
