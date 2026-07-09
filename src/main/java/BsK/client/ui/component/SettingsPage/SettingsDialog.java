@@ -1,5 +1,6 @@
 package BsK.client.ui.component.SettingsPage;
 
+import BsK.client.Client;
 import BsK.client.LocalStorage;
 import lombok.extern.slf4j.Slf4j;
 
@@ -244,10 +245,50 @@ public class SettingsDialog extends JDialog {
                     originalProps.load(input);
                 }
             }
+            applyConfigToFields();
             hasChanges = false;
         } catch (IOException e) {
             log.error("Error loading config", e);
             JOptionPane.showMessageDialog(this, "Lỗi khi tải cài đặt: " + e.getMessage(), "Lỗi", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    /** Refreshes dialog fields from config/config.properties (with LocalStorage fallback). */
+    private void applyConfigToFields() {
+        if (originalProps == null || originalProps.isEmpty()) {
+            return;
+        }
+        Client.applyConfigToLocalStorage(originalProps);
+
+        applyFieldFromConfig(serverAddressField, "server.address", "server_address", LocalStorage.serverAddress);
+        applyFieldFromConfig(serverPortField, "server.port", null, LocalStorage.serverPort);
+        applyFieldFromConfig(clinicNameField, "clinic.name", null, LocalStorage.ClinicName);
+        applyFieldFromConfig(clinicAddressField, "clinic.address", null, LocalStorage.ClinicAddress);
+        applyFieldFromConfig(clinicPhoneField, "clinic.phone", null, LocalStorage.ClinicPhone);
+        applyFieldFromConfig(clinicPrefixField, "clinic.prefix", null, LocalStorage.ClinicPrefix);
+        applyFieldFromConfig(mediaDirectoryField, "storage.checkup_media_base_dir", null, LocalStorage.checkupMediaBaseDir);
+        applyFieldFromConfig(ultrasoundFolderField, "storage.ultrasound_folder_path", null, LocalStorage.ULTRASOUND_FOLDER_PATH);
+
+        String autoStatus = originalProps.getProperty("app.auto_change_status_to_finished");
+        if (autoStatus != null && !autoStatus.isBlank()) {
+            autoChangeStatusCheckBox.setSelected(Boolean.parseBoolean(autoStatus.trim()));
+        } else {
+            autoChangeStatusCheckBox.setSelected(LocalStorage.autoChangeStatusToFinished);
+        }
+    }
+
+    private void applyFieldFromConfig(JTextField field, String primaryKey, String aliasKey, String fallback) {
+        if (field == null) {
+            return;
+        }
+        String value = originalProps.getProperty(primaryKey);
+        if ((value == null || value.isBlank()) && aliasKey != null) {
+            value = originalProps.getProperty(aliasKey);
+        }
+        if (value != null && !value.isBlank()) {
+            field.setText(value.trim());
+        } else if (fallback != null) {
+            field.setText(fallback);
         }
     }
     
@@ -303,6 +344,8 @@ public class SettingsDialog extends JDialog {
             try (var output = Files.newOutputStream(configFile.toPath())) {
                 props.store(output, "BSK Clinic Management System Configuration - Updated via Settings Dialog");
             }
+
+            Client.applyConfigToLocalStorage(props);
             
             if (restartRequiredChanges) {
                 int choice = JOptionPane.showConfirmDialog(this,

@@ -213,6 +213,8 @@ public class CheckUpPage extends JPanel {
     private boolean saved = true; // Initially true, changed when patient selected or dialog opened.
     /** Checkup ID for an in-flight save — prevents applying save results to the wrong patient. */
     private String pendingSaveCheckupId = null;
+    /** Status sent with the in-flight save — used to decide whether to clear the form after save. */
+    private String pendingSaveStatus = null;
     /** Checkup ID for an in-flight order/prescription fetch. */
     private String pendingOrderInfoCheckupId = null;
     /** Customer ID for an in-flight history fetch. */
@@ -2820,6 +2822,8 @@ public class CheckUpPage extends JPanel {
             pendingSaveCheckupId = null;
 
             if (savedForCheckupId == null || !isStillSelectedCheckup(savedForCheckupId)) {
+                pendingSaveStatus = null;
+                pendingSaveUiBehavior = PendingSaveUiBehavior.DEFAULT;
                 log.warn("Ignoring save response for checkup {} — current selection is {}", savedForCheckupId, selectedCheckupId);
                 return;
             }
@@ -2828,17 +2832,30 @@ public class CheckUpPage extends JPanel {
                 saved = true;
                 syncCurrentPatientFromFormToQueue();
 
-                if (pendingSaveUiBehavior == PendingSaveUiBehavior.KEEP_FORM_SILENT) {
-                    showSaveStatusMessage("Đã lưu.");
-                } else {
-                    showSaveStatusMessage(response.getMessage() != null ? response.getMessage() : "Đã lưu thành công!");
-                }
-
-                refreshQueueKeepingSelection();
+                boolean keepForm = pendingSaveUiBehavior == PendingSaveUiBehavior.KEEP_FORM_SILENT;
+                boolean markFinished = "ĐÃ KHÁM".equals(pendingSaveStatus);
                 pendingSaveUiBehavior = PendingSaveUiBehavior.DEFAULT;
+                pendingSaveStatus = null;
+
+                if (markFinished) {
+                    showSaveStatusMessage("Đã lưu. Sẵn sàng cho bệnh nhân tiếp theo.");
+                    clearPatientDetails();
+                    if (queueManagementPage != null) {
+                        queueManagementPage.updateQueueTable();
+                    }
+                    updateUpdateQueue();
+                } else {
+                    if (keepForm) {
+                        showSaveStatusMessage("Đã lưu.");
+                    } else {
+                        showSaveStatusMessage(response.getMessage() != null ? response.getMessage() : "Đã lưu thành công!");
+                    }
+                    refreshQueueKeepingSelection();
+                }
             } else {
                 saved = false;
                 pendingSaveUiBehavior = PendingSaveUiBehavior.DEFAULT;
+                pendingSaveStatus = null;
                 JOptionPane.showMessageDialog(this,
                     "Lưu thất bại: " + (response.getMessage() != null ? response.getMessage() : "Lỗi không xác định"),
                     "Lỗi",
@@ -5465,6 +5482,7 @@ public class CheckUpPage extends JPanel {
             return;
         }
         pendingSaveCheckupId = checkupIdToSave;
+        pendingSaveStatus = (String) statusComboBox.getSelectedItem();
         SaveCheckupRequest request = new SaveCheckupRequest(
                 Integer.parseInt(checkupIdToSave),
                 Integer.parseInt(customerIdField.getText()),
@@ -5499,6 +5517,7 @@ public class CheckUpPage extends JPanel {
         // The response handler will set saved=true only if the server confirms success
         } catch (Exception e) {
             pendingSaveCheckupId = null;
+            pendingSaveStatus = null;
             log.error("Failed to create or send SaveCheckupRequest", e);
             JOptionPane.showMessageDialog(this, "Lỗi khi lưu dữ liệu: " + e.getMessage(), "Lỗi", JOptionPane.ERROR_MESSAGE);
         }
@@ -5616,15 +5635,23 @@ public class CheckUpPage extends JPanel {
     }
 
     private void clearPatientDetails() {
-        if (SwingUtilities.isEventDispatchThread()) {
+        Runnable clearTask = () -> {
             log.info("=== CLEARING PATIENT DETAILS FOR SAFETY ===");
-            
-            // SAFETY: Clear patient IDs FIRST to prevent ultrasound image mismatches
+
+            invalidatePendingPatientRequests();
+            if (imageRefreshTimer != null && imageRefreshTimer.isRunning()) {
+                imageRefreshTimer.stop();
+            }
+            selectedImagesForPrint.clear();
+
+            // SAFETY: Clear patient IDs FIRST to prevent ultrasound image mix-ups
             String previousPatientId = currentCheckupIdForMedia;
-            currentCheckupIdForMedia = null;
-            currentCheckupMediaPath = null;
+            synchronized (mediaStateLock) {
+                currentCheckupIdForMedia = null;
+                currentCheckupMediaPath = null;
+            }
             selectedCheckupId = null;
-            
+
             log.info("Cleared patient IDs - Previous ID: {}, Now: NULL", previousPatientId);
             
             // Reset all fields to default values
@@ -5697,6 +5724,12 @@ public class CheckUpPage extends JPanel {
 
             selectedCheckupId = null;
             saved = true; // No patient loaded, so it's in a "saved" state.
+        };
+
+        if (SwingUtilities.isEventDispatchThread()) {
+            clearTask.run();
+        } else {
+            SwingUtilities.invokeLater(clearTask);
         }
     }
 
