@@ -211,6 +211,22 @@ public class CheckUpPage extends JPanel {
     private AddDialog addDialog = null;
     private String selectedCheckupId = null; // Use checkupId to track selection instead of row index
     private boolean saved = true; // Initially true, changed when patient selected or dialog opened.
+    /** Checkup ID for an in-flight save — prevents applying save results to the wrong patient. */
+    private String pendingSaveCheckupId = null;
+    /** Checkup ID for an in-flight order/prescription fetch. */
+    private String pendingOrderInfoCheckupId = null;
+    /** Customer ID for an in-flight history fetch. */
+    private int pendingHistoryCustomerId = -1;
+    /** Checkup ID that initiated the current ward load. */
+    private String pendingWardLoadCheckupId = null;
+
+    /** Controls post-save UI: keep form for print/view flows, avoid success popups that flicker. */
+    private enum PendingSaveUiBehavior {
+        DEFAULT,
+        KEEP_FORM_SILENT
+    }
+    private PendingSaveUiBehavior pendingSaveUiBehavior = PendingSaveUiBehavior.DEFAULT;
+
     private DefaultComboBoxModel<String> wardModel;
     
     // Variables to store target ward and ward when loading patient address
@@ -1236,10 +1252,8 @@ public class CheckUpPage extends JPanel {
         openQueueButton.addActionListener(e -> {
             // Always fetch the latest queue to avoid cross-client mismatch
             updateQueue();
-            // Reset filters to "Tất cả" to avoid index/filter/sort mismatch on open
             if (queueManagementPage != null) {
-                queueManagementPage.checkupTypeFilter.setSelectedItem("Tất cả");
-
+                queueManagementPage.restoreFilterFromStorage();
                 queueManagementPage.applyFilters();
             }
             queueManagementPage.setVisible(true);
@@ -1849,8 +1863,9 @@ public class CheckUpPage extends JPanel {
                 }
 
                 String statusToSave = (String) statusComboBox.getSelectedItem();
+                pendingSaveUiBehavior = PendingSaveUiBehavior.DEFAULT;
                 handleSave();
-                afterSaveActions(statusToSave, "Đã lưu thành công!");
+                // UI feedback is handled when the server confirms in handleSaveCheckupResponse().
                 break;
             case "medicine":
                 medDialog = new MedicineDialog(mainFrame, this.medicinePrescription);
@@ -2002,8 +2017,8 @@ public class CheckUpPage extends JPanel {
                     statusComboBox.setSelectedItem("ĐÃ KHÁM");
                 }
                 String statusToSavePrint = (String) statusComboBox.getSelectedItem();
+                pendingSaveUiBehavior = PendingSaveUiBehavior.KEEP_FORM_SILENT;
                 handleSave();
-                
 
                 // Step 4: Finally, show print dialog with the pre-made object.
                 try {
@@ -2012,8 +2027,6 @@ public class CheckUpPage extends JPanel {
                     log.error("Error showing print dialog", e);
                     JOptionPane.showMessageDialog(this, "Không thể hiển thị hộp thoại in: " + e.getMessage(), "Lỗi In", JOptionPane.ERROR_MESSAGE);
                 }
-
-                afterSaveActions(statusToSavePrint, "Đã lưu. Đang gửi lệnh in...");
                 break;
             case "loupe": // This case now handles "Lưu & Xem"
 
@@ -2073,38 +2086,77 @@ public class CheckUpPage extends JPanel {
                 }
 
                 // Step 3: If report creation is successful, commit by saving and showing the view.
-                // NO automatic status change for "Lưu & Xem"
-                String statusToSaveView = (String) statusComboBox.getSelectedItem();
+                pendingSaveUiBehavior = PendingSaveUiBehavior.KEEP_FORM_SILENT;
                 handleSave();
-                
 
                 // Step 4: Finally, show the viewer with the pre-made object.
                 JasperViewer.viewReport(jasperPrintToView, false);
-
-                afterSaveActions(statusToSaveView, "Đã lưu. Đang tạo bản xem trước...");
                 break;
         }
     }
     
     /**
-     * Helper method to perform common actions after any save operation.
-     * @param statusToSave The patient status that was saved.
-     * @param message The message to display in the status label.
+     * Updates the status label after a save-related action without clearing the form or opening dialogs.
      */
-    private void afterSaveActions(String statusToSave, String message) {
+    private void showSaveStatusMessage(String message) {
         callingStatusLabel.setText(message);
         callingStatusLabel.setBackground(new Color(230, 255, 230));
         callingStatusLabel.setForeground(new Color(0, 100, 0));
-        // updateUpdateQueue();
+    }
 
-        // If patient is marked as "ĐÃ KHÁM", clear the selection and details immediately.
-        if ("ĐÃ KHÁM".equals(statusToSave)) {
-            clearPatientDetails();
-            // Visually update the queue table to remove the selection highlight.
-            queueManagementPage.updateQueueTable();
+    /** Keeps the in-memory queue entry in sync with the form for the currently selected checkup. */
+    private void syncCurrentPatientFromFormToQueue() {
+        if (!isFormCheckupIdConsistent()) {
+            log.warn("Skipping queue sync — form checkup ID does not match selected checkup {}", selectedCheckupId);
+            return;
+        }
+        DoctorItem selectedDoctor = (DoctorItem) doctorComboBox.getSelectedItem();
+        String doctorName = selectedDoctor != null ? selectedDoctor.getName() : "";
+
+        for (Patient patient : patientQueue) {
+            if (selectedCheckupId.equals(patient.getCheckupId())) {
+                patient.setStatus((String) statusComboBox.getSelectedItem());
+                patient.setSuggestion(suggestionField.getText());
+                patient.setDiagnosis(diagnosisField.getText());
+                patient.setConclusion(conclusionField.getText());
+                patient.setCheckupType((String) checkupTypeComboBox.getSelectedItem());
+                patient.setDoctorName(doctorName);
+                patient.setCustomerLastName(customerLastNameField.getText());
+                patient.setCustomerFirstName(customerFirstNameField.getText());
+                break;
+            }
         }
     }
-    
+
+    /** True when the form's checkup ID field matches the tracked selection. */
+    private boolean isFormCheckupIdConsistent() {
+        if (selectedCheckupId == null) {
+            return false;
+        }
+        String formCheckupId = checkupIdField.getText();
+        return formCheckupId != null && selectedCheckupId.equals(formCheckupId.trim());
+    }
+
+    /** True when the given checkup ID is still the active selection. */
+    private boolean isStillSelectedCheckup(String checkupId) {
+        return checkupId != null && checkupId.equals(selectedCheckupId) && isFormCheckupIdConsistent();
+    }
+
+    private void invalidatePendingPatientRequests() {
+        pendingOrderInfoCheckupId = null;
+        pendingHistoryCustomerId = -1;
+        pendingWardLoadCheckupId = null;
+    }
+
+    private void refreshQueueKeepingSelection() {
+        syncCurrentPatientFromFormToQueue();
+        if (queueManagementPage != null) {
+            queueManagementPage.updateQueueTable();
+        }
+        // Lightweight queue sync — avoids a full re-fetch flicker after save/view/print.
+        updateUpdateQueue();
+    }
+
     private void updatePrescriptionTree() {
         rootPrescriptionNode.removeAllChildren();
         double totalMedicineCost = 0;
@@ -2192,6 +2244,7 @@ public class CheckUpPage extends JPanel {
             currentCheckupIdForMedia = null;
             currentCheckupMediaPath = null;
         }
+        invalidatePendingPatientRequests();
         this.selectedCheckupId = null;
         
         // Now set the new patient ID
@@ -2404,6 +2457,9 @@ public class CheckUpPage extends JPanel {
         NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetOrderInfoByCheckupReq(selectedPatient.getCheckupId()));
         // Sync images from server to client for consistency
         NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new SyncCheckupImagesRequest(selectedPatient.getCheckupId()));
+        pendingHistoryCustomerId = Integer.parseInt(selectedPatient.getCustomerId());
+        pendingOrderInfoCheckupId = selectedPatient.getCheckupId();
+        pendingWardLoadCheckupId = selectedPatient.getCheckupId();
         String fullAddress = selectedPatient.getCustomerAddress();
         String[] addressParts = fullAddress.split(", ");
         
@@ -2500,6 +2556,10 @@ public class CheckUpPage extends JPanel {
 
     private void handleGetWardResponse(GetWardResponse response) {
         SwingUtilities.invokeLater(() -> {
+        if (pendingWardLoadCheckupId == null || !pendingWardLoadCheckupId.equals(selectedCheckupId)) {
+            log.info("Ignoring stale ward response — selection changed");
+            return;
+        }
         log.info("Received ward data");
         LocalStorage.wards = response.getWards();
         wardModel.removeAllElements(); 
@@ -2524,6 +2584,19 @@ public class CheckUpPage extends JPanel {
 
     private void handleGetPatientHistoryResponse(GetPatientHistoryResponse response) {
         SwingUtilities.invokeLater(() -> {
+            if (pendingHistoryCustomerId == -1) {
+                return;
+            }
+            try {
+                int currentCustomerId = Integer.parseInt(customerIdField.getText().trim());
+                if (currentCustomerId != pendingHistoryCustomerId || !isFormCheckupIdConsistent()) {
+                    log.info("Ignoring stale patient history for customer {}", pendingHistoryCustomerId);
+                    return;
+                }
+            } catch (NumberFormatException e) {
+                log.warn("Ignoring patient history — invalid customer ID on form");
+                return;
+            }
             log.info("Received patient history");
             this.history = response.getHistory(); // Keep original data for the dialog
 
@@ -2710,6 +2783,12 @@ public class CheckUpPage extends JPanel {
         
         // Ensure UI updates are on the Event Dispatch Thread
         SwingUtilities.invokeLater(() -> {
+            if (pendingOrderInfoCheckupId == null
+                    || !pendingOrderInfoCheckupId.equals(selectedCheckupId)
+                    || !isFormCheckupIdConsistent()) {
+                log.info("Ignoring stale order info for checkup {}", pendingOrderInfoCheckupId);
+                return;
+            }
             this.medicinePrescription = response.getMedicinePrescription() != null ? response.getMedicinePrescription() : new String[0][0];
             this.servicePrescription = response.getServicePrescription() != null ? response.getServicePrescription() : new String[0][0];
             
@@ -2737,23 +2816,33 @@ public class CheckUpPage extends JPanel {
         log.info("Received SaveCheckupResponse: success={}, message={}", response.isSuccess(), response.getMessage());
         
         SwingUtilities.invokeLater(() -> {
+            String savedForCheckupId = pendingSaveCheckupId;
+            pendingSaveCheckupId = null;
+
+            if (savedForCheckupId == null || !isStillSelectedCheckup(savedForCheckupId)) {
+                log.warn("Ignoring save response for checkup {} — current selection is {}", savedForCheckupId, selectedCheckupId);
+                return;
+            }
+
             if (response.isSuccess()) {
                 saved = true;
-                JOptionPane.showMessageDialog(this, 
-                    response.getMessage() != null ? response.getMessage() : "Lưu thành công!", 
-                    "Thành công", 
-                    JOptionPane.INFORMATION_MESSAGE);
-                // clear the form
-                clearPatientDetails();
-                // Refresh the queue to reflect changes
-                updateQueue();
+                syncCurrentPatientFromFormToQueue();
+
+                if (pendingSaveUiBehavior == PendingSaveUiBehavior.KEEP_FORM_SILENT) {
+                    showSaveStatusMessage("Đã lưu.");
+                } else {
+                    showSaveStatusMessage(response.getMessage() != null ? response.getMessage() : "Đã lưu thành công!");
+                }
+
+                refreshQueueKeepingSelection();
+                pendingSaveUiBehavior = PendingSaveUiBehavior.DEFAULT;
             } else {
                 saved = false;
-                JOptionPane.showMessageDialog(this, 
-                    "Lưu thất bại: " + (response.getMessage() != null ? response.getMessage() : "Lỗi không xác định"), 
-                    "Lỗi", 
+                pendingSaveUiBehavior = PendingSaveUiBehavior.DEFAULT;
+                JOptionPane.showMessageDialog(this,
+                    "Lưu thất bại: " + (response.getMessage() != null ? response.getMessage() : "Lỗi không xác định"),
+                    "Lỗi",
                     JOptionPane.ERROR_MESSAGE);
-                // Form is NOT cleared - user can fix the issue and retry
             }
         });
     }
@@ -3875,6 +3964,10 @@ public class CheckUpPage extends JPanel {
             log.info("Received image manifest for checkup {}. Found {} images. Requesting data individually.", checkupId, imageCount);
     
             SwingUtilities.invokeLater(() -> {
+                if (!isStillSelectedCheckup(checkupId)) {
+                    log.info("Ignoring stale image sync manifest for checkup {}", checkupId);
+                    return;
+                }
                 try {
                     // Step 1: Create the local directory for this checkup
                     Path mediaDir = Paths.get(LocalStorage.checkupMediaBaseDir, checkupId);
@@ -3973,7 +4066,8 @@ public class CheckUpPage extends JPanel {
                         currentId = currentCheckupIdForMedia;
                         currentPath = currentCheckupMediaPath;
                     }
-                    if (currentId != null && response.getCheckupId().equals(currentId) && currentPath != null) {
+                    if (currentId != null && response.getCheckupId().equals(currentId) && currentPath != null
+                            && isStillSelectedCheckup(response.getCheckupId())) {
                         loadAndDisplayImages(currentPath);
                     }
     
@@ -4480,6 +4574,7 @@ public class CheckUpPage extends JPanel {
                 
                 @Override
                 public void windowClosing(WindowEvent e) {
+                    LocalStorage.checkupQueueTypeFilter = (String) checkupTypeFilter.getSelectedItem();
                     applyFilters();
                     // Hide instead of closing to maintain state
                     setVisible(false);
@@ -4560,7 +4655,10 @@ public class CheckUpPage extends JPanel {
                                         // Reselect the previous row visually to avoid confusion
                                         int previousRow = findRowByCheckupId(selectedCheckupId);
                                         if (previousRow != -1) {
-                                            queueTable.setRowSelectionInterval(previousRow, previousRow);
+                                            int viewRow = queueTable.convertRowIndexToView(previousRow);
+                                            if (viewRow != -1) {
+                                                queueTable.setRowSelectionInterval(viewRow, viewRow);
+                                            }
                                         }
                                         return;
                                     }
@@ -4613,7 +4711,10 @@ public class CheckUpPage extends JPanel {
                                     // Reselect the previous row visually to avoid confusion
                                     int previousRow = findRowByCheckupId(selectedCheckupId);
                                     if (previousRow != -1) {
-                                        queueTable.setRowSelectionInterval(previousRow, previousRow);
+                                        int viewRow = queueTable.convertRowIndexToView(previousRow);
+                                        if (viewRow != -1) {
+                                            queueTable.setRowSelectionInterval(viewRow, viewRow);
+                                        }
                                     }
                                     return;
                                 }
@@ -4641,10 +4742,14 @@ public class CheckUpPage extends JPanel {
             actionMap.put("ESCAPE", new AbstractAction() {
                 @Override
                 public void actionPerformed(ActionEvent e) {
+                    LocalStorage.checkupQueueTypeFilter = (String) checkupTypeFilter.getSelectedItem();
                     applyFilters();
                     setVisible(false);
                 }
             });
+
+            restoreFilterFromStorage();
+            applyFilters();
         }
 
         
@@ -4668,7 +4773,10 @@ public class CheckUpPage extends JPanel {
             checkupTypeFilter = new JComboBox<>(new String[]{"Tất cả", "PHỤ KHOA", "THAI", "KHÁC"});
             checkupTypeFilter.setFont(new Font("Arial", Font.PLAIN, 14));
             checkupTypeFilter.setPreferredSize(new Dimension(120, 30));
-            checkupTypeFilter.addActionListener(e -> applyFilters());
+            checkupTypeFilter.addActionListener(e -> {
+                LocalStorage.checkupQueueTypeFilter = (String) checkupTypeFilter.getSelectedItem();
+                applyFilters();
+            });
             filterPanel.add(checkupTypeFilter);
 
             // Separator
@@ -4678,6 +4786,21 @@ public class CheckUpPage extends JPanel {
             filterPanel.add(Box.createHorizontalStrut(20));
 
             return filterPanel;
+        }
+
+        private void restoreFilterFromStorage() {
+            String saved = LocalStorage.checkupQueueTypeFilter;
+            if (saved == null || saved.isEmpty()) {
+                saved = "Tất cả";
+            }
+            for (int i = 0; i < checkupTypeFilter.getItemCount(); i++) {
+                if (saved.equals(checkupTypeFilter.getItemAt(i))) {
+                    checkupTypeFilter.setSelectedIndex(i);
+                    return;
+                }
+            }
+            checkupTypeFilter.setSelectedItem("Tất cả");
+            LocalStorage.checkupQueueTypeFilter = "Tất cả";
         }
 
         private void applyFilters() {
@@ -4712,11 +4835,24 @@ public class CheckUpPage extends JPanel {
             // NOTE: You don't need to call `setRowSorter` again if you're just updating rows.
             // The existing sorter will work correctly.
         
-            // Auto-select first row after applying filters
-            if (queueTable.getRowCount() > 0) {
-                queueTable.setRowSelectionInterval(0, 0);
-                queueTable.requestFocusInWindow();
+            // Keep the current checkup selected when filters/sort refresh the table.
+            if (CheckUpPage.this.selectedCheckupId != null) {
+                int rowToSelect = findRowByCheckupId(CheckUpPage.this.selectedCheckupId);
+                if (rowToSelect != -1) {
+                    int viewRow = queueTable.convertRowIndexToView(rowToSelect);
+                    if (viewRow != -1) {
+                        queueTable.setRowSelectionInterval(viewRow, viewRow);
+                        queueTable.scrollRectToVisible(queueTable.getCellRect(viewRow, 0, true));
+                        return;
+                    }
+                }
+                // Current checkup is hidden by filters — keep form as-is, don't highlight another row.
+                queueTable.clearSelection();
+                return;
             }
+
+            // No active checkup — never auto-select another patient (prevents false correlation with the form).
+            queueTable.clearSelection();
         }
 
         private int findRowByCheckupId(String checkupId) {
@@ -4735,69 +4871,9 @@ public class CheckUpPage extends JPanel {
          */
         public void updateQueueTable() {
             SwingUtilities.invokeLater(() -> {
-                String previouslySelectedId = CheckUpPage.this.selectedCheckupId;
-
-                // Update filtered patients list and apply current filters
                 filteredPatients = new ArrayList<>(patientQueue);
-                applyFilters(); // This will update the table with filtered data and apply sorting
-
-                if (previouslySelectedId != null) {
-                    int rowToSelect = findRowByCheckupId(previouslySelectedId);
-                    
-                    if (rowToSelect != -1) {
-                        int viewRow = queueTable.convertRowIndexToView(rowToSelect);
-                        if (viewRow != -1) {
-                            queueTable.setRowSelectionInterval(viewRow, viewRow);
-                            queueTable.scrollRectToVisible(queueTable.getCellRect(viewRow, 0, true));
-                        }
-                    } else {
-                        // Not visible under current filters. Check if the patient still exists in the full queue.
-                        Patient target = patientQueue.stream()
-                                .filter(p -> previouslySelectedId.equals(p.getCheckupId()))
-                                .findFirst().orElse(null);
-                        if (target != null) {
-                            // Adjust filters to include the target patient's type and re-apply
-                            if (checkupTypeFilter != null) {
-                                String type = target.getCheckupType();
-                                checkupTypeFilter.setSelectedItem(type == null || type.isEmpty() ? "Tất cả" : type);
-                            }
-
-                            applyFilters();
-                            int rowAgain = findRowByCheckupId(previouslySelectedId);
-                            if (rowAgain != -1) {
-                                int viewRow = queueTable.convertRowIndexToView(rowAgain);
-                                if (viewRow != -1) {
-                                    queueTable.setRowSelectionInterval(viewRow, viewRow);
-                                    queueTable.scrollRectToVisible(queueTable.getCellRect(viewRow, 0, true));
-                                }
-                            } else if (queueTable.getRowCount() > 0) {
-                                // Fall back to first row without showing a misleading status-change message
-                                queueTable.setRowSelectionInterval(0, 0);
-                            }
-                        } else {
-                            // Patient truly no longer in queue; show message and clear
-                            JOptionPane.showMessageDialog(
-                                    mainFrame,
-                                    "Trạng thái của bệnh nhân bạn đang chọn đã thay đổi và không còn trong hàng chờ.\n" +
-                                    "Giao diện của bạn sẽ được làm mới.",
-                                    "Cập Nhật Trạng Thái Bệnh Nhân",
-                                    JOptionPane.INFORMATION_MESSAGE
-                            );
-                            
-                            clearPatientDetails(); // Now clear the details
-                            if (queueTable.getRowCount() > 0) {
-                                queueTable.setRowSelectionInterval(0, 0);
-                            }
-                        }
-                    }
-                } else {
-                    // No previously selected patient, auto-select first row if available
-                    if (queueTable.getRowCount() > 0) {
-                        queueTable.setRowSelectionInterval(0, 0);
-                    }
-                }
-                
-                // Ensure table gets focus for keyboard navigation
+                // applyFilters respects the user's chosen filter and selectedCheckupId — never auto-changes filter.
+                applyFilters();
                 queueTable.requestFocusInWindow();
             });
         }
@@ -5323,7 +5399,7 @@ public class CheckUpPage extends JPanel {
 
     // Update the save method to get RTF content
     private void handleSave() {
-        if (checkupIdField.getText().isEmpty()) {
+        if (checkupIdField.getText().isEmpty() || selectedCheckupId == null) {
             JOptionPane.showMessageDialog(this, "Chưa chọn bệnh nhân.", "Lỗi", JOptionPane.ERROR_MESSAGE);
             return;
         }
@@ -5381,8 +5457,16 @@ public class CheckUpPage extends JPanel {
         }
 
         try {
+        String checkupIdToSave = checkupIdField.getText().trim();
+        if (!checkupIdToSave.equals(selectedCheckupId)) {
+            JOptionPane.showMessageDialog(this,
+                "Mã khám trên form không khớp với bệnh nhân đang chọn. Vui lòng chọn lại bệnh nhân.",
+                "Lỗi an toàn dữ liệu", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+        pendingSaveCheckupId = checkupIdToSave;
         SaveCheckupRequest request = new SaveCheckupRequest(
-                Integer.parseInt(checkupIdField.getText()),
+                Integer.parseInt(checkupIdToSave),
                 Integer.parseInt(customerIdField.getText()),
                 Integer.parseInt(doctorIdStr),
                 ultrasoundDoctorIdStr != null ? Integer.parseInt(ultrasoundDoctorIdStr) : null,
@@ -5414,6 +5498,7 @@ public class CheckUpPage extends JPanel {
         // NOTE: Do NOT set saved=true here! Wait for server response in handleSaveCheckupResponse()
         // The response handler will set saved=true only if the server confirms success
         } catch (Exception e) {
+            pendingSaveCheckupId = null;
             log.error("Failed to create or send SaveCheckupRequest", e);
             JOptionPane.showMessageDialog(this, "Lỗi khi lưu dữ liệu: " + e.getMessage(), "Lỗi", JOptionPane.ERROR_MESSAGE);
         }
@@ -5683,10 +5768,8 @@ public class CheckUpPage extends JPanel {
             @Override
             public void actionPerformed(ActionEvent e) {
                 if (actionButtons[3] != null && actionButtons[3].isEnabled()) {
-                    // Bypass confirmation dialog for shortcut
-                    String statusToSave = (String) statusComboBox.getSelectedItem();
+                    pendingSaveUiBehavior = PendingSaveUiBehavior.DEFAULT;
                     handleSave();
-                    afterSaveActions(statusToSave, "Đã lưu thành công (F8)");
                 }
             }
         });
