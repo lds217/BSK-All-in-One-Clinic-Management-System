@@ -34,6 +34,7 @@ public class LocalStorage {
     public static String dataDialogPatientIdSearch = "";
     public static String dataDialogPhoneSearch = "";
     public static boolean dataDialogDateFilterEnabled = false;
+    public static String checkupQueueTypeFilter = "Tất cả";
     public static int unreadMessageCnt = 0;
 
     public static List<DoctorItem> doctorsName = new ArrayList<>();
