@@ -8,6 +8,7 @@ import BsK.common.entity.DoctorItem;
 import BsK.common.packet.req.*;
 import BsK.common.packet.res.*;
 import BsK.common.util.network.NetworkUtil;
+import BsK.common.util.text.CccdUtils;
 import BsK.common.util.text.TextUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.jdatepicker.impl.JDatePanelImpl;
@@ -820,12 +821,20 @@ public class AddDialog extends JDialog {
             String customerAddress = customerAddressField.getText().trim();
             String province = (String) provinceComboBox.getSelectedItem();
             String ward = (String) wardComboBox.getSelectedItem();
-            String cccd = cccdField.getText().trim();
+            // CCCD/DDCN is optional: blank or "0..." placeholders are sent as null
+            String cccd = CccdUtils.normalize(cccdField.getText());
 
             // Validate required fields
-            if (patientName.isEmpty() || patientPhone.isEmpty() || customerAddress.isEmpty() || 
-                dobPicker.getJFormattedTextField().getText().isEmpty() || cccd.isEmpty()) {
+            if (patientName.isEmpty() || patientPhone.isEmpty() || customerAddress.isEmpty() ||
+                dobPicker.getJFormattedTextField().getText().isEmpty()) {
                 JOptionPane.showMessageDialog(this, "Vui lòng điền đầy đủ thông tin");
+                return;
+            }
+
+            if (cccd != null && !CccdUtils.isValid(cccd)) {
+                JOptionPane.showMessageDialog(this,
+                        "CCCD/DDCN không hợp lệ (phải gồm 12 chữ số, hoặc 9 chữ số với CMND cũ).\n"
+                                + "Nếu bệnh nhân không có CCCD, hãy để trống ô này.");
                 return;
             }
             
@@ -1072,7 +1081,8 @@ private void setupDebounceSearch() {
         patientNameField.setText(patientName);
         patientPhoneField.setText(patientPhone);
         patientGenderField.setSelectedItem(patientGender);
-        cccdField.setText(patientCccd);
+        String normalizedCccd = CccdUtils.normalize(patientCccd);
+        cccdField.setText(normalizedCccd != null ? normalizedCccd : "");
 
         // Reset targetWard
         targetWard = null;
