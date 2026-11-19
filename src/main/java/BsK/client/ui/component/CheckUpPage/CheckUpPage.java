@@ -24,6 +24,7 @@ import BsK.common.entity.Template;
 import BsK.common.packet.req.*;
 import BsK.common.packet.res.*;
 import BsK.common.util.network.NetworkUtil;
+import BsK.common.util.text.CccdUtils;
 import BsK.common.util.text.TextUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.jdatepicker.impl.JDatePanelImpl;
@@ -2452,7 +2453,8 @@ public class CheckUpPage extends JPanel {
         }
         genderComboBox.setSelectedItem(selectedPatient.getCustomerGender());
         checkupTypeComboBox.setSelectedItem(selectedPatient.getCheckupType());
-        customerCccdDdcnField.setText(selectedPatient.getCccdDdcn() != null ? selectedPatient.getCccdDdcn() : "");
+        String normalizedCccd = CccdUtils.normalize(selectedPatient.getCccdDdcn());
+        customerCccdDdcnField.setText(normalizedCccd != null ? normalizedCccd : "");
 
 
         NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetPatientHistoryRequest(Integer.parseInt(selectedPatient.getCustomerId())));
@@ -5505,7 +5507,7 @@ public class CheckUpPage extends JPanel {
                 customerPhoneField.getText(),
                 (Double) customerWeightSpinner.getValue(),
                 (Double) customerHeightSpinner.getValue(),
-                customerCccdDdcnField.getText(),
+                CccdUtils.normalize(customerCccdDdcnField.getText()),
                 (Integer) patientHeartRateSpinner.getValue(),
                 bloodPressureSystolicSpinner.getValue() + "/" + bloodPressureDiastolicSpinner.getValue(),
             medicinePrescription,

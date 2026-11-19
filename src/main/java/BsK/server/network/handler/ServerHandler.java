@@ -48,6 +48,7 @@ import BsK.common.entity.Medicine;
 import BsK.common.entity.Service;
 import BsK.common.entity.PatientHistory;
 import BsK.common.entity.Template;
+import BsK.common.util.text.CccdUtils;
 import BsK.common.util.text.TextUtils;
 import BsK.common.util.date.DateUtils;
 import java.time.Instant;
@@ -623,7 +624,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                 preparedStatement.setString(4, addPatientRequest.getPatientPhone());
                 preparedStatement.setString(5, addPatientRequest.getPatientAddress());
                 preparedStatement.setString(6, addPatientRequest.getPatientGender());
-                preparedStatement.setString(7, addPatientRequest.getPatientCccdDdcn());
+                preparedStatement.setString(7, CccdUtils.normalize(addPatientRequest.getPatientCccdDdcn()));
                 preparedStatement.executeUpdate();
     
                 // Lấy customerId vừa được tạo ra
@@ -919,7 +920,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                     customerStmt.setString(5, saveCheckupRequest.getCustomerGender());
                     customerStmt.setString(6, saveCheckupRequest.getCustomerAddress());
                     customerStmt.setString(7, saveCheckupRequest.getCustomerNumber());
-                    customerStmt.setString(8, saveCheckupRequest.getCustomerCccdDdcn());
+                    customerStmt.setString(8, CccdUtils.normalize(saveCheckupRequest.getCustomerCccdDdcn()));
                     customerStmt.executeUpdate();
                 }
     
