@@ -9,6 +9,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 
 import BsK.server.database.DatabaseManager;
+import BsK.server.security.PasswordHasher;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 
@@ -27,45 +28,43 @@ public class User {
   }
 
     /**
-   * Xác thực người dùng.
-   * PHIÊN BẢN NÀY ĐÃ SỬA LỖI SQL INJECTION VÀ LỖI KỸ THUẬT,
-   * NHƯNG VẪN CÓ RỦI RO BẢO MẬT VÌ DÙNG MẬT KHẨU PLAINTEXT.
+   * Xác thực người dùng bằng cách so sánh mật khẩu với mã băm đã lưu.
    */
   public void authenticate(String username, String password) {
-    // Sử dụng PreparedStatement để chống SQL Injection
-    String sql = "SELECT user_id, role_name, deleted FROM User WHERE user_name = ? AND password = ?";
-    
+    // Tên đăng nhập không có ràng buộc UNIQUE, nên phải kiểm tra mọi dòng trùng tên.
+    // Tài khoản đang hoạt động được kiểm tra trước.
+    String sql = "SELECT user_id, role_name, deleted, password FROM User WHERE user_name = ? "
+        + "ORDER BY deleted ASC, user_id ASC";
+
     // Sử dụng try-with-resources để quản lý kết nối và tài nguyên an toàn
     try (Connection conn = DatabaseManager.getConnection();
         PreparedStatement stmt = conn.prepareStatement(sql)) {
-        
+
         stmt.setString(1, username);
-        stmt.setString(2, password); // Vẫn so sánh plaintext, cần được thay đổi
-        
+
+        this.role = Role.GUEST;
+        this.userId = -1;
+
         try (ResultSet rs = stmt.executeQuery()) {
-            // Tên đăng nhập là duy nhất, chỉ nên có 1 kết quả. Dùng if thay vì while.
-            if (rs.next()) {
-                boolean isDeleted = rs.getBoolean("deleted");
-                if (isDeleted) {
-                    log.warn("Login attempt for deleted user: {}", username);
-                    // Không xác thực tài khoản đã bị xóa
-                    this.role = Role.GUEST;
-                    this.userId = -1;
-                } else {
-                    log.info("User '{}' logged in successfully.", username);
-                    this.userId = rs.getInt("user_id");
-                    this.role = Role.valueOf(rs.getString("role_name"));
-                    // Việc cập nhật session/channel nên được thực hiện ở ServerHandler
-                    // sau khi kiểm tra trạng thái xác thực của đối tượng User này.
+            while (rs.next()) {
+                if (!PasswordHasher.verify(password, rs.getString("password"))) {
+                    continue;
                 }
-            } else {
-                log.warn("Failed login attempt for username: {}", username);
-                // Không tìm thấy user hoặc sai mật khẩu
-                this.role = Role.GUEST;
-                this.userId = -1;
+                if (rs.getBoolean("deleted")) {
+                    // Không xác thực tài khoản đã bị xóa
+                    log.warn("Login attempt for deleted user: {}", username);
+                    return;
+                }
+                log.info("User '{}' logged in successfully.", username);
+                this.userId = rs.getInt("user_id");
+                this.role = Role.valueOf(rs.getString("role_name"));
+                // Việc cập nhật session/channel nên được thực hiện ở ServerHandler
+                // sau khi kiểm tra trạng thái xác thực của đối tượng User này.
+                return;
             }
         }
-        
+        log.warn("Failed login attempt for username: {}", username);
+
     } catch (SQLException e) {
         log.error("Database error during authentication for user '{}'", username, e);
         // Đảm bảo người dùng không được xác thực nếu có lỗi

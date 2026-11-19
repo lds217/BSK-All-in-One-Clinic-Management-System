@@ -15,6 +15,7 @@ import BsK.server.network.manager.SessionManager;
 import BsK.server.network.util.UserUtil;
 import BsK.server.network.entity.Role;
 import BsK.server.network.entity.User;
+import BsK.server.security.PasswordHasher;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
@@ -75,8 +76,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
 
 
     if (packet instanceof LoginRequest loginRequest) {
-      log.debug(
-          "Received login request: {}, {}", loginRequest.getUsername(), loginRequest.getPassword());
+      log.debug("Received login request: {}", loginRequest.getUsername());
       var user = SessionManager.getUserByChannel(ctx.channel().id().asLongText());
       user.authenticate(loginRequest.getUsername(), loginRequest.getPassword());
 
@@ -90,10 +90,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         UserUtil.sendPacket(user.getSessionId(), new ErrorResponse(Error.INVALID_CREDENTIALS));
       }
     } else if (packet instanceof RegisterRequest registerRequest) {
-      log.debug(
-          "Received register request: {}, {}",
-          registerRequest.getUsername(),
-          registerRequest.getPassword());
+      log.debug("Received register request: {}", registerRequest.getUsername());
       // Tạo user trong database hoặc check exist
       boolean isUserExist = false;
     } else if (packet instanceof LogoutRequest) {
@@ -2109,13 +2106,18 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
             return;
         }
         log.info("Received AddUserRequest for username: {}", addUserRequest.getUserName());
-    
+
+        if (addUserRequest.getPassword() == null || addUserRequest.getPassword().isEmpty()) {
+            UserUtil.sendPacket(currentUser.getSessionId(), new ErrorResponse(Error.INVALID_INPUT));
+            return;
+        }
+
         String sql = "INSERT INTO User (user_name, password, last_name, first_name, role_name, deleted) VALUES (?, ?, ?, ?, ?, ?)";
         try (Connection conn = DatabaseManager.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             
             stmt.setString(1, addUserRequest.getUserName());
-            stmt.setString(2, addUserRequest.getPassword()); // Cân nhắc mã hóa mật khẩu trước khi lưu
+            stmt.setString(2, PasswordHasher.hash(addUserRequest.getPassword()));
             stmt.setString(3, addUserRequest.getLastName());
             stmt.setString(4, addUserRequest.getFirstName());
             stmt.setString(5, addUserRequest.getRole());
@@ -2151,7 +2153,9 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         boolean isPasswordIncluded;
     
         // Kiểm tra xem client có gửi mật khẩu mới không. Nếu không, không cập nhật mật khẩu.
-        if (editUserRequest.getPassword() != null && !editUserRequest.getPassword().isEmpty()) {
+        // Client phiên bản cũ gửi lại mã băm đang hiển thị, không được băm lại giá trị đó.
+        String newPassword = editUserRequest.getPassword();
+        if (newPassword != null && !newPassword.isEmpty() && !PasswordHasher.isHash(newPassword)) {
             sql = "UPDATE User SET user_name = ?, password = ?, last_name = ?, first_name = ?, role_name = ?, deleted = ? WHERE user_id = ?";
             isPasswordIncluded = true;
         } else {
@@ -2164,7 +2168,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
     
             if (isPasswordIncluded) {
                 stmt.setString(1, editUserRequest.getUserName());
-                stmt.setString(2, editUserRequest.getPassword()); // Cân nhắc mã hóa mật khẩu
+                stmt.setString(2, PasswordHasher.hash(newPassword));
                 stmt.setString(3, editUserRequest.getLastName());
                 stmt.setString(4, editUserRequest.getFirstName());
                 stmt.setString(5, editUserRequest.getRole());
@@ -2401,7 +2405,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
 
   private void getAllUser(int sessionId) {
     log.debug("Fetching all users for session: {}", sessionId);
-    // SỬA LỖI BẢO MẬT: Đã loại bỏ cột 'password' khỏi câu truy vấn
+    // Cột 'password' chỉ chứa mã băm; chỉ ADMIN mới gọi được hàm này.
     String sql = "SELECT user_id, user_name, last_name, password, first_name, role_name, deleted FROM User ORDER BY user_id";
     
     // SỬA LỖI QUAN TRỌNG: Sử dụng try-with-resources để quản lý tài nguyên an toàn
@@ -2420,7 +2424,6 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
             String role = rs.getString("role_name");
             String deleted = String.valueOf(rs.getBoolean("deleted")); // Lấy giá trị boolean an toàn
 
-            // Mật khẩu đã được cố ý loại bỏ khỏi câu truy vấn để bảo mật
             String result = String.join("|", userId, userName, lastName, firstName, password, role, deleted);
             resultList.add(result);
         }
