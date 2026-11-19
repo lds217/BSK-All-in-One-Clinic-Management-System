@@ -123,7 +123,7 @@ public class AddDialog extends JDialog {
     }
     
     private void sendPatientSearchRequest(String searchName, String searchPhone, String searchId, int page) {
-        log.info("Sending GetRecentPatientRequest with search: name='{}', phone='{}', id='{}', page={}", searchName, searchPhone, searchId, page);
+        log.debug("Sending GetRecentPatientRequest, page={}", page);
         NetworkUtil.sendPacket(ClientHandler.ctx.channel(), new GetRecentPatientRequest(searchName, searchPhone, searchId, page, pageSize));
     }
     

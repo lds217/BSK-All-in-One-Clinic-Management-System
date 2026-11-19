@@ -2362,7 +2362,7 @@ public class CheckUpPage extends JPanel {
             dobPicker.getModel().setDate(calendar.get(Calendar.YEAR), calendar.get(Calendar.MONTH), calendar.get(Calendar.DAY_OF_MONTH));
             dobPicker.getModel().setSelected(true);
         } else {
-            log.error("Invalid date format for DOB: {}", selectedPatient.getCustomerDob());
+            log.error("Invalid date format for DOB (checkup {})", selectedPatient.getCheckupId());
             JOptionPane.showMessageDialog(null, "Định dạng ngày không hợp lệ cho ngày sinh: " + selectedPatient.getCustomerDob(), "Lỗi định dạng ngày", JOptionPane.ERROR_MESSAGE);
         }
 
