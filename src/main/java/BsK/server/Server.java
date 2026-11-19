@@ -2,6 +2,7 @@ package BsK.server;
 
 import BsK.server.database.DatabaseManager;
 import BsK.server.network.handler.ServerHandler;
+import BsK.server.security.UserAccountBootstrap;
 import BsK.server.service.GoogleDriveServiceOAuth;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.ChannelFuture;
@@ -21,10 +22,14 @@ import java.awt.Color;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.InvocationTargetException;
 import java.net.InetSocketAddress;
 import java.nio.file.Files;
 import java.sql.SQLException;
 import java.util.Properties;
+import javax.swing.JOptionPane;
+import javax.swing.JTextField;
+import javax.swing.SwingUtilities;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -259,6 +264,25 @@ public class Server {
     public Server() throws SQLException {
     }
 
+    private static void showGeneratedAdminPassword(ServerDashboard dashboard, String password) {
+        JTextField passwordField = new JTextField(password);
+        passwordField.setEditable(false);
+        Object[] message = {
+            "Đã tạo tài khoản quản trị: " + UserAccountBootstrap.DEFAULT_ADMIN_USERNAME,
+            "Mật khẩu chỉ hiển thị một lần. Hãy lưu lại trước khi đóng cửa sổ này:",
+            passwordField
+        };
+        try {
+            SwingUtilities.invokeAndWait(() -> JOptionPane.showMessageDialog(
+                dashboard, message, "Tài khoản quản trị", JOptionPane.WARNING_MESSAGE));
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted while showing the admin password", e);
+        } catch (InvocationTargetException e) {
+            throw new IllegalStateException("Could not show the admin password", e);
+        }
+    }
+
     public static void main(String[] args) throws InterruptedException, SQLException {
         log.info("\n____   _____ _  __\n|  _ \\ / ____| |/\n| |_) | (___ | ' /\n|  _ < \\___ \\|  <\n| |_) |____) | . \\\n|____/|_____/|_|\\_\n");
         // Initialize and show server dashboard
@@ -270,6 +294,16 @@ public class Server {
         // Update Google Drive status on dashboard
         dashboard.updateGoogleDriveStatus(isGoogleDriveConnected(), 
             isGoogleDriveConnected() ? "Đã kết nối" : "Chưa kết nối");
+
+        // Accounts must be ready before clients connect: login only accepts hashed passwords.
+        try {
+          UserAccountBootstrap.run(password -> showGeneratedAdminPassword(dashboard, password));
+        } catch (SQLException | RuntimeException e) {
+          log.error("Failed to prepare user accounts. Server will not start.", e);
+          dashboard.updateStatus("Lỗi khởi tạo tài khoản", Color.RED);
+          dashboard.addLog("Không thể khởi tạo tài khoản người dùng. Máy chủ chưa được khởi động.");
+          return;
+        }
 
         EventLoopGroup parentGroup =
             Epoll.isAvailable() ? new EpollEventLoopGroup() : new NioEventLoopGroup();

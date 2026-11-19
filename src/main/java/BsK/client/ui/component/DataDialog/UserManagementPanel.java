@@ -32,6 +32,7 @@ public class UserManagementPanel extends JPanel {
     // --- Input Fields ---
     private JTextField usernameField;
     private JPasswordField passwordField;
+    private JTextField passwordHashField;
     private JTextField lastNameField;
     private JTextField firstNameField;
     private JComboBox<String> roleComboBox;
@@ -117,10 +118,22 @@ public class UserManagementPanel extends JPanel {
         gbc.gridy++;
         gbc.gridx = 0;
         gbc.weightx = 0;
-        panel.add(new JLabel("Mật khẩu:"), gbc);
+        panel.add(new JLabel("Mật khẩu mới:"), gbc);
         gbc.gridx = 1;
         gbc.weightx = 1;
         panel.add(createPasswordPanel(), gbc); // Use a helper method to create the composite panel
+
+        // --- Stored hash (read-only) ---
+        gbc.gridy++;
+        gbc.gridx = 0;
+        gbc.weightx = 0;
+        panel.add(new JLabel("Mã băm:"), gbc);
+        gbc.gridx = 1;
+        gbc.weightx = 1;
+        passwordHashField = new JTextField(15);
+        passwordHashField.setEditable(false);
+        passwordHashField.setToolTipText("Mật khẩu chỉ được lưu dưới dạng mã băm và không thể xem lại.");
+        panel.add(passwordHashField, gbc);
 
         // --- Row 2: Last Name ---
         gbc.gridy++;
@@ -156,7 +169,8 @@ public class UserManagementPanel extends JPanel {
     private JPanel createPasswordPanel() {
         JPanel passwordPanel = new JPanel(new BorderLayout(5, 0));
         passwordField = new JPasswordField(15);
-        
+        passwordField.setToolTipText("Để trống nếu không muốn đổi mật khẩu.");
+
         JButton viewPasswordButton = new JButton();
         try {
             ImageIcon viewIcon = new ImageIcon("src/main/java/BsK/client/ui/assets/icon/view.png");
@@ -306,7 +320,9 @@ public class UserManagementPanel extends JPanel {
         // --- Password field population ---
         isPasswordVisible = false; // Reset visibility state
         passwordField.setEchoChar('•'); // Ensure it's hidden
-        passwordField.setText(user.getPassword()); // Populate with actual password
+        passwordField.setText(""); // Only filled in when changing the password
+        passwordHashField.setText(user.getPassword());
+        passwordHashField.setCaretPosition(0);
 
         btnAdd.setEnabled(false);
         btnEdit.setEnabled(true);
@@ -325,7 +341,8 @@ public class UserManagementPanel extends JPanel {
         isPasswordVisible = false;
         passwordField.setEchoChar('•');
         passwordField.setText("");
-        
+        passwordHashField.setText("");
+
         userTable.clearSelection();
         usernameField.requestFocusInWindow();
 
