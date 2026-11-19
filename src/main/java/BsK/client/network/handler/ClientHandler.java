@@ -140,7 +140,7 @@ public class ClientHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         log.debug("No listeners registered for response type: {}", packet.getClass().getName());
       }
     } else {
-      log.warn("Unknown or null packet received: {}", frame.text());
+      log.warn("Unknown or null packet received ({} chars)", frame.text().length());
     }
   }
 

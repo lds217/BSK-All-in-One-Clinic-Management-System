@@ -236,7 +236,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                 }
                 
                 UserUtil.sendPacket(currentUser.getSessionId(), new GetDoctorGeneralInfoResponse(resultArray));
-                log.info("Sent response to client GetDoctorGeneralInfo");
+                log.debug("Sent response to client GetDoctorGeneralInfo");
             }
         } catch (SQLException e) {
             log.error("Error processing GetDoctorGeneralInfo", e);
@@ -315,7 +315,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
     
                     String[][] resultArray = resultList.toArray(new String[0][]);
                     UserUtil.sendPacket(currentUser.getSessionId(), new GetPatientHistoryResponse(resultArray));
-                    log.info("Sent patient history for patientId: {}", getPatientHistoryRequest.getPatientId());
+                    log.debug("Sent patient history for patientId: {}", getPatientHistoryRequest.getPatientId());
                 }
             }
         } catch (SQLException e) {
@@ -601,7 +601,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                 try (ResultSet existingPatient = checkStatement.executeQuery()) {
                     if (existingPatient.next()) {
                         String existingName = (existingPatient.getString(1) + " " + existingPatient.getString(2)).trim();
-                        log.info("Duplicate phone number detected: {}", addPatientRequest.getPatientPhone());
+                        log.info("Duplicate phone number detected while adding a patient");
                         UserUtil.sendPacket(currentUser.getSessionId(), new AddPatientResponse(false, -1,
                                 "Bệnh nhân đã tồn tại! Số điện thoại " + addPatientRequest.getPatientPhone()
                                         + " đã được đăng ký cho bệnh nhân: " + existingName));
@@ -1148,7 +1148,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         }
         
         UserUtil.sendPacket(currentUser.getSessionId(), new GetOrderInfoByCheckupRes(medicinePrescription, servicePrescription));
-        log.info("Sent order info for checkup {} to client", checkupId);
+        log.debug("Sent order info for checkup {} to client", checkupId);
     }
     
     if (packet instanceof AddTemplateReq addTemplateReq) {
@@ -1287,7 +1287,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
     }
     
     if (packet instanceof UploadCheckupImageRequest uploadCheckupImageRequest) {
-        log.info("Received UploadCheckupImageRequest for checkupId: {}", uploadCheckupImageRequest.getCheckupId());
+        log.debug("Received UploadCheckupImageRequest for checkupId: {}", uploadCheckupImageRequest.getCheckupId());
     
         String checkupId = uploadCheckupImageRequest.getCheckupId();
         String originalFileName = uploadCheckupImageRequest.getFileName(); // Use the original name
@@ -1352,7 +1352,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
     }
 
     if (packet instanceof DeleteCheckupImageRequest deleteCheckupImageRequest) {
-        log.info("Received DeleteCheckupImageRequest for checkupId: {}, fileName: {}", 
+        log.debug("Received DeleteCheckupImageRequest for checkupId: {}, fileName: {}", 
                 deleteCheckupImageRequest.getCheckupId(), deleteCheckupImageRequest.getFileName());
     
         String checkupId = deleteCheckupImageRequest.getCheckupId();
@@ -1534,7 +1534,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
 
       if (packet instanceof GetImagesByCheckupIdReq getImagesByCheckupIdReq) {
         String checkupId = getImagesByCheckupIdReq.getCheckupId();
-        log.info("Received GetImagesByCheckupIdReq for checkupId: {}", checkupId);
+        log.debug("Received GetImagesByCheckupIdReq for checkupId: {}", checkupId);
 
         List<String> imageNames = new ArrayList<>();
         List<byte[]> imageDatas = new ArrayList<>();
@@ -1565,12 +1565,12 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         }
 
         UserUtil.sendPacket(currentUser.getSessionId(), new GetImagesByCheckupIdRes(checkupId, imageNames, imageDatas));
-        log.info("Sent {} images for checkupId: {}", imageDatas.size(), checkupId);
+        log.debug("Sent {} images for checkupId: {}", imageDatas.size(), checkupId);
       }
 
       if (packet instanceof SyncCheckupImagesRequest syncCheckupImagesRequest) {
         String checkupId = syncCheckupImagesRequest.getCheckupId();
-        log.info("Received SyncCheckupImagesRequest for checkupId: {}", checkupId);
+        log.debug("Received SyncCheckupImagesRequest for checkupId: {}", checkupId);
     
         List<String> imageNames = new ArrayList<>();
         // No longer create a list for byte data: List<byte[]> imageDatas = new ArrayList<>();
@@ -1591,7 +1591,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
     
                 success = true;
                 message = String.format("Successfully found %d image names for checkup %s", imageNames.size(), checkupId);
-                log.info(message);
+                log.debug(message);
                 
             } catch (IOException e) {
                 log.error("Failed to list images for checkupId: {}", checkupId, e);
@@ -1605,12 +1605,12 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         
         // Note: imageDatas has been removed from the constructor
         UserUtil.sendPacket(currentUser.getSessionId(), new SyncCheckupImagesResponse(checkupId, imageNames, success, message));
-        log.info("Sent sync response with {} image names for checkupId: {}", imageNames.size(), checkupId);
+        log.debug("Sent sync response with {} image names for checkupId: {}", imageNames.size(), checkupId);
     }
     if (packet instanceof GetCheckupImageRequest getImageRequest) {
         String checkupId = getImageRequest.getCheckupId();
         String imageName = getImageRequest.getImageName();
-        log.info("Received GetCheckupImageRequest for image '{}' in checkup {}", imageName, checkupId);
+        log.debug("Received GetCheckupImageRequest for image '{}' in checkup {}", imageName, checkupId);
     
         byte[] imageData = null;
         boolean success = false;
@@ -1709,7 +1709,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
             UserUtil.sendPacket(currentUser.getSessionId(), new ErrorResponse(Error.ACCESS_DENIED));
             return;
         }
-        log.info("Processing GetCheckupDataRequest for page {} with all info.", getCheckupDataRequest.getPage());
+        log.debug("Processing GetCheckupDataRequest for page {} with all info.", getCheckupDataRequest.getPage());
     
         try (Connection conn = DatabaseManager.getConnection()) {
             String baseSelect = "SELECT a.checkup_id, a.checkup_date, c.customer_last_name, c.customer_first_name, " +
@@ -1890,13 +1890,13 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
       
       
       if (packet instanceof SimpleMessageRequest simpleMessageRequest) {
-        log.info("Received SimpleMessageRequest from {}", simpleMessageRequest.getSenderName());
+        log.debug("Received SimpleMessageRequest from {}", simpleMessageRequest.getSenderName());
         SimpleMessageResponse response = new SimpleMessageResponse(simpleMessageRequest.getSenderName(), simpleMessageRequest.getMessage());
         int maxCurId = SessionManager.getMaxSessionId();
         for (int sessionId = 1; sessionId <= maxCurId; sessionId++) {
           UserUtil.sendPacket(sessionId, response);
         }
-        log.info("Sent SimpleMessageResponse to all sessions");
+        log.debug("Sent SimpleMessageResponse to all sessions");
       }
       if (packet instanceof AddMedicineRequest addMedicineRequest) {
         if (!currentUser.getRole().equals(Role.ADMIN)) {
@@ -2095,7 +2095,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
             UserUtil.sendPacket(currentUser.getSessionId(), new ErrorResponse(Error.ACCESS_DENIED));
             return;
         }
-        log.info("Received GetAllUserInfoRequest");
+        log.debug("Received GetAllUserInfoRequest");
         // Gọi hàm trợ giúp đã được viết lại một cách an toàn
         getAllUser(currentUser.getSessionId());
     }
@@ -2385,7 +2385,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                 serviceData
             );
             UserUtil.sendPacket(currentUser.getSessionId(), response);
-            log.info("Sent GetExportDataResponse with {} patients", patientData.length);
+            log.debug("Sent GetExportDataResponse with {} patients", patientData.length);
             
         } catch (SQLException e) {
             log.error("Error processing GetExportDataRequest", e);
@@ -2795,7 +2795,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
           return;
         }
 
-        log.info("Creating Google Drive folder for patient {} ({} {})", patientId, patientLastName, patientFirstName);
+        log.info("Creating Google Drive folder for patient {}", patientId);
         
         // Create English name (without Patient_ prefix since createPatientFolder will add it)
         String fullName = (patientLastName + " " + patientFirstName).trim();
@@ -2902,7 +2902,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                 return;
             }
 
-            log.info("Creating Google Drive checkup folder for checkup {} (patient: {} {})", checkupId, patientLastName, patientFirstName);
+            log.info("Creating Google Drive checkup folder for checkup {}", checkupId);
             
             // Giả sử các hàm này đã được triển khai và hoạt động đúng
             String checkupFolderName = TextUtils.createCheckupFolderNameWithId(checkupId, patientLastName, patientFirstName);
@@ -3286,9 +3286,9 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
             UserUtil.sendPacket(sessionId, new TodayPatientCountResponse(totalPatientsToday));
             UserUtil.sendPacket(sessionId, new RecheckCountResponse(totalRecheckToday));
         }
-        log.info("send checkup queue update response to all clients");
-        log.info("send today patient count response to all clients");
-        log.info("send recheck count response to all clients");
+        log.debug("send checkup queue update response to all clients");
+        log.debug("send today patient count response to all clients");
+        log.debug("send recheck count response to all clients");
 
     } catch (SQLException e) {
         log.error("Error during broadcastQueueUpdate", e);
