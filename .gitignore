@@ -60,6 +60,9 @@ buildNumber.properties
 *.mkv
 *.png
 *.jpg
+# README screenshots (demo data only)
+!docs/screenshots/*.png
+!docs/screenshots/*.jpg
 
 # ===== Database =====
 *.db
