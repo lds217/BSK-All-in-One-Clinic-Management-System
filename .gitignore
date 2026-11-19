@@ -83,3 +83,10 @@ src/main/resources/google-drive-service-account.json
 # ===== Local docs =====
 GOOGLE_DRIVE_SETUP.md
 GoogleDriveTest_README.md
+
+# ===== Local config with real clinic details (copy config/config.properties.example) =====
+config/config.properties
+config/app_settings.properties
+
+# ===== Ultrasound machine export folder (patient images) =====
+ANH SIEU AM/

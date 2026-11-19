@@ -1,0 +1,15 @@
+# BSK Clinic Management System configuration
+# Copy this file to config/config.properties and fill in your clinic's details.
+# config/config.properties is git-ignored so real clinic details are never committed.
+# Non-ASCII text must use \uXXXX escapes (the Settings dialog writes them for you).
+app.auto_change_status_to_finished=false
+clinic.address=Số ABC, Đường XYZ, Quận 1, TP.HCM
+clinic.name=Phòng khám BSK
+clinic.phone=0900000000
+clinic.prefix=PHÒNG KHÁM
+google.drive.enabled=false
+google.drive.root.folder=BSK_Clinic_Patient_Files
+server.address=127.0.0.1
+server.port=1999
+storage.checkup_media_base_dir=image/checkup_media
+storage.ultrasound_folder_path=ANH SIEU AM
