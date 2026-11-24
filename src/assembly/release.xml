@@ -1,0 +1,49 @@
+<assembly xmlns="http://maven.apache.org/ASSEMBLY/2.2.0"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://maven.apache.org/ASSEMBLY/2.2.0 https://maven.apache.org/xsd/assembly-2.2.0.xsd">
+    <!-- Builds target/release: the files published to the clinic PCs (see bsk_update.ps1). -->
+    <id>release</id>
+    <formats>
+        <format>dir</format>
+    </formats>
+    <includeBaseDirectory>false</includeBaseDirectory>
+    <files>
+        <file>
+            <source>${project.build.directory}/bsk.jar</source>
+            <destName>bsk.jar</destName>
+        </file>
+        <file>
+            <source>${project.build.directory}/bsk-client.jar</source>
+            <destName>client.jar</destName>
+        </file>
+        <file>
+            <source>${project.build.directory}/bsk-server.jar</source>
+            <destName>server.jar</destName>
+        </file>
+        <file>
+            <source>bsk_update.ps1</source>
+        </file>
+    </files>
+    <fileSets>
+        <!-- Launch scripts: not part of the update manifest (a running .bat cannot be replaced),
+             only needed once to move a PC to the new updater. -->
+        <fileSet>
+            <directory>${project.basedir}</directory>
+            <outputDirectory>/</outputDirectory>
+            <includes>
+                <include>start_client.bat</include>
+                <include>start_server.bat</include>
+                <include>update_client.bat</include>
+                <include>update_server.bat</include>
+            </includes>
+            <lineEnding>crlf</lineEnding>
+        </fileSet>
+    </fileSets>
+    <dependencySets>
+        <dependencySet>
+            <outputDirectory>lib</outputDirectory>
+            <useProjectArtifact>false</useProjectArtifact>
+            <scope>runtime</scope>
+        </dependencySet>
+    </dependencySets>
+</assembly>

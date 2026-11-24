@@ -104,7 +104,16 @@ It covers the whole visit: registering the patient, the waiting queue, the TV ca
 mvn compile
 ```
 
-`mvn package` also builds two runnable fat JARs in `target/`: `bsk-server-jar-with-dependencies.jar` and `bsk-client-jar-with-dependencies.jar`. They are large (~650 MB) because JavaCV bundles native OpenCV/FFmpeg for every platform.
+`mvn package` builds the installation in `target/release/`:
+
+| File | Size | What it is |
+|---|---|---|
+| `bsk.jar` | ~9 MB | The application. Changes with every release. |
+| `client.jar`, `server.jar` | ~5 KB | Launchers (double-clickable). They only name the main class and list `bsk.jar` + `lib/*.jar` on the class path. |
+| `lib/` | ~150 MB | Dependencies. Native OpenCV/FFmpeg/OpenBLAS are Windows x64 only (`javacpp.platform.classifier` in `pom.xml`). |
+| `bsk_update.ps1` | | The updater (see [Deployment and updates](#deployment-and-updates)). |
+
+Run with `java -jar target/release/server.jar` or `java -jar target/release/client.jar` from a folder that has `config/`.
 
 ### 2. Configure
 
@@ -179,11 +188,32 @@ You can edit them with **Jaspersoft Studio**. The fonts (SVN-Arial, Times New Ro
 
 ## Deployment and updates
 
-A typical clinic install keeps `server.jar` / `client.jar` next to `config/`, `database/` and the version files. The `update_server.bat` / `update_client.bat` scripts (PowerShell under the hood) work like this:
+Each clinic PC has one folder with `bsk.jar`, `client.jar`, `server.jar`, `lib/`, `config/`, the version files and these scripts:
 
-1. Read the local `version_server.json` / `version_client.json`.
-2. Fetch `latest.json` from the GitHub release.
-3. If there is a newer version, stop the app, back up the old JAR as `*.jar.old`, download the new JAR and restart.
+| Script | Who uses it | What it does |
+|---|---|---|
+| `start_client.bat` / `start_server.bat` | Staff, every day (desktop shortcut) | Installs a new version if there is one, then starts the program. |
+| `update_client.bat` / `update_server.bat` | Administrator (e.g. over TeamViewer) | Offers to close the running BSK programs, updates, then starts. Add `rollback` to go back to the previous version. |
+
+`bsk_update.ps1` reads `bsk-manifest.json` from the **latest GitHub release**. The manifest lists every file with its SHA-256, so the PC only downloads files that changed: usually just `bsk.jar` (~9 MB). Dependency JARs are downloaded from Maven Central, and only when a dependency changes. Every download is checked against its SHA-256, and files are only replaced once all of them have downloaded. The replaced files go to `update_backup/`.
+
+The program always starts, even if updating is not possible: with no internet, a failed download, or the files in use (for example, the client on the server PC while the server runs), it starts the installed version. Each run is logged in `logs/update.log`.
+
+### Publishing a release
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools\make_release.ps1 -Version 1.6.0 -Notes "What changed"
+```
+
+This builds `target/release`, writes `bsk-manifest.json` and checks that every dependency can be downloaded from Maven Central. Then create a GitHub release with tag `v1.6.0`, published as **Latest** (not a draft or pre-release), and upload the five files the script lists: `bsk.jar`, `client.jar`, `server.jar`, `bsk_update.ps1` and `bsk-manifest.json`. PCs pick it up the next time the program is started.
+
+### Moving an existing PC to the new updater (once per PC)
+
+PCs that still have the old single `client.jar` / `server.jar` (~650 MB) need one manual step:
+
+1. Copy `bsk_update.ps1`, `start_client.bat` and `update_client.bat` (or the `server` versions on the server PC) into the BSK folder, replacing the old `update_*.bat`. They are in `target/release` after `make_release.ps1`; attach them to the first release so they can be downloaded on the PC. The old `update_*_script.ps1` files can be deleted.
+2. Run `update_client.bat` (or `update_server.bat`). It downloads the full installation once (~160 MB) and keeps the old JAR in `update_backup/`.
+3. Point the desktop shortcut at `start_client.bat` (or `start_server.bat`). On the server PC, a shortcut in `shell:startup` makes the server start and update with Windows.
 
 ## Project layout
 
@@ -199,6 +229,9 @@ src/main/java/BsK/
 └── common/                 Shared entities, request/response packets, utilities
 src/main/resources/         Fonts, icons, JasperReports templates, log4j2 config
 config/config.properties    Runtime configuration
+src/assembly/release.xml    Layout of target/release
+tools/make_release.ps1      Builds a release and its update manifest
+bsk_update.ps1              Updater used by start_*.bat / update_*.bat on clinic PCs
 ```
 
 ## Authors

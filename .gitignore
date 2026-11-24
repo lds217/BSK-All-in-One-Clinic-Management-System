@@ -93,3 +93,7 @@ config/app_settings.properties
 
 # ===== Ultrasound machine export folder (patient images) =====
 ANH SIEU AM/
+
+# ===== Updater working folders (bsk_update.ps1) =====
+update_tmp/
+update_backup/

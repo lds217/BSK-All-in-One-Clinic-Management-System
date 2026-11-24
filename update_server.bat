@@ -1,20 +1,11 @@
 @echo off
-REM BSK Server Update Script Launcher
-REM This batch file runs the PowerShell update script with proper execution policy
-
-echo BSK Server Update Launcher
-echo ========================
-echo.
-
-REM Change to the script directory
+REM For the administrator: closes the running BSK programs (after asking), updates, then starts the server.
+REM To go back to the previous version: update_server.bat rollback
 cd /d "%~dp0"
-
-REM Run the PowerShell script with execution policy bypass
-powershell -ExecutionPolicy Bypass -File ".\update_server_script.ps1"
-
-REM Keep the window open if there's an error
-if errorlevel 1 (
-    echo.
-    echo An error occurred. Press any key to exit...
-    pause >nul
+if /i "%~1"=="rollback" (
+    powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0bsk_update.ps1" -App server -Mode update -Rollback
+) else (
+    powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0bsk_update.ps1" -App server -Mode update
 )
+echo.
+pause

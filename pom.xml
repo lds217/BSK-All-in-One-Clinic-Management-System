@@ -10,8 +10,11 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.release>21</maven.compiler.release>
         <exec.mainClass>BsK.LdS_BsK</exec.mainClass>
+        <!-- Clinic PCs are all Windows x64: ship only those native libraries (see the dependencies below). -->
+        <javacpp.platform.classifier>windows-x86_64</javacpp.platform.classifier>
     </properties>
     <build>
+        <finalName>bsk</finalName>
         <resources>
             <resource>
                 <directory>src/main/resources</directory>
@@ -41,46 +44,85 @@
                     <skipTests>true</skipTests>
                 </configuration>
             </plugin>
+            <!--
+                Release layout (target/release), published to the clinic PCs by bsk_update.ps1:
+                  bsk.jar     the application itself (changes every release)
+                  client.jar  tiny launcher: Main-Class BsK.client.Client, Class-Path bsk.jar + lib/*
+                  server.jar  tiny launcher: Main-Class BsK.server.Server
+                  lib/        dependency jars, only downloaded again when a dependency changes
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>3.4.1</version>
+                <executions>
+                    <execution>
+                        <id>client-launcher</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                        <configuration>
+                            <classifier>client</classifier>
+                            <includes>
+                                <include>launcher-only/**</include>
+                            </includes>
+                            <archive>
+                                <manifest>
+                                    <mainClass>BsK.client.Client</mainClass>
+                                    <addClasspath>true</addClasspath>
+                                    <classpathPrefix>lib/</classpathPrefix>
+                                </manifest>
+                                <manifestEntries>
+                                    <Class-Path>bsk.jar</Class-Path>
+                                </manifestEntries>
+                            </archive>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>server-launcher</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                        <configuration>
+                            <classifier>server</classifier>
+                            <includes>
+                                <include>launcher-only/**</include>
+                            </includes>
+                            <archive>
+                                <manifest>
+                                    <mainClass>BsK.server.Server</mainClass>
+                                    <addClasspath>true</addClasspath>
+                                    <classpathPrefix>lib/</classpathPrefix>
+                                </manifest>
+                                <manifestEntries>
+                                    <Class-Path>bsk.jar</Class-Path>
+                                </manifestEntries>
+                            </archive>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-assembly-plugin</artifactId>
                 <version>3.7.1</version>
                 <executions>
                     <execution>
-                        <id>server-jar</id>
-                        <configuration>
-                            <archive>
-                                <manifest>
-                                    <mainClass>BsK.server.Server</mainClass>
-                                </manifest>
-                            </archive>
-                            <descriptorRefs>
-                                <descriptorRef>jar-with-dependencies</descriptorRef>
-                            </descriptorRefs>
-                            <finalName>bsk-server</finalName>
-                        </configuration>
+                        <id>release</id>
+                        <phase>package</phase>
                         <goals>
                             <goal>single</goal>
                         </goals>
-                        <phase>package</phase>
-                    </execution>
-                    <execution>
-                        <id>client-jar</id>
                         <configuration>
-                            <archive>
-                                <manifest>
-                                    <mainClass>BsK.client.Client</mainClass>
-                                </manifest>
-                            </archive>
-                            <descriptorRefs>
-                                <descriptorRef>jar-with-dependencies</descriptorRef>
-                            </descriptorRefs>
-                            <finalName>bsk-client</finalName>
+                            <descriptors>
+                                <descriptor>src/assembly/release.xml</descriptor>
+                            </descriptors>
+                            <finalName>release</finalName>
+                            <appendAssemblyId>false</appendAssemblyId>
+                            <attach>false</attach>
                         </configuration>
-                        <goals>
-                            <goal>single</goal>
-                        </goals>
-                        <phase>package</phase>
                     </execution>
                 </executions>
             </plugin>
@@ -160,8 +202,9 @@
         </dependency>
         <dependency>
             <groupId>org.bytedeco</groupId>
-            <artifactId>ffmpeg-platform</artifactId>
+            <artifactId>ffmpeg</artifactId>
             <version>6.1.1-1.5.10</version>
+            <classifier>${javacpp.platform.classifier}</classifier>
         </dependency>
         <dependency>
             <groupId>org.bytedeco</groupId>
@@ -170,8 +213,22 @@
         </dependency>
         <dependency>
             <groupId>org.bytedeco</groupId>
-            <artifactId>opencv-platform</artifactId>
+            <artifactId>opencv</artifactId>
             <version>4.9.0-1.5.10</version>
+            <classifier>${javacpp.platform.classifier}</classifier>
+        </dependency>
+        <!-- Native libraries that opencv-platform / ffmpeg-platform used to pull in for every OS -->
+        <dependency>
+            <groupId>org.bytedeco</groupId>
+            <artifactId>openblas</artifactId>
+            <version>0.3.26-1.5.10</version>
+            <classifier>${javacpp.platform.classifier}</classifier>
+        </dependency>
+        <dependency>
+            <groupId>org.bytedeco</groupId>
+            <artifactId>javacpp</artifactId>
+            <version>1.5.10</version>
+            <classifier>${javacpp.platform.classifier}</classifier>
         </dependency>
         <!-- https://mvnrepository.com/artifact/net.sf.jasperreports/jasperreports -->
         <dependency>
