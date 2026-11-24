@@ -90,6 +90,8 @@ GoogleDriveTest_README.md
 # ===== Local config with real clinic details (copy config/config.properties.example) =====
 config/config.properties
 config/app_settings.properties
+# Server TLS key and certificate (created on first start)
+config/tls/
 
 # ===== Ultrasound machine export folder (patient images) =====
 ANH SIEU AM/

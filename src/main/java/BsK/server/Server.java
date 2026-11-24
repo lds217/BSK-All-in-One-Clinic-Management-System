@@ -2,6 +2,7 @@ package BsK.server;
 
 import BsK.server.database.DatabaseManager;
 import BsK.server.network.handler.ServerHandler;
+import BsK.server.security.ServerTls;
 import BsK.server.security.UserAccountBootstrap;
 import BsK.server.service.GoogleDriveServiceOAuth;
 import io.netty.bootstrap.ServerBootstrap;
@@ -41,6 +42,8 @@ public class Server {
   private static String googleDriveRootFolderName = "BSK_Clinic_Patient_Files"; // Default
   public static String imageDbPath = "img_db"; // Default
   public static String checkupMediaBaseDir = "image/checkup_media"; // Default
+  private static boolean tlsEnabled = true;
+  private static boolean tlsAllowPlaintext = true;
 
     static {
         try {
@@ -85,6 +88,11 @@ public class Server {
                 PORT = 1999;
                 log.info("Using default port: {}", PORT);
             }
+
+            // TLS: on by default. allow_plaintext keeps not-yet-updated clients working during rollout.
+            tlsEnabled = !"false".equalsIgnoreCase(props.getProperty("server.tls.enabled", "true").trim());
+            tlsAllowPlaintext = !"false".equalsIgnoreCase(props.getProperty("server.tls.allow_plaintext", "true").trim());
+            log.info("TLS enabled: {}, unencrypted clients allowed: {}", tlsEnabled, !tlsEnabled || tlsAllowPlaintext);
 
             // Get Google Drive configuration
             String driveEnabledStr = props.getProperty("google.drive.enabled");
@@ -305,6 +313,23 @@ public class Server {
           return;
         }
 
+        ServerTls tls = null;
+        if (tlsEnabled) {
+          try {
+            tls = ServerTls.loadOrCreate(ServerTls.DEFAULT_KEYSTORE);
+          } catch (Exception e) {
+            log.error("Failed to set up TLS. Server will not start.", e);
+            dashboard.updateStatus("Lỗi khởi tạo mã hoá", Color.RED);
+            dashboard.addLog("Không thể khởi tạo mã hoá TLS: " + e.getMessage()
+                + ". Có thể tạm tắt bằng server.tls.enabled=false trong config/config.properties.");
+            return;
+          }
+        }
+        final ServerTls serverTls = tls;
+        if (serverTls != null) {
+          serverTls.setNotice(dashboard::addLog);
+        }
+
         EventLoopGroup parentGroup =
             Epoll.isAvailable() ? new EpollEventLoopGroup() : new NioEventLoopGroup();
         EventLoopGroup childGroup =
@@ -322,6 +347,9 @@ public class Server {
                       new ChannelInitializer<SocketChannel>() {
                         @Override
                         protected void initChannel(SocketChannel ch) throws Exception {
+                          if (serverTls != null) {
+                            ch.pipeline().addLast("tls", serverTls.newHandler(ch, tlsAllowPlaintext));
+                          }
                           ch.pipeline()
                               .addLast(new HttpServerCodec())
                               .addLast(new ChunkedWriteHandler())
@@ -341,6 +369,15 @@ public class Server {
           // Update dashboard status to running
           dashboard.updateStatus("Đang chạy", Color.GREEN);
           dashboard.addLog("Máy chủ đã khởi động thành công trên cổng " + PORT);
+          if (serverTls != null) {
+            log.info("TLS certificate fingerprint (SHA-256): {}", serverTls.fingerprint());
+            dashboard.addLog("Mã hoá TLS: BẬT" + (tlsAllowPlaintext
+                ? " (vẫn cho phép máy trạm chưa cập nhật kết nối không mã hoá)"
+                : " (chỉ chấp nhận kết nối mã hoá)"));
+            dashboard.addLog("Mã nhận dạng chứng chỉ (SHA-256): " + serverTls.fingerprint());
+          } else {
+            dashboard.addLog("CẢNH BÁO: Mã hoá TLS đang TẮT (server.tls.enabled=false).");
+          }
           if (isGoogleDriveConnected()) {
               dashboard.addLog("Tích hợp Google Drive: Đã kết nối");
           } else {

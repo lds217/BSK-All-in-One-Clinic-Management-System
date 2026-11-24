@@ -177,6 +177,31 @@ You can edit them with **Jaspersoft Studio**. The fonts (SVN-Arial, Times New Ro
 
 <p align="center"><img src="docs/screenshots/jasper-template-design.jpg" width="720" alt="Editing the invoice template in Jaspersoft Studio"></p>
 
+## Encryption between clients and the server
+
+Traffic between the clients and the server is encrypted with TLS (`wss://`) on the same port as before.
+
+- **Server:** on first start it creates its own key and self-signed certificate in `config/tls/server.p12` (git-ignored) and reuses it afterwards. The dashboard shows the certificate's SHA-256 fingerprint.
+- **Clients:** on the first encrypted connection a client saves the server's fingerprint as `client.tls.server_fingerprint` in `config/config.properties`, and from then on refuses any other certificate. IP addresses and host names are not part of the check, so the server's address can change without a new certificate.
+
+Settings (see `config/config.properties.example`):
+
+| Key | Where | Default | Meaning |
+|---|---|---|---|
+| `server.tls.enabled` | server | `true` | Turn TLS on or off on the server. |
+| `server.tls.allow_plaintext` | server | `true` | Also accept clients that are not updated yet, on the same port. |
+| `client.tls.enabled` | client | `true` | Connect with TLS. Set `false` to roll a client back. |
+| `client.tls.server_fingerprint` | client | (filled in automatically) | The trusted server certificate. |
+
+**Rolling it out:**
+1. Update the server. Old clients keep working, and the dashboard lists each one that connects without encryption.
+2. Update each client. Each one connects with TLS and saves the fingerprint. Optionally compare it with the fingerprint on the server dashboard.
+3. On the server, set `server.tls.allow_plaintext=false` and restart.
+
+**If the server is reinstalled or replaced** (so `config/tls/server.p12` is new), clients show a "certificate does not match" error. After checking that the change is expected, delete the `client.tls.server_fingerprint` line on each client and start it again.
+
+TLS protects data on the network only. It does not encrypt the database or images on the server's disk.
+
 ## Deployment and updates
 
 A typical clinic install keeps `server.jar` / `client.jar` next to `config/`, `database/` and the version files. The `update_server.bat` / `update_client.bat` scripts (PowerShell under the hood) work like this:

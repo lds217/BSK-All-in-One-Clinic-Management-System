@@ -13,3 +13,13 @@ server.address=127.0.0.1
 server.port=1999
 storage.checkup_media_base_dir=image/checkup_media
 storage.ultrasound_folder_path=ANH SIEU AM
+
+# --- Encryption (TLS) between clients and the server ---
+# Server PC: the certificate is created automatically in config/tls/ on first start.
+server.tls.enabled=true
+# Keep true while some clients are not updated yet; set false once every client is updated.
+server.tls.allow_plaintext=true
+# Client PCs: connect with encryption. The server fingerprint below is filled in automatically
+# on the first connection; delete that line only if the server was reinstalled or replaced.
+client.tls.enabled=true
+client.tls.server_fingerprint=

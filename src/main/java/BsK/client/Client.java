@@ -1,5 +1,6 @@
 package BsK.client;
 
+import BsK.client.network.ClientTls;
 import BsK.client.network.handler.ClientHandler;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.Channel;
@@ -13,6 +14,8 @@ import io.netty.handler.codec.http.HttpClientCodec;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.websocketx.WebSocketClientProtocolHandler;
 import io.netty.handler.codec.http.websocketx.WebSocketVersion;
+import io.netty.handler.ssl.SslHandler;
+import io.netty.util.concurrent.Future;
 import java.net.URI;
 import java.net.URISyntaxException;
 import lombok.extern.slf4j.Slf4j;
@@ -30,6 +33,13 @@ public class Client {
     
     public static Properties getConfig() {
         return config;
+    }
+
+    private static void showTlsErrorDialog(String message) {
+        SwingUtilities.invokeLater(() -> {
+            JOptionPane.showMessageDialog(null, message, "Lỗi Kết Nối Bảo Mật", JOptionPane.ERROR_MESSAGE);
+            System.exit(1);
+        });
     }
 
     private static void showConnectionErrorDialog(String serverAddress, int port, Exception error) {
@@ -155,7 +165,7 @@ public class Client {
             
             URI uri = null;
             try {
-                uri = new URI("ws://" + serverAddress + ":" + serverPort + "/");
+                uri = new URI(ClientTls.webSocketScheme(config) + "://" + serverAddress + ":" + serverPort + "/");
             } catch (URISyntaxException e) {
                 showConnectionErrorDialog(serverAddress, serverPort, e);
                 return;
@@ -164,6 +174,8 @@ public class Client {
             EventLoopGroup group = new NioEventLoopGroup();
             try {
                 URI finalUri = uri;
+                String tlsHost = serverAddress;
+                int tlsPort = serverPort;
                 Bootstrap bootstrap =
                         new Bootstrap()
                                 .group(group)
@@ -171,7 +183,8 @@ public class Client {
                                 .handler(
                                         new ChannelInitializer<SocketChannel>() {
                                             @Override
-                                            protected void initChannel(SocketChannel ch) {
+                                            protected void initChannel(SocketChannel ch) throws Exception {
+                                                ClientTls.addTo(ch.pipeline(), config, tlsHost, tlsPort);
                                                 ch.pipeline()
                                                         .addLast(new HttpClientCodec())
                                                         .addLast(new HttpObjectAggregator(50  * 1024 * 1024))
@@ -186,8 +199,21 @@ public class Client {
                                                         .addLast("ws", ClientHandler.INSTANCE);
                                             }
                                         });
-                log.info("Connecting to {}:{}", serverAddress, serverPort);
+                log.info("Connecting to {}:{} ({})", serverAddress, serverPort,
+                        ClientTls.isEnabled(config) ? "encrypted" : "NOT encrypted");
                 Channel channel = bootstrap.connect(serverAddress, serverPort).sync().channel();
+
+                SslHandler tls = channel.pipeline().get(SslHandler.class);
+                if (tls != null) {
+                    Future<Channel> handshake = tls.handshakeFuture().awaitUninterruptibly();
+                    if (!handshake.isSuccess()) {
+                        log.error("TLS handshake with server failed", handshake.cause());
+                        channel.close();
+                        showTlsErrorDialog(ClientTls.describeHandshakeFailure(handshake.cause()));
+                        return;
+                    }
+                    log.info("Encrypted connection established ({})", tls.engine().getSession().getProtocol());
+                }
                 
                 // Store the channel for potential reconnection
                 ClientHandler.ctx = channel.pipeline().get(ClientHandler.class).ctx;

@@ -69,6 +69,7 @@ public class ConnectionManager {
     private String serverAddress = "localhost";
     private int serverPort = 1999;
     private URI serverUri;
+    private Properties config = new Properties();
     
     // Connection state
     private final AtomicReference<ConnectionState> state = new AtomicReference<>(ConnectionState.DISCONNECTED);
@@ -109,12 +110,13 @@ public class ConnectionManager {
      * Initialize connection parameters from config
      */
     public void initialize(Properties config) {
+        this.config = config;
         this.serverAddress = config.getProperty("server.address", "localhost");
         String portStr = config.getProperty("server.port", "1999");
         this.serverPort = Integer.parseInt(portStr);
         
         try {
-            this.serverUri = new URI("ws://" + serverAddress + ":" + serverPort + "/");
+            this.serverUri = new URI(ClientTls.webSocketScheme(config) + "://" + serverAddress + ":" + serverPort + "/");
             log.info("ConnectionManager initialized with server: {}:{}", serverAddress, serverPort);
         } catch (URISyntaxException e) {
             log.error("Invalid server URI", e);
@@ -280,7 +282,8 @@ public class ConnectionManager {
                 .channel(NioSocketChannel.class)
                 .handler(new ChannelInitializer<SocketChannel>() {
                     @Override
-                    protected void initChannel(SocketChannel ch) {
+                    protected void initChannel(SocketChannel ch) throws Exception {
+                        ClientTls.addTo(ch.pipeline(), config, serverAddress, serverPort);
                         ch.pipeline()
                             .addLast(new HttpClientCodec())
                             .addLast(new HttpObjectAggregator(50 * 1024 * 1024))

@@ -18,6 +18,9 @@ import BsK.server.network.entity.User;
 import BsK.server.security.PasswordHasher;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
+import io.netty.handler.codec.DecoderException;
+import io.netty.handler.ssl.NotSslRecordException;
+import javax.net.ssl.SSLException;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.Utf8FrameValidator;
 import io.netty.handler.codec.http.websocketx.WebSocketServerProtocolHandler.HandshakeComplete;
@@ -2755,6 +2758,21 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
   
   @Override
   public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+    if (cause instanceof DecoderException && cause.getCause() instanceof NotSslRecordException) {
+      // Only happens with server.tls.allow_plaintext=false: an old, unencrypted client was refused.
+      log.warn("Refused unencrypted connection from {}", ctx.channel().remoteAddress());
+      ServerDashboard.getInstance().addLog("Từ chối kết nối không mã hoá từ " + ctx.channel().remoteAddress()
+          + " — hãy cập nhật máy trạm này.");
+      ctx.close();
+      return;
+    }
+    if (cause instanceof DecoderException && cause.getCause() instanceof SSLException tlsError) {
+      log.warn("TLS handshake with {} failed: {}", ctx.channel().remoteAddress(), tlsError.getMessage());
+      ServerDashboard.getInstance().addLog("Kết nối mã hoá với " + ctx.channel().remoteAddress()
+          + " thất bại: " + tlsError.getMessage());
+      ctx.close();
+      return;
+    }
     if (cause instanceof IOException) {
       var user = SessionManager.getUserByChannel(ctx.channel().id().asLongText());
       if (user != null) {
