@@ -1434,6 +1434,13 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
     }
 
       if (packet instanceof DeleteCheckupRequest deleteCheckupRequest) {
+        // Deleting a checkup removes its prescriptions, services and images for good,
+        // so only ADMIN may do it. The client only offers it on the admin data screen.
+        if (currentUser.getRole() != Role.ADMIN) {
+            log.warn("User {} without ADMIN role tried to delete checkup {}", currentUser.getUserId(), deleteCheckupRequest.getCheckupId());
+            UserUtil.sendPacket(currentUser.getSessionId(), new DeleteCheckupResponse(false, "Bạn không có quyền xóa phiếu khám."));
+            return;
+        }
         log.info("Recieved delete checkup request for checkupId: {}", deleteCheckupRequest.getCheckupId());
     
         long checkupId = deleteCheckupRequest.getCheckupId();
