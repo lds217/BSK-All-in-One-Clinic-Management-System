@@ -783,10 +783,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                 UserUtil.sendPacket(currentUser.getSessionId(), new AddCheckupResponse(true, "Thêm bệnh nhân thành công", queueNumber));
                 broadcastQueueUpdate(shift);
                 if (shouldBroadcastCounter) { // Nếu STT không chỉ định, thì không cần gửi cho các client
-                    int maxCurId = SessionManager.getMaxSessionId();
-                    for (int sessionId = 1; sessionId <= maxCurId; sessionId++) {
-                        UserUtil.sendPacket(sessionId, new SetCounterResponse(queueNumber, shift));
-                    }
+                    UserUtil.broadcastToAuthenticated(new SetCounterResponse(queueNumber, shift));
                 }
                 // Tạo thư mục Google Drive bất đồng bộ
                 createCheckupGoogleDriveFolderAsync(generatedCheckupId, addCheckupRequest.getCustomerId());
@@ -839,10 +836,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                     stmt.executeUpdate();
                 }
 
-                int maxCurId = SessionManager.getMaxSessionId();
-                for (int sessionId = 1; sessionId <= maxCurId; sessionId++) {
-                    UserUtil.sendPacket(sessionId, new SetCounterResponse(newCounter, shift));
-                }
+                UserUtil.broadcastToAuthenticated(new SetCounterResponse(newCounter, shift));
             }
         } catch (SQLException e) {
             log.error("Error during SetCounterRequest.", e);
@@ -879,10 +873,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         Status status = callPatientRequest.getStatus();
         String queueNumber = callPatientRequest.getQueueNumber();
         // send to all clients with the queue number included
-        int maxCurId = SessionManager.getMaxSessionId();
-        for (int sessionId = 1; sessionId <= maxCurId; sessionId++) {
-            UserUtil.sendPacket(sessionId, new CallPatientResponse(checkupId, roomId, queueNumber, status));
-        }
+        UserUtil.broadcastToAuthenticated(new CallPatientResponse(checkupId, roomId, queueNumber, status));
       }
 
       if (packet instanceof SaveCheckupRequest saveCheckupRequest) {
@@ -1699,10 +1690,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         } catch (SQLException e) {
             log.error("Error fetching sender name for emergency, will use default.", e);
         }
-        int maxCurId = SessionManager.getMaxSessionId();
-        for (int sessionId = 1; sessionId <= maxCurId; sessionId++) {
-          UserUtil.sendPacket(sessionId, new EmergencyResponse(senderName));
-        }
+        UserUtil.broadcastToAuthenticated(new EmergencyResponse(senderName));
       }
       if (packet instanceof GetCheckupDataRequest getCheckupDataRequest) {
         if (currentUser.getRole() != Role.ADMIN) {
@@ -1892,10 +1880,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
       if (packet instanceof SimpleMessageRequest simpleMessageRequest) {
         log.debug("Received SimpleMessageRequest from {}", simpleMessageRequest.getSenderName());
         SimpleMessageResponse response = new SimpleMessageResponse(simpleMessageRequest.getSenderName(), simpleMessageRequest.getMessage());
-        int maxCurId = SessionManager.getMaxSessionId();
-        for (int sessionId = 1; sessionId <= maxCurId; sessionId++) {
-          UserUtil.sendPacket(sessionId, response);
-        }
+        UserUtil.broadcastToAuthenticated(response);
         log.debug("Sent SimpleMessageResponse to all sessions");
       }
       if (packet instanceof AddMedicineRequest addMedicineRequest) {
@@ -3280,12 +3265,9 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
             }
         }
 
-        int maxCurId = SessionManager.getMaxSessionId();
-        for (int sessionId = 1; sessionId <= maxCurId; sessionId++) {
-            UserUtil.sendPacket(sessionId, new GetCheckUpQueueUpdateResponse(resultArray, shift));
-            UserUtil.sendPacket(sessionId, new TodayPatientCountResponse(totalPatientsToday));
-            UserUtil.sendPacket(sessionId, new RecheckCountResponse(totalRecheckToday));
-        }
+        UserUtil.broadcastToAuthenticated(new GetCheckUpQueueUpdateResponse(resultArray, shift));
+        UserUtil.broadcastToAuthenticated(new TodayPatientCountResponse(totalPatientsToday));
+        UserUtil.broadcastToAuthenticated(new RecheckCountResponse(totalRecheckToday));
         log.debug("send checkup queue update response to all clients");
         log.debug("send today patient count response to all clients");
         log.debug("send recheck count response to all clients");
