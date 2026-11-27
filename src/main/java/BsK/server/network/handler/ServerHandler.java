@@ -1322,15 +1322,20 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                       originalFileName);
         }
     
+        // SECURITY: Only a numeric checkup ID and a plain file name are accepted, so the file
+        // cannot be written outside the checkup's image folder.
+        Path storageDir = checkupImageDir(checkupId);
+        Path filePath = fileInDir(storageDir, originalFileName);
+        if (filePath == null) {
+            log.warn("Rejected image upload with an invalid checkup ID or file name");
+            UserUtil.sendPacket(currentUser.getSessionId(), new UploadCheckupImageResponse(false, "Mã khám hoặc tên file không hợp lệ.", originalFileName));
+            return;
+        }
+
         try {
-            // 1. Define the storage directory
-            Path storageDir = Paths.get(Server.imageDbPath, checkupId.trim());
+            // 1. Create the storage directory
             Files.createDirectories(storageDir);
-    
-            // 2. Define the final file path using the original file name.
-            // This preserves the original extension (jpg, png, etc.).
-            Path filePath = storageDir.resolve(originalFileName);
-    
+
             // 3. Write the raw bytes directly to the file.
             // This is much faster and safer than decoding and re-encoding.
             Files.write(filePath, imageData);
@@ -1388,17 +1393,17 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                       fileName);
         }
     
-        if (fileName == null || fileName.trim().isEmpty()) {
-            UserUtil.sendPacket(currentUser.getSessionId(), 
+        // SECURITY: Only a numeric checkup ID and a plain file name are accepted, so nothing
+        // outside the checkup's image folder can be deleted.
+        Path filePath = fileInDir(checkupImageDir(checkupId), fileName);
+        if (filePath == null) {
+            log.warn("Rejected image delete with an invalid checkup ID or file name");
+            UserUtil.sendPacket(currentUser.getSessionId(),
                 new DeleteCheckupImageResponse(false, "Tên file không hợp lệ.", fileName));
             return;
         }
-    
+
         try {
-            // 1. Define the local file path
-            Path storageDir = Paths.get(Server.imageDbPath, checkupId.trim());
-            Path filePath = storageDir.resolve(fileName);
-    
             // 2. Delete the local file if it exists
             boolean localDeleted = false;
             if (Files.exists(filePath)) {
@@ -1539,8 +1544,9 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         List<String> imageNames = new ArrayList<>();
         List<byte[]> imageDatas = new ArrayList<>();
 
-        Path checkupDir = Paths.get(Server.imageDbPath, checkupId);
-        if (Files.exists(checkupDir) && Files.isDirectory(checkupDir)) {
+        // SECURITY: A non-numeric checkup ID could point at any folder, so it is treated as no images.
+        Path checkupDir = checkupImageDir(checkupId);
+        if (checkupDir != null && Files.exists(checkupDir) && Files.isDirectory(checkupDir)) {
             try {
                 List<Path> imagePaths = Files.list(checkupDir)
                     .filter(path -> {
@@ -1576,9 +1582,12 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         // No longer create a list for byte data: List<byte[]> imageDatas = new ArrayList<>();
         boolean success = false;
         String message = "";
-    
-        Path checkupDir = Paths.get(Server.imageDbPath, checkupId);
-        if (Files.exists(checkupDir) && Files.isDirectory(checkupDir)) {
+
+        Path checkupDir = checkupImageDir(checkupId);
+        if (checkupDir == null) {
+            log.warn("Rejected image sync with an invalid checkup ID");
+            message = "Invalid checkup ID";
+        } else if (Files.exists(checkupDir) && Files.isDirectory(checkupDir)) {
             try {
                 // We ONLY collect the names, not the file content
                 imageNames = Files.list(checkupDir)
@@ -1617,12 +1626,11 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
         String message = "";
     
         try {
-            Path checkupDir = Paths.get(Server.imageDbPath, checkupId);
-            Path targetPath = checkupDir.resolve(imageName).normalize();
-    
             // CRITICAL SECURITY CHECK: Prevent directory traversal attacks (e.g., "../../../etc/passwd")
-            if (!targetPath.startsWith(checkupDir)) {
-                throw new SecurityException("Attempted directory traversal attack: " + imageName);
+            // through either the checkup ID or the image name.
+            Path targetPath = fileInDir(checkupImageDir(checkupId), imageName);
+            if (targetPath == null) {
+                throw new SecurityException("Invalid checkup ID or image name");
             }
     
             if (Files.exists(targetPath) && Files.isRegularFile(targetPath)) {
@@ -2713,6 +2721,43 @@ public class ServerHandler extends SimpleChannelInboundHandler<TextWebSocketFram
    * @param fileName The image/video filename
    * @return The checkup ID extracted from the filename, or null if not found or invalid format
    */
+  /**
+   * Returns the image folder for a checkup, or null if the ID is not a plain number.
+   * Checkup IDs come from the client, so they must never be used as a path as-is.
+   */
+  private Path checkupImageDir(String checkupId) {
+      if (checkupId == null) {
+          return null;
+      }
+      String id = checkupId.trim();
+      if (!id.matches("\\d{1,18}")) {
+          return null;
+      }
+      return Paths.get(Server.imageDbPath, id);
+  }
+
+  /**
+   * Returns the file with the given name directly inside the folder, or null if the name is
+   * not a plain file name (it contains a path separator, a drive or stream colon, or is "." or "..").
+   */
+  private Path fileInDir(Path dir, String fileName) {
+      if (dir == null || fileName == null || fileName.isBlank()) {
+          return null;
+      }
+      if (fileName.contains("/") || fileName.contains("\\") || fileName.contains(":")
+              || fileName.indexOf('\0') >= 0 || fileName.equals(".") || fileName.equals("..")) {
+          return null;
+      }
+      Path base = dir.toAbsolutePath().normalize();
+      Path target;
+      try {
+          target = base.resolve(fileName).normalize();
+      } catch (java.nio.file.InvalidPathException e) {
+          return null;
+      }
+      return base.equals(target.getParent()) ? target : null;
+  }
+
   private String extractCheckupIdFromFilename(String fileName) {
       if (fileName == null || fileName.isEmpty()) {
           return null;
