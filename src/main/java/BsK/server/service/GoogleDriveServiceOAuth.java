@@ -91,7 +91,7 @@ public class GoogleDriveServiceOAuth {
         String folderName = this.rootFolderName;
         
         // Search for existing root folder
-        String query = "name='" + folderName + "' and mimeType='application/vnd.google-apps.folder' and trashed=false";
+        String query = "name='" + escapeQueryValue(folderName) + "' and mimeType='application/vnd.google-apps.folder' and trashed=false";
         FileList result = driveService.files().list()
                 .setQ(query)
                 .setSpaces("drive")
@@ -148,7 +148,7 @@ public class GoogleDriveServiceOAuth {
      * Find existing patient folder by patient ID
      */
     private Optional<String> findPatientFolder(String patientId) throws IOException {
-        String query = "name contains 'Patient_" + patientId + "_' and mimeType='application/vnd.google-apps.folder' and trashed=false and '" + rootFolderId + "' in parents";
+        String query = "name contains 'Patient_" + escapeQueryValue(patientId) + "_' and mimeType='application/vnd.google-apps.folder' and trashed=false and '" + escapeQueryValue(rootFolderId) + "' in parents";
         
         FileList result = driveService.files().list()
                 .setQ(query)
@@ -197,7 +197,7 @@ public class GoogleDriveServiceOAuth {
      * Find existing checkup folder by checkup ID within a patient folder
      */
     private Optional<String> findCheckupFolder(String patientFolderId, String checkupId) throws IOException {
-        String query = "name='Checkup_" + checkupId + "' and mimeType='application/vnd.google-apps.folder' and trashed=false and '" + patientFolderId + "' in parents";
+        String query = "name='Checkup_" + escapeQueryValue(checkupId) + "' and mimeType='application/vnd.google-apps.folder' and trashed=false and '" + escapeQueryValue(patientFolderId) + "' in parents";
         
         FileList result = driveService.files().list()
                 .setQ(query)
@@ -454,8 +454,8 @@ public class GoogleDriveServiceOAuth {
      */
     public List<File> findFilesByName(String parentFolderId, String fileName) throws IOException {
         String query = String.format("name = '%s' and '%s' in parents and trashed = false",
-                fileName.replace("'", "\\'"), // Escape single quotes in filename
-                parentFolderId);
+                escapeQueryValue(fileName),
+                escapeQueryValue(parentFolderId));
 
         FileList result = driveService.files().list()
                 .setQ(query)
@@ -476,8 +476,8 @@ public class GoogleDriveServiceOAuth {
     private String findOrCreateFolder(String parentFolderId, String folderName) throws IOException {
         // Search for existing folder
         String query = String.format("name = '%s' and mimeType='application/vnd.google-apps.folder' and '%s' in parents and trashed=false",
-                folderName.replace("'", "\\'"),
-                parentFolderId);
+                escapeQueryValue(folderName),
+                escapeQueryValue(parentFolderId));
 
         FileList result = driveService.files().list()
                 .setQ(query)
@@ -611,4 +611,15 @@ public class GoogleDriveServiceOAuth {
         driveService.files().delete(fileId).execute();
         log.info("Successfully deleted file with ID: {}", fileId);
     }
-} 
+
+    /**
+     * Escapes a value for use inside single quotes in a Drive search query. Without this, a name
+     * containing ' or \ (for example a patient named O'Neil) breaks the query or changes what it matches.
+     */
+    static String escapeQueryValue(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value.replace("\\", "\\\\").replace("'", "\\'");
+    }
+}
